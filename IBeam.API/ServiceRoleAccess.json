@@ -1,0 +1,31 @@
+{
+  "id": "3731fa8b-13ed-4b8c-af0b-5416c2426be0",
+  "serviceName": "CustomerService",
+  "applicationId": "64be5868-f934-4dcf-953e-322ff22ee839",
+  "applicationName": "Baseline Portal",
+  "allowAllRoles" :  false,
+  "serviceRoles": [
+    {
+      "applicationRoleId": "6f3aef91-5e8f-4b8c-a3f2-049dd2595055",
+      "applicationRole": "Admin"
+    },
+    {
+      "applicationRoleId": "307e126e-a80b-48cb-ba8b-ccf5c39231c1",
+      "applicationRole": "Owner"
+    }
+  ],
+  "actionRoles": [
+    {
+      "actionId": "6f3aef91-5e8f-4b8c-a3f2-049dd2595055",
+      "actionName": "Fetch",
+      "applicationRoleId": "153dc8fa-6e63-42ff-a345-4bb714b50069",
+      "applicationRole": "Technician"
+    },
+    {
+      "actionId": "f4ac992e-7ef1-4a9c-991e-45f675f6e403",
+      "actionName": "FetchById",
+      "applicationRoleId": "0dce9389-5e05-46a0-ad81-b562f974ac10",
+      "applicationRole": "Customer"
+    }
+  ]
+}
