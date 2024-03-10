@@ -1,0 +1,5 @@
+// Add this line to MappingProfile.cs
+CreateMap<AccountGroupRole, AccountGroupRoleDTO>().ReverseMap();
+// Add these lines to Startup.cs
+services.AddScoped<IAccountGroupRoleRepository, AccountGroupRoleRepository>();
+services.AddScoped<IAccountGroupRoleService, AccountGroupRoleService>();

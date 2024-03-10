@@ -1,0 +1,15 @@
+
+/IBeam.API/obj
+/IBeam.DataModels/bin
+/IBeam.DataModels/obj
+/IBeam.Mappings/obj
+/IBeam.Models/bin
+/IBeam.Models/obj
+/IBeam.Repositories/bin
+/IBeam.Repositories/obj
+/IBeam.Services/bin
+/IBeam.Services/obj
+/IBeam.Tests/bin
+/IBeam.Tests/obj
+/IBeam.Utilities/bin
+/IBeam.Utilities/obj
