@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace IBeam.Models
 {
-	public class Document
+    public class Document
 	{
 		public Guid Id { get; set; }
 		public string Name { get; set; }
