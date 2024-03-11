@@ -1,14 +1,40 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>$(AssemblyName)</Title>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <PackageId>IBeam</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>AUTHORS</Authors>
+    <Company>COMPANY_NAME</Company>
+    <PackageDescription>PACKAGE_DESCRIPTION</PackageDescription>
+    <RepositoryUrl>https://github.com/MedPACTech/IBeam</RepositoryUrl>
+  </PropertyGroup>
+
+
   <ItemGroup>
+    <None Remove="nuget.config" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="nuget.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="13.0.1" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
-    <PackageReference Include="IronPdf" Version="2024.3.3" />
+    <PackageReference Include="IronPdf" Version="2024.3.4" />
     <PackageReference Include="MimeKit" Version="4.4.0" />
     <PackageReference Include="SendGrid" Version="9.29.2" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.4.0" />
