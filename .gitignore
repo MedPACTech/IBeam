@@ -13,3 +13,6 @@
 /IBeam.Tests/obj
 /IBeam.Utilities/bin
 /IBeam.Utilities/obj
+/IBeam.API/bin
+/IBeam.Mappings/bin
+/.vs

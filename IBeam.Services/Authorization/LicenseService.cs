@@ -5,6 +5,7 @@ using IBeam.Models;
 using IBeam.Models.Interfaces;
 using IBeam.Repositories.Interfaces;
 using IBeam.Services.Interfaces;
+using License = IBeam.Models.License;
 
 namespace IBeam.Services
 {
