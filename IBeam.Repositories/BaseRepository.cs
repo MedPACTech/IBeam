@@ -135,6 +135,37 @@ namespace IBeam.Repositories
 
         }
 
+        public bool Archive(T dto)
+        {
+            if(dto is IDTOArchive dtoArchive)
+            {
+                dtoArchive.IsArchived = true;
+                Save(dto);
+                return true;
+            }
+            else
+            {
+                throw new Exception("DTO does not implement IDTOArchive");
+            }
+        }
+
+        public void ArchiveAll(List<T> dtos)
+        {
+
+            dtos.ForEach(dto =>
+            {
+                if (dto is IDTOArchive dtoArchive)
+                {
+                    dtoArchive.IsArchived = true;
+                }
+                else
+                {
+                    throw new Exception("DTOs do not implement IDTOArchive");
+                }
+            });
+            SaveAll(dtos);
+        }
+
         public void Delete(T dto)
         {
             try
