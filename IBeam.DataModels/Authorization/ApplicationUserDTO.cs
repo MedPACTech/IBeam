@@ -1,0 +1,19 @@
+using ServiceStack.DataAnnotations;
+using System;
+
+namespace IBeam.DataModels
+{
+
+	[Serializable]
+	[Alias("ApplicationAccounts")]
+	public class ApplicationAccountDTO : IDTO
+	{
+
+		public Guid Id { get; set; }
+		public Guid ApplicationId { get; set; }
+		public Guid AccountId { get; set; }
+		public Guid LicenseId { get; set; }
+		public DateTime DateLicensed { get; set; }
+
+	}
+}
