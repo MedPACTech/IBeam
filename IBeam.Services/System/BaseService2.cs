@@ -8,11 +8,10 @@ using IBeam.API.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using IBeam.Repositories.Interfaces;
 
 namespace IBeam.Services.System
 {
-    public abstract class BaseService<TDTO, IBaseModel> where TDTO : class, IDTO //: IBaseService
+    public abstract class BaseService2 : IBaseService
     {
         //Exception handling
         //Within a service
@@ -25,112 +24,6 @@ namespace IBeam.Services.System
         //--- 2. ServiceException (something happened in the service) -- UnExpected Exception
         //  - just send up
 
-        private readonly IRepository<TDTO> _repository;
-        private readonly IMapper _mapper;
-        public readonly  IServiceAuthorizationService _systemAuthorizationService;
-        private readonly ISystemAuditService _systemAuditService;
-        //private readonly IErrorLogService _errorLogService;
-
-        public BaseService(IBaseServices baseServices, IRepository<TDTO> repository)
-        {
-            _repository = repository;
-            _mapper = baseServices.Mapper;
-            _systemAuditService = baseServices.SystemAuditService;
-            _systemAuthorizationService = baseServices.SystemAuthorizationService;
-            //_errorLogService = baseServices._errorLogService;
-
-            SetApplicationId(Guid.Parse("64be5868-f934-4dcf-953e-322ff22ee839"));
-
-        }
-
-        ////////// MAPPINGS ////////////////////
-        public TDTO ModelToEntity(IBaseModel model)
-        {
-            return _mapper.Map<TDTO>(model);
-        }
-
-        public IBaseModel EntityToModel(TDTO dto)
-        {
-            return _mapper.Map<IBaseModel>(dto);
-        }
-
-        public List<TDTO> ModelToEntity(IEnumerable<IBaseModel> model)
-        {
-            return _mapper.Map<List<TDTO>>(model);
-        }
-
-        public List<IBaseModel> EntityToModel(IEnumerable<TDTO> dto)
-        {
-            return _mapper.Map<List<IBaseModel>>(dto);
-        }
-
-        ///////////////// DEFAULT REPOSITORY CALLS /////////////////////////
-        public List<IBaseModel> GetAll()
-        {
-            return EntityToModel(_repository.GetAll());
-        }
-
-        public IBaseModel GetById(Guid id)
-        {
-            return EntityToModel(_repository.GetById(id));
-        }
-
-        public List<IBaseModel> GetByIds(List<Guid> ids)
-        {
-            return EntityToModel(_repository.GetByIds(ids));
-        }
-
-        //todo: add return args
-        public bool Save(IBaseModel model)
-        {
-            var dto = ModelToEntity(model);
-            _repository.Save(dto);
-            return true;
-        }
-
-        public bool SaveAll(List<IBaseModel> models)
-        {
-            var entities = ModelToEntity(models);
-            _repository.SaveAll(entities);
-            return true;
-        }
-
-        public bool Archive(IBaseModel model)
-        {
-            var dto = ModelToEntity(model);
-            return _repository.Archive(dto);
-        }
-
-        public void ArchiveAll(List<IBaseModel> models)
-        {
-            var dtos = ModelToEntity(models);
-            _repository.ArchiveAll(dtos);
-        }
-
-        public void Delete(IBaseModel model)
-        {
-            var dto = ModelToEntity(model);
-            _repository.Delete(dto);
-        }
-
-        public void DeleteById(Guid id)
-        {
-            var dtoToDelete = _repository.GetById(id);
-            _repository.Delete(dtoToDelete);
-        }
-
-        ///////////////// AUDITING /////////////////////////
-        //public bool CreateAuditLog()
-       // {
-       //     return _systemAuditService.CreateAuditLog();
-       // }
-
-        ///////////////// LOGGING /////////////////////////
-        //public bool CreateErrorLog()
-        //{
-        //    return _errorLogService.CreateErrorLog();
-        //}
-
         private IDTO _idto;
         private bool _isNewId = false;
         private bool _ignoreContext = false;
@@ -139,24 +32,24 @@ namespace IBeam.Services.System
         private protected IAccountContext _AccountContext;
         private protected Guid _applicationId;
         public readonly IMemoryCache _memoryCache;
-        //public readonly IMapper _mapper;
-       // public readonly IServiceAuthorizationService _systemAuthorizationService;
-       // private readonly ISystemAuditService _systemAuditService;
+        public readonly IMapper _mapper;
+        public readonly IServiceAuthorizationService _systemAuthorizationService;
+        private readonly ISystemAuditService _systemAuditService;
         // private readonly IAccountContextService _AccountContextService;
 
         //public readonly bool _defaultAllowAccess;
 
-        //public BaseService(IBaseServices baseServices)
-        //{
-            //_mapper = baseServices.Mapper;
-            //_systemAuditService = baseServices.SystemAuditService;
-           // _systemAuthorizationService = baseServices.SystemAuthorizationService;
+        public BaseService2(IBaseServices baseServices)
+        {
+            _mapper = baseServices.Mapper;
+            _systemAuditService = baseServices.SystemAuditService;
+            _systemAuthorizationService = baseServices.SystemAuthorizationService;
             //_AccountContextService = baseServices.AccountContextService;
-           
+            SetApplicationId(Guid.Parse("64be5868-f934-4dcf-953e-322ff22ee839"));
             //AuthorizeService();
             //SetAccountContext();
             //_defaultAllowAccess = false;
-        //}
+        }
 
         public IAccountContext GetAccountContext()
         {
