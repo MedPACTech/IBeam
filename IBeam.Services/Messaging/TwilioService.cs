@@ -1,0 +1,32 @@
+﻿using IBeam.Services;
+using IBeam.API.Utilities;
+using Microsoft.Extensions.Options;
+using IBeam.Services.Interfaces;
+using Twilio;
+using Twilio.Rest.Api.V2010.Account;
+using Twilio.Types;
+
+namespace IBeam.Services.Messaging
+{
+    public class TwilioService : ITwilioService
+    {
+        private readonly AppSettings _appSettings;
+
+        public TwilioService(IOptions<AppSettings> appSettings)
+        {
+            _appSettings = appSettings.Value;
+
+            TwilioClient.Init(_appSettings.TwilioSID, _appSettings.TwilioAuthToken);
+        }
+
+        public void SendSMS(string to, string message)
+        {
+            to = string.Format("+{0}", to);
+            MessageResource.Create(
+                new PhoneNumber(to),
+                from: new PhoneNumber(_appSettings.TwilioPhoneNumber),
+                body: message
+            );
+        }
+    }
+}
