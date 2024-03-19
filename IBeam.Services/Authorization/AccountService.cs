@@ -1,7 +1,6 @@
 ﻿using System.Security.Claims;
 using System.Text;
 using AutoMapper;
-using Microsoft.Extensions.Caching.Memory;
 using IBeam.DataModels;
 using IBeam.Models;
 using IBeam.Models.API;
@@ -9,10 +8,11 @@ using IBeam.Models.Interfaces;
 using IBeam.Repositories.Interfaces;
 using IBeam.Services.Interfaces;
 using IBeam.Services.Messaging;
-using IBeam.API.Utilities;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Options;
+using IBeam.Utilities;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace IBeam.Services.Authorization
 {

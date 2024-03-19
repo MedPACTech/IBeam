@@ -1,7 +1,7 @@
 using System;
 using Microsoft.Extensions.Caching.Memory;
 
-namespace IBeam.API.Utilities
+namespace IBeam.Utilities
 {
     public class NamespacedMemoryCache
     {

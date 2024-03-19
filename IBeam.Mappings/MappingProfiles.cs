@@ -2,7 +2,7 @@
 using IBeam.Models;
 using IBeam.Models.API;
 
-namespace IBeam.API.Mappings
+namespace IBeam.Mappings
 {
     public class MappingProfiles : AutoMapper.Profile
     {

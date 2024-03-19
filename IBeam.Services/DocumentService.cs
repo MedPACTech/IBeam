@@ -6,11 +6,11 @@ using System.Linq;
 using System.Text.Json;
 using AutoMapper;
 using IronPdf;
-using Microsoft.AspNetCore.Http;
 using IBeam.DataModels;
 using IBeam.Models;
 using IBeam.Repositories.Interfaces;
 using IBeam.Services.Interfaces;
+using Microsoft.AspNetCore.Http;
 
 namespace IBeam.Services
 {
@@ -44,7 +44,8 @@ namespace IBeam.Services
 
         public bool Archive(Document image)
         {
-            _repository.Archive(image);
+            var documentDTO = _mapper.Map<DocumentDTO>(image);
+            _repository.Archive(documentDTO);
             return true;
         }
 

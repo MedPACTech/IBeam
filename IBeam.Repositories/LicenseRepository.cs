@@ -3,7 +3,7 @@ using System.Linq;
 using Microsoft.Extensions.Caching.Memory;
 using IBeam.DataModels;
 using IBeam.Repositories.Interfaces;
-using IBeam.API.Utilities;
+using IBeam.Utilities;
 using ServiceStack.OrmLite;
 using Microsoft.Extensions.Options;
 

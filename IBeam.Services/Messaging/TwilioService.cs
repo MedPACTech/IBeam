@@ -1,10 +1,10 @@
 ﻿using IBeam.Services;
-using IBeam.API.Utilities;
 using Microsoft.Extensions.Options;
 using IBeam.Services.Interfaces;
 using Twilio;
 using Twilio.Rest.Api.V2010.Account;
 using Twilio.Types;
+using IBeam.Utilities;
 
 namespace IBeam.Services.Messaging
 {

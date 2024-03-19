@@ -46,6 +46,18 @@ namespace IBeam.Repositories.Interfaces
         /// <param name="Ids">List of Ids to searh for</param>
         IEnumerable<T> GetByIds(List<Guid> Ids);
         /// <summary>
+        /// Archives a single record to repository. 
+        /// DTO must Inherit IDTOArchived, else will throw an exception
+        /// </summary>
+        /// <param name="dto">dto to archive</param>
+        bool Archive(T dto);
+        /// <summary>
+        /// Archives a collection of records to repository. 
+        /// DTO must Inherit IDTOArchived, else will throw an exception
+        /// </summary>
+        /// <param name="dtos">dtos to archive</param>
+        void ArchiveAll(List<T> dtos);
+        /// <summary>
         /// Saves a single record to repository. 
         /// This will clear any GetAll() cached records
         /// </summary>
