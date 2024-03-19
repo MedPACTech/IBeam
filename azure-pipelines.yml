@@ -62,7 +62,7 @@ steps:
   #condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
 
 - script: |
-    dotnet nuget push '$(Build.ArtifactStagingDirectory)/packages/nuget/$(ArtifactNugetName)' --source https://nuget.pkg.github.com/MedPACTech/index.json  --api-key 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
+    dotnet nuget push '$(Build.ArtifactStagingDirectory)/packages/nuget/packages-nuget/$(ArtifactNugetName)' --source https://nuget.pkg.github.com/MedPACTech/index.json  --api-key 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
     displayName: "Build, pack and push"          
 #- task: NuGetAuthenticate@1
 
