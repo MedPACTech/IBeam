@@ -61,6 +61,9 @@ steps:
   artifact: 'packages-nuget'
   #condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
 
+- script: |
+    dotnet nuget push '$(Build.ArtifactStagingDirectory)/packages/nuget/$(ArtifactNugetName)' --source https://nuget.pkg.github.com/MedPACTech/index.json  --api-key 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
+    displayName: "Build, pack and push"          
 #- task: NuGetAuthenticate@1
 
 #- script: |
@@ -87,4 +90,5 @@ steps:
 #- task: PublishBuildArtifacts@1
 #  displayName: 'Publish Artifact: drop'
 
-    
+     #dotnet build <CSPROJ_PATH> --configuration <CONFIGURATION>
+    #dotnet pack <CSPROJ_PATH> -p:PackageVersion=<YOUR_PACKAGE_VERSION> --output <OUTPUT_DIRECTORY> --configuration <CONFIGURATION>
