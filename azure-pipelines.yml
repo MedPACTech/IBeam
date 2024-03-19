@@ -1,0 +1,79 @@
+# ASP.NET Core (.NET Framework)
+# Build and test ASP.NET Core projects targeting the full .NET Framework.
+# Add steps that publish symbols, save build artifacts, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+
+name : Nuget-Deploy-IBeam.DataModels
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+    - IBeam.DataModels/*
+#    exclude:
+#    - IBeam.DataModels/**/*.Test
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  BuildConfiguration: Release
+  ArtifactNugetName: 'packages-nuget'  
+
+stages:
+- stage: build
+  displayName: 'Build Nuget Package'
+  jobs:
+  - job: CI_Build
+    displayName: 'Nuget - Build, Pack and Test'    
+    steps:
+#    - task: gitversion/setup@0
+#      displayName: Install GitVersion
+#      inputs:
+#        versionSpec: '5.5.0'
+        
+ #   - task: gitversion/execute@0
+#      displayName: Determine Version
+  
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore packages'
+      inputs:
+        command: 'restore'
+        projects: 'IBeam.DataModels/*.csproj'
+        feedsToUse: 'select'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Build Project'
+      inputs:
+        command: 'build'
+        projects: 'IBeam.DataModels/*.csproj'
+        arguments: '-c $(BuildConfiguration) --no-restore'
+
+#    - task: DotNetCoreCLI@2
+#      displayName: Run tests
+#      inputs:
+#        command: 'test'        
+#        projects: 'Nuget/**/*.Test.csproj'
+#        arguments: '-c $(BuildConfiguration) --no-build /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura /p:CoverletOutput=$(Build.SourcesDirectory)/TestResults/Coverage/'
+#        publishTestResults: true
+
+#    - task: PublishCodeCoverageResults@1
+#      displayName: 'Publish code coverage report'
+#      inputs:
+#        codeCoverageTool: 'Cobertura'
+#        summaryFileLocation: '$(Build.SourcesDirectory)/**/coverage.cobertura.xml'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Create nuget packages'
+      inputs:
+        command: 'pack'
+        packagesToPack: 'IBeam.DataModels/*.csproj;!**/*.Test.csproj'
+        packDirectory: '$(Build.ArtifactStagingDirectory)/packages'
+        nobuild: true
+        versioningScheme: 'byBuildNumber'
+
+    - publish: '$(Build.ArtifactStagingDirectory)/packages'
+      displayName: 'Publish Artifact: $(ArtifactNugetName)'
+      artifact: 'packages-nuget'
+      condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
