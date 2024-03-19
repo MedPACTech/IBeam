@@ -8,9 +8,17 @@
     <Company>COMPANY_NAME</Company>
     <PackageDescription>PACKAGE_DESCRIPTION</PackageDescription>
     <RepositoryUrl>https://github.com/MedPACTech/IBeam</RepositoryUrl>
+    <OutputType>Exe</OutputType>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(RunConfiguration)' == 'IBeam.API' " />
+
+  <ItemGroup>
+    <Compile Remove="Views\**" />
+    <Content Remove="Views\**" />
+    <EmbeddedResource Remove="Views\**" />
+    <None Remove="Views\**" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
@@ -24,23 +32,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Views\Images\" />
-    <Folder Include="Views\Shared\" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\IBeam.Models\IBeam.Models.csproj" />
     <ProjectReference Include="..\IBeam.Services\IBeam.Services.csproj" />
     <ProjectReference Include="..\IBeam.Utilities\IBeam.Utilities.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Update="Views\Shared\CalConversionCertification %28copy%29.cshtml">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Update="Views\Shared\ServiceReport %28copy%29.cshtml">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
 
 </Project>
