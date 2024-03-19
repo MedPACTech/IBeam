@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <PackageId>IBeam</PackageId>
+    <PackageId>IBeam.API</PackageId>
     <Version>1.0.0</Version>
     <Authors>AUTHORS</Authors>
     <Company>COMPANY_NAME</Company>
@@ -34,7 +34,6 @@
   <ItemGroup>
     <ProjectReference Include="..\IBeam.Models\IBeam.Models.csproj" />
     <ProjectReference Include="..\IBeam.Services\IBeam.Services.csproj" />
-    <ProjectReference Include="..\IBeam.Utilities\IBeam.Utilities.csproj" />
   </ItemGroup>
 
 </Project>
