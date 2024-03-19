@@ -15,7 +15,7 @@ trigger:
 #    - IBeam.DataModels/**/*.Test
 
 pool:
-  vmImage: 'ubuntu-latest'
+    vmImage: 'windows-latest'
 
 variables:
   BuildConfiguration: Release
