@@ -10,6 +10,7 @@ variables:
  Major: '1'
  Minor: '1'
  Patch: '0'
+ ArtifactNugetName: 'packages-nuget'  
 
 #resources:
 #  repositories:
@@ -55,12 +56,16 @@ steps:
       minorVersion: '$(Minor)'
       patchVersion: '$(Patch)'
 
+- publish: '$(Build.ArtifactStagingDirectory)/packages/nuget'
+  displayName: 'Publish Artifact: $(ArtifactNugetName)'
+  artifact: 'packages-nuget'
+  #condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
 
 #- task: NuGetAuthenticate@1
 
-- script: |
-    nuget push -src https://nuget.pkg.github.com/MedPACTech/index.json 
-    displayName: "Push"    
+#- script: |
+#    nuget push -src https://nuget.pkg.github.com/MedPACTech/index.json 
+#    displayName: "Push"    
 
 #- task: DotNetCoreCLI@2
 #  displayName: 'Create nuget packages'
