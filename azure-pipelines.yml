@@ -44,20 +44,24 @@ steps:
     modifyOutputPath: false
 
 - task: DotNetCoreCLI@2
+  displayName: 'Create nuget package'
   inputs:
-    command: pack
-    versioningScheme: byPrereleaseNumber
-    majorVersion: '$(Major)'
-    minorVersion: '$(Minor)'
-    patchVersion: '$(Patch)'
+      command: 'pack'
+      packagesToPack: '**/IBeam.DataModels.csproj;'
+      packDirectory: '$(Build.ArtifactStagingDirectory)/packages/nuget'
+      nobuild: true
+      versioningScheme: 'byBuildNumber'
+      majorVersion: '$(Major)'
+      minorVersion: '$(Minor)'
+      patchVersion: '$(Patch)'
 
-- task: NuGetAuthenticate@1
+#- task: NuGetAuthenticate@1
 #  inputs:
 #      nuGetServiceConnections:  MedPACTech
 
-- script: |
-    nuget push -src https://nuget.pkg.github.com/MedPACTech/index.json 
-    displayName: "Push"    
+#- script: |
+#    nuget push -src https://nuget.pkg.github.com/MedPACTech/index.json 
+#    displayName: "Push"    
 
 #- task: DotNetCoreCLI@2
 #  displayName: 'Create nuget packages'
