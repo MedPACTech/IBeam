@@ -13,5 +13,6 @@ namespace IBeam.Services.System
         IMapper Mapper { get; set; }
         ISystemAuditService SystemAuditService { get; set; }
         IServiceAuthorizationService SystemAuthorizationService { get; set; }
+        //IErrorLogService _errorLogService { get; set; }
     }
 }

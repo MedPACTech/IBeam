@@ -1,7 +1,7 @@
 ﻿using ServiceStack.OrmLite;
 using System;
 using IBeam.DataModels;
-using IBeam.API.Utilities;
+using IBeam.Utilities;
 using System.Linq;
 using IBeam.Repositories.Interfaces;
 using Microsoft.Extensions.Caching.Memory;

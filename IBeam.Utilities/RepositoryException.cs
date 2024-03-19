@@ -5,7 +5,7 @@ using System.Runtime.Serialization;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace IBeam.API.Utilities
+namespace IBeam.Utilities
 {
     //
     // Summary:

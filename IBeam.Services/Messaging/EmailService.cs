@@ -1,7 +1,7 @@
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
-using IBeam.API.Utilities;
+using IBeam.Utilities;
 using Microsoft.Extensions.Options;
 using IBeam.Services.Interfaces;
 using MimeKit.Text;

@@ -12,7 +12,7 @@ namespace IBeam.Services.System
         public IMapper Mapper { get; set; }
         public ISystemAuditService SystemAuditService { get; set; }
         public IServiceAuthorizationService SystemAuthorizationService { get; set; }
-       // public IHttpContextAccessor HttpContextAccessor { get; set; }
+        //public IErrorLogService _errorLogService { get; set; }
 
         public BaseServices(IMapper mapper, ISystemAuditService systemAuditService, IServiceAuthorizationService systemAuthorizationService)
         {
