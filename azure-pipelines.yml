@@ -6,7 +6,10 @@ variables:
  buildPlatform: 'AnyCPU'
  buildConfiguration: 'Release'
  solution: '**/IBeam.sln'
- project: '**/IBeam.DataModels.csproj'
+ project: '**/IBeam.DataModels.csproj'  
+ Major: '1'
+ Minor: '1'
+ Patch: '0'
 
 #resources:
 #  repositories:
@@ -41,13 +44,21 @@ steps:
     modifyOutputPath: false
 
 - task: DotNetCoreCLI@2
-  displayName: 'Create nuget packages'
   inputs:
-      command: 'pack'
-      packagesToPack: '**/IBeam.DataModels.csproj;'
-      packDirectory: '$(Build.ArtifactStagingDirectory)/packages/nuget'
-      nobuild: true
-      versioningScheme: 'byBuildNumber'   
+    command: pack
+    versioningScheme: byPrereleaseNumber
+    majorVersion: '$(Major)'
+    minorVersion: '$(Minor)'
+    patchVersion: '$(Patch)'
+
+#- task: DotNetCoreCLI@2
+#  displayName: 'Create nuget packages'
+#  inputs:
+#      command: 'pack'
+#      packagesToPack: '**/IBeam.DataModels.csproj;'
+#      packDirectory: '$(Build.ArtifactStagingDirectory)/packages/nuget'
+ #     nobuild: true
+ #     versioningScheme: 'byBuildNumber'   
 
 #  - task: NuGetAuthenticate@1
 #    inputs:
