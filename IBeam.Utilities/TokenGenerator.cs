@@ -2,7 +2,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace IBeam.API.Utilities
+namespace IBeam.Utilities
 {
     public static class TokenGenerator
     {

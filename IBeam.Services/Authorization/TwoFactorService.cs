@@ -3,7 +3,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using IBeam.Models.Interfaces;
 using IBeam.Services.Messaging;
-using IBeam.API.Utilities;
+using IBeam.Utilities;
 
 namespace IBeam.Services.Authorization
 {

@@ -18,7 +18,7 @@ namespace IBeam.API.Controllers.Extensions
             return controller.User.Claims.First(x => x.Type == ClaimTypes.Role).Value;
         }
 
-        public static void SetAccountContext(this BaseController controller, BaseService baseService)
+        public static void SetAccountContext(this BaseController controller, IBaseService baseService)
         {
             
             baseService.SetAccountContext(controller._AccountContext);

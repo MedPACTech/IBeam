@@ -1,10 +1,10 @@
 ﻿using IBeam.Services;
-using IBeam.API.Utilities;
 using IBeam.Services.Interfaces;
 using SendGrid;
 using SendGrid.Helpers.Mail;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
+using IBeam.Utilities;
 
 namespace IBeam.Services.Messaging
 {
