@@ -1,7 +1,6 @@
 using IBeam.DataModels;
-using IBeam.Models;
 using IBeam.Repositories.Interfaces;
-using IBeam.API.Utilities;
+using IBeam.Utilities;
 using Microsoft.Extensions.Caching.Memory;
 using ServiceStack.OrmLite;
 using System.Data;
@@ -27,12 +26,12 @@ namespace IBeam.Repositories
             }
         }
 
-        public bool Archive(Document image)
+        public bool Archive(DocumentDTO Document)
         {
             try
             {
                 using IDbConnection db = _dataFactory.OpenDbConnection();
-                var obj = db.Select<DocumentDTO>(x => x.Id == image.Id).FirstOrDefault();
+                var obj = db.Select<DocumentDTO>(x => x.Id == Document.Id).FirstOrDefault();
                 obj.IsArchived = true;
                 db.Update(obj);
                 return true;

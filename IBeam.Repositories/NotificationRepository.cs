@@ -1,12 +1,11 @@
 ﻿using IBeam.DataModels;
-using IBeam.API.Utilities;
+using IBeam.Utilities;
 using ServiceStack.OrmLite;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using IBeam.Repositories.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
-using IBeam.Models;
 using System.Linq;
 using Microsoft.Extensions.Options;
 

@@ -4,7 +4,7 @@ using IBeam.DataModels;
 using IBeam.Models;
 using IBeam.Models.API;
 using IBeam.Services.Interfaces;
-using IBeam.API.Utilities;
+using IBeam.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
