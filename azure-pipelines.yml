@@ -51,6 +51,14 @@ steps:
     minorVersion: '$(Minor)'
     patchVersion: '$(Patch)'
 
+- task: NuGetAuthenticate@1
+#  inputs:
+#      nuGetServiceConnections:  MedPACTech
+
+- script: |
+    nuget push -src https://nuget.pkg.github.com/MedPACTech/index.json 
+    displayName: "Push"    
+
 #- task: DotNetCoreCLI@2
 #  displayName: 'Create nuget packages'
 #  inputs:
