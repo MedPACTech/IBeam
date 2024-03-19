@@ -50,7 +50,7 @@ steps:
       packagesToPack: '**/IBeam.DataModels.csproj;'
       packDirectory: '$(Build.ArtifactStagingDirectory)/packages/nuget'
       nobuild: true
-      versioningScheme: 'byBuildNumber'
+      versioningScheme: 'byPrereleaseNumber'
       majorVersion: '$(Major)'
       minorVersion: '$(Minor)'
       patchVersion: '$(Patch)'
