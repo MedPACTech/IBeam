@@ -2,6 +2,9 @@
 trigger: 
 - none
 
+pool:
+  vmImage: 'windows-latest'
+
 variables:
  buildPlatform: 'AnyCPU'
  buildConfiguration: 'Release'
@@ -36,34 +39,34 @@ steps:
     projects: '$(project)'
     arguments: '--configuration $(buildConfiguration)'
 
-- task: DotNetCoreCLI@2
-  inputs:
-    command: 'publish'
-    publishWebProjects: false
-    projects: '$(project)'
-    arguments: '--configuration $(buildConfiguration)  --output $(Build.ArtifactStagingDirectory)'
-    modifyOutputPath: false
+#- task: DotNetCoreCLI@2
+#  inputs:
+#    command: 'publish'
+#    publishWebProjects: false
+#    projects: '$(project)'
+#    arguments: '--configuration $(buildConfiguration)  --output $(Build.ArtifactStagingDirectory)'
+#    modifyOutputPath: false
 
 - task: DotNetCoreCLI@2
   displayName: 'Create nuget package'
   inputs:
       command: 'pack'
       packagesToPack: '**/IBeam.DataModels.csproj;'
-      packDirectory: '$(Build.ArtifactStagingDirectory)/packages/nuget'
-      nobuild: true
-      versioningScheme: 'byPrereleaseNumber'
-      majorVersion: '$(Major)'
-      minorVersion: '$(Minor)'
-      patchVersion: '$(Patch)'
+      #packDirectory: '$(Build.ArtifactStagingDirectory)/packages/nuget'
+      #nobuild: true
+      #versioningScheme: 'byPrereleaseNumber'
+      #majorVersion: '$(Major)'
+      #minorVersion: '$(Minor)'
+      #patchVersion: '$(Patch)'
 
-- publish: '$(Build.ArtifactStagingDirectory)/packages/nuget'
-  displayName: 'Publish Artifact: $(ArtifactNugetName)'
-  artifact: 'packages-nuget'
+#- publish: '$(Build.ArtifactStagingDirectory)/packages/nuget'
+#  displayName: 'Publish Artifact: $(ArtifactNugetName)'
+#  artifact: 'packages-nuget'
   #condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
 
 - script: |
-    dotnet nuget push '$(Build.ArtifactStagingDirectory)/packages/nuget/**.nupkg' --source https://nuget.pkg.github.com/MedPACTech/index.json  --api-key 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
-    displayName: "Build, pack and push"          
+    dotnet nuget push "bin/Release/IBeam.Models.1.0.0.nupkg" --source "github"
+#dotnet nuget push '$(Build.ArtifactStagingDirectory)/packages/nuget/**.nupkg' --source https://nuget.pkg.github.com/MedPACTech/index.json  --api-key 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
 #- task: NuGetAuthenticate@1
 
 #- script: |
