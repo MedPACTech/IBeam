@@ -39,9 +39,25 @@ steps:
     projects: '$(project)'
     arguments: '--configuration $(buildConfiguration)  --output $(Build.ArtifactStagingDirectory)'
     modifyOutputPath: false
-    
 
-- task: PublishBuildArtifacts@1
-  displayName: 'Publish Artifact: drop'
+- task: DotNetCoreCLI@2
+  displayName: 'Create nuget packages'
+  inputs:
+      command: 'pack'
+      packagesToPack: '**/IBeam.DataModels.csproj;'
+      packDirectory: '$(Build.ArtifactStagingDirectory)/packages/nuget'
+      nobuild: true
+      versioningScheme: 'byBuildNumber'   
+
+#  - task: NuGetAuthenticate@1
+#    inputs:
+#      nuGetServiceConnections: <NAME_OF_YOUR_SERVICE_CONNECTION>
+
+#  - script: |
+#      nuget push <PACKAGE_PATH> -src https://pkgs.dev.azure.com/<ORGANIZATION_NAME>/<PROJECT_NAME>/_packaging/<FEED_NAME>/nuget/v3/index.json -ApiKey <ANY_STRING>
+#    displayName: "Push"    
+
+#- task: PublishBuildArtifacts@1
+#  displayName: 'Publish Artifact: drop'
 
     
