@@ -8,7 +8,7 @@ using IBeam.Models;
 using IBeam.Models.API;
 using IBeam.Models.Interfaces;
 using IBeam.Services.Authorization;
-using IBeam.API.Utilities;
+using IBeam.Utilities;
 
 namespace IBeam.API.Controllers
 {

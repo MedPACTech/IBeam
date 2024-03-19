@@ -1,6 +1,6 @@
 using IBeam.DataModels;
 using IBeam.Repositories.Interfaces;
-using IBeam.API.Utilities;
+using IBeam.Utilities;
 using ServiceStack.OrmLite;
 using System;
 using System.Collections.Generic;

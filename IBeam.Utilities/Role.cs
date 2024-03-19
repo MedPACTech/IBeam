@@ -1,4 +1,4 @@
-﻿namespace IBeam.API.Utilities
+﻿namespace IBeam.Utilities
 {
     public static class Role
     {

@@ -8,7 +8,7 @@ using IBeam.DataModels;
 using IBeam.Repositories.Interfaces;
 using ServiceStack.OrmLite;
 using ServiceStack.OrmLite.Legacy;
-using IBeam.API.Utilities;
+using IBeam.Utilities;
 //using ServiceStack;
 
 //todo: abstract out ormlite inject into ormlite Base if possible
