@@ -1,6 +1,10 @@
 # Agent Queue 'Azure Pipelines' was used with unrecognized Agent Specification, vmImage property must be specified to determine image - https://docs.microsoft.com/en-us/azure/devops/pipelines/agents/hosted?view=azure-devops&tabs=yaml#software
 trigger:
-- main
+  branches:
+    include:
+    - 'main'
+#    exclude:
+#    - '*'
 
 variables:
  buildPlatform: 'AnyCPU'
