@@ -1,0 +1,40 @@
+# Agent Queue 'Azure Pipelines' was used with unrecognized Agent Specification, vmImage property must be specified to determine image - https://docs.microsoft.com/en-us/azure/devops/pipelines/agents/hosted?view=azure-devops&tabs=yaml#software
+trigger:
+  branches:
+    include:
+    - main
+
+variables:
+ buildPlatform: 'AnyCPU'
+ buildConfiguration: 'Release'
+ solution: '**/IBeam.sln'
+ project: '**/IBeam.Repositories.csproj'
+ packageLocation: 'https://nuget.pkg.github.com/MedPACTech/index.json'
+ apiKey: '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'
+
+steps:
+- task: NuGetToolInstaller@1
+  name: 'NuGetToolInstaller'
+  displayName: 'NuGet Tool Installer'
+
+- task: NuGetCommand@2
+  inputs:
+    command: 'restore'
+    restoreSolution: '$(project)'
+    feedsToUse: 'select'
+
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'build'
+    projects: '$(project)'
+    arguments: '--configuration $(buildConfiguration)'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Create nuget package'
+  inputs:
+      command: 'pack'
+      packagesToPack: '$(project)'
+      packDirectory: '$(Build.ArtifactStagingDirectory)'
+
+- script: |
+    dotnet nuget push "$(Build.ArtifactStagingDirectory)/**.nupkg" --source $(packageLocation) --api-key $(apiKey) --skip-duplicate
