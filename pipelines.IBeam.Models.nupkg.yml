@@ -6,7 +6,7 @@ variables:
  buildPlatform: 'AnyCPU'
  buildConfiguration: 'Release'
  solution: '**/IBeam.sln'
- project: '**/IBeam.DataModels.csproj'
+ project: '**/IBeam.Models.csproj'
  packageLocation: 'https://nuget.pkg.github.com/MedPACTech/index.json'
  apiKey: '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'
 
