@@ -50,8 +50,8 @@ steps:
 #    ArtifactName: 'etmsfdaapi'
 #    publishLocation: 'Container'
 
-- task: PublishBuildArtifacts@1
-  displayName: 'Publish Artifact: drop'
+#- task: PublishBuildArtifacts@1
+#  displayName: 'Publish Artifact: drop'
 
 #- task: AzureRmWebAppDeployment@4
 #  inputs:
