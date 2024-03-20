@@ -1,9 +1,6 @@
 # Agent Queue 'Azure Pipelines' was used with unrecognized Agent Specification, vmImage property must be specified to determine image - https://docs.microsoft.com/en-us/azure/devops/pipelines/agents/hosted?view=azure-devops&tabs=yaml#software
-trigger: 
-- none
-
-#pool:
-#  vmImage: 'windows-latest'
+trigger:
+- main
 
 variables:
  buildPlatform: 'AnyCPU'
@@ -12,13 +9,6 @@ variables:
  project: '**/IBeam.DataModels.csproj'
  packageLocation: 'https://nuget.pkg.github.com/MedPACTech/index.json'
  apiKey: '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'
-
-#resources:
-#  repositories:
-#  - repository: self
-#    type: git
-#    ref: refs/heads/qa
-#
 
 steps:
 - task: NuGetToolInstaller@1
