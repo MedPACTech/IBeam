@@ -12,8 +12,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <PackageId>IBeam.DataModels</PackageId>
     <Version>1.0.1</Version>
-    <Authors>AUTHORS</Authors>
-    <Company>COMPANY_NAME</Company>
+    <Authors>MedPAC Technologies</Authors>
+    <Company>MedPAC Technologies</Company>
     <PackageDescription>PACKAGE_DESCRIPTION</PackageDescription>
     <RepositoryUrl>https://github.com/MedPACTech/IBeam</RepositoryUrl>
   </PropertyGroup>
