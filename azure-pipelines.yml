@@ -1,6 +1,11 @@
 # Agent Queue 'Azure Pipelines' was used with unrecognized Agent Specification, vmImage property must be specified to determine image - https://docs.microsoft.com/en-us/azure/devops/pipelines/agents/hosted?view=azure-devops&tabs=yaml#software
 trigger:
-- development
+  branches:
+    include:
+    - development
+
+pool:
+  vmImage: 'ubuntu-latest' 
 
 variables:
  buildPlatform: 'AnyCPU'
@@ -8,17 +13,25 @@ variables:
  solution: '**/IBeam.sln'
 
 steps:
-- task: NuGetToolInstaller@1
-  name: 'NuGetToolInstaller'
-  displayName: 'NuGet Tool Installer'
-
-- task: NuGetCommand@2
-  inputs:
-    command: 'restore'
-    restoreSolution: '$(project)'
-    feedsToUse: 'select'
-
-- task: DotNetCoreCLI@2
-  inputs:
-    command: 'build'
-    arguments: '--configuration $(buildConfiguration)'
+  - task: DotNetCoreCLI@2
+    displayName: Restore nuget packages
+    inputs:
+      command: restore
+      projects: '**/*.csproj'
+      workingDirectory: $(Build.SourcesDirectory)
+  
+  - task: DotNetCoreCLI@2
+    displayName: Build
+    inputs:
+      command: build
+      projects: '$(solution)'
+#      arguments: '--configuration ${{ parameters.buildConfiguration }}'
+  
+  # You just added coverlet.collector to use 'XPlat Code Coverage'
+#  - task: DotNetCoreCLI@2
+#    displayName: Test
+#    inputs:
+#      command: test
+#      projects: '**/*Tests/*.csproj'
+#      arguments: '--configuration ${{ parameters.buildConfiguration }} --collect:"XPlat Code Coverage" -- RunConfiguration.DisableAppDomain=true'
+#      workingDirectory: $(Build.SourcesDirectory)
