@@ -4,6 +4,9 @@ trigger:
     include:
     - development
 
+pool:
+  vmImage: 'ubuntu-latest' 
+
 variables:
  buildPlatform: 'AnyCPU'
  buildConfiguration: 'Release'
@@ -24,3 +27,13 @@ steps:
   inputs:
     command: 'build'
     arguments: '--configuration $(buildConfiguration)'
+
+  # You just added coverlet.collector to use 'XPlat Code Coverage'
+#  - task: DotNetCoreCLI@2
+#    displayName: Test
+#    inputs:
+#      command: test
+#      projects: '**/*Tests/*.csproj'
+#      arguments: '--configuration ${{ parameters.buildConfiguration }} --collect:"XPlat Code Coverage" -- RunConfiguration.DisableAppDomain=true'
+#      workingDirectory: $(Build.SourcesDirectory)
+
