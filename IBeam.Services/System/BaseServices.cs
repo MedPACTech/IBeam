@@ -1,7 +1,5 @@
 ﻿using AutoMapper;
 using IBeam.Models.API;
-using IBeam.Models.Interfaces;
-using IBeam.Services.Authorization;
 using IBeam.Services.Interfaces;
 
 namespace IBeam.Services.System
@@ -14,8 +12,9 @@ namespace IBeam.Services.System
         public IServiceAuthorizationService SystemAuthorizationService { get; set; }
         //public IErrorLogService _errorLogService { get; set; }
 
-        public BaseServices(IMapper mapper, ISystemAuditService systemAuditService, IServiceAuthorizationService systemAuthorizationService)
+        public BaseServices(IAccountContext accountContext, IMapper mapper, ISystemAuditService systemAuditService, IServiceAuthorizationService systemAuthorizationService)
         {
+            AccountContext = accountContext;
             Mapper = mapper;
             SystemAuditService = systemAuditService;
             SystemAuthorizationService = systemAuthorizationService;
