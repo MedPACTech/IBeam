@@ -25,17 +25,17 @@ namespace IBeam.API.Controllers.Extensions
             { 
                 var controller = (BaseController)actionExecutingContext.Controller;
                 controller.AssignAccountContext();
-                SetContextForServices(controller._servicesWithContext, controller._AccountContext);
+               // SetContextForServices(controller._servicesWithContext, controller._AccountContext);
             }
             base.OnActionExecuting(actionExecutingContext);
         }
 
-        private static void SetContextForServices(List<IBaseService> servicesCollection, IAccountContext AccountContext)
-        {
-            foreach(var service in servicesCollection)
-            {
-                service.SetAccountContext(AccountContext);
-            }
-        }
+        //private static void SetContextForServices(List<IBaseService> servicesCollection, IAccountContext AccountContext)
+        //{
+        //    foreach(var service in servicesCollection)
+        //    {
+        //        service.SetAccountContext(AccountContext);
+        //    }
+        //}
     }
 }
