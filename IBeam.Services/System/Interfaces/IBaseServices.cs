@@ -1,7 +1,5 @@
 ﻿using AutoMapper;
 using IBeam.Models.API;
-using IBeam.Models.Interfaces;
-using IBeam.Services.Authorization;
 using IBeam.Services.Interfaces;
 
 namespace IBeam.Services.System
