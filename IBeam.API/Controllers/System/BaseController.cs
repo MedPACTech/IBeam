@@ -22,26 +22,26 @@ namespace IBeam.API.Controllers
     public abstract class BaseController : ControllerBase
     {
         internal AccountContext _AccountContext;
-        internal List<IBaseService> _servicesWithContext;
+        //internal List<IBaseService> _servicesWithContext;
 
         protected BaseController()
         {
-            _servicesWithContext = new List<IBaseService>();
+        //    _servicesWithContext = new List<IBaseService>();
         }
 
-        internal protected void AddServiceWithContext(IBaseService service)
-        {
-            try
-            {
-                var baseService = service;
-                _servicesWithContext.Add(baseService);
-            }
-            catch (Exception e)
-            {
-                throw new Exception("Controller can only add IBaseService derrived classes to ServiceCollection", e);
-            }
+        //internal protected void AddServiceWithContext(IBaseService service)
+        //{
+        //    try
+        //    {
+        //        var baseService = service;
+           //     _servicesWithContext.Add(baseService);
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        throw new Exception("Controller can only add IBaseService derrived classes to ServiceCollection", e);
+        //    }
 
-        }
+        //}
 
         //TODO: Account.Identity research
         internal void AssignAccountContext()
