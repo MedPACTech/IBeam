@@ -10,7 +10,7 @@ variables:
  solution: '**/IBeam.sln'
  project: '**/IBeam.DataModels.csproj'
  packageLocation: 'https://nuget.pkg.github.com/MedPACTech/index.json'
- apiKey: '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'
+ apiKey: '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'
 
 steps:
 - task: NuGetToolInstaller@1
