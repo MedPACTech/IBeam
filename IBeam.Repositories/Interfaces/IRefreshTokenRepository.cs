@@ -2,7 +2,7 @@
 
 namespace IBeam.Repositories.Interfaces
 {
-    public interface IRefreshTokenRepository : IRepository<RefreshTokenDTO>
+    public interface IRefreshTokenRepository : IBaseRepository<RefreshTokenDTO>
     {
         public RefreshTokenDTO GetByToken(string token);
     }

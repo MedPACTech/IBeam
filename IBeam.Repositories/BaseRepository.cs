@@ -14,7 +14,7 @@ using IBeam.Utilities;
 //todo: abstract out ormlite inject into ormlite Base if possible
 namespace IBeam.Repositories
 {
-    public abstract class BaseRepository<T> : IRepository<T> where T : class, IDTO
+    public abstract class BaseRepository<T> : IBaseRepository<T> where T : class, IDTO
     {
         public string RepositoryName { get; }
         public string RepositoryCacheName { get; }
@@ -23,9 +23,9 @@ namespace IBeam.Repositories
       
         protected readonly OrmLiteConnectionFactory _dataFactory;
         protected readonly IMemoryCache _memoryCache;
-        protected readonly AppSettings _appSettings;
+        protected readonly BaseAppSettings _appSettings;
 
-        public BaseRepository(IOptions<AppSettings> appSettings, IMemoryCache memoryCache)
+        public BaseRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache)
         {
             //todo: config string value from settings as well
             var repositoryType = typeof(T);
@@ -43,7 +43,7 @@ namespace IBeam.Repositories
         }
 
         //todo: look into other ORMs that allow repository run with same interfaces
-        private IOrmLiteDialectProvider GetDatabaseType(AppSettings appSettings)
+        private IOrmLiteDialectProvider GetDatabaseType(BaseAppSettings appSettings)
         {
             return appSettings.DatabaseType switch
             {

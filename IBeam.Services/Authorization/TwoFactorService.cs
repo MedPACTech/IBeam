@@ -21,7 +21,7 @@ namespace IBeam.Services.Authorization
         public TwoFactorService(
             ITwilioService twilioService,
             IEmailService emailService,
-            IOptions<AppSettings> appSettings,
+            IOptions<BaseAppSettings> appSettings,
             IMemoryCache memoryCache
         )
         {
