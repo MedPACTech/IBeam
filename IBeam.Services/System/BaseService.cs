@@ -25,13 +25,13 @@ namespace IBeam.Services.System
         //--- 2. ServiceException (something happened in the service) -- UnExpected Exception
         //  - just send up
 
-        private readonly IRepository<TDTO> _repository;
+        private readonly IBaseRepository<TDTO> _repository;
         private readonly IMapper _mapper;
         public readonly  IServiceAuthorizationService _systemAuthorizationService;
         private readonly ISystemAuditService _systemAuditService;
         //private readonly IErrorLogService _errorLogService;
 
-        public BaseService(IBaseServices baseServices, IRepository<TDTO> repository)
+        public BaseService(IBaseServices baseServices, IBaseRepository<TDTO> repository)
         {
             _repository = repository;
             _mapper = baseServices.Mapper;

@@ -4,7 +4,7 @@ using IBeam.DataModels;
 
 namespace IBeam.Repositories.Interfaces
 {
-    public interface IRepository<T> where T : class, IDTO
+    public interface IBaseRepository<T> where T : class, IDTO
     {
         string RepositoryName { get; }
         string RepositoryCacheName { get; }

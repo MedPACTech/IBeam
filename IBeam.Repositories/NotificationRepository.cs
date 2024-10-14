@@ -13,7 +13,7 @@ namespace IBeam.Repositories
 {
     public class NotificationRepository : BaseRepository<NotificationDTO>, INotificationRepository
 	{
-        public NotificationRepository(IOptions<AppSettings> appSettings, IMemoryCache memorycache) : base(appSettings, memorycache){
+        public NotificationRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memorycache) : base(appSettings, memorycache){
 
         }
 
