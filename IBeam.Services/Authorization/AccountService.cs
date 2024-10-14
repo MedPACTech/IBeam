@@ -25,7 +25,7 @@ namespace IBeam.Services.Authorization
         private static readonly TimeSpan PASSWORD_RESET_TOKEN_TIMEOUT = TimeSpan.FromHours(8);
         
         private readonly IMapper _mapper;
-        private readonly AppSettings _appSettings;
+        private readonly BaseAppSettings _appSettings;
         private readonly IAccountRepository _repository;
         private readonly ITwoFactorService _twoFactorService;
         private readonly IRefreshTokenRepository _refreshTokenRepository;
@@ -39,7 +39,7 @@ namespace IBeam.Services.Authorization
 
         public AccountService(
             IMapper mapper,
-            IOptions<AppSettings> appSettings, 
+            IOptions<BaseAppSettings> appSettings, 
             IAccountRepository repository, 
             ITwoFactorService twoFactorService, 
             IRefreshTokenRepository refreshTokenRepository, 

@@ -7,7 +7,7 @@ using System.Data;
 
 namespace IBeam.Repositories.Interfaces
 {
-    public interface IAccountContextRepository : IRepository<AccountContextDTO>
+    public interface IAccountContextRepository : IBaseRepository<AccountContextDTO>
     {
         AccountContextDTO GetByAccountId(Guid AccountId);
     }

@@ -11,7 +11,7 @@ namespace IBeam.Repositories
 {
 	public class AccountGroupMemberRepository : BaseRepository<AccountGroupMemberDTO>, IAccountGroupMemberRepository
 	{
-        public AccountGroupMemberRepository(IOptions<AppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
+        public AccountGroupMemberRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
         {
         }
 

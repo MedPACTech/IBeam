@@ -11,7 +11,7 @@ namespace IBeam.Repositories
 {
     public class RefreshTokenRepository : BaseRepository<RefreshTokenDTO>, IRefreshTokenRepository
     {
-        public RefreshTokenRepository(IOptions<AppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
+        public RefreshTokenRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
         {
         }
 

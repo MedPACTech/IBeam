@@ -11,7 +11,7 @@ namespace IBeam.Repositories
 {
 	public class LicenseRepository : BaseRepository<LicenseDTO>, ILicenseRepository
 	{
-		public LicenseRepository(IOptions<AppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
+		public LicenseRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
         {
 
         }

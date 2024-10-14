@@ -58,8 +58,8 @@ namespace IBeam.Portal.API
                     });
             });
             
-            var appSettingsSection = _config.GetSection("AppSettings");
-            services.Configure<AppSettings>(appSettingsSection);
+            var appSettingsSection = _config.GetSection("BaseAppSettings");
+            services.Configure<BaseAppSettings>(appSettingsSection);
             
             Licensing.RegisterLicense(_config.GetSection("servicestack").GetValue<string>("license"));
 
@@ -71,7 +71,7 @@ namespace IBeam.Portal.API
 
             services.AddAutoMapper(typeof(MappingProfiles).Assembly);
 
-            var appSettings = appSettingsSection.Get<AppSettings>();
+            var appSettings = appSettingsSection.Get<BaseAppSettings>();
             var key = Encoding.ASCII.GetBytes(appSettings.Secret);
 
             services.AddAuthentication(x =>

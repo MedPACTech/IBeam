@@ -7,7 +7,7 @@ using System.Data;
 
 namespace IBeam.Repositories.Interfaces
 {
-    public interface IAccountGroupRoleRepository : IRepository<AccountGroupRoleDTO>
+    public interface IAccountGroupRoleRepository : IBaseRepository<AccountGroupRoleDTO>
     {
         IEnumerable<AccountGroupRoleDTO> GetByAccountGroupId(Guid AccountGroupId);
         IEnumerable<AccountGroupRoleDTO> GetByAccountGroupIds(IEnumerable<Guid> AccountGroupIds);

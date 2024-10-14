@@ -2,7 +2,7 @@ using IBeam.DataModels;
 
 namespace IBeam.Repositories.Interfaces
 {
-	public interface ILicenseRepository : IRepository<LicenseDTO>
+	public interface ILicenseRepository : IBaseRepository<LicenseDTO>
 	{
 		LicenseDTO GetLatest();
 	}

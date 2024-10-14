@@ -10,7 +10,7 @@ namespace IBeam.Repositories
 {
     public class DocumentRepository : BaseRepository<DocumentDTO>, IDocumentRepository
     {
-        public DocumentRepository(IOptions<AppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache) { }
+        public DocumentRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache) { }
 
         public IEnumerable<DocumentDTO> GetByAssociatedId(Guid id)
         {

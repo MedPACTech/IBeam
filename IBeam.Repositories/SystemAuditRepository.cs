@@ -11,7 +11,7 @@ namespace IBeam.Repositories
 {
     public class SystemAuditRepository : BaseRepository<SystemAuditDTO>, ISystemAuditRepository
     {
-        public SystemAuditRepository(IOptions<AppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
+        public SystemAuditRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
         {
         }
     }
