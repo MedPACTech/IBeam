@@ -31,7 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="ServiceStack.Interfaces" Version="8.2.2" />
+    <PackageReference Include="ServiceStack.Interfaces" Version="8.4.0" />
   </ItemGroup>
 
 </Project>
