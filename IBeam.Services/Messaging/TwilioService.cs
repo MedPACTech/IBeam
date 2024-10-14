@@ -10,9 +10,9 @@ namespace IBeam.Services.Messaging
 {
     public class TwilioService : ITwilioService
     {
-        private readonly AppSettings _appSettings;
+        private readonly BaseAppSettings _appSettings;
 
-        public TwilioService(IOptions<AppSettings> appSettings)
+        public TwilioService(IOptions<BaseAppSettings> appSettings)
         {
             _appSettings = appSettings.Value;
 

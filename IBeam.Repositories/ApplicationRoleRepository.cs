@@ -12,7 +12,7 @@ namespace IBeam.Repositories
 {
 	public class ApplicationRoleRepository : BaseRepository<ApplicationRoleDTO>, IApplicationRoleRepository
 	{
-        public ApplicationRoleRepository(IOptions<AppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
+        public ApplicationRoleRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
         {
         }
 

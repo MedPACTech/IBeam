@@ -7,7 +7,7 @@ using System.Data;
 
 namespace IBeam.Repositories.Interfaces
 {
-    public interface IApplicationRoleAccessRepository : IRepository<ApplicationRoleAccessDTO>
+    public interface IApplicationRoleAccessRepository : IBaseRepository<ApplicationRoleAccessDTO>
     {
         IEnumerable<ApplicationRoleAccessDTO> GetByApplicationRoleIds(IEnumerable<Guid> applicationRoleIds);
     }
