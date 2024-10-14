@@ -1,6 +1,6 @@
 namespace IBeam.Utilities
 {
-    public class AppSettings : IAppSettings
+    public class BaseAppSettings : IBaseAppSettings
     {
         public string Secret { get; set; }
         public string SiteBaseURL { get; set; }

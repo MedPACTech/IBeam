@@ -8,7 +8,7 @@ namespace IBeam.Repositories
 {
 	public class ApplicationRepository : BaseRepository<ApplicationDTO>, IApplicationRepository
 	{
-		public ApplicationRepository(IOptions<AppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
+		public ApplicationRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
 		{
 		}
 	}

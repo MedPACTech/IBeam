@@ -1,6 +1,6 @@
 ﻿namespace IBeam.Utilities
 {
-    public interface IAppSettings
+    public interface IBaseAppSettings
     {
         string APIDomain { get; set; }
         string ConnectionString { get; set; }
