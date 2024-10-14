@@ -17,7 +17,7 @@ namespace IBeam.Services.Messaging
         private readonly ISendGridService _sendGridService;
         private readonly string url;
         
-        public EmailService(ISendGridService sendGridService, IOptions<AppSettings> appSettings)
+        public EmailService(ISendGridService sendGridService, IOptions<BaseAppSettings> appSettings)
         {
             var conf = appSettings.Value; 
             url = conf.EmailLogicAppURL;

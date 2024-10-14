@@ -22,7 +22,7 @@ namespace IBeam.API.Controllers
         private readonly string _apiDomain;
         private readonly IAccountService _AccountService;
 
-        public AccountController(IOptions<AppSettings> appSettings, IAccountService AccountService)
+        public AccountController(IOptions<BaseAppSettings> appSettings, IAccountService AccountService)
         {
             _apiDomain = appSettings.Value.APIDomain;
             _AccountService = AccountService;

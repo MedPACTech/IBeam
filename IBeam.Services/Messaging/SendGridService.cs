@@ -10,10 +10,10 @@ namespace IBeam.Services.Messaging
 {
     public class SendGridService : ISendGridService
     {
-        private readonly AppSettings _appSettings;
+        private readonly BaseAppSettings _appSettings;
         private readonly SendGridClient _client;
 
-        public SendGridService(IOptions<AppSettings> appSettings)
+        public SendGridService(IOptions<BaseAppSettings> appSettings)
         {
             _appSettings = appSettings.Value;
             _client = new SendGridClient(_appSettings.SendGridAPIKey);
