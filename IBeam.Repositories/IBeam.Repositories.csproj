@@ -33,9 +33,9 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
-    <PackageReference Include="ServiceStack.OrmLite.PostgreSQL.Core" Version="8.2.2" />
-    <PackageReference Include="ServiceStack.OrmLite.Sqlite" Version="8.2.2" />
-    <PackageReference Include="ServiceStack.OrmLite.SqlServer" Version="8.2.2" />
+    <PackageReference Include="ServiceStack.OrmLite.PostgreSQL.Core" Version="8.4.0" />
+    <PackageReference Include="ServiceStack.OrmLite.Sqlite" Version="8.4.0" />
+    <PackageReference Include="ServiceStack.OrmLite.SqlServer" Version="8.4.0" />
   </ItemGroup>
 
   <ItemGroup>
