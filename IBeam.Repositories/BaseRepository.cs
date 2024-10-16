@@ -25,7 +25,7 @@ namespace IBeam.Repositories
         protected readonly IMemoryCache _memoryCache;
         protected readonly BaseAppSettings _appSettings;
 
-        public BaseRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache)
+        public BaseRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache, string? connectionStringOverride = null)
         {
             //todo: config string value from settings as well
             var repositoryType = typeof(T);
@@ -37,7 +37,10 @@ namespace IBeam.Repositories
             _appSettings = appSettings.Value;
             var dialectProvider = GetDatabaseType(_appSettings);
 
-            _dataFactory = new OrmLiteConnectionFactory(_appSettings.ConnectionString, dialectProvider);
+            // Use the override if provided, otherwise default to the connection string in the settings
+            string connectionString = connectionStringOverride ?? _appSettings.ConnectionString;
+
+            _dataFactory = new OrmLiteConnectionFactory(connectionString, dialectProvider);
             _dataFactory.DialectProvider.NamingStrategy = new OrmLiteNamingStrategyBase();
             _memoryCache = memoryCache;
         }
