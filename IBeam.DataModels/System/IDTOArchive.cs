@@ -1,8 +1,6 @@
-﻿using System;
-
-namespace IBeam.DataModels
-{ 
-    public interface IDTOArchive : IDTO
+﻿namespace IBeam.DataModels.System
+{
+    public interface IDTOArchive
     {
         bool IsArchived { get; set; }
     }
