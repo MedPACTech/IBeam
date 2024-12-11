@@ -1,11 +1,12 @@
+using IBeam.DataModels.System;
 using ServiceStack.DataAnnotations;
 using System;
 
 namespace IBeam.DataModels
 {
-	[Serializable]
+    [Serializable]
 	[Alias("Accounts")]
-	public class AccountDTO : IDTOArchive
+	public class AccountDTO : IDTO, IDTOArchive
 	{
 		public Guid Id { get; set; }
 		public string PasswordHash { get; set; }
@@ -21,5 +22,6 @@ namespace IBeam.DataModels
 		public DateTime? DateAgreementSigned { get; set; }
 		public Guid AssociatedCompanyId { get; set; } //TennantID?
 		public bool IsArchived { get; set; }
-	}
+        public bool IsDeleted { get; set; }
+    }
 }

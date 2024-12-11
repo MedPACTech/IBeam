@@ -1,3 +1,4 @@
+using IBeam.DataModels.System;
 using ServiceStack.DataAnnotations;
 using System;
 
@@ -14,6 +15,6 @@ namespace IBeam.DataModels
 		public string Demographics { get; set; }
 		public string ApplicationSettings { get; set; }
 		public string ApplicationContext { get; set; }
-
-	}
+        public bool IsDeleted { get; set; }
+    }
 }
