@@ -1,5 +1,5 @@
 ﻿using AutoMapper;
-using IBeam.DataModels;
+using IBeam.DataModels.System;
 using IBeam.Models.API;
 
 namespace IBeam.Services.System
