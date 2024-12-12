@@ -149,7 +149,7 @@ namespace IBeam.Repositories
         /// <param name="withArchived"></param>
         /// <returns></returns>
         /// <exception cref="RepositoryException"></exception>
-        public virtual IEnumerable<T> GetAll(bool withArchived = false)
+        public virtual List<T> GetAll(bool withArchived = false)
         {
             try
             {
@@ -298,7 +298,7 @@ namespace IBeam.Repositories
         /// <param name="dtos"></param>
         /// <exception cref="InvalidOperationException"></exception>
         /// <exception cref="RepositoryException"></exception>
-        public void SaveAll(List<T> dtos)
+        public List<T> SaveAll(List<T> dtos)
         {
             try
             {
@@ -339,6 +339,7 @@ namespace IBeam.Repositories
 
                 db.SaveAll(dtos);
                 ClearCache();
+                return dtos;
             }
             catch (Exception ex)
             {
@@ -346,37 +347,103 @@ namespace IBeam.Repositories
             }
         }
 
-
         public bool Archive(T dto)
         {
-            if(dto is IDTOArchive dtoArchive)
+            try
             {
+                if (dto is not IDTOArchive dtoArchive)
+                {
+                    throw new InvalidOperationException($"The entity of type {typeof(T).Name} does not implement IDTOArchive and cannot be archived.");
+                }
+
                 dtoArchive.IsArchived = true;
+
                 Save(dto);
+
                 return true;
             }
-            else
+            catch (Exception ex)
             {
-                throw new Exception("DTO does not implement IDTOArchive");
+                throw new RepositoryException(ex, RepositoryName, "Archive", dto);
             }
         }
 
-        public void ArchiveAll(List<T> dtos)
+        public bool ArchiveAll(List<T> dtos)
         {
-
-            dtos.ForEach(dto =>
+            try
             {
-                if (dto is IDTOArchive dtoArchive)
+                foreach (var dto in dtos)
                 {
+                    if (dto is not IDTOArchive dtoArchive)
+                    {
+                        throw new InvalidOperationException($"The entity of type {typeof(T).Name} does not implement IDTOArchive and cannot be archived.");
+                    }
+
                     dtoArchive.IsArchived = true;
                 }
-                else
-                {
-                    throw new Exception("DTOs do not implement IDTOArchive");
-                }
-            });
-            SaveAll(dtos);
+
+                SaveAll(dtos);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                throw new RepositoryException(ex, RepositoryName, "ArchiveAll", dtos);
+            }
         }
+
+        public bool UnArchive(T dto)
+        {
+            try
+            {
+                if (dto is not IDTOArchive dtoArchive)
+                {
+                    throw new InvalidOperationException($"The entity of type {typeof(T).Name} does not implement IDTOArchive and cannot be unarchived.");
+                }
+
+                dtoArchive.IsArchived = false;
+
+                Save(dto);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                throw new RepositoryException(ex, RepositoryName, "Archive", dto);
+            }
+        }
+
+        /// <summary>
+        /// Unarchives all records in the repository.
+        /// </summary>
+        /// <param name="dtos"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        /// <exception cref="RepositoryException"></exception>
+        public bool UnArchiveAll(List<T> dtos)
+        {
+            try
+            {
+                foreach (var dto in dtos)
+                {
+                    if (dto is not IDTOArchive dtoArchive)
+                    {
+                        throw new InvalidOperationException($"The entity of type {typeof(T).Name} does not implement IDTOArchive and cannot be archived.");
+                    }
+
+                    dtoArchive.IsArchived = true;
+                }
+
+                SaveAll(dtos);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                throw new RepositoryException(ex, RepositoryName, "ArchiveAll", dtos);
+            }
+        }
+
 
         /// <summary>
         /// Deletes a single record in the repository by entity.

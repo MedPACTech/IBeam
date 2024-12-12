@@ -18,7 +18,7 @@ namespace IBeam.Repositories
 
         }
 
-        public override IEnumerable<AccountDTO> GetAll(bool withArchived = false)
+        public override List<AccountDTO> GetAll(bool withArchived = false)
         {
             try
             {
