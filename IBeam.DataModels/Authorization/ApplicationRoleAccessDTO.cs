@@ -1,10 +1,11 @@
+using IBeam.DataModels.System;
 using ServiceStack.DataAnnotations;
 using System;
 
 namespace IBeam.DataModels
 {
 
-	[Serializable]
+    [Serializable]
 	[Alias("ApplicationRoleAccess")]
 	public class ApplicationRoleAccessDTO : IDTO
 	{
@@ -15,6 +16,6 @@ namespace IBeam.DataModels
 		public string RoleDescripition { get; set; }
 		public string ServiceName { get; set; }
 		public string ActionName { get; set; }
-
-	}
+        public bool IsDeleted { get; set; }
+    }
 }

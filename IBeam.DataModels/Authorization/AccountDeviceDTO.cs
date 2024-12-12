@@ -1,10 +1,11 @@
+using IBeam.DataModels.System;
 using ServiceStack.DataAnnotations;
 using System;
 
 namespace IBeam.DataModels
 {
 
-	[Serializable]
+    [Serializable]
 	[Alias("AccountDevices")]
 	public class AccountDeviceDTO : IDTO
 	{
@@ -14,6 +15,6 @@ namespace IBeam.DataModels
 		public string PinToken { get; set; }
 		public string DeviceToken { get; set; }
 		public DateTime DateCreated { get; set; }
-
-	}
+        public bool IsDeleted { get; set; }
+    }
 }

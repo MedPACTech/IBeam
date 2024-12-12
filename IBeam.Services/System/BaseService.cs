@@ -1,6 +1,5 @@
 ﻿using AutoMapper;
 using Microsoft.Extensions.Caching.Memory;
-using IBeam.DataModels;
 using IBeam.Models;
 using IBeam.Models.API;
 using IBeam.Services.Interfaces;
@@ -9,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using IBeam.Repositories.Interfaces;
+using IBeam.DataModels.System;
 
 namespace IBeam.Services.System
 {
@@ -228,7 +228,7 @@ namespace IBeam.Services.System
             {
                 if (canArchive)
                 {
-                    _idto = (IDTOArchive)_idto;
+                    _idto = (IDTO)(_idto as IDTOArchive);
                     _systemAuditService.LogArchive(_idto.Id, _entityName, _idto);
                 }
                 else

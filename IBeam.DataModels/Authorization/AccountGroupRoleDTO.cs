@@ -1,10 +1,11 @@
+using IBeam.DataModels.System;
 using ServiceStack.DataAnnotations;
 using System;
 
 namespace IBeam.DataModels
 {
 
-	[Serializable]
+    [Serializable]
 	[Alias("AccountGroupRole")]
 	public class AccountGroupRoleDTO : IDTO
 	{
@@ -14,6 +15,6 @@ namespace IBeam.DataModels
 		public string AccountGroupName { get; set; }
 		public Guid ApplicationRoleId { get; set; }
 		public string ApplicationRoleName { get; set; }
-
-	}
+        public bool IsDeleted { get; set; }
+    }
 }
