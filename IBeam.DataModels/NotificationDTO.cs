@@ -1,9 +1,10 @@
+using IBeam.DataModels.System;
 using ServiceStack.DataAnnotations;
 using System;
 
 namespace IBeam.DataModels
 {
-	[Serializable]
+    [Serializable]
 	[Alias("Notification")]
 	public class NotificationDTO : IDTO
 	{
@@ -14,5 +15,6 @@ namespace IBeam.DataModels
 		public string Message { get; set; }
 		public DateTime NotificationDate { get; set; }
 		public bool IsRead { get; set; }
-	}
+        public bool IsDeleted { get; set; }
+    }
 }

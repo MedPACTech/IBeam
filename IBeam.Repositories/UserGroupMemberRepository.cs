@@ -53,5 +53,6 @@ namespace IBeam.Repositories
                 throw new RepositoryException(ex, RepositoryName, "RemoveAccountFromGroup", null, AccountId, AccountGroupId);
             }
         }
+
     }
 }

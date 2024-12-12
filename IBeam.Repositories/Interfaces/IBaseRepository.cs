@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using IBeam.DataModels;
+﻿using IBeam.DataModels.System;
 
 namespace IBeam.Repositories.Interfaces
 {
@@ -8,69 +6,25 @@ namespace IBeam.Repositories.Interfaces
     {
         string RepositoryName { get; }
         string RepositoryCacheName { get; }
-        /// <summary>
-        /// Does data object implement .IsArchived
-        /// </summary>
         bool IsArchivable { get; }
-        /// <summary>
-        /// Enables repository to use memory cache on GetALL() requests. 
-        /// Use this to access small datasets with few to no writes
-        /// </summary>
+        bool IsSoftDeleteDisabled { get; }
+        bool IsTenantSpecific { get; }
+        Guid? TenantId { get; } 
         bool EnableCache { get; set; }
-        /// <summary>
-        /// Deletes a single of record in repository. 
-        /// This will clear any GetAll() cached records
-        /// </summary>
-        /// <param name="dto">dto to remove</param>
-        void Delete(T dto);
-        /// <summary>
-        /// Deletes a single of record in repository. 
-        /// This will clear any GetAll() cached records
-        /// </summary>
-        /// <param name="id">id of repository to remove</param>
-        void DeleteById(Guid id);
-        /// <summary>
-        /// Gets all records from repository. 
-        /// Turn off Memory Cache when accessing archived records, this will cause an exception
-        /// </summary>
-        /// <param name="withArchived">returns archived records</param>
-        IEnumerable<T> GetAll(bool withArchive = false);
-        /// <summary>
-        /// Gets a single record from repository by Id. 
-        /// </summary>
-        /// <param name="id">Id to access</param>
-        T GetById(Guid id);
-        /// <summary>
-        /// Gets all records from repository with matching Ids. 
-        /// </summary>
-        /// <param name="Ids">List of Ids to searh for</param>
-        IEnumerable<T> GetByIds(List<Guid> Ids);
-        /// <summary>
-        /// Archives a single record to repository. 
-        /// DTO must Inherit IDTOArchived, else will throw an exception
-        /// </summary>
-        /// <param name="dto">dto to archive</param>
-        bool Archive(T dto);
-        /// <summary>
-        /// Archives a collection of records to repository. 
-        /// DTO must Inherit IDTOArchived, else will throw an exception
-        /// </summary>
-        /// <param name="dtos">dtos to archive</param>
-        void ArchiveAll(List<T> dtos);
-        /// <summary>
-        /// Saves a single record to repository. 
-        /// This will clear any GetAll() cached records
-        /// </summary>
-        /// <param name="dto">dto to save</param>
-        void Save(T dto);
-        /// <summary>
-        /// Saves a collection of records to repository. 
-        /// This will clear any GetAll() cached records
-        /// </summary>
-        /// <param name="dtos">dtos to save</param>
-        void SaveAll(List<T> dtos);
+        bool IdGeneratedByRepository { get; }
 
-       
-       
+
+        List<T> GetAll(bool withArchived = false);
+        List<T> GetByIds(List<Guid> ids);
+        T GetById(Guid id);
+
+        T Save(T dto);
+        List<T> SaveAll(List<T> dtos);
+
+        bool Archive(T dto);
+        bool ArchiveAll(List<T> dtos);
+
+        void Delete(T dto);
+        void DeleteById(Guid id);
     }
 }

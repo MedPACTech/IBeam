@@ -1,10 +1,11 @@
+using IBeam.DataModels.System;
 using ServiceStack.DataAnnotations;
 using System;
 
 namespace IBeam.DataModels
 {
 
-	[Serializable]
+    [Serializable]
 	[Alias("Applications")]
 	public class ApplicationDTO : IDTO
 	{
@@ -12,5 +13,6 @@ namespace IBeam.DataModels
 		public Guid Id { get; set; }
 		public String Name { get; set; }
 		public string Url { get; set; }
+        public bool IsDeleted { get; set; }
     }
 }
