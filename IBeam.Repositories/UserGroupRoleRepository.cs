@@ -7,12 +7,13 @@ using System.Collections.Generic;
 using System.Data;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using IBeam.DataModels.System;
 
 namespace IBeam.Repositories
 {
 	public class AccountGroupRoleRepository : BaseRepository<AccountGroupRoleDTO>, IAccountGroupRoleRepository
 	{
-    public AccountGroupRoleRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
+    public AccountGroupRoleRepository(TenantContext tenantContext, IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(tenantContext, appSettings, memoryCache)
     {
     }
 
