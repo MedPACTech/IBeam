@@ -6,12 +6,13 @@ using System.Linq;
 using IBeam.Repositories.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using IBeam.DataModels.System;
 
 namespace IBeam.Repositories
 {
     public class RefreshTokenRepository : BaseRepository<RefreshTokenDTO>, IRefreshTokenRepository
     {
-        public RefreshTokenRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
+        public RefreshTokenRepository(TenantContext tenantContext, IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(tenantContext, appSettings, memoryCache)
         {
         }
 
