@@ -303,6 +303,12 @@ namespace IBeam.Repositories
                 {
                     if (dto is IDTOTenant tenantDto)
                     {
+
+                        if(tenantDto.TenantId == Guid.Empty)
+                        {
+                            tenantDto.TenantId = _tenantContext.TenantId.Value;
+                        }
+
                         if (tenantDto.TenantId != _tenantContext.TenantId)
                         {
                             throw new InvalidOperationException($"TenantId mismatch. Entity belongs to TenantId {tenantDto.TenantId}, but repository is for TenantId {_tenantContext.TenantId}.");
@@ -362,6 +368,11 @@ namespace IBeam.Repositories
                     {
                         if (dto is IDTOTenant tenantDto)
                         {
+                            if (tenantDto.TenantId == Guid.Empty)
+                            {
+                                tenantDto.TenantId = _tenantContext.TenantId.Value;
+                            }
+
                             if (tenantDto.TenantId != _tenantContext.TenantId)
                             {
                                 throw new InvalidOperationException($"TenantId mismatch. Entity belongs to TenantId {tenantDto.TenantId}, but repository is for TenantId {_tenantContext.TenantId}.");
@@ -384,6 +395,7 @@ namespace IBeam.Repositories
             }
         }
 
+        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
         public bool Archive(T dto)
         {
             try
@@ -405,6 +417,7 @@ namespace IBeam.Repositories
             }
         }
 
+        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
         public bool ArchiveAll(List<T> dtos)
         {
             try
@@ -429,6 +442,7 @@ namespace IBeam.Repositories
             }
         }
 
+        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
         public bool UnArchive(T dto)
         {
             try
@@ -450,6 +464,7 @@ namespace IBeam.Repositories
             }
         }
 
+        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
         /// <summary>
         /// Unarchives all records in the repository.
         /// </summary>
@@ -481,7 +496,7 @@ namespace IBeam.Repositories
             }
         }
 
-
+        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
         /// <summary>
         /// Deletes a single record in the repository by entity.
         /// If entity inherits IDOTenant, the TenantId must match the repository's TenantId.
@@ -518,6 +533,7 @@ namespace IBeam.Repositories
             }
         }
 
+        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
         /// <summary>
         /// Deletes a single record in the repository by Id.
         /// If Entity inherits IDOTenant, the TenantId must match the repository's TenantId.
