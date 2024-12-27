@@ -6,12 +6,13 @@ using IBeam.Repositories.Interfaces;
 using IBeam.Utilities;
 using ServiceStack.OrmLite;
 using Microsoft.Extensions.Options;
+using IBeam.DataModels.System;
 
 namespace IBeam.Repositories
 {
 	public class LicenseRepository : BaseRepository<LicenseDTO>, ILicenseRepository
 	{
-		public LicenseRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
+		public LicenseRepository(TenantContext tenantContext, IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(tenantContext, appSettings, memoryCache)
         {
 
         }

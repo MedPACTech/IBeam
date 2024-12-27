@@ -5,12 +5,13 @@ using Microsoft.Extensions.Caching.Memory;
 using ServiceStack.OrmLite;
 using System.Data;
 using Microsoft.Extensions.Options;
+using IBeam.DataModels.System;
 
 namespace IBeam.Repositories
 {
     public class DocumentRepository : BaseRepository<DocumentDTO>, IDocumentRepository
     {
-        public DocumentRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache) { }
+        public DocumentRepository(TenantContext tenantContext, IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(tenantContext, appSettings, memoryCache) { }
 
         public IEnumerable<DocumentDTO> GetByAssociatedId(Guid id)
         {

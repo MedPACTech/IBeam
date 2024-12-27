@@ -8,12 +8,13 @@ using IBeam.Utilities;
 using ServiceStack.OrmLite;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using IBeam.DataModels.System;
 
 namespace IBeam.Repositories
 {
 	public class AccountRepository : BaseRepository<AccountDTO>, IAccountRepository
 	{
-		public AccountRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memorycache) : base(appSettings, memorycache)
+		public AccountRepository(TenantContext tenantContext, IOptions<BaseAppSettings> appSettings, IMemoryCache memorycache) : base(tenantContext, appSettings, memorycache)
         {
 
         }
