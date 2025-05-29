@@ -8,12 +8,13 @@ using System.Data;
 using Microsoft.Extensions.Options;
 
 using Microsoft.Extensions.Caching.Memory;
+using IBeam.DataModels.System;
 
 namespace IBeam.Repositories
 {
     public class AccountGroupRepository : BaseRepository<AccountGroupDTO>, IAccountGroupRepository
     {
-        public AccountGroupRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
+        public AccountGroupRepository(TenantContext tenantContext, IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(tenantContext, appSettings, memoryCache)
         {
         }
 

@@ -8,12 +8,13 @@ using IBeam.Repositories.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
 using System.Linq;
 using Microsoft.Extensions.Options;
+using IBeam.DataModels.System;
 
 namespace IBeam.Repositories
 {
     public class NotificationRepository : BaseRepository<NotificationDTO>, INotificationRepository
 	{
-        public NotificationRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memorycache) : base(appSettings, memorycache){
+        public NotificationRepository(TenantContext tenantContext, IOptions<BaseAppSettings> appSettings, IMemoryCache memorycache) : base(tenantContext, appSettings, memorycache){
 
         }
 

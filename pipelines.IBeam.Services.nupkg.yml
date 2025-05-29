@@ -1,43 +1,44 @@
-# Agent Queue 'Azure Pipelines' was used with unrecognized Agent Specification, vmImage property must be specified to determine image - https://docs.microsoft.com/en-us/azure/devops/pipelines/agents/hosted?view=azure-devops&tabs=yaml#software
 trigger:
   branches:
     include:
     - main
 
 pool:
-  vmImage: 'ubuntu-latest' 
-  
+  vmImage: 'ubuntu-22.04'  # ✅ REQUIRED to select a valid image
+
 variables:
- buildPlatform: 'AnyCPU'
- buildConfiguration: 'Release'
- solution: '**/IBeam.sln'
- project: '**/IBeam.Services.csproj'
- packageLocation: 'https://nuget.pkg.github.com/MedPACTech/index.json'
- apiKey: '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'
+  buildPlatform: 'AnyCPU'
+  buildConfiguration: 'Release'
+  solution: '**/IBeam.sln'
+  project: '**/IBeam.Services.csproj'
+  packageLocation: 'https://nuget.pkg.github.com/MedPACTech/index.json'
+  apiKey: '$(GH_TOKEN)'  # ✅ Recommended to store your GitHub PAT securely
 
 steps:
 - task: NuGetToolInstaller@1
-  name: 'NuGetToolInstaller'
-  displayName: 'NuGet Tool Installer'
+  displayName: 'Install NuGet'
 
 - task: NuGetCommand@2
+  displayName: 'Restore Packages'
   inputs:
     command: 'restore'
-    restoreSolution: '$(project)'
+    restoreSolution: '$(solution)'  # ✅ Use .sln file for restore
     feedsToUse: 'select'
 
 - task: DotNetCoreCLI@2
+  displayName: 'Build Project'
   inputs:
     command: 'build'
     projects: '$(project)'
     arguments: '--configuration $(buildConfiguration)'
 
 - task: DotNetCoreCLI@2
-  displayName: 'Create nuget package'
+  displayName: 'Pack NuGet'
   inputs:
-      command: 'pack'
-      packagesToPack: '$(project)'
-      packDirectory: '$(Build.ArtifactStagingDirectory)'
+    command: 'pack'
+    packagesToPack: '$(project)'
+    packDirectory: '$(Build.ArtifactStagingDirectory)'
 
 - script: |
-    dotnet nuget push "$(Build.ArtifactStagingDirectory)/**.nupkg" --source $(packageLocation) --api-key $(apiKey) --skip-duplicate
+    dotnet nuget push "$(Build.ArtifactStagingDirectory)/**/*.nupkg" --source $(packageLocation) --api-key $(apiKey) --skip-duplicate
+  displayName: 'Push NuGet Package'
