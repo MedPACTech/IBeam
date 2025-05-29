@@ -1,56 +1,47 @@
-trigger:
-  branches:
-    include:
-    - main
-
-pool:
-  vmImage: 'ubuntu-22.04'  # ✅ Required VM image
-
-variables:
-- group: GitHubNuGetSecrets  # ✅ Reference your variable group first
-
-- name: buildPlatform       # ✅ Then define other inline variables
-  value: 'AnyCPU'
-
-- name: buildConfiguration
-  value: 'Release'
-
+parameters:
 - name: solution
-  value: '**/IBeam.sln'
-
+  type: string
 - name: project
-  value: '**/IBeam.Utilities.csproj'
-
+  type: string
 - name: packageLocation
-  value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
-
+  type: string
+- name: buildPlatform
+  type: string
+  default: 'AnyCPU'
+- name: buildConfiguration
+  type: string
+  default: 'Release'
 - name: apiKey
-  value: '$(GH_TOKEN)'  # ✅ This pulls from the variable group
+  type: string
 
 steps:
 - task: NuGetToolInstaller@1
   displayName: 'NuGet Tool Installer'
 
 - task: NuGetCommand@2
+  displayName: 'Restore Packages'
   inputs:
     command: 'restore'
-    restoreSolution: '$(solution)'  # ✅ Use solution for restore
+    restoreSolution: ${{ parameters.solution }}
     feedsToUse: 'select'
 
 - task: DotNetCoreCLI@2
+  displayName: 'Build Project'
   inputs:
     command: 'build'
-    projects: '$(project)'
-    arguments: '--configuration $(buildConfiguration)'
+    projects: ${{ parameters.project }}
+    arguments: '--configuration ${{ parameters.buildConfiguration }}'
 
 - task: DotNetCoreCLI@2
-  displayName: 'Create NuGet package'
+  displayName: 'Create NuGet Package'
   inputs:
     command: 'pack'
-    packagesToPack: '$(project)'
+    packagesToPack: ${{ parameters.project }}
     packDirectory: '$(Build.ArtifactStagingDirectory)'
 
 - script: |
-    dotnet nuget push "$(Build.ArtifactStagingDirectory)/**/*.nupkg" --source $(packageLocation) --api-key $(apiKey) --skip-duplicate
-  displayName: 'Push NuGet package'
-
+    dotnet nuget push "$(Build.ArtifactStagingDirectory)/**/*.nupkg" \
+      --source ${{ parameters.packageLocation }} \
+      --api-key ${{ parameters.apiKey }} \
+      --skip-duplicate
+  displayName: 'Push NuGet Package'
