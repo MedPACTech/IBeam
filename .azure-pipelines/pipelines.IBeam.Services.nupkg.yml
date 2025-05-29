@@ -1,0 +1,6 @@
+- template: templates/dotnet-nuget-build.yml
+  parameters:
+    solution: '**/IBeam.sln'
+    project: '**/IBeam.Services.csproj'
+    packageLocation: 'https://nuget.pkg.github.com/MedPACTech/index.json'
+    apiKey: '$(GH_TOKEN)'
