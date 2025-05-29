@@ -73,8 +73,10 @@ namespace IBeam.Repositories
         {
             return _appSettings.DatabaseType switch
             {
+
                 "MSSql" => SqlServerDialect.Provider,
-                "Postgres" => PostgreSqlDialect.Provider,
+                "PostgreSQL" => PostgreSqlDialect.Provider,
+                "SQLite3" => ConfigureSqliteDialect(),
                 _ => throw new Exception($"Unrecognized database type '{_appSettings.DatabaseType}'")
             };
         }
@@ -569,5 +571,37 @@ namespace IBeam.Repositories
                 throw new RepositoryException(ex, RepositoryName, "DeleteById", id);
             }
         }
+
+        private static IOrmLiteDialectProvider ConfigureSqliteDialect()
+        {
+            var sqlite = SqliteDialect.Provider;
+
+            sqlite.RegisterConverter<Guid>(new SqliteGuidAsStringConverter());
+
+            return sqlite;
+        }
+
+        public class SqliteGuidAsStringConverter : OrmLiteConverter
+        {
+            // Show "TEXT" or "UUID" in the CREATE TABLE schema
+            public override string ColumnDefinition => "TEXT";  // Or "UUID"
+
+            // ADO.NET type for parameterized queries
+            public override DbType DbType => DbType.String;
+
+            // How to store Guid in the DB (as a string)
+            public override object ToDbValue(Type fieldType, object value)
+                => value?.ToString();
+
+            // Convert back to Guid on retrieval
+            public override object FromDbValue(Type fieldType, object value)
+                => value == null ? Guid.Empty : new Guid(value.ToString());
+
+            // Quote values for SQL statements
+            public override string ToQuotedString(Type fieldType, object value)
+                => $"'{value}'";
+        }
+
+
     }
 }
