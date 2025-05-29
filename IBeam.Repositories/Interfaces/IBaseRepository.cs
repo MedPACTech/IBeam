@@ -9,7 +9,6 @@ namespace IBeam.Repositories.Interfaces
         bool IsArchivable { get; }
         bool IsSoftDeleteDisabled { get; }
         bool IsTenantSpecific { get; }
-        Guid? TenantId { get; } 
         bool EnableCache { get; set; }
         bool IdGeneratedByRepository { get; }
 

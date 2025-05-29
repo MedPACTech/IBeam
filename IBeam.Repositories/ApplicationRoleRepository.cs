@@ -7,12 +7,13 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using Microsoft.Extensions.Options;
+using IBeam.DataModels.System;
 
 namespace IBeam.Repositories
 {
 	public class ApplicationRoleRepository : BaseRepository<ApplicationRoleDTO>, IApplicationRoleRepository
 	{
-        public ApplicationRoleRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
+        public ApplicationRoleRepository(TenantContext tenantContext, IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(tenantContext, appSettings, memoryCache)
         {
         }
 

@@ -7,12 +7,13 @@ using System;
 using System.Data;
 using System.Linq;
 using Microsoft.Extensions.Options;
+using IBeam.DataModels.System;
 
 namespace IBeam.Repositories
 {
     public class AccountContextRepository : BaseRepository<AccountContextDTO>, IAccountContextRepository
 	{
-        public AccountContextRepository(IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(appSettings, memoryCache)
+        public AccountContextRepository(TenantContext tenantContext, IOptions<BaseAppSettings> appSettings, IMemoryCache memoryCache) : base(tenantContext, appSettings, memoryCache)
         {
         }
 
