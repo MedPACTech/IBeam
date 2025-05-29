@@ -25,7 +25,7 @@ variables:
   value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
 
 - name: apiKey
-  value: '$(GITHUB_PAT)'
+  value: '$(GH_TOKEN)'
 
 stages:
 - stage: BuildAndPush
