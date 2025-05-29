@@ -3,7 +3,10 @@ trigger:
   branches:
     include:
     - main
-    
+
+pool:
+  vmImage: 'ubuntu-latest' 
+
 variables:
  buildPlatform: 'AnyCPU'
  buildConfiguration: 'Release'
