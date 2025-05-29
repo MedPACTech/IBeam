@@ -1,14 +1,12 @@
-﻿
-using System.Data;
+﻿using System.Data;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
-using IBeam.Repositories.Interfaces;
 using ServiceStack.OrmLite;
 using ServiceStack.OrmLite.Legacy;
+using IBeam.Repositories.Interfaces;
 using IBeam.Utilities;
 using IBeam.DataModels.System;
 
-//todo: abstract out ormlite inject into ormlite Base if possible
 namespace IBeam.Repositories
 {
     public abstract class BaseRepository<T> : IBaseRepository<T> where T : class, IDTO
@@ -18,76 +16,95 @@ namespace IBeam.Repositories
         public bool IsArchivable { get; }
         public bool IsSoftDeleteDisabled { get; }
         public bool IsTenantSpecific { get; }
-        public Guid? TenantId { get; } // TenantId set during construction
         public bool EnableCache { get; set; }
         public bool IdGeneratedByRepository { get; }
 
         protected readonly OrmLiteConnectionFactory _dataFactory;
         protected readonly IMemoryCache _memoryCache;
         protected readonly BaseAppSettings _appSettings;
+        protected readonly TenantContext _tenantContext;
 
+        /// <summary>
+        /// Constructor for dependency injection with TenantContext.
+        /// </summary>
+        /// <param name="tenantContext">The TenantContext instance.</param>
+        /// <param name="appSettings">Application settings.</param>
+        /// <param name="memoryCache">Memory cache instance.</param>
+        /// <param name="connectionStringOverride">Optional connection string override.</param>
         public BaseRepository(
+            TenantContext tenantContext,
             IOptions<BaseAppSettings> appSettings,
             IMemoryCache memoryCache,
-            Guid? tenantId = null, // TenantId passed as a parameter
             string? connectionStringOverride = null)
         {
-            _appSettings = appSettings.Value;
-            var repositoryType = typeof(T);
+            if (tenantContext == null)
+                throw new ArgumentNullException(nameof(tenantContext));
 
-            // Initialize repository name and cache name
+            _appSettings = appSettings?.Value ?? throw new ArgumentNullException(nameof(appSettings));
+            _memoryCache = memoryCache ?? throw new ArgumentNullException(nameof(memoryCache));
+            _tenantContext = tenantContext;
+
+            var repositoryType = typeof(T);
             RepositoryName = repositoryType.FullName.Replace("DTO", "Repository");
             RepositoryCacheName = $"{RepositoryName}Cache";
-
-            // Determine repository-specific flags
             IsTenantSpecific = typeof(IDTOTenant).IsAssignableFrom(repositoryType);
             IsArchivable = typeof(IDTOArchive).IsAssignableFrom(repositoryType);
             IsSoftDeleteDisabled = DetermineSoftDelete(_appSettings.DisableSoftDelete, repositoryType);
-            TenantId = InitializeTenantSetting(tenantId);
             EnableCache = InitializeCacheSetting();
             IdGeneratedByRepository = InitializeIdGenerationSetting();
 
-            // Set up database connection
             var dialectProvider = GetDatabaseType();
             string connectionString = connectionStringOverride ?? _appSettings.ConnectionString;
 
             _dataFactory = new OrmLiteConnectionFactory(connectionString, dialectProvider);
             _dataFactory.DialectProvider.NamingStrategy = new OrmLiteNamingStrategyBase();
-            _memoryCache = memoryCache;
+
+            if (IsTenantSpecific && !_tenantContext.IsTenantIdSet())
+            {
+                throw new InvalidOperationException($"TenantId is required for {RepositoryName} but is not set in the TenantContext.");
+            }
         }
 
+        /// <summary>
+        /// Gets the database type based on application settings.
+        /// </summary>
+        /// <returns>The appropriate OrmLite dialect provider.</returns>
         private IOrmLiteDialectProvider GetDatabaseType()
         {
             return _appSettings.DatabaseType switch
             {
+
                 "MSSql" => SqlServerDialect.Provider,
-                "Postgres" => PostgreSqlDialect.Provider,
+                "PostgreSQL" => PostgreSqlDialect.Provider,
+                "SQLite3" => ConfigureSqliteDialect(),
                 _ => throw new Exception($"Unrecognized database type '{_appSettings.DatabaseType}'")
             };
         }
 
-        private Guid InitializeTenantSetting(Guid? tenantId)
-        {
-            if (IsTenantSpecific && (!tenantId.HasValue))
-            {
-                throw new InvalidOperationException($"TenantId is required for {RepositoryName} but was not provided during repository creation.");
-            }
-
-            if (tenantId.HasValue) 
-                return tenantId.Value;
-            return Guid.Empty;
-        }
-
+        /// <summary>
+        /// Initializes the setting for ID generation by the repository.
+        /// </summary>
+        /// <returns>True if the repository generates IDs, otherwise false.</returns>
         private bool InitializeIdGenerationSetting()
         {
             return _appSettings.IdGeneratedByRepository ?? false;
         }
 
+        /// <summary>
+        /// Initializes the cache setting for the repository.
+        /// </summary>
+        /// <returns>True if caching is enabled, otherwise false.</returns>
         private bool InitializeCacheSetting()
         {
             return _appSettings.EnableCache ?? true;
         }
 
+        /// <summary>
+        /// Determines if soft delete is disabled for the repository.
+        /// </summary>
+        /// <param name="disableSoftDelete">Global disable soft delete setting.</param>
+        /// <param name="repositoryType">The type of the repository.</param>
+        /// <returns>True if soft delete is disabled, otherwise false.</returns>
         private bool DetermineSoftDelete(string? disableSoftDelete, Type repositoryType)
         {
             if (string.IsNullOrWhiteSpace(disableSoftDelete))
@@ -101,6 +118,18 @@ namespace IBeam.Repositories
             }
 
             return typeof(IDTODelete).IsAssignableFrom(repositoryType);
+        }
+
+        /// <summary>
+        /// Validates that the TenantId is set for tenant-specific operations.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Thrown if TenantId is not set.</exception>
+        private void ValidateTenantId()
+        {
+            if (IsTenantSpecific && !_tenantContext.IsTenantIdSet())
+            {
+                throw new InvalidOperationException($"TenantId is required for {RepositoryName} but is not set in the current context.");
+            }
         }
 
         private void ClearCache()
@@ -130,7 +159,7 @@ namespace IBeam.Repositories
             var query = db.From<T>();
             if (IsTenantSpecific)
             {
-                query = query.Where(x => ((IDTOTenant)x).TenantId == TenantId.Value);
+                query = query.Where(x => ((IDTOTenant)x).TenantId == _tenantContext.TenantId);
             }
 
             if (IsArchivable && !withArchived)
@@ -153,6 +182,8 @@ namespace IBeam.Repositories
         {
             try
             {
+                ValidateTenantId();
+
                 if (EnableCache && withArchived)
                     throw new Exception("Get All cannot cache archived results"); 
 
@@ -179,6 +210,8 @@ namespace IBeam.Repositories
         {
             try
             {
+                ValidateTenantId();
+
                 if (ids == null || !ids.Any())
                 {
                     throw new ArgumentException("The list of IDs cannot be null or empty.", nameof(ids));
@@ -189,7 +222,7 @@ namespace IBeam.Repositories
 
                 if (IsTenantSpecific)
                 {
-                    query = query.Where(x => ((IDTOTenant)x).TenantId == TenantId.Value);
+                    query = query.Where(x => ((IDTOTenant)x).TenantId == _tenantContext.TenantId);
                 }
 
                 return db.Select(query);
@@ -212,12 +245,14 @@ namespace IBeam.Repositories
         {
             try
             {
+                ValidateTenantId();
+
                 using IDbConnection db = _dataFactory.OpenDbConnection();
                 var query = db.From<T>().Where(x => x.Id == id);
 
                 if (IsTenantSpecific)
                 {
-                    query = query.Where(x => ((IDTOTenant)x).TenantId == TenantId.Value);
+                    query = query.Where(x => ((IDTOTenant)x).TenantId == _tenantContext.TenantId);
                 }
 
                 var result = db.Single(query);
@@ -247,6 +282,8 @@ namespace IBeam.Repositories
         {
             try
             {
+                ValidateTenantId();
+
                 using IDbConnection db = _dataFactory.OpenDbConnection();
 
                 if (!IdGeneratedByRepository)
@@ -268,9 +305,15 @@ namespace IBeam.Repositories
                 {
                     if (dto is IDTOTenant tenantDto)
                     {
-                        if (tenantDto.TenantId != TenantId.Value)
+
+                        if(tenantDto.TenantId == Guid.Empty)
                         {
-                            throw new InvalidOperationException($"TenantId mismatch. Entity belongs to TenantId {tenantDto.TenantId}, but repository is for TenantId {TenantId}.");
+                            tenantDto.TenantId = _tenantContext.TenantId.Value;
+                        }
+
+                        if (tenantDto.TenantId != _tenantContext.TenantId)
+                        {
+                            throw new InvalidOperationException($"TenantId mismatch. Entity belongs to TenantId {tenantDto.TenantId}, but repository is for TenantId {_tenantContext.TenantId}.");
                         }
                     }
                     else
@@ -302,6 +345,8 @@ namespace IBeam.Repositories
         {
             try
             {
+                ValidateTenantId();
+
                 using IDbConnection db = _dataFactory.OpenDbConnection();
 
                 foreach (var dto in dtos)
@@ -325,9 +370,14 @@ namespace IBeam.Repositories
                     {
                         if (dto is IDTOTenant tenantDto)
                         {
-                            if (tenantDto.TenantId != TenantId.Value)
+                            if (tenantDto.TenantId == Guid.Empty)
                             {
-                                throw new InvalidOperationException($"TenantId mismatch. Entity belongs to TenantId {tenantDto.TenantId}, but repository is for TenantId {TenantId}.");
+                                tenantDto.TenantId = _tenantContext.TenantId.Value;
+                            }
+
+                            if (tenantDto.TenantId != _tenantContext.TenantId)
+                            {
+                                throw new InvalidOperationException($"TenantId mismatch. Entity belongs to TenantId {tenantDto.TenantId}, but repository is for TenantId {_tenantContext.TenantId}.");
                             }
                         }
                         else
@@ -347,6 +397,7 @@ namespace IBeam.Repositories
             }
         }
 
+        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
         public bool Archive(T dto)
         {
             try
@@ -368,6 +419,7 @@ namespace IBeam.Repositories
             }
         }
 
+        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
         public bool ArchiveAll(List<T> dtos)
         {
             try
@@ -392,6 +444,7 @@ namespace IBeam.Repositories
             }
         }
 
+        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
         public bool UnArchive(T dto)
         {
             try
@@ -413,6 +466,7 @@ namespace IBeam.Repositories
             }
         }
 
+        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
         /// <summary>
         /// Unarchives all records in the repository.
         /// </summary>
@@ -444,7 +498,7 @@ namespace IBeam.Repositories
             }
         }
 
-
+        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
         /// <summary>
         /// Deletes a single record in the repository by entity.
         /// If entity inherits IDOTenant, the TenantId must match the repository's TenantId.
@@ -481,6 +535,7 @@ namespace IBeam.Repositories
             }
         }
 
+        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
         /// <summary>
         /// Deletes a single record in the repository by Id.
         /// If Entity inherits IDOTenant, the TenantId must match the repository's TenantId.
@@ -516,5 +571,37 @@ namespace IBeam.Repositories
                 throw new RepositoryException(ex, RepositoryName, "DeleteById", id);
             }
         }
+
+        private static IOrmLiteDialectProvider ConfigureSqliteDialect()
+        {
+            var sqlite = SqliteDialect.Provider;
+
+            sqlite.RegisterConverter<Guid>(new SqliteGuidAsStringConverter());
+
+            return sqlite;
+        }
+
+        public class SqliteGuidAsStringConverter : OrmLiteConverter
+        {
+            // Show "TEXT" or "UUID" in the CREATE TABLE schema
+            public override string ColumnDefinition => "TEXT";  // Or "UUID"
+
+            // ADO.NET type for parameterized queries
+            public override DbType DbType => DbType.String;
+
+            // How to store Guid in the DB (as a string)
+            public override object ToDbValue(Type fieldType, object value)
+                => value?.ToString();
+
+            // Convert back to Guid on retrieval
+            public override object FromDbValue(Type fieldType, object value)
+                => value == null ? Guid.Empty : new Guid(value.ToString());
+
+            // Quote values for SQL statements
+            public override string ToQuotedString(Type fieldType, object value)
+                => $"'{value}'";
+        }
+
+
     }
 }
