@@ -1,6 +1,40 @@
-- template: templates/dotnet-nuget-build.yml
-  parameters:
-    solution: '**/IBeam.sln'
-    project: '**/IBeam.Utilities.csproj'
-    packageLocation: 'https://nuget.pkg.github.com/MedPACTech/index.json'
-    apiKey: '$(GH_TOKEN)'
+trigger:
+  branches:
+    include:
+    - main
+
+pool:
+  vmImage: 'ubuntu-22.04'
+
+variables:
+- group: GitHubNuGetSecrets
+
+- name: buildPlatform
+  value: 'AnyCPU'
+
+- name: buildConfiguration
+  value: 'Release'
+
+- name: solution
+  value: '**/IBeam.sln'
+
+- name: project
+  value: '**/IBeam.Utilities.csproj'
+
+- name: packageLocation
+  value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
+
+- name: apiKey
+  value: '$(GH_TOKEN)'
+
+stages:
+- stage: BuildAndPush
+  jobs:
+  - job: BuildJob
+    steps:
+    - template: templates/dotnet-nuget-build.yml
+      parameters:
+        solution: $(solution)
+        project: $(project)
+        packageLocation: $(packageLocation)
+        apiKey: $(apiKey)
