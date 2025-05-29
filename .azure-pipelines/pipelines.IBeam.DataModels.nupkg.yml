@@ -1,4 +1,4 @@
-- template: .azure-pipelines/templates/dotnet-nuget-build.yml
+- template: templates/dotnet-nuget-build.yml
   parameters:
     solution: '**/IBeam.sln'
     project: '**/IBeam.DataModels.csproj'

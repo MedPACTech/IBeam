@@ -1,57 +1,6 @@
-trigger:
-  branches:
-    include:
-    - main
-
-pool:
-  vmImage: 'ubuntu-22.04'  # ✅ Required VM image
-
-variables:
-- group: GitHubNuGetSecrets  # ✅ Reference your variable group first
-
-- name: buildPlatform       # ✅ Then define other inline variables
-  value: 'AnyCPU'
-
-- name: buildConfiguration
-  value: 'Release'
-
-- name: solution
-  value: '**/IBeam.sln'
-
-- name: project
-  value: '**/IBeam.Models.csproj'
-
-- name: packageLocation
-  value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
-
-- name: apiKey
-  value: '$(GH_TOKEN)'  # ✅ This pulls from the variable group
-
-steps:
-- task: NuGetToolInstaller@1
-  displayName: 'Install NuGet'
-
-- task: NuGetCommand@2
-  displayName: 'Restore Packages'
-  inputs:
-    command: 'restore'
-    restoreSolution: '$(solution)'  # ✅ Fix: restore using .sln, not .csproj
-    feedsToUse: 'select'
-
-- task: DotNetCoreCLI@2
-  displayName: 'Build Project'
-  inputs:
-    command: 'build'
-    projects: '$(project)'
-    arguments: '--configuration $(buildConfiguration)'
-
-- task: DotNetCoreCLI@2
-  displayName: 'Pack NuGet Package'
-  inputs:
-    command: 'pack'
-    packagesToPack: '$(project)'
-    packDirectory: '$(Build.ArtifactStagingDirectory)'
-
-- script: |
-    dotnet nuget push "$(Build.ArtifactStagingDirectory)/**/*.nupkg" --source $(packageLocation) --api-key $(apiKey) --skip-duplicate
-  displayName: 'Push NuGet Package'
+- template: .azure-pipelines/templates/dotnet-nuget-build.yml
+  parameters:
+    solution: '**/IBeam.sln'
+    project: '**/IBeam.Models.csproj'
+    packageLocation: 'https://nuget.pkg.github.com/MedPACTech/index.json'
+    apiKey: '$(GH_TOKEN)'
