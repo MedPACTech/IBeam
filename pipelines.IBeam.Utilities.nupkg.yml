@@ -1,26 +1,27 @@
-# Agent Queue 'Azure Pipelines' was used with unrecognized Agent Specification, vmImage property must be specified to determine image - https://docs.microsoft.com/en-us/azure/devops/pipelines/agents/hosted?view=azure-devops&tabs=yaml#software
 trigger:
   branches:
     include:
     - main
 
+pool:
+  vmImage: 'ubuntu-22.04'  # ✅ Required to specify the agent image
+
 variables:
- buildPlatform: 'AnyCPU'
- buildConfiguration: 'Release'
- solution: '**/IBeam.sln'
- project: '**/IBeam.Utilities.csproj'
- packageLocation: 'https://nuget.pkg.github.com/MedPACTech/index.json'
- apiKey: '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'
+  buildPlatform: 'AnyCPU'
+  buildConfiguration: 'Release'
+  solution: '**/IBeam.sln'
+  project: '**/IBeam.Utilities.csproj'
+  packageLocation: 'https://nuget.pkg.github.com/MedPACTech/index.json'
+  apiKey: '$(GH_TOKEN)'  # ✅ Recommended to use secret pipeline variable
 
 steps:
 - task: NuGetToolInstaller@1
-  name: 'NuGetToolInstaller'
   displayName: 'NuGet Tool Installer'
 
 - task: NuGetCommand@2
   inputs:
     command: 'restore'
-    restoreSolution: '$(project)'
+    restoreSolution: '$(solution)'  # ✅ Use solution for restore
     feedsToUse: 'select'
 
 - task: DotNetCoreCLI@2
@@ -30,11 +31,13 @@ steps:
     arguments: '--configuration $(buildConfiguration)'
 
 - task: DotNetCoreCLI@2
-  displayName: 'Create nuget package'
+  displayName: 'Create NuGet package'
   inputs:
-      command: 'pack'
-      packagesToPack: '$(project)'
-      packDirectory: '$(Build.ArtifactStagingDirectory)'
+    command: 'pack'
+    packagesToPack: '$(project)'
+    packDirectory: '$(Build.ArtifactStagingDirectory)'
 
 - script: |
-    dotnet nuget push "$(Build.ArtifactStagingDirectory)/**.nupkg" --source $(packageLocation) --api-key $(apiKey) --skip-duplicate
+    dotnet nuget push "$(Build.ArtifactStagingDirectory)/**/*.nupkg" --source $(packageLocation) --api-key $(apiKey) --skip-duplicate
+  displayName: 'Push NuGet package'
+
