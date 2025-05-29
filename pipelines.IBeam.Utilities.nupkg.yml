@@ -4,15 +4,28 @@ trigger:
     - main
 
 pool:
-  vmImage: 'ubuntu-22.04'  # ✅ Required to specify the agent image
+  vmImage: 'ubuntu-22.04'  # ✅ Required VM image
 
 variables:
-  buildPlatform: 'AnyCPU'
-  buildConfiguration: 'Release'
-  solution: '**/IBeam.sln'
-  project: '**/IBeam.Utilities.csproj'
-  packageLocation: 'https://nuget.pkg.github.com/MedPACTech/index.json'
-  apiKey: '$(GH_TOKEN)'  # ✅ Recommended to use secret pipeline variable
+- group: GitHubNuGetSecrets  # ✅ Reference your variable group first
+
+- name: buildPlatform       # ✅ Then define other inline variables
+  value: 'AnyCPU'
+
+- name: buildConfiguration
+  value: 'Release'
+
+- name: solution
+  value: '**/IBeam.sln'
+
+- name: project
+  value: '**/IBeam.Utilities.csproj'
+
+- name: packageLocation
+  value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
+
+- name: apiKey
+  value: '$(GH_TOKEN)'  # ✅ This pulls from the variable group
 
 steps:
 - task: NuGetToolInstaller@1

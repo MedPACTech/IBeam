@@ -4,15 +4,25 @@ trigger:
     - main
 
 pool:
-  vmImage: 'ubuntu-22.04'  # ✅ Required to fix agent error
+  vmImage: 'ubuntu-22.04'  # ✅ Required VM image
 
 variables:
-  buildPlatform: 'AnyCPU'
-  buildConfiguration: 'Release'
-  solution: '**/IBeam.sln'
-  project: '**/IBeam.Repositories.csproj'
-  packageLocation: 'https://nuget.pkg.github.com/MedPACTech/index.json'
-  apiKey: '$(GH_TOKEN)'  # ✅ Use secret pipeline variable
+- group: GitHubNuGetSecrets  # ✅ Reference your variable group first
+
+- name: buildPlatform       # ✅ Then define other inline variables
+  value: 'AnyCPU'
+
+- name: buildConfiguration
+  value: 'Release'
+
+- name: solution
+  value: '**/IBeam.sln'
+
+- name: project
+  value: '**/IBeam.Repositories.csproj'
+
+- name: packageLocation
+  value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
 
 steps:
 - task: NuGetToolInstaller@1

@@ -4,16 +4,25 @@ trigger:
     - main
 
 pool:
-  vmImage: 'ubuntu-22.04'  # ✅ REQUIRED to select a valid image
+  vmImage: 'ubuntu-22.04'  # ✅ Required VM image
 
 variables:
-  buildPlatform: 'AnyCPU'
-  buildConfiguration: 'Release'
-  solution: '**/IBeam.sln'
-  project: '**/IBeam.Services.csproj'
-  packageLocation: 'https://nuget.pkg.github.com/MedPACTech/index.json'
-  apiKey: '$(GH_TOKEN)'  # ✅ Recommended to store your GitHub PAT securely
+- group: GitHubNuGetSecrets  # ✅ Reference your variable group first
 
+- name: buildPlatform       # ✅ Then define other inline variables
+  value: 'AnyCPU'
+
+- name: buildConfiguration
+  value: 'Release'
+
+- name: solution
+  value: '**/IBeam.sln'
+
+- name: project
+  value: '**/IBeam.Services.csproj'
+
+- name: packageLocation
+  value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
 steps:
 - task: NuGetToolInstaller@1
   displayName: 'Install NuGet'
