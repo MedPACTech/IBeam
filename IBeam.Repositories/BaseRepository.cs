@@ -71,15 +71,17 @@ namespace IBeam.Repositories
         /// <returns>The appropriate OrmLite dialect provider.</returns>
         private IOrmLiteDialectProvider GetDatabaseType()
         {
-            return _appSettings.DatabaseType switch
-            {
+            var databaseType = _appSettings.DatabaseType?.Trim().ToUpperInvariant();
 
-                "MSSql" => SqlServerDialect.Provider,
-                "PostgreSQL" => PostgreSqlDialect.Provider,
-                "SQLite3" => ConfigureSqliteDialect(),
+            return databaseType switch
+            {
+                "MSSQL" => SqlServerDialect.Provider,
+                "POSTGRESQL" => PostgreSqlDialect.Provider,
+                "SQLITE3" => ConfigureSqliteDialect(),
                 _ => throw new Exception($"Unrecognized database type '{_appSettings.DatabaseType}'")
             };
         }
+
 
         /// <summary>
         /// Initializes the setting for ID generation by the repository.
@@ -214,7 +216,7 @@ namespace IBeam.Repositories
 
                 if (ids == null || !ids.Any())
                 {
-                    throw new ArgumentException("The list of IDs cannot be null or empty.", nameof(ids));
+                    return Enumerable.Empty<T>().ToList();
                 }
 
                 using IDbConnection db = _dataFactory.OpenDbConnection();
