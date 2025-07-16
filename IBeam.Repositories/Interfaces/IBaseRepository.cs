@@ -1,4 +1,6 @@
-﻿using IBeam.DataModels.System;
+﻿using System.Data;
+using IBeam.DataModels.System;
+using ServiceStack.OrmLite;
 
 namespace IBeam.Repositories.Interfaces
 {
@@ -17,11 +19,24 @@ namespace IBeam.Repositories.Interfaces
         List<T> GetByIds(List<Guid> ids);
         T GetById(Guid id);
 
+        SqlExpression<T> Query(
+            IDbConnection? dbConnection = null,
+            bool includeArchived = false,
+            bool includeDeleted = false);
+
+        List<T> QueryWhere(
+            Func<SqlExpression<T>, SqlExpression<T>> expressionBuilder,
+            bool includeArchived = false,
+            bool includeDeleted = false);
+
         T Save(T dto);
         List<T> SaveAll(List<T> dtos);
 
         bool Archive(T dto);
         bool ArchiveAll(List<T> dtos);
+
+        bool Unarchive(T dto);
+        bool UnarchiveAll(List<T> dtos);
 
         void Delete(T dto);
         void DeleteById(Guid id);

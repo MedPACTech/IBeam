@@ -159,15 +159,18 @@ namespace IBeam.Repositories
             using IDbConnection db = _dataFactory.OpenDbConnection();
 
             var query = db.From<T>();
-            if (IsTenantSpecific)
+
+            if (!withArchived)
+                query = ApplyCommonFilters(query);
+            else
             {
-                query = query.Where(x => ((IDTOTenant)x).TenantId == _tenantContext.TenantId);
+                if (IsTenantSpecific)
+                    query = query.And(x => ((IDTOTenant)x).TenantId == _tenantContext.TenantId);
+
+                if (!IsSoftDeleteDisabled && typeof(IDTODelete).IsAssignableFrom(typeof(T)))
+                    query = query.And(x => ((IDTODelete)x).IsDeleted == false);
             }
 
-            if (IsArchivable && !withArchived)
-            {
-                query = query.Where(x => ((IDTOArchive)x).IsArchived == false);
-            }
 
             return db.Select(query);
         }
@@ -221,11 +224,7 @@ namespace IBeam.Repositories
 
                 using IDbConnection db = _dataFactory.OpenDbConnection();
                 var query = db.From<T>().Where(x => Sql.In(x.Id, ids));
-
-                if (IsTenantSpecific)
-                {
-                    query = query.Where(x => ((IDTOTenant)x).TenantId == _tenantContext.TenantId);
-                }
+                query = ApplyCommonFilters(query);
 
                 return db.Select(query);
             }
@@ -251,11 +250,7 @@ namespace IBeam.Repositories
 
                 using IDbConnection db = _dataFactory.OpenDbConnection();
                 var query = db.From<T>().Where(x => x.Id == id);
-
-                if (IsTenantSpecific)
-                {
-                    query = query.Where(x => ((IDTOTenant)x).TenantId == _tenantContext.TenantId);
-                }
+                query = ApplyCommonFilters(query);
 
                 var result = db.Single(query);
                 if (result == null)
@@ -269,6 +264,48 @@ namespace IBeam.Repositories
             {
                 throw new RepositoryException(ex, RepositoryName, "GetById", null, id);
             }
+        }
+        
+        /// <summary>
+        /// Builds a safe query for type T with tenant, archive, and soft delete filters pre-applied.
+        /// Call .Select(query) with your custom clauses on top.
+        /// </summary>
+        /// <param name="dbConnection">Optional DB connection to use for the query.</param>
+        /// <returns>SqlExpression with filters applied.</returns>
+        public SqlExpression<T> Query(
+            IDbConnection? dbConnection = null,
+            bool includeArchived = false,
+            bool includeDeleted = false)
+        {
+            ValidateTenantId();
+            var db = dbConnection ?? _dataFactory.OpenDbConnection();
+            var query = db.From<T>();
+
+            return ApplyCommonFilters(query, includeArchived, includeDeleted);
+        }
+
+        /// <summary>
+        /// Executes a filtered query using a provided expression builder. 
+        /// Automatically applies common filters (TenantId, IsArchived, IsDeleted),
+        /// unless overridden via parameters.
+        /// </summary>
+        /// <param name="expressionBuilder">A function to build on top of the base query.</param>
+        /// <param name="includeArchived">Set to true to include archived records.</param>
+        /// <param name="includeDeleted">Set to true to include soft-deleted records.</param>
+        /// <returns>A list of filtered results.</returns>
+        public List<T> QueryWhere(
+            Func<SqlExpression<T>, SqlExpression<T>> expressionBuilder,
+            bool includeArchived = false,
+            bool includeDeleted = false)
+        {
+            ValidateTenantId();
+
+            using var db = _dataFactory.OpenDbConnection();
+            var baseQuery = db.From<T>();
+            var filteredQuery = ApplyCommonFilters(baseQuery, includeArchived, includeDeleted);
+            var finalQuery = expressionBuilder(filteredQuery);
+
+            return db.Select(finalQuery);
         }
 
         /// <summary>
@@ -299,7 +336,7 @@ namespace IBeam.Repositories
                 {
                     if (dto.Id == Guid.Empty)
                     {
-                        dto.Id = Guid.NewGuid(); 
+                        dto.Id = Guid.NewGuid();
                     }
                 }
 
@@ -308,7 +345,7 @@ namespace IBeam.Repositories
                     if (dto is IDTOTenant tenantDto)
                     {
 
-                        if(tenantDto.TenantId == Guid.Empty)
+                        if (tenantDto.TenantId == Guid.Empty)
                         {
                             tenantDto.TenantId = _tenantContext.TenantId.Value;
                         }
@@ -327,7 +364,7 @@ namespace IBeam.Repositories
                 db.Save(dto);
                 ClearCache();
 
-                return dto; 
+                return dto;
             }
             catch (Exception ex)
             {
@@ -399,20 +436,23 @@ namespace IBeam.Repositories
             }
         }
 
-        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
+       /// <summary>
+        /// Archives a single record in the repository.
+        /// <paramref name="dto"/> must implement IDTOArchive.
+        /// Only IsArchived will be updated to true.
+        /// </summary>
         public bool Archive(T dto)
         {
             try
             {
-                if (dto is not IDTOArchive dtoArchive)
-                {
-                    throw new InvalidOperationException($"The entity of type {typeof(T).Name} does not implement IDTOArchive and cannot be archived.");
-                }
+                var entity = GetById(dto.Id);
 
-                dtoArchive.IsArchived = true;
+                if (entity is not IDTOArchive archiveEntity)
+                    throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement IDTOArchive.");
 
-                Save(dto);
+                archiveEntity.IsArchived = true;
 
+                Save(entity);
                 return true;
             }
             catch (Exception ex)
@@ -421,23 +461,27 @@ namespace IBeam.Repositories
             }
         }
 
-        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
+
+        /// <summary>
+        /// Archives all records in the repository.
+        /// Only IsArchived will be updated to true.
+        /// </summary>
         public bool ArchiveAll(List<T> dtos)
         {
             try
             {
-                foreach (var dto in dtos)
-                {
-                    if (dto is not IDTOArchive dtoArchive)
-                    {
-                        throw new InvalidOperationException($"The entity of type {typeof(T).Name} does not implement IDTOArchive and cannot be archived.");
-                    }
+                var ids = dtos.Select(x => x.Id).ToList();
+                var entities = GetByIds(ids);
 
-                    dtoArchive.IsArchived = true;
+                foreach (var entity in entities)
+                {
+                    if (entity is not IDTOArchive archiveEntity)
+                        throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement IDTOArchive.");
+
+                    archiveEntity.IsArchived = true;
                 }
 
-                SaveAll(dtos);
-
+                SaveAll(entities);
                 return true;
             }
             catch (Exception ex)
@@ -446,61 +490,59 @@ namespace IBeam.Repositories
             }
         }
 
-        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
-        public bool UnArchive(T dto)
+        /// <summary>
+        /// Unarchives a single record in the repository.
+        /// Only IsArchived will be updated to false.
+        /// </summary>
+        public bool Unarchive(T dto)
         {
             try
             {
-                if (dto is not IDTOArchive dtoArchive)
-                {
-                    throw new InvalidOperationException($"The entity of type {typeof(T).Name} does not implement IDTOArchive and cannot be unarchived.");
-                }
+                var entity = GetById(dto.Id);
 
-                dtoArchive.IsArchived = false;
+                if (entity is not IDTOArchive archiveEntity)
+                    throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement IDTOArchive.");
 
-                Save(dto);
+                archiveEntity.IsArchived = false;
 
+                Save(entity);
                 return true;
             }
             catch (Exception ex)
             {
-                throw new RepositoryException(ex, RepositoryName, "Archive", dto);
+                throw new RepositoryException(ex, RepositoryName, "UnArchive", dto);
             }
         }
 
-        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
+
         /// <summary>
         /// Unarchives all records in the repository.
+        /// Only IsArchived will be updated to false.
         /// </summary>
-        /// <param name="dtos"></param>
-        /// <returns></returns>
-        /// <exception cref="InvalidOperationException"></exception>
-        /// <exception cref="RepositoryException"></exception>
-        public bool UnArchiveAll(List<T> dtos)
+        public bool UnarchiveAll(List<T> dtos)
         {
             try
             {
-                foreach (var dto in dtos)
-                {
-                    if (dto is not IDTOArchive dtoArchive)
-                    {
-                        throw new InvalidOperationException($"The entity of type {typeof(T).Name} does not implement IDTOArchive and cannot be archived.");
-                    }
+                var ids = dtos.Select(x => x.Id).ToList();
+                var entities = GetByIds(ids);
 
-                    dtoArchive.IsArchived = true;
+                foreach (var entity in entities)
+                {
+                    if (entity is not IDTOArchive archiveEntity)
+                        throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement IDTOArchive.");
+
+                    archiveEntity.IsArchived = false;
                 }
 
-                SaveAll(dtos);
-
+                SaveAll(entities);
                 return true;
             }
             catch (Exception ex)
             {
-                throw new RepositoryException(ex, RepositoryName, "ArchiveAll", dtos);
+                throw new RepositoryException(ex, RepositoryName, "UnArchiveAll", dtos);
             }
         }
 
-        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
         /// <summary>
         /// Deletes a single record in the repository by entity.
         /// If entity inherits IDOTenant, the TenantId must match the repository's TenantId.
@@ -537,7 +579,6 @@ namespace IBeam.Repositories
             }
         }
 
-        //TODO: if data is changed in the dto but archive is called, do we ignore the changes?
         /// <summary>
         /// Deletes a single record in the repository by Id.
         /// If Entity inherits IDOTenant, the TenantId must match the repository's TenantId.
@@ -582,6 +623,30 @@ namespace IBeam.Repositories
 
             return sqlite;
         }
+
+        private SqlExpression<T> ApplyCommonFilters(
+            SqlExpression<T> query,
+            bool includeArchived = false,
+            bool includeDeleted = false)
+        {
+            if (IsTenantSpecific)
+            {
+                query = query.And(x => ((IDTOTenant)x).TenantId == _tenantContext.TenantId);
+            }
+
+            if (IsArchivable && !includeArchived)
+            {
+                query = query.And(x => ((IDTOArchive)x).IsArchived == false);
+            }
+
+            if (!IsSoftDeleteDisabled && typeof(IDTODelete).IsAssignableFrom(typeof(T)) && !includeDeleted)
+            {
+                query = query.And(x => ((IDTODelete)x).IsDeleted == false);
+            }
+
+            return query;
+        }
+
 
         public class SqliteGuidAsStringConverter : OrmLiteConverter
         {
