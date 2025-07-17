@@ -639,9 +639,9 @@ namespace IBeam.Repositories
                 query = query.And(x => ((IDTOArchive)x).IsArchived == false);
             }
 
-            if (!IsSoftDeleteDisabled && typeof(IDTODelete).IsAssignableFrom(typeof(T)) && !includeDeleted)
+            if (!IsSoftDeleteDisabled && !includeDeleted)
             {
-                query = query.And(x => ((IDTODelete)x).IsDeleted == false);
+                query = query.And(x => x.IsDeleted == false);
             }
 
             return query;
