@@ -7,6 +7,7 @@ using IBeam.Repositories.Interfaces;
 using IBeam.Utilities;
 using IBeam.DataModels.System;
 
+
 namespace IBeam.Repositories
 {
     public abstract class BaseRepository<T> : IBaseRepository<T> where T : class, IDTO
@@ -44,12 +45,12 @@ namespace IBeam.Repositories
             _memoryCache = memoryCache ?? throw new ArgumentNullException(nameof(memoryCache));
             _tenantContext = tenantContext;
 
-            var repositoryType = typeof(T);
-            RepositoryName = repositoryType.FullName.Replace("DTO", "Repository");
+            // Use the runtime repository type so it always reflects the derived repo (e.g., PatientRepository)
+            RepositoryName = GetType().Name;
             RepositoryCacheName = $"{RepositoryName}Cache";
-            IsTenantSpecific = typeof(IDTOTenant).IsAssignableFrom(repositoryType);
-            IsArchivable = typeof(IDTOArchive).IsAssignableFrom(repositoryType);
-            IsSoftDeleteDisabled = DetermineSoftDelete(_appSettings.DisableSoftDelete, repositoryType);
+            IsTenantSpecific = typeof(IDTOTenant).IsAssignableFrom(typeof(T));
+            IsArchivable = typeof(IDTOArchive).IsAssignableFrom(typeof(T));
+            IsSoftDeleteDisabled = DetermineSoftDelete(_appSettings.DisableSoftDelete, typeof(T));
             EnableCache = InitializeCacheSetting();
             IdGeneratedByRepository = InitializeIdGenerationSetting();
 
@@ -82,11 +83,9 @@ namespace IBeam.Repositories
             };
         }
 
-
         /// <summary>
         /// Initializes the setting for ID generation by the repository.
         /// </summary>
-        /// <returns>True if the repository generates IDs, otherwise false.</returns>
         private bool InitializeIdGenerationSetting()
         {
             return _appSettings.IdGeneratedByRepository ?? false;
@@ -95,7 +94,6 @@ namespace IBeam.Repositories
         /// <summary>
         /// Initializes the cache setting for the repository.
         /// </summary>
-        /// <returns>True if caching is enabled, otherwise false.</returns>
         private bool InitializeCacheSetting()
         {
             return _appSettings.EnableCache ?? true;
@@ -104,9 +102,6 @@ namespace IBeam.Repositories
         /// <summary>
         /// Determines if soft delete is disabled for the repository.
         /// </summary>
-        /// <param name="disableSoftDelete">Global disable soft delete setting.</param>
-        /// <param name="repositoryType">The type of the repository.</param>
-        /// <returns>True if soft delete is disabled, otherwise false.</returns>
         private bool DetermineSoftDelete(string? disableSoftDelete, Type repositoryType)
         {
             if (string.IsNullOrWhiteSpace(disableSoftDelete))
@@ -171,7 +166,6 @@ namespace IBeam.Repositories
                     query = query.And(x => ((IDTODelete)x).IsDeleted == false);
             }
 
-
             return db.Select(query);
         }
 
@@ -180,9 +174,6 @@ namespace IBeam.Repositories
         /// If the entity inherits IDTOTenant, the TenantId must match the repository's TenantId.
         /// If EnableCache is true, the results will be cached unless withArchived is true.
         /// </summary>
-        /// <param name="withArchived"></param>
-        /// <returns></returns>
-        /// <exception cref="RepositoryException"></exception>
         public virtual List<T> GetAll(bool withArchived = false)
         {
             try
@@ -190,7 +181,7 @@ namespace IBeam.Repositories
                 ValidateTenantId();
 
                 if (EnableCache && withArchived)
-                    throw new Exception("Get All cannot cache archived results"); 
+                    throw new Exception("Get All cannot cache archived results");
 
                 if (EnableCache)
                     return GetAllCached();
@@ -199,7 +190,7 @@ namespace IBeam.Repositories
             }
             catch (Exception ex)
             {
-                throw new RepositoryException(ex, RepositoryName, "GetAll");
+                throw new RepositoryException(ex, RepositoryName, nameof(GetAll));
             }
         }
 
@@ -207,10 +198,6 @@ namespace IBeam.Repositories
         /// Returns a list of records from the repository by Ids.
         /// If the entity inherits IDTOTenant, the TenantId must match the repository's TenantId.
         /// </summary>
-        /// <param name="ids"></param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentException"></exception>
-        /// <exception cref="RepositoryException"></exception>
         public virtual List<T> GetByIds(List<Guid> ids)
         {
             try
@@ -230,7 +217,7 @@ namespace IBeam.Repositories
             }
             catch (Exception ex)
             {
-                throw new RepositoryException(ex, RepositoryName, "GetByIds", null, ids);
+                throw new RepositoryException(ex, RepositoryName, nameof(GetByIds), null, ids);
             }
         }
 
@@ -238,10 +225,6 @@ namespace IBeam.Repositories
         /// Returns a single record from the repository by Id.
         /// If the entity inherits IDTOTenant, the TenantId must match the repository's TenantId.
         /// </summary>
-        /// <param name="id"></param>
-        /// <returns></returns>
-        /// <exception cref="KeyNotFoundException"></exception>
-        /// <exception cref="RepositoryException"></exception>
         public T GetById(Guid id)
         {
             try
@@ -262,16 +245,14 @@ namespace IBeam.Repositories
             }
             catch (Exception ex)
             {
-                throw new RepositoryException(ex, RepositoryName, "GetById", null, id);
+                throw new RepositoryException(ex, RepositoryName, nameof(GetById), null, id);
             }
         }
-        
+
         /// <summary>
         /// Builds a safe query for type T with tenant, archive, and soft delete filters pre-applied.
         /// Call .Select(query) with your custom clauses on top.
         /// </summary>
-        /// <param name="dbConnection">Optional DB connection to use for the query.</param>
-        /// <returns>SqlExpression with filters applied.</returns>
         public SqlExpression<T> Query(
             IDbConnection? dbConnection = null,
             bool includeArchived = false,
@@ -289,10 +270,6 @@ namespace IBeam.Repositories
         /// Automatically applies common filters (TenantId, IsArchived, IsDeleted),
         /// unless overridden via parameters.
         /// </summary>
-        /// <param name="expressionBuilder">A function to build on top of the base query.</param>
-        /// <param name="includeArchived">Set to true to include archived records.</param>
-        /// <param name="includeDeleted">Set to true to include soft-deleted records.</param>
-        /// <returns>A list of filtered results.</returns>
         public List<T> QueryWhere(
             Func<SqlExpression<T>, SqlExpression<T>> expressionBuilder,
             bool includeArchived = false,
@@ -311,12 +288,8 @@ namespace IBeam.Repositories
         /// <summary>
         /// Saves a single record in the repository.
         /// If the entity inherits IDTOTenant, the TenantId must match the repository's TenantId.
-        /// if IdGeneratedByRepository is true, a new Guid will be generated for the Id.
+        /// If IdGeneratedByRepository is true, a new Guid will be generated for the Id.
         /// </summary>
-        /// <param name="dto"></param>
-        /// <returns></returns>
-        /// <exception cref="InvalidOperationException"></exception>
-        /// <exception cref="RepositoryException"></exception>
         public T Save(T dto)
         {
             try
@@ -328,23 +301,18 @@ namespace IBeam.Repositories
                 if (!IdGeneratedByRepository)
                 {
                     if (dto.Id == Guid.Empty)
-                    {
                         throw new Exception("Empty Id is not allowed when Ids are managed externally.");
-                    }
                 }
                 else
                 {
                     if (dto.Id == Guid.Empty)
-                    {
                         dto.Id = Guid.NewGuid();
-                    }
                 }
 
                 if (IsTenantSpecific)
                 {
                     if (dto is IDTOTenant tenantDto)
                     {
-
                         if (tenantDto.TenantId == Guid.Empty)
                         {
                             tenantDto.TenantId = _tenantContext.TenantId.Value;
@@ -368,7 +336,7 @@ namespace IBeam.Repositories
             }
             catch (Exception ex)
             {
-                throw new RepositoryException(ex, RepositoryName, "Save", dto);
+                throw new RepositoryException(ex, RepositoryName, nameof(Save), dto);
             }
         }
 
@@ -377,9 +345,6 @@ namespace IBeam.Repositories
         /// If the entity inherits IDTOTenant, the TenantId must match the repository's TenantId.
         /// If IdGeneratedByRepository is true, a new Guid will be generated for the Id.
         /// </summary>
-        /// <param name="dtos"></param>
-        /// <exception cref="InvalidOperationException"></exception>
-        /// <exception cref="RepositoryException"></exception>
         public List<T> SaveAll(List<T> dtos)
         {
             try
@@ -393,16 +358,12 @@ namespace IBeam.Repositories
                     if (!IdGeneratedByRepository)
                     {
                         if (dto.Id == Guid.Empty)
-                        {
                             throw new Exception("Empty Ids are not allowed when Ids are managed externally.");
-                        }
                     }
                     else
                     {
                         if (dto.Id == Guid.Empty)
-                        {
                             dto.Id = Guid.NewGuid();
-                        }
                     }
 
                     if (IsTenantSpecific)
@@ -432,11 +393,11 @@ namespace IBeam.Repositories
             }
             catch (Exception ex)
             {
-                throw new RepositoryException(ex, RepositoryName, "SaveAll", dtos);
+                throw new RepositoryException(ex, RepositoryName, nameof(SaveAll), dtos);
             }
         }
 
-       /// <summary>
+        /// <summary>
         /// Archives a single record in the repository.
         /// <paramref name="dto"/> must implement IDTOArchive.
         /// Only IsArchived will be updated to true.
@@ -457,10 +418,9 @@ namespace IBeam.Repositories
             }
             catch (Exception ex)
             {
-                throw new RepositoryException(ex, RepositoryName, "Archive", dto);
+                throw new RepositoryException(ex, RepositoryName, nameof(Archive), dto);
             }
         }
-
 
         /// <summary>
         /// Archives all records in the repository.
@@ -486,7 +446,7 @@ namespace IBeam.Repositories
             }
             catch (Exception ex)
             {
-                throw new RepositoryException(ex, RepositoryName, "ArchiveAll", dtos);
+                throw new RepositoryException(ex, RepositoryName, nameof(ArchiveAll), dtos);
             }
         }
 
@@ -510,10 +470,9 @@ namespace IBeam.Repositories
             }
             catch (Exception ex)
             {
-                throw new RepositoryException(ex, RepositoryName, "UnArchive", dto);
+                throw new RepositoryException(ex, RepositoryName, nameof(Unarchive), dto);
             }
         }
-
 
         /// <summary>
         /// Unarchives all records in the repository.
@@ -539,7 +498,7 @@ namespace IBeam.Repositories
             }
             catch (Exception ex)
             {
-                throw new RepositoryException(ex, RepositoryName, "UnArchiveAll", dtos);
+                throw new RepositoryException(ex, RepositoryName, nameof(UnarchiveAll), dtos);
             }
         }
 
@@ -548,8 +507,6 @@ namespace IBeam.Repositories
         /// If entity inherits IDOTenant, the TenantId must match the repository's TenantId.
         /// If entity inherits IDTODelete, a hard delete will be performed.
         /// </summary>
-        /// <param name="dto"></param>
-        /// <exception cref="RepositoryException"></exception>
         public void Delete(T dto)
         {
             try
@@ -575,7 +532,8 @@ namespace IBeam.Repositories
             }
             catch (Exception ex)
             {
-                throw new RepositoryException(ex, RepositoryName, "DeleteById", dto.Id);
+                // FIXED: action name should reflect this method
+                throw new RepositoryException(ex, RepositoryName, nameof(Delete), dto.Id);
             }
         }
 
@@ -584,8 +542,6 @@ namespace IBeam.Repositories
         /// If Entity inherits IDOTenant, the TenantId must match the repository's TenantId.
         /// If Entity inherits IDTODelete, a hard delete will be performed.
         /// </summary>
-        /// <param name="id"></param>
-        /// <exception cref="RepositoryException"></exception>
         public void DeleteById(Guid id)
         {
             try
@@ -611,7 +567,7 @@ namespace IBeam.Repositories
             }
             catch (Exception ex)
             {
-                throw new RepositoryException(ex, RepositoryName, "DeleteById", id);
+                throw new RepositoryException(ex, RepositoryName, nameof(DeleteById), id);
             }
         }
 
@@ -647,7 +603,6 @@ namespace IBeam.Repositories
             return query;
         }
 
-
         public class SqliteGuidAsStringConverter : OrmLiteConverter
         {
             // Show "TEXT" or "UUID" in the CREATE TABLE schema
@@ -668,7 +623,5 @@ namespace IBeam.Repositories
             public override string ToQuotedString(Type fieldType, object value)
                 => $"'{value}'";
         }
-
-
     }
 }
