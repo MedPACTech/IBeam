@@ -3,67 +3,57 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace IBeam.Utilities
 {
-    //
-    // Summary:
-    //     Represents errors that occur within Repositories.
-    //     Any Exceptions should bypass all try catches and be proccessed to help identify exception locations easier
-    //
     [Serializable]
-    public class RepositoryException : Exception
+    public sealed class RepositoryException : Exception
     {
+        public string Repository { get; }
+        public string Action { get; }
+        public IList<string> Parameters { get; }
+        public string JsonData { get; }
 
-        private static string _defaultExceptionmessage()
-        {
-            return "Repository exception occured.View custom exception properties for more details.";
-        }
+        private static string _defaultExceptionMessage() =>
+            "Repository exception occurred. View custom exception properties for more details.";
 
-        public string Repository { get; set; }
-        public string Action { get; set; }
-        public IList<string> Paramaters { get; set; }
-        public string JsonData { get; set; }
+        public RepositoryException() : base(_defaultExceptionMessage()) { }
 
-        // Constructors
-        public RepositoryException()
-            : base(_defaultExceptionmessage())
-        {
-        }
-
-        public RepositoryException(Exception innerException, object dataObject = null)
-            : base(_defaultExceptionmessage(), innerException)
-        {
-            GenerateException(innerException, dataObject);
-        }
-
-        public RepositoryException(Exception innerException, object dataObject = null, params object[] inputParamaters)
-            : base(_defaultExceptionmessage(), innerException)
-        {
-            GenerateException(innerException, dataObject, inputParamaters);
-        }
-
-        public RepositoryException(Exception innerException, string repository, string action, object dataObject = null, params object[] inputParamaters)
-                   : base(_defaultExceptionmessage(), innerException)
+        public RepositoryException(Exception innerException, string repository, string action, object dataObject = null, params object[] inputParameters)
+            : base(_defaultExceptionMessage(), innerException)
         {
             Repository = repository;
             Action = action;
-            GenerateException(innerException, dataObject, inputParamaters);
-        }
 
-        private void GenerateException(Exception innerException, object dataObject = null, params object[] inputParamaters)
-        {
             if (dataObject != null)
-                JsonData = JsonSerializer.Serialize(dataObject);
+            {
+                try
+                {
+                    JsonData = JsonSerializer.Serialize(dataObject, new JsonSerializerOptions
+                    {
+                        MaxDepth = 6,
+                        WriteIndented = false
+                    });
+                }
+                catch (Exception ex)
+                {
+                    JsonData = $"[Serialization failed: {ex.Message}]";
+                }
+            }
 
-            if (inputParamaters != null)
-                Paramaters = inputParamaters.Select(i => i.ToString()).ToList();
+            if (inputParameters?.Any() == true)
+            {
+                Parameters = inputParameters
+                    .Where(p => p != null)
+                    .Select(p => p.ToString())
+                    .ToList();
+            }
+            else
+            {
+                Parameters = Array.Empty<string>();
+            }
         }
 
-        // Ensure Exception is Serializable
-        protected RepositoryException(SerializationInfo info, StreamingContext ctxt)
-            : base(info, ctxt)
-        { }
+        private RepositoryException(SerializationInfo info, StreamingContext ctxt) : base(info, ctxt) { }
     }
 }
