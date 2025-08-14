@@ -2,15 +2,12 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using IBeam.Models;
-using IBeam.Models.API;
-using IBeam.Services.Authorization;
-using IBeam.Services.Interfaces;
-using IBeam.Services.System;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using IBeam.Scaffolding.Models.API;
 
 namespace IBeam.API.Controllers
 {

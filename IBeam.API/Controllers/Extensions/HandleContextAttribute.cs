@@ -1,7 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc.Filters;
-using IBeam.Models.API;
 using IBeam.Models.Interfaces;
-using IBeam.Services.System;
 using System;
 using System.Collections.Generic;
 using System.Linq;

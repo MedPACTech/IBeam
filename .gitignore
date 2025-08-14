@@ -16,3 +16,11 @@
 /IBeam.API/bin
 /IBeam.Mappings/bin
 /.vs
+*.dll
+*.pdb
+/IBeam.Scaffolding.Models/obj
+/IBeam.Services.Scaffold/bin
+/IBeam.Services.Scaffold/obj
+/IBeam.Scaffolding.DataModels/obj
+/IBeam.Repositories.Scaffold/obj
+/IBeam.Repositories.Scaffold/bin

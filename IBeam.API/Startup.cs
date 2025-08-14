@@ -69,7 +69,7 @@ namespace IBeam.Portal.API
             // Check if IronPdf is licensed successfully 
             bool is_licensed = IronPdf.License.IsLicensed;
 
-            services.AddAutoMapper(typeof(MappingProfiles).Assembly);
+            //services.AddAutoMapper(typeof(MappingProfiles).Assembly);
 
             var appSettings = appSettingsSection.Get<BaseAppSettings>();
             var key = Encoding.ASCII.GetBytes(appSettings.Secret);
