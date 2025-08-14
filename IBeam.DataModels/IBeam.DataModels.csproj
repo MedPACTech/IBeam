@@ -11,10 +11,13 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <PackageId>IBeam.DataModels</PackageId>
-    <Version>2.0.1</Version>
+    <Version>2.0.2</Version>
     <Authors>MedPAC Technologies</Authors>
     <Company>MedPAC Technologies</Company>
-    <PackageDescription>PACKAGE_DESCRIPTION</PackageDescription>
+    <PackageDescription>
+      Persistence-facing data transfer objects for repositories and services.
+      Defines flat, serializable DTOs that represent rows/documents for storage. DTOs are annotated for data access and deliberately free of business logic, making them stable contracts between the repository and service layers.
+    </PackageDescription>
     <RepositoryUrl>https://github.com/MedPACTech/IBeam</RepositoryUrl>
   </PropertyGroup>
 

@@ -11,10 +11,13 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <PackageId>IBeam.Services</PackageId>
-    <Version>2.0.1</Version>
+    <Version>2.0.2</Version>
     <Authors>MedPAC Technologies</Authors>
     <Company>MedPAC Technologies</Company>
-    <PackageDescription>PACKAGE_DESCRIPTION</PackageDescription>
+    <PackageDescription>
+      Business logic, validation, orchestration, mapping, and auditing.
+      Implements application rules and coordinates repositories and models. Includes synchronous and asynchronous base services with guardrails (feature flags), lifecycle hooks, and first-class auditing (generic + typed overlays).
+    </PackageDescription>
     <RepositoryUrl>https://github.com/MedPACTech/IBeam</RepositoryUrl>
   </PropertyGroup>
 
