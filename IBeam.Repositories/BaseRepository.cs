@@ -250,22 +250,6 @@ namespace IBeam.Repositories
         }
 
         /// <summary>
-        /// Builds a safe query for type T with tenant, archive, and soft delete filters pre-applied.
-        /// Call .Select(query) with your custom clauses on top.
-        /// </summary>
-        public SqlExpression<T> Query(
-            IDbConnection? dbConnection = null,
-            bool includeArchived = false,
-            bool includeDeleted = false)
-        {
-            ValidateTenantId();
-            var db = dbConnection ?? _dataFactory.OpenDbConnection();
-            var query = db.From<T>();
-
-            return ApplyCommonFilters(query, includeArchived, includeDeleted);
-        }
-
-        /// <summary>
         /// Executes a filtered query using a provided expression builder. 
         /// Automatically applies common filters (TenantId, IsArchived, IsDeleted),
         /// unless overridden via parameters.
@@ -276,13 +260,11 @@ namespace IBeam.Repositories
             bool includeDeleted = false)
         {
             ValidateTenantId();
-
             using var db = _dataFactory.OpenDbConnection();
-            var baseQuery = db.From<T>();
-            var filteredQuery = ApplyCommonFilters(baseQuery, includeArchived, includeDeleted);
-            var finalQuery = expressionBuilder(filteredQuery);
-
-            return db.Select(finalQuery);
+            var baseQ = db.From<T>();
+            var filtered = ApplyCommonFilters(baseQ, includeArchived, includeDeleted);
+            var finalQ = expressionBuilder(filtered);
+            return db.Select(finalQ);
         }
 
         /// <summary>

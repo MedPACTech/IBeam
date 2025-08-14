@@ -11,7 +11,7 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <PackageId>IBeam.DataModels</PackageId>
-    <Version>1.0.4</Version>
+    <Version>2.0.0</Version>
     <Authors>MedPAC Technologies</Authors>
     <Company>MedPAC Technologies</Company>
     <PackageDescription>PACKAGE_DESCRIPTION</PackageDescription>
@@ -31,7 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="ServiceStack.Interfaces" Version="8.4.0" />
+    <PackageReference Include="ServiceStack.Interfaces" Version="8.8.0" />
   </ItemGroup>
 
 </Project>

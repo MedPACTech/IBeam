@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -19,12 +19,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="AutoMapper" Version="13.0.1" />
+    <PackageReference Include="AutoMapper" Version="15.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\IBeam.DataModels\IBeam.DataModels.csproj" />
-    <ProjectReference Include="..\IBeam.Models\IBeam.Models.csproj" />
+    <ProjectReference Include="..\IBeam.Scaffolding.DataModels\IBeam.Scaffolding.DataModels.csproj" />
+    <ProjectReference Include="..\IBeam.Scaffolding.Models\IBeam.Scaffolding.Models.csproj" />
   </ItemGroup>
 
 </Project>

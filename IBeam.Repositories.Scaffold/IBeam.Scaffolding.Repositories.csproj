@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="nuget.config" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="nuget.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IBeam.DataModels\IBeam.DataModels.csproj" />
+    <ProjectReference Include="..\IBeam.Repositories\IBeam.Repositories.csproj" />
+    <ProjectReference Include="..\IBeam.Scaffolding.DataModels\IBeam.Scaffolding.DataModels.csproj" />
+    <ProjectReference Include="..\IBeam.Utilities\IBeam.Utilities.csproj" />
+  </ItemGroup>
+
+</Project>

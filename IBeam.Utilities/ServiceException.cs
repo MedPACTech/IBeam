@@ -1,69 +1,40 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.Serialization;
-using System.Text.Json;
-using System.Threading.Tasks;
+using System.Net;
 
 namespace IBeam.Utilities
 {
-    //
-    // Summary:
-    //     Represents errors that occur within Services.
-    //     Any Exceptions should bypass all try catches and be proccessed to help identify exception locations easier
-    //
     [Serializable]
-    public class ServiceException : Exception
+    public sealed class ServiceException : Exception, IBaseException
     {
+        public string Service { get; }
+        public string Action { get; }
+        public IList<object?> Parameters { get; }
 
-        private static string _defaultExceptionmessage()
+        public ServiceException(Exception inner, string service, string action, params object?[] parameters)
+            : base("A service error occurred while processing your request.", inner)
         {
-            return "Service exception occured. View custom exception properties for more details.";
-        }
-
-        public string Service { get; set; }
-        public string Action { get; set; }
-        public IList<string> Paramaters { get; set; }
-        public string JsonData { get; set; }
-
-        // Constructors
-        public ServiceException()
-            : base(_defaultExceptionmessage())
-        {
-        }
-
-        public ServiceException(Exception innerException, object dataObject = null)
-            : base(_defaultExceptionmessage(), innerException)
-        {
-            GenerateException(innerException, dataObject);
-        }
-
-        public ServiceException(Exception innerException, object dataObject = null, params object[] inputParamaters)
-            : base(_defaultExceptionmessage(), innerException)
-        {
-            GenerateException(innerException, dataObject, inputParamaters);
-        }
-
-        public ServiceException(Exception innerException, string repository, string action, object dataObject = null, params object[] inputParamaters)
-                   : base(_defaultExceptionmessage(), innerException)
-        {
-            Service = repository;
+            Service = service;
             Action = action;
-            GenerateException(innerException, dataObject, inputParamaters);
+            Parameters = parameters is null ? new List<object?>() : new List<object?>(parameters);
         }
 
-        private void GenerateException(Exception innerException, object dataObject = null, params object[] inputParamaters)
+        // IBaseException
+        public string Code => $"SERVICE.{Action?.ToUpperInvariant() ?? "UNKNOWN"}";
+        public string UserMessage => "We couldn’t complete the operation. Please try again.";
+        public HttpStatusCode StatusCode => InnerException switch
         {
-            if (dataObject != null)
-                JsonData = JsonSerializer.Serialize(dataObject);
+            ArgumentNullException or ArgumentException => HttpStatusCode.BadRequest,
+            KeyNotFoundException => HttpStatusCode.NotFound,
+            InvalidOperationException => HttpStatusCode.BadRequest,
+            _ => HttpStatusCode.InternalServerError
+        };
 
-            if (inputParamaters != null)
-                Paramaters = inputParamaters.Select(i => i.ToString()).ToList();
-        }
-
-        // Ensure Exception is Serializable
-        protected ServiceException(SerializationInfo info, StreamingContext ctxt)
-            : base(info, ctxt)
-        { }
+        public IReadOnlyDictionary<string, object?> GetClientExtensions() => new Dictionary<string, object?>
+        {
+            ["service"] = Service,
+            ["action"] = Action,
+            ["parameters"] = Parameters
+        };
     }
 }
