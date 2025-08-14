@@ -19,7 +19,7 @@ variables:
   value: '**/IBeam.sln'
 
 - name: project
-  value: '**/IBeam.Services.csproj'
+  value: '**/IBeam.Repositories.csproj'
 
 - name: packageLocation
   value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
