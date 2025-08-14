@@ -11,10 +11,13 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <PackageId>IBeam.Models</PackageId>
-    <Version>2.0.1</Version>
+    <Version>2.0.2</Version>
     <Authors>MedPAC Technologies</Authors>
     <Company>MedPAC Technologies</Company>
-    <PackageDescription>PACKAGE_DESCRIPTION</PackageDescription>
+    <PackageDescription>
+      Request/response models used by controllers and external clients.
+      These are the shapes your API exposes and accepts over HTTP. Models are tailored for readability and client needs, while services map them to storage DTOs.
+    </PackageDescription>
     <RepositoryUrl>https://github.com/MedPACTech/IBeam</RepositoryUrl>
   </PropertyGroup>
 

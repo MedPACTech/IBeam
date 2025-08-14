@@ -10,10 +10,13 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <PackageId>IBeam.Utilities</PackageId>
-    <Version>2.0.1</Version>
+    <Version>2.0.2</Version>
     <Authors>MedPAC Technologies</Authors>
     <Company>MedPAC Technologies</Company>
-    <PackageDescription>PACKAGE_DESCRIPTION</PackageDescription>
+    <PackageDescription>
+      Cross-cutting primitives and helpers used across the stack.
+      Provides shared types for consistent error handling and auditing, plus small utilities that keep other packages lean and focused.
+    </PackageDescription>
     <RepositoryUrl>https://github.com/MedPACTech/IBeam</RepositoryUrl>
     <SignAssembly>False</SignAssembly>
   </PropertyGroup>
