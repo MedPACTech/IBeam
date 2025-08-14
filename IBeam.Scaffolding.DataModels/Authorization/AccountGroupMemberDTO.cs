@@ -1,0 +1,20 @@
+using IBeam.DataModels.System;
+using ServiceStack.DataAnnotations;
+using System;
+
+namespace IBeam.Scaffolding.DataModels
+{
+
+    [Serializable]
+	[Alias("AccountGroupMember")]
+	public class AccountGroupMemberDTO : IDTO
+	{
+
+		public Guid Id { get; set; }
+		public Guid AccountGroupId { get; set; }
+		public Guid AccountId { get; set; }
+		public string AccountName { get; set; }
+		public string DisplayName { get; set; }
+        public bool IsDeleted { get; set; }
+    }
+}

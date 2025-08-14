@@ -19,11 +19,6 @@ namespace IBeam.Repositories.Interfaces
         List<T> GetByIds(List<Guid> ids);
         T GetById(Guid id);
 
-        SqlExpression<T> Query(
-            IDbConnection? dbConnection = null,
-            bool includeArchived = false,
-            bool includeDeleted = false);
-
         List<T> QueryWhere(
             Func<SqlExpression<T>, SqlExpression<T>> expressionBuilder,
             bool includeArchived = false,

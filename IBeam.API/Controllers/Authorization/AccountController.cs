@@ -5,10 +5,12 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using IBeam.Models;
-using IBeam.Models.API;
 using IBeam.Models.Interfaces;
-using IBeam.Services.Authorization;
 using IBeam.Utilities;
+using IBeam.Scaffolding.Models.API;
+using IBeam.Scaffolding.Services.Authorization;
+using IBeam.Scaffolding.Models.Interfaces;
+using IBeam.Scaffolding.Models;
 
 namespace IBeam.API.Controllers
 {

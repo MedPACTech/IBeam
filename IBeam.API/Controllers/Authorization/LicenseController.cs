@@ -2,7 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using IBeam.Models;
 using IBeam.Services;
 using System;
-using IBeam.Services.Interfaces;
+using IBeam.Scaffolding.Services.Interfaces;
+using IBeam.Scaffolding.Models;
 
 namespace IBeam.API.Controllers
 {

@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using IBeam.Models;
-using IBeam.Services.Authorization;
+using IBeam.Scaffolding.Services.Authorization;
 using System;
+using IBeam.Scaffolding.Models;
 
 namespace IBeam.API.Controllers
 {

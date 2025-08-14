@@ -1,12 +1,14 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using IBeam.Repositories;
-using IBeam.Repositories.Interfaces;
 using IBeam.Services;
-using IBeam.Services.Authorization;
-using IBeam.Services.Interfaces;
-using IBeam.Services.Messaging;
-using IBeam.Services.System;
+using IBeam.Services.Abstractions;
+using IBeam.Scaffolding.Services.Authorization;
+using IBeam.Scaffolding.Services.Messaging;
+using IBeam.Scaffolding.Services.Interfaces;
+using IBeam.Scaffolding.Services;
+using IBeam.Scaffolding.Repositories.Interfaces;
+using IBeam.Scaffolding.Repositories;
+using IBeam.Scaffolding.Services.System;
 
 namespace IBeam.Portal.API
 {
@@ -31,7 +33,7 @@ namespace IBeam.Portal.API
             services.AddTransient<IDocumentService, DocumentService>();
             services.AddTransient<IDocumentGenerationService, DocumentGenerationService>();
             services.AddScoped<INotificationService, NotificationService>();
-            services.AddScoped<ISystemAuditService, SystemAuditService>();
+            //services.AddScoped<ISystemAuditService, SystemAuditService>();
             services.AddScoped<IServiceAuthorizationService, ServiceAuthorizationService>();
             services.AddScoped<IApplicationRoleAccessService, ApplicationRoleAccessService>();
 

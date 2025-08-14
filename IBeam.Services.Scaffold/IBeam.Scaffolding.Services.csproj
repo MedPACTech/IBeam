@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="15.0.1" />
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="IronPdf" Version="2025.8.8" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.8" />
+    <PackageReference Include="SendGrid" Version="9.29.3" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.13.1" />
+    <PackageReference Include="Twilio" Version="7.12.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IBeam.Repositories.Scaffold\IBeam.Scaffolding.Repositories.csproj" />
+    <ProjectReference Include="..\IBeam.Scaffolding.Models\IBeam.Scaffolding.Models.csproj" />
+    <ProjectReference Include="..\IBeam.Utilities\IBeam.Utilities.csproj" />
+  </ItemGroup>
+
+</Project>

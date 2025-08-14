@@ -1,22 +1,22 @@
 using System;
 using Microsoft.AspNetCore.Mvc;
 using IBeam.Models;
-using IBeam.Services.Interfaces;
+using IBeam.Services.Abstractions;
 
 namespace IBeam.API.Controllers
 {
 
-	[ApiController]
+    [ApiController]
 	[Route("[controller]")]
 	public class SystemAuditController : ControllerBase
 	{
   
-        private ISystemAuditService _systemAuditService;
+       // private ISystemAuditService _systemAuditService;
 
-        public SystemAuditController(ISystemAuditService systemAuditService)
-        {
-            _systemAuditService = systemAuditService;
-        }
+       // public SystemAuditController(ISystemAuditService systemAuditService)
+       // {
+      //      _systemAuditService = systemAuditService;
+      //  }
 
         //[HttpGet("{id}")]
         //public ActionResult Get(Guid id)
@@ -24,12 +24,12 @@ namespace IBeam.API.Controllers
         //    return Ok(_systemAuditService.Fetch(id));
         //}
 
-        [HttpGet]
-        public ActionResult GetAll()
-        {
-            var data = _systemAuditService.Fetch();
-            return Ok(data);
-        }
+       // [HttpGet]
+       // public ActionResult GetAll()
+       // {
+     //       var data = _systemAuditService.Fetch();
+     //       return Ok(data);
+     //   }
 
 	}
 }

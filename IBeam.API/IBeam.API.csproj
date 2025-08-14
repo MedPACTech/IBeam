@@ -26,14 +26,15 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="8.0.10" />
     <PackageReference Include="Razor.Templating.Core" Version="2.0.0" />
     <PackageReference Include="Rotativa.AspNetCore" Version="1.3.2" />
-    <PackageReference Include="ServiceStack.OrmLite.Sqlite" Version="8.4.0" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.8.1" />
-	<PackageReference Include="AutoMapper" Version="13.0.1" />
+    <PackageReference Include="ServiceStack.OrmLite.Sqlite" Version="8.8.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.3" />
+	<PackageReference Include="AutoMapper" Version="15.0.1" />
 	<PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\IBeam.Models\IBeam.Models.csproj" />
+    <ProjectReference Include="..\IBeam.Services.Scaffold\IBeam.Scaffolding.Services.csproj" />
     <ProjectReference Include="..\IBeam.Services\IBeam.Services.csproj" />
   </ItemGroup>
 

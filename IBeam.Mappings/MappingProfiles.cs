@@ -1,6 +1,7 @@
 ﻿using IBeam.DataModels;
-using IBeam.Models;
-using IBeam.Models.API;
+using IBeam.Scaffolding.DataModels;
+using IBeam.Scaffolding.Models;
+using IBeam.Scaffolding.Models.API;
 
 namespace IBeam.Mappings
 {
