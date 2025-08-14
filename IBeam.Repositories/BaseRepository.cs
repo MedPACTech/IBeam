@@ -25,7 +25,7 @@ namespace IBeam.Repositories
         protected readonly IMemoryCache _memoryCache;
         protected readonly BaseAppSettings _appSettings;
         protected readonly TenantContext _tenantContext;
-
+         
         /// <summary>
         /// Constructor for dependency injection with TenantContext.
         /// </summary>
