@@ -4,6 +4,8 @@ using IBeam.Models.Interfaces;
 using IBeam.Repositories.Interfaces;
 using IBeam.Services.Abstractions;
 using IBeam.Utilities;
+using IBeam.Utilities.Auditing;
+using IBeam.Utilities.Exceptions;
 
 namespace IBeam.Services
 {
@@ -14,8 +16,8 @@ namespace IBeam.Services
         protected readonly string _serviceName;
         protected readonly IBaseRepository<TDTO> _repository;
         protected readonly IMapper _mapper;
-        protected readonly IAuditService _auditService;
-        // private readonly IErrorLogService _errorLogService; // TODO: Implement ErrorLogService
+        protected readonly IAuditService _audit;                   // generic fallback
+        protected readonly IEntityAuditService<TDTO>? _typedAudit; // per-entity overlay
 
         /// <summary>Allow retrieving a single entity by Id (default: true to support new model creation).</summary>
         protected virtual bool AllowGetById { get; set; } = true;
@@ -44,13 +46,17 @@ namespace IBeam.Services
         /// <summary>Allow returning a new model instance when an empty Id is requested.</summary>
         protected virtual bool AllowNewModel { get; private set; } = true;
 
-        public BaseService(IBaseServices baseServices, IBaseRepository<TDTO> repository)
+        protected BaseService(
+                IBaseServices baseServices,
+                IBaseRepository<TDTO> repository,
+                IEnumerable<IEntityAuditService<TDTO>> typedAudits // resolves to empty if none
+            )
         {
             _serviceName = GetType().Name; // e.g., PatientService
             _repository = repository;
             _mapper = baseServices.Mapper;
-            _auditService = baseServices.AuditService;
-            // _errorLogService = baseServices._errorLogService;
+            _audit = baseServices.AuditService;
+            _typedAudit = typedAudits.FirstOrDefault(); // null if not registered
         }
 
         #region Mapper Methods
@@ -363,12 +369,37 @@ namespace IBeam.Services
 
         #endregion
 
-        #region Abstract Methods for Logging
+        #region Methods for Logging
 
         protected abstract TModel NewModel();
-        protected abstract void LogCreate(TDTO dto);
-        protected abstract void LogUpdate(TDTO dto);
-        protected abstract void LogDelete(TDTO dto);
+
+        protected virtual void LogCreate(TDTO dto)
+        {
+            if (_typedAudit != null)
+                _typedAudit.LogCreate(dto);
+            else
+                _audit.LogAudit(dto.Id, typeof(TDTO).Name, "Create", dto);
+        }
+
+        protected virtual void LogUpdate(TDTO dto)
+        {
+            if (_typedAudit != null)
+                _typedAudit.LogUpdate(dto);
+            else
+                _audit.LogAudit(dto.Id, typeof(TDTO).Name, "Update", dto);
+        }
+
+        protected virtual void LogDelete(TDTO dto)
+        {
+            if (_typedAudit != null)
+                _typedAudit.LogDelete(dto);
+            else
+                _audit.LogAudit(dto.Id, typeof(TDTO).Name, "Delete", dto);
+        }
+
+        protected virtual AuditEvent BuildAuditEvent(AuditAction action, TDTO dto, object? data = null)
+        => AuditEventBuilder.Build(action, dto, data);
+
 
         #endregion
     }

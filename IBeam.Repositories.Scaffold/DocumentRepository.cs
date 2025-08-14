@@ -7,6 +7,7 @@ using System.Data;
 using Microsoft.Extensions.Options;
 using IBeam.DataModels.System;
 using IBeam.Repositories;
+using IBeam.Utilities.Exceptions;
 
 namespace IBeam.Scaffolding.Repositories
 {

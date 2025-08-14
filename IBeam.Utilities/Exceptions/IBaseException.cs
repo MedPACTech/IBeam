@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Net;
 
-namespace IBeam.Utilities
+namespace IBeam.Utilities.Exceptions
 {
     /// <summary>
     /// App-level exception contract used by the API to produce a consistent ProblemDetails response.

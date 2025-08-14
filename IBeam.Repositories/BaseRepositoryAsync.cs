@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBeam.DataModels.System;              // IDTO, IDTOTenant, IDTOArchive, IDTODelete
 using IBeam.Utilities;                      // RepositoryException
+using IBeam.Utilities.Exceptions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using ServiceStack.OrmLite;
