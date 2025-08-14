@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 // Avoid ambiguity with System.Net.ProblemDetails
 using MvcProblemDetails = Microsoft.AspNetCore.Mvc.ProblemDetails;
 
-namespace IBeam.Utilities
+namespace IBeam.Utilities.Exceptions
 {
     /// <summary>
     /// Global exception middleware that converts exceptions to RFC7807 ProblemDetails JSON.

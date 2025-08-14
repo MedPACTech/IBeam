@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace IBeam.Utilities
+namespace IBeam.Utilities.Auditing
 {
     public enum AuditAction
     {

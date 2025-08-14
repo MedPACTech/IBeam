@@ -10,7 +10,7 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <PackageId>IBeam.Utilities</PackageId>
-    <Version>2.0.0</Version>
+    <Version>2.0.1</Version>
     <Authors>MedPAC Technologies</Authors>
     <Company>MedPAC Technologies</Company>
     <PackageDescription>PACKAGE_DESCRIPTION</PackageDescription>
@@ -36,6 +36,10 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IBeam.DataModels\IBeam.DataModels.csproj" />
   </ItemGroup>
 
 </Project>

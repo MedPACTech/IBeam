@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Net;
 
-namespace IBeam.Utilities
+namespace IBeam.Utilities.Exceptions
 {
     [Serializable]
     public sealed class ServiceException : Exception, IBaseException

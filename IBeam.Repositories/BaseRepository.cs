@@ -6,6 +6,7 @@ using ServiceStack.OrmLite.Legacy;
 using IBeam.Repositories.Interfaces;
 using IBeam.Utilities;
 using IBeam.DataModels.System;
+using IBeam.Utilities.Exceptions;
 
 
 namespace IBeam.Repositories
