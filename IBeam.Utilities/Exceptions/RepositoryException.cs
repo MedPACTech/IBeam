@@ -6,7 +6,7 @@ using System.Runtime.Serialization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace IBeam.Utilities
+namespace IBeam.Utilities.Exceptions
 {
     [Serializable]
     public sealed class RepositoryException : Exception, IBaseException

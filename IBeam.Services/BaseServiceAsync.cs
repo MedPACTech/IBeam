@@ -8,7 +8,9 @@ using IBeam.DataModels.System;              // IDTO
 using IBeam.Repositories.Interfaces;       // IBaseRepositoryAsync<T>
 using IBeam.Services;                      // IAuditService
 using IBeam.Services.Abstractions;
-using IBeam.Utilities;                     // RepositoryException, AuditEvent, AuditAction, ServiceException
+using IBeam.Utilities;
+using IBeam.Utilities.Auditing;
+using IBeam.Utilities.Exceptions;                     // RepositoryException, AuditEvent, AuditAction, ServiceException
 
 namespace IBeam.Services.Base
 {
@@ -24,7 +26,9 @@ namespace IBeam.Services.Base
         protected readonly string _serviceName;
         protected readonly IBaseRepositoryAsync<TDTO> _repository;
         protected readonly IMapper _mapper;
-        protected readonly IAuditService _audit;
+        protected readonly IAuditServiceAsync _audit;
+        private readonly IEntityAuditServiceAsync<TDTO>? _typedAudit;
+
 
         // Feature flags (override in derived services)
         protected virtual bool AllowGetAll { get; set; } = false;
@@ -38,13 +42,14 @@ namespace IBeam.Services.Base
         protected virtual bool AllowNewModel { get; set; } = true;
 
         protected BaseServiceAsync(
-            IBaseServices baseServices,
+            IBaseServicesAsync baseServices,
             IBaseRepositoryAsync<TDTO> repository)
         {
             _serviceName = GetType().Name;
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
             _mapper = baseServices?.Mapper ?? throw new ArgumentNullException(nameof(baseServices));
             _audit = baseServices.AuditService ?? throw new ArgumentNullException(nameof(baseServices.AuditService));
+            _typedAudit = _audit as IEntityAuditServiceAsync<TDTO>;
         }
 
         // ---------------- Mapping ----------------
@@ -130,7 +135,8 @@ namespace IBeam.Services.Base
                 var result = ToModel(saved);
 
                 PostSave(result, isUpdate);
-                await _audit.LogAsync(BuildAuditEvent(isUpdate ? AuditAction.Update : AuditAction.Create, saved, result), ct);
+                if(isUpdate) await LogUpdateAsync(saved, result, ct);
+                else await LogCreateAsync(saved, result, ct);
 
                 return result;
             }
@@ -156,7 +162,8 @@ namespace IBeam.Services.Base
                 {
                     var isUpdate = saved[i].Id != Guid.Empty;
                     PostSave(result[i], isUpdate);
-                    await _audit.LogAsync(BuildAuditEvent(isUpdate ? AuditAction.Update : AuditAction.Create, saved[i], result[i]), ct);
+                    if (isUpdate) await LogUpdateAsync(saved[i], result[i], ct);
+                    else await LogCreateAsync(saved[i], result[i], ct);
                 }
 
                 return result;
@@ -248,7 +255,7 @@ namespace IBeam.Services.Base
             {
                 await _repository.DeleteByIdAsync(id, ct);
                 PostDelete(model);
-                await _audit.LogAsync(BuildAuditEvent(AuditAction.Delete, dto, model), ct);
+                await LogDeleteAsync(dto, model, ct);
             }
             catch (RepositoryException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, _serviceName, nameof(DeleteAsync), id); }
@@ -275,13 +282,22 @@ namespace IBeam.Services.Base
         }
 
         // ---------------- Audit helpers ----------------
-        protected virtual AuditEvent BuildAuditEvent(AuditAction action, TDTO dto, object? data = null) => new()
-        {
-            Action = action,
-            EntityName = typeof(TDTO).Name.Replace("DTO", string.Empty),
-            EntityId = dto.Id,
-            Data = data ?? dto
-            // Tenant/User/Correlation can be enriched by your app's IAuditService implementation
-        };
+        protected Task LogCreateAsync(TDTO dto, object? data, CancellationToken ct = default) =>
+        _typedAudit != null
+        ? _typedAudit.LogCreateAsync(dto, ct)
+        : _audit.LogAsync(BuildAuditEvent(AuditAction.Create, dto, data), ct);
+
+        protected Task LogUpdateAsync(TDTO dto, object? data, CancellationToken ct = default) =>
+            _typedAudit != null
+                ? _typedAudit.LogUpdateAsync(dto, ct)
+                : _audit.LogAsync(BuildAuditEvent(AuditAction.Update, dto, data), ct);
+
+        protected Task LogDeleteAsync(TDTO dto, object? data, CancellationToken ct = default) =>
+            _typedAudit != null
+                ? _typedAudit.LogDeleteAsync(dto, ct)
+                : _audit.LogAsync(BuildAuditEvent(AuditAction.Delete, dto, data), ct);
+
+        protected virtual AuditEvent BuildAuditEvent(AuditAction action, TDTO dto, object? data = null)
+        => AuditEventBuilder.Build(action, dto, data);
     }
 }

@@ -1,9 +1,8 @@
 ﻿// IBeam.Auditing/AuditEvent.cs
-using IBeam.Utilities;
 using System;
 using System.Collections.Generic;
 
-namespace IBeam.Utilities
+namespace IBeam.Utilities.Auditing
 {
     public sealed class AuditEvent
     {
