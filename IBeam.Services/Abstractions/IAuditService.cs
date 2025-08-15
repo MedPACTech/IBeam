@@ -7,7 +7,6 @@ namespace IBeam.Services.Abstractions
 {
     public interface IAuditService
     {
-        void LogAudit(Guid entityId, string entityName, string changeType, object payload);
         void LogAudit(AuditEvent ev);
     }
 }

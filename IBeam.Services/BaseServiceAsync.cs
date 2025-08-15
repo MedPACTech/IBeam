@@ -42,13 +42,13 @@ namespace IBeam.Services.Base
         protected virtual bool AllowNewModel { get; set; } = true;
 
         protected BaseServiceAsync(
-            IBaseServicesAsync baseServices,
-            IBaseRepositoryAsync<TDTO> repository)
+            IBaseRepositoryAsync<TDTO> repository, IAuditServiceAsync auditServiceAsync, IMapper mapper
+            )
         {
             _serviceName = GetType().Name;
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
-            _mapper = baseServices?.Mapper ?? throw new ArgumentNullException(nameof(baseServices));
-            _audit = baseServices.AuditService ?? throw new ArgumentNullException(nameof(baseServices.AuditService));
+            _audit = auditServiceAsync ?? throw new ArgumentNullException(nameof(auditServiceAsync));
+            _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _typedAudit = _audit as IEntityAuditServiceAsync<TDTO>;
         }
 

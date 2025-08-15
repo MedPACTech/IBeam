@@ -39,7 +39,6 @@ namespace IBeam.Portal.API
 
             services.AddMemoryCache();
 
-            services.AddScoped<IBaseServices, BaseServices>();
 
         }
 
