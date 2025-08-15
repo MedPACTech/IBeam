@@ -3,9 +3,9 @@ using IBeam.DataModels.System;
 using IBeam.Models.Interfaces;
 using IBeam.Repositories.Interfaces;
 using IBeam.Services.Abstractions;
-using IBeam.Utilities;
 using IBeam.Utilities.Auditing;
 using IBeam.Utilities.Exceptions;
+using System.Collections.Generic;
 
 namespace IBeam.Services
 {
@@ -46,17 +46,20 @@ namespace IBeam.Services
         /// <summary>Allow returning a new model instance when an empty Id is requested.</summary>
         protected virtual bool AllowNewModel { get; private set; } = true;
 
+        //TODO: IAudit, IMapper, IBaseRepository<TDTO> should be injected via DI container, not constructor
+        //TODO: Can these services be nullable ? If so, we need to handle that in the methods
         protected BaseService(
-                IBaseServices baseServices,
-                IBaseRepository<TDTO> repository,
-                IEnumerable<IEntityAuditService<TDTO>> typedAudits // resolves to empty if none
+            IBaseRepository<TDTO> repository,
+            IAuditService auditService,
+            IMapper mapper,
+            IEnumerable<IEntityAuditService<TDTO>> typedAudits // resolves to empty if none
             )
         {
             _serviceName = GetType().Name; // e.g., PatientService
             _repository = repository;
-            _mapper = baseServices.Mapper;
-            _audit = baseServices.AuditService;
-            _typedAudit = typedAudits.FirstOrDefault(); // null if not registered
+            _audit = auditService;
+            _mapper = mapper;
+            _typedAudit = _audit as IEntityAuditService<TDTO>; // typedAudits.FirstOrDefault(); // null if not registered
         }
 
         #region Mapper Methods
@@ -378,7 +381,14 @@ namespace IBeam.Services
             if (_typedAudit != null)
                 _typedAudit.LogCreate(dto);
             else
-                _audit.LogAudit(dto.Id, typeof(TDTO).Name, "Create", dto);
+                _audit.LogAudit(
+                    new AuditEvent()
+                    {
+                        EntityId = dto.Id,
+                        EntityName = typeof(TDTO).Name,
+                        Action = AuditAction.Create,
+                        Data = dto
+                    });
         }
 
         protected virtual void LogUpdate(TDTO dto)
@@ -386,7 +396,14 @@ namespace IBeam.Services
             if (_typedAudit != null)
                 _typedAudit.LogUpdate(dto);
             else
-                _audit.LogAudit(dto.Id, typeof(TDTO).Name, "Update", dto);
+                _audit.LogAudit(
+                    new AuditEvent()
+                    {
+                        EntityId = dto.Id,
+                        EntityName = typeof(TDTO).Name,
+                        Action = AuditAction.Update,
+                        Data = dto
+                    });
         }
 
         protected virtual void LogDelete(TDTO dto)
@@ -394,7 +411,15 @@ namespace IBeam.Services
             if (_typedAudit != null)
                 _typedAudit.LogDelete(dto);
             else
-                _audit.LogAudit(dto.Id, typeof(TDTO).Name, "Delete", dto);
+                _audit.LogAudit(
+                    new AuditEvent()
+                    {
+                        EntityId = dto.Id,
+                        EntityName = typeof(TDTO).Name,
+                        Action = AuditAction.Delete,
+                        Data = dto
+                    }
+                    );
         }
 
         protected virtual AuditEvent BuildAuditEvent(AuditAction action, TDTO dto, object? data = null)

@@ -4,8 +4,10 @@ using System.Collections.Generic;
 
 namespace IBeam.Utilities.Auditing
 {
+    //TODO: these needs to match the correct pattern but also add a primary entity as a pivot point. 
     public sealed class AuditEvent
     {
+        public Guid Id { get; init; } = Guid.NewGuid();
         public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.UtcNow;
 
         // Who did it / context
