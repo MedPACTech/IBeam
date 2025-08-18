@@ -15,7 +15,7 @@
     <Authors>MedPAC Technologies</Authors>
     <Company>MedPAC Technologies</Company>
     <PackageDescription>
-      Business logic, validation, orchestration, mapping, and auditing.
+      Business logic, validation, orchestration, mapping, and auditing. 
       Implements application rules and coordinates repositories and models. Includes synchronous and asynchronous base services with guardrails (feature flags), lifecycle hooks, and first-class auditing (generic + typed overlays).
     </PackageDescription>
     <RepositoryUrl>https://github.com/MedPACTech/IBeam</RepositoryUrl>
