@@ -2,7 +2,7 @@ using Azure.Data.Tables;
 using IBeam.Identity.Core.Auth.Contracts;
 using IBeam.Identity.Core.Tenants;
 
-namespace IBeam.Identity.Storage.AzureTable.Tenants;
+namespace IBeam.Identity.Repositories.AzureTable.Tenants;
 
 public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
 {

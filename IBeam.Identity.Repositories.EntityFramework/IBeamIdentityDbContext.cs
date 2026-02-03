@@ -1,8 +1,8 @@
-﻿using IBeam.Identity.Storage.EntityFramework.Types;
+﻿using IBeam.Identity.Repositories.EntityFramework.Types;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
-namespace IBeam.Identity.Storage.EntityFramework.Data;
+namespace IBeam.Identity.Repositories.EntityFramework.Data;
 
 public class IBeamIdentityDbContext
     : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>

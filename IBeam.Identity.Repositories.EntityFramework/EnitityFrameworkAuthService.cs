@@ -2,31 +2,28 @@ using System.Security.Claims;
 using IBeam.Identity.Core.Auth.Contracts;
 using IBeam.Identity.Core.Auth.Interfaces;
 using IBeam.Identity.Core.Tenants;
-using IBeam.Identity.Storage.AzureTable.Types;
+using IBeam.Identity.Repositories.EntityFramework.Types;
 using Microsoft.AspNetCore.Identity;
 
-namespace IBeam.Identity.Storage.AzureTable.Services;
+namespace IBeam.Identity.Repositories.EntityFramework.Services;
 
-public sealed class AzureTableAuthService : IAuthService
+public sealed class EntityFrameworkAuthService : IAuthService
 {
     private readonly UserManager<ApplicationUser> _users;
     private readonly SignInManager<ApplicationUser> _signIn;
     private readonly IJwtTokenService _jwt;
     private readonly ITenantMembershipStore _tenants;
-    private readonly ITenantProvisioningService _tenantProvisioning;
 
-    public AzureTableAuthService(
+    public EntityFrameworkAuthService(
         UserManager<ApplicationUser> users,
         SignInManager<ApplicationUser> signIn,
         IJwtTokenService jwt,
-        ITenantMembershipStore tenants,
-        ITenantProvisioningService tenantProvisioning)
+        ITenantMembershipStore tenants)
     {
         _users = users;
         _signIn = signIn;
         _jwt = jwt;
         _tenants = tenants;
-        _tenantProvisioning = tenantProvisioning;
     }
 
     public async Task RegisterAsync(RegisterRequest request, CancellationToken ct = default)
@@ -38,15 +35,12 @@ public sealed class AzureTableAuthService : IAuthService
             PhoneNumber = request.PhoneNumber
         };
 
-        var result = string.IsNullOrWhiteSpace(request.Password)
+        IdentityResult result = string.IsNullOrWhiteSpace(request.Password)
             ? await _users.CreateAsync(user)
             : await _users.CreateAsync(user, request.Password);
 
         if (!result.Succeeded)
             throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => $"{e.Code}:{e.Description}")));
-
-        // If no invite exists yet, create tenant for new user (simple v1 behavior)
-        await _tenantProvisioning.CreateTenantForNewUserAsync(user.Id, user.Email, ct);
     }
 
     public async Task<AuthResultResponse> PasswordLoginAsync(PasswordLoginRequest request, CancellationToken ct = default)
@@ -59,7 +53,8 @@ public sealed class AzureTableAuthService : IAuthService
         if (!result.Succeeded)
             throw new UnauthorizedAccessException("Invalid credentials.");
 
-        var tenants = await _tenants.GetTenantsForUserAsync(user.Id, ct);
+        // Multi-tenant behavior (same as AzureTable)
+        var tenants = await _tenants.GetTenantsForUserAsync(user.Id.ToString(), ct);
         var active = tenants
             .Where(t => string.Equals(t.Status, "Active", StringComparison.OrdinalIgnoreCase))
             .ToList();
@@ -71,7 +66,7 @@ public sealed class AzureTableAuthService : IAuthService
         {
             var t = active[0];
             var token = _jwt.CreateAccessToken(
-                userId: user.Id,
+                userId: user.Id.ToString(),
                 email: user.Email,
                 roles: t.Roles,
                 extraClaims: new[] { new Claim("tid", t.TenantId.ToString("D")) });
@@ -79,26 +74,8 @@ public sealed class AzureTableAuthService : IAuthService
             return AuthResultResponse.WithToken(token);
         }
 
-        // active.Count > 1 from here down
-
-        var defaultTenantId = await _tenants.GetDefaultTenantIdAsync(user.Id, ct);
-        if (defaultTenantId.HasValue)
-        {
-            var def = active.FirstOrDefault(x => x.TenantId == defaultTenantId.Value);
-            if (def is not null)
-            {
-                var token = _jwt.CreateAccessToken(
-                    userId: user.Id,
-                    email: user.Email,
-                    roles: def.Roles,
-                    extraClaims: new[] { new Claim("tid", def.TenantId.ToString("D")) });
-
-                return AuthResultResponse.WithToken(token);
-            }
-        }
-
-        // No default -> require selection
-        var pre = _jwt.CreatePreTenantToken(user.Id, user.Email);
+        // If you implement defaults, call _tenants.GetDefaultTenantIdAsync(...) here.
+        var pre = _jwt.CreatePreTenantToken(user.Id.ToString(), user.Email);
         return AuthResultResponse.RequiresSelection(pre.AccessToken, active);
     }
 
@@ -108,7 +85,6 @@ public sealed class AzureTableAuthService : IAuthService
         if (membership is null || !string.Equals(membership.Status, "Active", StringComparison.OrdinalIgnoreCase))
             throw new UnauthorizedAccessException("Invalid tenant selection.");
 
-        // remember choice
         await _tenants.SetDefaultTenantAsync(userId, request.TenantId, ct);
 
         var user = await _users.FindByIdAsync(userId);
@@ -116,7 +92,7 @@ public sealed class AzureTableAuthService : IAuthService
             throw new UnauthorizedAccessException("Invalid user.");
 
         return _jwt.CreateAccessToken(
-            userId: user.Id,
+            userId: user.Id.ToString(),
             email: user.Email,
             roles: membership.Roles,
             extraClaims: new[] { new Claim("tid", membership.TenantId.ToString("D")) });

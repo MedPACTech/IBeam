@@ -1,7 +1,7 @@
 using Azure;
 using Azure.Data.Tables;
 
-namespace IBeam.Identity.Storage.AzureTable.Tenants;
+namespace IBeam.Identity.Repositories.AzureTable.Tenants;
 
 // UserTenants table entity: PK = "USR#{userId}", RK = "TEN#{tenantId}"
 public sealed class UserTenantEntity : ITableEntity
