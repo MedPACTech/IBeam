@@ -5,7 +5,7 @@ namespace IBeam.Utilities.Auditing
     public static class AuditEventBuilder
     {
         public static AuditEvent Build<TDTO>(AuditAction action, TDTO dto, object? data = null)
-            where TDTO : IDTO
+            where TDTO : IEntity
         {
             var entityName = typeof(TDTO).Name;
             if (entityName.EndsWith("DTO", StringComparison.OrdinalIgnoreCase))

@@ -1,6 +1,6 @@
 ﻿namespace IBeam.DataModels.System
 {
-    public interface IDTO
+    public interface IEntity
     {
         Guid Id { get; set; }
         bool IsDeleted { get; set; }

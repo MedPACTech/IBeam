@@ -6,7 +6,7 @@ namespace IBeam.Scaffolding.DataModels
 {
     [Serializable]
 	[Alias("Notification")]
-	public class NotificationDTO : IDTO
+	public class NotificationDTO : IEntity
 	{
 		public Guid Id { get; set; }
 		public Guid AccountId { get; set; }

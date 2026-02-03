@@ -1,6 +1,6 @@
 ﻿namespace IBeam.DataModels.System
 {
-    public interface IDTOArchive
+    public interface IArchivableEntity
     {
         bool IsArchived { get; set; }
     }

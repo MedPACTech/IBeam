@@ -10,7 +10,7 @@ using IBeam.Utilities.Exceptions;
 namespace IBeam.Services
 {
     public abstract class BaseService<TDTO, TModel> : IBaseService<TDTO, TModel>
-        where TDTO : class, IDTO 
+        where TDTO : class, IEntity 
         where TModel : class, IBaseModel 
     {
         protected readonly string _serviceName;
