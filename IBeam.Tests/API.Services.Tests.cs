@@ -1,7 +1,7 @@
 using IBeam.Models;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace IBeam.Portal.Tests
+namespace IBeam.Tests
 {
     [TestClass]
     public class ServicesTests

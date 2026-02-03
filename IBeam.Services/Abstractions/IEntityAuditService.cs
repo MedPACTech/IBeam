@@ -3,7 +3,7 @@ using IBeam.DataModels.System;
 
 namespace IBeam.Services.Abstractions
 {
-    public interface IEntityAuditService<TDTO> : IAuditService where TDTO : IDTO
+    public interface IEntityAuditService<TDTO> : IAuditService where TDTO : IEntity
     {
         void LogCreate(TDTO dto);
         void LogUpdate(TDTO dto);

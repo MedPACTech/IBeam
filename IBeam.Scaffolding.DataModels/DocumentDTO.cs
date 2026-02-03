@@ -6,7 +6,7 @@ namespace IBeam.Scaffolding.DataModels
 {
     [Serializable]
 	[Alias("Documents")]
-	public class DocumentDTO : IDTO, IDTOArchive
+	public class DocumentDTO : IEntity, IArchivableEntity
 	{
 		public Guid Id { get; set; }
 		public string Name { get; set; }

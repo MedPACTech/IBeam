@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -14,14 +13,13 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using ServiceStack;
 
-namespace IBeam.Portal.API
+namespace IBeam.API
 {
     public class Startup
     {
         private const string OriginsAllowed = "originsAllowed";
-
         private readonly IConfiguration _config;
-        
+
         public Startup(IConfiguration config)
         {
             _config = config;
@@ -32,7 +30,9 @@ namespace IBeam.Portal.API
             services.AddHttpContextAccessor();
 
             Registrations.RegisterServices(services);
-            Registrations.RegisterRepositories(services);
+
+            // ✅ PASS IConfiguration
+            Registrations.RegisterRepositories(services, _config);
 
             services.AddControllers();
 
@@ -43,33 +43,27 @@ namespace IBeam.Portal.API
 
             services.AddCors(options =>
             {
-                options.AddPolicy(OriginsAllowed,
-                    builder =>
-                    {
-                        //builder.AllowAnyOrigin();
-                        builder.WithOrigins(
-                            "http://localhost:4200",
-                            "https://localhost:44354"
-                        );
-                        builder.WithMethods("GET", "POST", "DELETE");
-                        builder.AllowCredentials();
-                        builder.AllowAnyHeader();
-                        //builder.AllowAnyMethod();
-                    });
+                options.AddPolicy(OriginsAllowed, builder =>
+                {
+                    builder.WithOrigins(
+                        "http://localhost:4200",
+                        "https://localhost:44354"
+                    );
+                    builder.WithMethods("GET", "POST", "DELETE");
+                    builder.AllowCredentials();
+                    builder.AllowAnyHeader();
+                });
             });
-            
-            var appSettingsSection = _config.GetSection("BaseAppSettings");
+
+            // ✅ MATCH YOUR appsettings.json SECTION NAME
+            // If your JSON uses "AppSettings", use that here.
+            var appSettingsSection = _config.GetSection("AppSettings");
             services.Configure<BaseAppSettings>(appSettingsSection);
-            
+
             Licensing.RegisterLicense(_config.GetSection("servicestack").GetValue<string>("license"));
 
-
-            // Check if a given license key string is valid.
             IronPdf.License.LicenseKey = "";
-            // Check if IronPdf is licensed successfully 
             bool is_licensed = IronPdf.License.IsLicensed;
-
-            //services.AddAutoMapper(typeof(MappingProfiles).Assembly);
 
             var appSettings = appSettingsSection.Get<BaseAppSettings>();
             var key = Encoding.ASCII.GetBytes(appSettings.Secret);
@@ -90,7 +84,7 @@ namespace IBeam.Portal.API
                     ClockSkew = TimeSpan.Zero
                 };
             });
-            
+
             services.AddHttpsRedirection(options =>
             {
                 options.RedirectStatusCode = StatusCodes.Status308PermanentRedirect;

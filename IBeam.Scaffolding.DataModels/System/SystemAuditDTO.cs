@@ -6,7 +6,7 @@ namespace IBeam.Scaffolding.DataModels
 {
     [Serializable]
     [Alias("SystemAudit")]
-    public class SystemAuditDTO : IDTO
+    public class SystemAuditDTO : IEntity
     {
         public Guid Id { get; set; }
         public DateTime DateChanged { get; set; }

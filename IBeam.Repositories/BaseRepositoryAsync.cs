@@ -15,7 +15,7 @@ using ServiceStack.OrmLite.Legacy;          // for Sql.In
 namespace IBeam.Repositories
 {
     public abstract class BaseRepositoryAsync<T> : Interfaces.IBaseRepositoryAsync<T>
-        where T : class, IDTO
+        where T : class, IEntity
     {
         public string RepositoryName { get; }
         public string RepositoryCacheName { get; }
@@ -46,8 +46,8 @@ namespace IBeam.Repositories
             RepositoryName = repositoryType.FullName!.Replace("DTO", "Repository");
             RepositoryCacheName = $"{RepositoryName}Cache";
 
-            IsTenantSpecific = typeof(IDTOTenant).IsAssignableFrom(repositoryType);
-            IsArchivable = typeof(IDTOArchive).IsAssignableFrom(repositoryType);
+            IsTenantSpecific = typeof(ITenantEntity).IsAssignableFrom(repositoryType);
+            IsArchivable = typeof(IArchivableEntity).IsAssignableFrom(repositoryType);
             IsSoftDeleteDisabled = DetermineSoftDelete(_appSettings.DisableSoftDelete, repositoryType);
             EnableCache = InitializeCacheSetting();
             IdGeneratedByRepository = InitializeIdGenerationSetting();
@@ -187,7 +187,7 @@ namespace IBeam.Repositories
                 // Tenant policy (if tenant-specific)
                 if (IsTenantSpecific)
                 {
-                    if (dto is IDTOTenant tenantDto)
+                    if (dto is ITenantEntity tenantDto)
                     {
                         if (tenantDto.TenantId == Guid.Empty)
                             tenantDto.TenantId = _tenantContext.TenantId!.Value;
@@ -197,7 +197,7 @@ namespace IBeam.Repositories
                     }
                     else
                     {
-                        throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(IDTOTenant)}, but the repository is tenant-specific.");
+                        throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(ITenantEntity)}, but the repository is tenant-specific.");
                     }
                 }
 
@@ -235,7 +235,7 @@ namespace IBeam.Repositories
                     // Tenant policy
                     if (IsTenantSpecific)
                     {
-                        if (dto is IDTOTenant tenantDto)
+                        if (dto is ITenantEntity tenantDto)
                         {
                             if (tenantDto.TenantId == Guid.Empty)
                                 tenantDto.TenantId = _tenantContext.TenantId!.Value;
@@ -245,7 +245,7 @@ namespace IBeam.Repositories
                         }
                         else
                         {
-                            throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(IDTOTenant)}, but the repository is tenant-specific.");
+                            throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(ITenantEntity)}, but the repository is tenant-specific.");
                         }
                     }
                 }
@@ -266,8 +266,8 @@ namespace IBeam.Repositories
             {
                 var entity = await GetByIdAsync(dto.Id, ct);
 
-                if (entity is not IDTOArchive archiveEntity)
-                    throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(IDTOArchive)}.");
+                if (entity is not IArchivableEntity archiveEntity)
+                    throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(IArchivableEntity)}.");
 
                 archiveEntity.IsArchived = true;
 
@@ -289,8 +289,8 @@ namespace IBeam.Repositories
 
                 foreach (var entity in entities)
                 {
-                    if (entity is not IDTOArchive archiveEntity)
-                        throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(IDTOArchive)}.");
+                    if (entity is not IArchivableEntity archiveEntity)
+                        throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(IArchivableEntity)}.");
 
                     archiveEntity.IsArchived = true;
                 }
@@ -310,8 +310,8 @@ namespace IBeam.Repositories
             {
                 var entity = await GetByIdAsync(dto.Id, ct);
 
-                if (entity is not IDTOArchive archiveEntity)
-                    throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(IDTOArchive)}.");
+                if (entity is not IArchivableEntity archiveEntity)
+                    throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(IArchivableEntity)}.");
 
                 archiveEntity.IsArchived = false;
 
@@ -333,8 +333,8 @@ namespace IBeam.Repositories
 
                 foreach (var entity in entities)
                 {
-                    if (entity is not IDTOArchive archiveEntity)
-                        throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(IDTOArchive)}.");
+                    if (entity is not IArchivableEntity archiveEntity)
+                        throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(IArchivableEntity)}.");
 
                     archiveEntity.IsArchived = false;
                 }
@@ -357,7 +357,7 @@ namespace IBeam.Repositories
 
                 using var db = await _dataFactory.OpenDbConnectionAsync(ct);
 
-                if (typeof(IDTODelete).IsAssignableFrom(typeof(T)) || IsSoftDeleteDisabled)
+                if (typeof(IDeletableEntity).IsAssignableFrom(typeof(T)) || IsSoftDeleteDisabled)
                 {
                     // hard delete
                     await db.DeleteByIdAsync<T>(id, token: ct);
@@ -404,10 +404,10 @@ namespace IBeam.Repositories
             else
             {
                 if (IsTenantSpecific)
-                    query = query.And(x => ((IDTOTenant)x).TenantId == _tenantContext.TenantId);
+                    query = query.And(x => ((ITenantEntity)x).TenantId == _tenantContext.TenantId);
 
-                if (!IsSoftDeleteDisabled && typeof(IDTODelete).IsAssignableFrom(typeof(T)))
-                    query = query.And(x => ((IDTODelete)x).IsDeleted == false);
+                if (!IsSoftDeleteDisabled && typeof(IDeletableEntity).IsAssignableFrom(typeof(T)))
+                    query = query.And(x => ((IDeletableEntity)x).IsDeleted == false);
             }
 
             return await db.SelectAsync(query, token: ct);
@@ -431,12 +431,12 @@ namespace IBeam.Repositories
         private bool DetermineSoftDelete(string? disableSoftDelete, Type repositoryType)
         {
             if (string.IsNullOrWhiteSpace(disableSoftDelete))
-                return typeof(IDTODelete).IsAssignableFrom(repositoryType);
+                return typeof(IDeletableEntity).IsAssignableFrom(repositoryType);
 
             if (bool.TryParse(disableSoftDelete, out var globalSetting))
                 return globalSetting;
 
-            return typeof(IDTODelete).IsAssignableFrom(repositoryType);
+            return typeof(IDeletableEntity).IsAssignableFrom(repositoryType);
         }
 
         private IOrmLiteDialectProvider GetDatabaseType()
@@ -458,10 +458,10 @@ namespace IBeam.Repositories
             bool includeDeleted = false)
         {
             if (IsTenantSpecific)
-                query = query.And(x => ((IDTOTenant)x).TenantId == _tenantContext.TenantId);
+                query = query.And(x => ((ITenantEntity)x).TenantId == _tenantContext.TenantId);
 
             if (IsArchivable && !includeArchived)
-                query = query.And(x => ((IDTOArchive)x).IsArchived == false);
+                query = query.And(x => ((IArchivableEntity)x).IsArchived == false);
 
             if (!IsSoftDeleteDisabled && !includeDeleted)
                 query = query.And(x => x.IsDeleted == false);

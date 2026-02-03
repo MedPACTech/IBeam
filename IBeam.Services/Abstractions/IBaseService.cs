@@ -9,7 +9,7 @@ namespace IBeam.Services
     /// Generic service contract for mapping and CRUD operations over DTOs and API models.
     /// Implemented by framework BaseService and extended by app-specific services.
     /// </summary>
-    public interface IBaseService<TDTO, TModel> where TDTO : class, IDTO
+    public interface IBaseService<TDTO, TModel> where TDTO : class, IEntity
     {
         // ---- Mapping ----
         TDTO ToDto(TModel model);
