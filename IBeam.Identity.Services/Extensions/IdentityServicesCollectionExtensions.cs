@@ -1,9 +1,9 @@
 using IBeam.Identity.Core.Auth.Interfaces;
 using IBeam.Identity.Core.Options;
-using IBeam.Identity.Storage.AzureTable.Extensions;
-using IBeam.Identity.Storage.AzureTable.Services;
-using IBeam.Identity.Storage.EntityFramework.Extensions;
-using IBeam.Identity.Storage.EntityFramework.Services;
+using IBeam.Identity.Repositories.AzureTable.Extensions;
+using IBeam.Identity.Repositories.AzureTable.Services;
+using IBeam.Identity.Repositories.EntityFramework.Extensions;
+using IBeam.Identity.Repositories.EntityFramework.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

@@ -1,4 +1,4 @@
-namespace IBeam.Identity.Storage.EntityFramework.Options;
+namespace IBeam.Identity.Repositories.EntityFramework.Options;
 
 public enum EfProvider
 {

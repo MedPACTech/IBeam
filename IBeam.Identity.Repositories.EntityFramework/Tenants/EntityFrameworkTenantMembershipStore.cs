@@ -1,7 +1,7 @@
 using IBeam.Identity.Core.Auth.Contracts;
 using IBeam.Identity.Core.Tenants;
 
-namespace IBeam.Identity.Storage.EntityFramework.Tenants;
+namespace IBeam.Identity.Repositories.EntityFramework.Tenants;
 
 public sealed class EntityFrameworkTenantMembershipStore : ITenantMembershipStore
 {

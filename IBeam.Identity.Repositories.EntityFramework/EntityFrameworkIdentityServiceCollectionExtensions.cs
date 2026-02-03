@@ -1,14 +1,14 @@
 ﻿using IBeam.Identity.Core.Tenants;
-using IBeam.Identity.Storage.EntityFramework.Data;
-using IBeam.Identity.Storage.EntityFramework.Options;
-using IBeam.Identity.Storage.EntityFramework.Tenants;
-using IBeam.Identity.Storage.EntityFramework.Types;
+using IBeam.Identity.Repositories.EntityFramework.Data;
+using IBeam.Identity.Repositories.EntityFramework.Options;
+using IBeam.Identity.Repositories.EntityFramework.Tenants;
+using IBeam.Identity.Repositories.EntityFramework.Types;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IBeam.Identity.Storage.EntityFramework.Extensions;
+namespace IBeam.Identity.Repositories.EntityFramework.Extensions;
 
 public static class EntityFrameworkIdentityServiceCollectionExtensions
 {

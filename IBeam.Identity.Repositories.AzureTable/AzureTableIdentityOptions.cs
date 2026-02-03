@@ -1,5 +1,5 @@
 ﻿
-namespace IBeam.Identity.Storage.AzureTable;
+namespace IBeam.Identity.Repositories.AzureTable;
 
 public sealed class AzureTableIdentityOptions
 {

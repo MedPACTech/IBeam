@@ -1,8 +1,8 @@
 
 
-using IBeam.Identity.Storage.EntityFramework.Types;
+using IBeam.Identity.Repositories.EntityFramework.Types;
 
-namespace IBeam.Identity.Storage.EntityFramework.Tenants.Entities;
+namespace IBeam.Identity.Repositories.EntityFramework.Tenants.Entities;
 
 // UserTenants table entity: PK = "USR#{userId}", RK = "TEN#{tenantId}"
 public class TenantUser

@@ -2,13 +2,13 @@ using Azure.Data.Tables;
 using ElCamino.AspNetCore.Identity.AzureTable;
 using ElCamino.AspNetCore.Identity.AzureTable.Model;
 using IBeam.Identity.Core.Tenants;
-using IBeam.Identity.Storage.AzureTable.Tenants;
-using IBeam.Identity.Storage.AzureTable.Types;
+using IBeam.Identity.Repositories.AzureTable.Tenants;
+using IBeam.Identity.Repositories.AzureTable.Types;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IBeam.Identity.Storage.AzureTable.Extensions;
+namespace IBeam.Identity.Repositories.AzureTable.Extensions;
 
 public static class AzureTableIdentityServiceCollectionExtensions
 {
