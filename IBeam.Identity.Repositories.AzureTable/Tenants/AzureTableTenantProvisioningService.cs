@@ -1,8 +1,8 @@
 using Azure.Data.Tables;
 using IBeam.Identity.Core.Tenants;
-using IBeam.Identity.Storage.AzureTable.Tenants.Entities;
+using IBeam.Identity.Repositories.AzureTable.Tenants.Entities;
 
-namespace IBeam.Identity.Storage.AzureTable.Tenants;
+namespace IBeam.Identity.Repositories.AzureTable.Tenants;
 
 public sealed class AzureTableTenantProvisioningService : ITenantProvisioningService
 {

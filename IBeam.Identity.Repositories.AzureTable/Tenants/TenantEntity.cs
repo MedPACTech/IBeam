@@ -1,7 +1,7 @@
 using Azure;
 using Azure.Data.Tables;
 
-namespace IBeam.Identity.Storage.AzureTable.Tenants.Entities;
+namespace IBeam.Identity.Repositories.AzureTable.Tenants.Entities;
 
 public sealed class TenantEntity : ITableEntity
 {

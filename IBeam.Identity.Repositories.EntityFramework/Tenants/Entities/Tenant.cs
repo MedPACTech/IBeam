@@ -1,6 +1,6 @@
 
 
-namespace IBeam.Identity.Storage.EntityFramework.Tenants.Entities;
+namespace IBeam.Identity.Repositories.EntityFramework.Tenants.Entities;
 
 // UserTenants table entity: PK = "USR#{userId}", RK = "TEN#{tenantId}"
 public class Tenant

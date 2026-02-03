@@ -1,7 +1,7 @@
 
 using Microsoft.AspNetCore.Identity;
 
-namespace IBeam.Identity.Storage.EntityFramework.Types;
+namespace IBeam.Identity.Repositories.EntityFramework.Types;
 
 public class ApplicationRole : IdentityRole<Guid>
 {

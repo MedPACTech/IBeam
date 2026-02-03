@@ -1,5 +1,5 @@
 ﻿
-namespace IBeam.Identity.Storage.EntityFramework.Types;
+namespace IBeam.Identity.Repositories.EntityFramework.Types;
 
 public class ApplicationUser : Microsoft.AspNetCore.Identity.IdentityUser<Guid>
 {
