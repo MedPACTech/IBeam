@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IBeam.Identity.Core\IBeam.Identity.Core.csproj" />
+    <ProjectReference Include="..\IBeam.Identity.Storage.AzureTable\IBeam.Identity.Storage.AzureTable.csproj" />
+    <ProjectReference Include="..\IBeam.Identity.Storage.EntityFramework\IBeam.Identity.Storage.EntityFramework.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
+  </ItemGroup>
+
+</Project>
