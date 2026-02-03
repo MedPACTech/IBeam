@@ -8,7 +8,7 @@ using ServiceStack.OrmLite;           // for SqlExpression<T>
 
 namespace IBeam.Repositories.Interfaces
 {
-    public interface IBaseRepositoryAsync<T> where T : class, IDTO
+    public interface IBaseRepositoryAsync<T> where T : class, IEntity
     {
         // -------- Core reads --------
         Task<List<T>> GetAllAsync(bool withArchived = false, CancellationToken ct = default);

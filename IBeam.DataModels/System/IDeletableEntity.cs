@@ -1,6 +1,6 @@
 ﻿namespace IBeam.DataModels.System
 {
-    public interface IDTODelete
+    public interface IDeletableEntity
     {
         bool IsDeleted { get; set; }
     }

@@ -1,6 +1,6 @@
 ﻿namespace IBeam.DataModels.System
 {
-    public interface IDTOTenant
+    public interface ITenantEntity
     {
         Guid TenantId { get; set; }
     }

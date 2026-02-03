@@ -7,7 +7,7 @@ namespace IBeam.Scaffolding.DataModels
 
     [Serializable]
 	[Alias("Licenses")]
-	public class LicenseDTO : IDTO
+	public class LicenseDTO : IEntity
 	{
 
 		public Guid Id { get; set; }
