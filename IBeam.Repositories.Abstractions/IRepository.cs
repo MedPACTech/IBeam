@@ -1,6 +1,4 @@
-using IBeam.DataModels.System;
-
-namespace IBeam.Repositories.Core;
+namespace IBeam.Repositories.Abstractions;
 
 public interface IRepository<T> where T : class, IEntity
 {

@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.4.33103.184
+# Visual Studio Version 18
+VisualStudioVersion = 18.2.11415.280 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IBeam.Repositories", "IBeam.Repositories\IBeam.Repositories.csproj", "{69E67E1E-F3A9-4F60-A873-B462CF28B3F4}"
 EndProject
@@ -42,6 +42,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Identity.Repositories.EntityFramework", "IBeam.Identity.Repositories.EntityFramework\IBeam.Identity.Repositories.EntityFramework.csproj", "{59446BF1-7C30-4D55-A16D-71885EA0E2FA}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Identity.Api", "IBeam.Identity.Api\IBeam.Identity.Api.csproj", "{860E897B-0D38-4A96-949D-97F540EE012F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Repositories.Abstractions", "IBeam.Repositories.Abstractions\IBeam.Repositories.Abstractions.csproj", "{674F7603-CEEF-4695-8446-C871880001EA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Identity.Abstractions", "IBeam.Identity.Abstractions\IBeam.Identity.Abstractions.csproj", "{3B7185AD-8AD4-41D8-8D58-C48B1BB0289A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -293,6 +297,30 @@ Global
 		{860E897B-0D38-4A96-949D-97F540EE012F}.Release|x64.Build.0 = Release|Any CPU
 		{860E897B-0D38-4A96-949D-97F540EE012F}.Release|x86.ActiveCfg = Release|Any CPU
 		{860E897B-0D38-4A96-949D-97F540EE012F}.Release|x86.Build.0 = Release|Any CPU
+		{674F7603-CEEF-4695-8446-C871880001EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{674F7603-CEEF-4695-8446-C871880001EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{674F7603-CEEF-4695-8446-C871880001EA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{674F7603-CEEF-4695-8446-C871880001EA}.Debug|x64.Build.0 = Debug|Any CPU
+		{674F7603-CEEF-4695-8446-C871880001EA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{674F7603-CEEF-4695-8446-C871880001EA}.Debug|x86.Build.0 = Debug|Any CPU
+		{674F7603-CEEF-4695-8446-C871880001EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{674F7603-CEEF-4695-8446-C871880001EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{674F7603-CEEF-4695-8446-C871880001EA}.Release|x64.ActiveCfg = Release|Any CPU
+		{674F7603-CEEF-4695-8446-C871880001EA}.Release|x64.Build.0 = Release|Any CPU
+		{674F7603-CEEF-4695-8446-C871880001EA}.Release|x86.ActiveCfg = Release|Any CPU
+		{674F7603-CEEF-4695-8446-C871880001EA}.Release|x86.Build.0 = Release|Any CPU
+		{3B7185AD-8AD4-41D8-8D58-C48B1BB0289A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B7185AD-8AD4-41D8-8D58-C48B1BB0289A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B7185AD-8AD4-41D8-8D58-C48B1BB0289A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{3B7185AD-8AD4-41D8-8D58-C48B1BB0289A}.Debug|x64.Build.0 = Debug|Any CPU
+		{3B7185AD-8AD4-41D8-8D58-C48B1BB0289A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{3B7185AD-8AD4-41D8-8D58-C48B1BB0289A}.Debug|x86.Build.0 = Debug|Any CPU
+		{3B7185AD-8AD4-41D8-8D58-C48B1BB0289A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B7185AD-8AD4-41D8-8D58-C48B1BB0289A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3B7185AD-8AD4-41D8-8D58-C48B1BB0289A}.Release|x64.ActiveCfg = Release|Any CPU
+		{3B7185AD-8AD4-41D8-8D58-C48B1BB0289A}.Release|x64.Build.0 = Release|Any CPU
+		{3B7185AD-8AD4-41D8-8D58-C48B1BB0289A}.Release|x86.ActiveCfg = Release|Any CPU
+		{3B7185AD-8AD4-41D8-8D58-C48B1BB0289A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

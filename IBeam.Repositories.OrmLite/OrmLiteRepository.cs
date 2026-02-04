@@ -1,4 +1,4 @@
-using IBeam.DataModels.System;
+using IBeam.Repositories.Abstractions;
 using IBeam.Repositories.Core;
 using Microsoft.Extensions.Caching.Memory;
 
