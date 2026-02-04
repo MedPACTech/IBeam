@@ -1,8 +1,0 @@
-﻿namespace IBeam.DataModels.System
-{
-    public interface IDTO
-    {
-        Guid Id { get; set; }
-        bool IsDeleted { get; set; }
-    }
-}

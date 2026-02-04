@@ -7,7 +7,7 @@ using IBeam.DataModels.System;
 
 namespace IBeam.Services
 {
-    public interface IBaseServiceAsync<TDTO, TModel> where TDTO : class, IDTO
+    public interface IBaseServiceAsync<TDTO, TModel> where TDTO : class, IEntity
     {
         // Mapping (sync)
         TDTO ToDto(TModel model);

@@ -4,7 +4,7 @@ using ServiceStack.OrmLite;
 
 namespace IBeam.Repositories.Interfaces
 {
-    public interface IBaseRepository<T> where T : class, IDTO
+    public interface IBaseRepository<T> where T : class, IEntity
     {
         string RepositoryName { get; }
         string RepositoryCacheName { get; }
