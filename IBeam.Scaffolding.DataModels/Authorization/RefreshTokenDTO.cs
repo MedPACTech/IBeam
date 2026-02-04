@@ -5,7 +5,7 @@ using ServiceStack.DataAnnotations;
 namespace IBeam.Scaffolding.DataModels
 {
     [Alias("RefreshToken")]
-    public class RefreshTokenDTO : IDTO
+    public class RefreshTokenDTO : IEntity
     {
 
         public Guid Id { get; set; }

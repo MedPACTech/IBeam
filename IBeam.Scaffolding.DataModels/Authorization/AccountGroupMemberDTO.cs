@@ -7,7 +7,7 @@ namespace IBeam.Scaffolding.DataModels
 
     [Serializable]
 	[Alias("AccountGroupMember")]
-	public class AccountGroupMemberDTO : IDTO
+	public class AccountGroupMemberDTO : IEntity
 	{
 
 		public Guid Id { get; set; }

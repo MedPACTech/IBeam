@@ -6,7 +6,7 @@ namespace IBeam.Scaffolding.DataModels
 
     [Serializable]
 	[Alias("AccountContext")]
-	public class AccountContextDTO : IDTO
+	public class AccountContextDTO : IEntity
 	{
 
 		public Guid Id { get; set; }

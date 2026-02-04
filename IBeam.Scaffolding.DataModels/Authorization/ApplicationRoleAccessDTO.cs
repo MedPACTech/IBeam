@@ -7,7 +7,7 @@ namespace IBeam.Scaffolding.DataModels
 
     [Serializable]
 	[Alias("ApplicationRoleAccess")]
-	public class ApplicationRoleAccessDTO : IDTO
+	public class ApplicationRoleAccessDTO : IEntity
 	{
 
 		public Guid Id { get; set; }

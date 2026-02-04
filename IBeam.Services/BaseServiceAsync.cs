@@ -20,7 +20,7 @@ namespace IBeam.Services.Base
     /// - TModel: API/domain model type
     /// </summary>
     public abstract class BaseServiceAsync<TDTO, TModel> : IBaseServiceAsync<TDTO, TModel>
-        where TDTO : class, IDTO
+        where TDTO : class, IEntity
         where TModel : class
     {
         protected readonly string _serviceName;
