@@ -1,53 +1,53 @@
+# Build results
+**/bin/
+**/obj/
 
-/IBeam.API/obj
-/IBeam.DataModels/bin
-/IBeam.DataModels/obj
-/IBeam.Mappings/obj
-/IBeam.Models/bin
-/IBeam.Models/obj
-/IBeam.Repositories/bin
-/IBeam.Repositories/obj
-/IBeam.Services/bin
-/IBeam.Services/obj
-/IBeam.Tests/bin
-/IBeam.Tests/obj
-/IBeam.Utilities/bin
-/IBeam.Utilities/obj
-/IBeam.API/bin
-/IBeam.Mappings/bin
-/.vs
-*.dll
-*.pdb
-/IBeam.Scaffolding.Models/obj
-/IBeam.Services.Scaffold/bin
-/IBeam.Services.Scaffold/obj
-/IBeam.Scaffolding.DataModels/obj
-/IBeam.Repositories.Scaffold/obj
-/IBeam.Repositories.Scaffold/bin
-/IBeam.Identity.Api/bin
-/IBeam.Identity.Api/obj
-/IBeam.Identity.Core/obj
-/IBeam.Identity.Services/obj
-/IBeam.Identity.Repositories.AzureTable/obj
-/IBeam.Identity.Repositories.EntityFramework/obj
-/IBeam.Repositories.AzureTables/obj
-/IBeam.Repositories.Core/obj
-/IBeam.Repositories.OrmLite/obj
-/IBeam.Repositories.Core/obj
-/IBeam.Repositories.AzureTables/obj
-/IBeam.Repositories.OrmLite/obj
-/IBeam.Repositories.Core/obj
-/IBeam.Identity.Core/bin
-/IBeam.Identity.Services/bin
-/IBeam.Identity.Repositories.EntityFramework/bin
-/IBeam.Repositories.AzureTables/obj
+# User-specific files
+**/*.user
+**/*.rsuser
+**/*.suo
+**/*.userosscache
+**/*.sln.docstates
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# NuGet
+**/packages/
+*.nupkg
+*.snupkg
+# (If you use packages.lock.json and want to keep it, remove this line)
+# packages.lock.json
+
+# Test results / coverage
+**/TestResults/
+**/*.trx
+**/*.coverage
+**/*.coveragexml
+**/coverage*/
+**/.sonarqube/
+**/.scannerwork/
+
+# ASP.NET / publish outputs
+**/publish/
+**/app.publish/
+
+# Local secrets
+**/secrets.json
+**/appsettings.*.local.json
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Azure Storage emulator / Azurite
 __azurite_db_blob__.json
 __azurite_db_blob_extent__.json
 __azurite_db_queue__.json
 __azurite_db_queue_extent__.json
 __azurite_db_table__.json
-/IBeam.Repositories.OrmLite/obj
-/IBeam.Repositories.OrmLite/obj
-/IBeam.Repositories.OrmLite/obj
-/IBeam.Repositories.Core/obj
-/IBeam.Identity.Storage.AzureTable/bin
