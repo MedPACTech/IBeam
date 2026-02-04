@@ -23,6 +23,7 @@ using IBeam.Repositories.AzureTables;
 using ServiceStack.Data;
 using ServiceStack.OrmLite;
 using ServiceStack.OrmLite.SqlServer;
+using IBeam.Repositories.Abstractions;
 
 namespace IBeam.API
 {
