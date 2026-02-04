@@ -4,7 +4,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace IBeam.Repositories.AzureTables;
 
-public sealed class AzureTablesRepository<T> : RepositoryBase<T>
+public sealed class AzureTablesRepository<T> : BaseRepositoryAsync<T>
     where T : class, IEntity
 {
     public AzureTablesRepository(
