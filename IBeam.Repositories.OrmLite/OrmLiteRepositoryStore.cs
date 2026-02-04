@@ -1,7 +1,7 @@
-using IBeam.DataModels.System;
 using IBeam.Repositories.Core;
 using ServiceStack.OrmLite;
 using ServiceStack.Data;
+using IBeam.Repositories.Abstractions;
 
 namespace IBeam.Repositories.OrmLite;
 

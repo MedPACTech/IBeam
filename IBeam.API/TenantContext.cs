@@ -1,7 +1,7 @@
 using System;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
-using IBeam.Repositories.Core;
+using IBeam.Repositories.Abstractions;
 
 namespace IBeam.API
 {

@@ -36,11 +36,6 @@ public sealed class AzureTableTenantProvisioningService : ITenantProvisioningSer
         return t;
     }
 
-    private static string PkTenant(Guid tenantId) => $"TEN|{tenantId:D}";
-    private static string RkUser(string userId) => $"USR|{userId}";
-    private static string PkUser(string userId) => $"USR|{userId}";
-    private static string RkTenant(Guid tenantId) => $"TEN|{tenantId:D}";
-
     public async Task<Guid> CreateTenantForNewUserAsync(string userId, string? email, CancellationToken ct = default)
     {
         var tenantId = Guid.NewGuid();
@@ -52,6 +47,7 @@ public sealed class AzureTableTenantProvisioningService : ITenantProvisioningSer
         // 1) Create tenant row
         await TenantsTable().AddEntityAsync(new TenantEntity
         {
+            // TenantEntity uses PK="TEN" by default, RK=tenantId
             RowKey = tenantId.ToString("D"),
             Name = tenantName,
             OwnerUserId = userId,
@@ -61,8 +57,8 @@ public sealed class AzureTableTenantProvisioningService : ITenantProvisioningSer
         // 2) Create tenant->user membership (Owner/Admin)
         await TenantUsersTable().UpsertEntityAsync(new TenantUserEntity
         {
-            PartitionKey = PkTenant(tenantId),
-            RowKey = RkUser(userId),
+            PartitionKey = _opts.TenantPk(tenantId),   // e.g. "TEN|{tenantId}"
+            RowKey = _opts.UserRk(userId),            // e.g. "USR|{userId}"
             Status = "Active",
             RolesCsv = "Owner,Admin",
             CreatedAt = DateTimeOffset.UtcNow
@@ -71,8 +67,8 @@ public sealed class AzureTableTenantProvisioningService : ITenantProvisioningSer
         // 3) Create user->tenant membership (also default)
         await UserTenantsTable().UpsertEntityAsync(new UserTenantEntity
         {
-            PartitionKey = PkUser(userId),
-            RowKey = RkTenant(tenantId),
+            PartitionKey = _opts.UserPk(userId),      // e.g. "USR|{userId}"
+            RowKey = _opts.TenantRk(tenantId),        // e.g. "TEN|{tenantId}"
             Status = "Active",
             RolesCsv = "Owner,Admin",
             DisplayName = tenantName,
