@@ -13,7 +13,7 @@ namespace IBeam.Repositories.Core;
 /// - Id policy (IdGeneratedByRepository)
 /// - Cache policy (cache only "normal" GetAll results)
 /// </summary>
-public abstract class RepositoryBase<T> : IRepository<T>
+public abstract class BaseRepositoryAsync<T> : IBaseRepositoryAsync<T>
     where T : class, IEntity
 {
     protected readonly IRepositoryStore<T> Store;
@@ -28,7 +28,11 @@ public abstract class RepositoryBase<T> : IRepository<T>
     protected bool IsArchivable => typeof(IArchivableEntity).IsAssignableFrom(typeof(T));
     protected bool IsSoftDeletable => typeof(IDeletableEntity).IsAssignableFrom(typeof(T));
 
-    protected RepositoryBase(
+    protected Guid? CurrentTenantIdOrNull()
+    => IsTenantSpecific ? TenantContext.TenantId : null;
+
+
+    protected BaseRepositoryAsync(
         IRepositoryStore<T> store,
         IMemoryCache memoryCache,
         ITenantContext tenantContext,
@@ -44,60 +48,59 @@ public abstract class RepositoryBase<T> : IRepository<T>
         RepositoryCacheName = $"{RepositoryName}Cache";
     }
 
-    public async Task<T?> GetByIdAsync(Guid id)
+    public async Task<T?> GetByIdAsync(Guid id, bool includeArchived = false, bool includeDeleted = false, CancellationToken ct = default)
     {
         ValidateTenantId();
 
-        var entity = await Store.GetByIdAsync(id);
+        var tenantId = CurrentTenantIdOrNull();
+        var entity = await Store.GetByIdAsync(tenantId, id, ct);
 
-        // Mimic ApplyCommonFilters behavior: if it's not visible to tenant, treat as not found
         entity = ApplyTenantVisibility(entity);
-        entity = ApplyDeletedVisibility(entity, includeDeleted: false);
-
-        // Note: archive visibility is controlled by GetAllAsync parameters, but GetById historically
-        // applies common filters (tenant + not archived + not deleted).
-        entity = ApplyArchivedVisibility(entity, includeArchived: false);
-
-        if (entity == null)
-            return null;
+        entity = ApplyDeletedVisibility(entity, includeDeleted);
+        entity = ApplyArchivedVisibility(entity, includeArchived);
 
         return entity;
     }
 
-    public async Task<IReadOnlyList<T>> GetByIdsAsync(IEnumerable<Guid> ids)
+
+    public async Task<IReadOnlyList<T>> GetByIdsAsync(IReadOnlyList<Guid> ids, bool includeArchived = false, bool includeDeleted = false, CancellationToken ct = default)
     {
         ValidateTenantId();
-
         if (ids == null) return Array.Empty<T>();
 
         var idList = ids.Where(x => x != Guid.Empty).Distinct().ToList();
         if (idList.Count == 0) return Array.Empty<T>();
 
-        var items = await Store.GetByIdsAsync(idList);
+        var tenantId = CurrentTenantIdOrNull();
+        var items = await Store.GetByIdsAsync(tenantId, idList, ct);
 
-        // Apply common filters like your current ApplyCommonFilters()
         return items
-            .Select(x => ApplyTenantVisibility(x))
-            .Select(x => ApplyArchivedVisibility(x, includeArchived: false))
-            .Select(x => ApplyDeletedVisibility(x, includeDeleted: false))
+            .Select(ApplyTenantVisibility)
+            .Select(x => ApplyArchivedVisibility(x, includeArchived))
+            .Select(x => ApplyDeletedVisibility(x, includeDeleted))
             .Where(x => x != null)
             .Cast<T>()
             .ToList();
     }
 
-    public async Task<IReadOnlyList<T>> GetAllAsync(bool includeArchived = false, bool includeDeleted = false)
+
+    public async Task<IReadOnlyList<T>> GetAllAsync(bool includeArchived = false, bool includeDeleted = false, CancellationToken ct = default)
     {
         ValidateTenantId();
 
         var canCache = !IsTenantSpecific && Options.EnableCache && !includeArchived && !includeDeleted;
+        var cacheKey = $"{RepositoryCacheName}:All:Global";
 
-        if (canCache && MemoryCache.TryGetValue(RepositoryCacheName, out IReadOnlyList<T>? cached) && cached != null)
+        if (canCache &&
+            MemoryCache.TryGetValue(cacheKey, out IReadOnlyList<T>? cached) &&
+            cached is not null)
             return cached;
 
-        var all = await Store.GetAllAsync();
+        var tenantId = CurrentTenantIdOrNull();
+        var all = await Store.GetAllAsync(tenantId, ct);
 
         var filtered = all
-            .Select(x => ApplyTenantVisibility(x))
+            .Select(ApplyTenantVisibility)
             .Select(x => ApplyArchivedVisibility(x, includeArchived))
             .Select(x => ApplyDeletedVisibility(x, includeDeleted))
             .Where(x => x != null)
@@ -105,59 +108,60 @@ public abstract class RepositoryBase<T> : IRepository<T>
             .ToList();
 
         if (canCache)
-            MemoryCache.Set(RepositoryCacheName, filtered);
+            MemoryCache.Set(cacheKey, filtered); //TODO: Add expiration options?
 
         return filtered;
     }
 
-    public async Task<T> SaveAsync(T entity)
+
+    public async Task<T> SaveAsync(T entity, CancellationToken ct = default)
     {
         ValidateTenantId();
-        if (entity == null) throw new ArgumentNullException(nameof(entity));
+        ArgumentNullException.ThrowIfNull(entity);
 
         ApplyIdPolicy(entity);
         ApplyTenantPolicy(entity);
 
-        var saved = await Store.UpsertAsync(entity);
+        var tenantId = CurrentTenantIdOrNull();
+        var saved = await Store.UpsertAsync(tenantId, entity, ct);
         ClearCache();
         return saved;
     }
 
-    public async Task<IReadOnlyList<T>> SaveAllAsync(IEnumerable<T> entities)
+
+    public async Task<IReadOnlyList<T>> SaveAllAsync(IReadOnlyList<T> entities, CancellationToken ct = default)
     {
         ValidateTenantId();
-        if (entities == null) throw new ArgumentNullException(nameof(entities));
+        ArgumentNullException.ThrowIfNull(entities);
 
-        var list = entities.ToList();
-
-        foreach (var entity in list)
+        var list = entities.Where(e => e != null).ToList();
+        foreach (var e in list)
         {
-            if (entity == null) continue;
-            ApplyIdPolicy(entity);
-            ApplyTenantPolicy(entity);
+            ApplyIdPolicy(e);
+            ApplyTenantPolicy(e);
         }
 
-        var saved = await Store.UpsertAllAsync(list);
+        var tenantId = CurrentTenantIdOrNull();
+        var saved = await Store.UpsertAllAsync(tenantId, list, ct);
         ClearCache();
         return saved;
     }
 
-    public async Task DeleteByIdAsync(Guid id)
+
+    public async Task DeleteByIdAsync(Guid id, CancellationToken ct = default)
     {
         ValidateTenantId();
 
-        // Use GetByIdAsync to enforce filters/visibility like your current code
-        var entity = await GetByIdAsync(id);
+        var entity = await GetByIdAsync(id, includeArchived: true, includeDeleted: true, ct);
         if (entity == null)
-            throw new KeyNotFoundException($"Entity of type {typeof(T).Name} with Id {id} not found.");
+            throw new RepositoryValidationException(RepositoryName, "DeleteByIdAsync",
+                $"Entity of type {typeof(T).Name} with Id {id} not found.");
 
-        // Hard delete if:
-        // - global option says disable soft delete
-        // - entity opts into hard delete (marker)
-        // Otherwise soft delete if entity supports it.
+        var tenantId = CurrentTenantIdOrNull();
+
         if (Options.DisableSoftDelete || entity is IAllowHardDelete)
         {
-            await Store.HardDeleteAsync(id);
+            await Store.HardDeleteAsync(tenantId, id, ct);
             ClearCache();
             return;
         }
@@ -165,17 +169,16 @@ public abstract class RepositoryBase<T> : IRepository<T>
         if (entity is IDeletableEntity soft)
         {
             soft.IsDeleted = true;
-            await Store.UpsertAsync(entity);
+            await Store.UpsertAsync(tenantId, entity, ct);
             ClearCache();
             return;
         }
 
-        // If entity doesn't have soft delete flag, fall back to hard delete.
-        await Store.HardDeleteAsync(id);
+        await Store.HardDeleteAsync(tenantId, id, ct);
         ClearCache();
     }
 
-    public async Task<bool> ArchiveAsync(Guid id)
+    public async Task<bool> ArchiveAsync(Guid id, CancellationToken ct = default)
     {
         var entity = await RequireEntityAsync(id);
 
@@ -183,12 +186,12 @@ public abstract class RepositoryBase<T> : IRepository<T>
             throw new RepositoryValidationException(RepositoryName, "ArchiveAsync", $"Entity of type {typeof(T).Name} does not implement {nameof(IArchivableEntity)}.");
 
         archivable.IsArchived = true;
-        await SaveAsync(entity);
+        await SaveAsync(entity, ct);
 
         return true;
     }
 
-    public async Task<bool> UnarchiveAsync(Guid id)
+    public async Task<bool> UnarchiveAsync(Guid id, CancellationToken ct = default)
     {
         var entity = await RequireEntityAsync(id);
 
@@ -196,18 +199,19 @@ public abstract class RepositoryBase<T> : IRepository<T>
             throw new RepositoryValidationException(RepositoryName, "UnarchiveAsync", $"Entity of type {typeof(T).Name} does not implement {nameof(IArchivableEntity)}.");
 
         archivable.IsArchived = false;
-        await SaveAsync(entity);
+        await SaveAsync(entity, ct);
 
         return true;
     }
 
-    public async Task<bool> ArchiveAllAsync(IEnumerable<Guid> ids)
+    public async Task<bool> ArchiveAllAsync(IReadOnlyList<Guid> ids, CancellationToken ct = default)
     {
         ValidateTenantId();
         var list = ids?.Where(x => x != Guid.Empty).Distinct().ToList() ?? new List<Guid>();
         if (list.Count == 0) return true;
 
-        var entities = await Store.GetByIdsAsync(list);
+        var tenantId = CurrentTenantIdOrNull(); // helper: tenant if tenant-specific else null
+        var entities = await Store.GetByIdsAsync(tenantId, list, ct);
 
         var visible = entities
             .Select(x => ApplyTenantVisibility(x))
@@ -227,13 +231,14 @@ public abstract class RepositoryBase<T> : IRepository<T>
         return true;
     }
 
-    public async Task<bool> UnarchiveAllAsync(IEnumerable<Guid> ids)
+    public async Task<bool> UnarchiveAllAsync(IReadOnlyList<Guid> ids, CancellationToken ct = default)
     {
         ValidateTenantId();
         var list = ids?.Where(x => x != Guid.Empty).Distinct().ToList() ?? new List<Guid>();
         if (list.Count == 0) return true;
 
-        var entities = await Store.GetByIdsAsync(list);
+        var tenantId = CurrentTenantIdOrNull(); // helper: tenant if tenant-specific else null
+        var entities = await Store.GetByIdsAsync(tenantId, list, ct);
 
         var visible = entities
             .Select(x => ApplyTenantVisibility(x))
@@ -360,4 +365,5 @@ public abstract class RepositoryBase<T> : IRepository<T>
             throw new KeyNotFoundException($"Entity of type {typeof(T).Name} with Id {id} not found.");
         return entity;
     }
+
 }

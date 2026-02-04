@@ -1,4 +1,6 @@
-﻿using IBeam.DataModels.System;
+﻿
+
+using IBeam.Repositories.Abstractions;
 
 namespace IBeam.Utilities.Auditing
 {

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace IBeam.Repositories.OrmLite;
 
-public class OrmLiteRepository<T> : RepositoryBase<T>
+public class OrmLiteRepository<T> : BaseRepositoryAsync<T>
     where T : class, IEntity
 {
     public OrmLiteRepository(

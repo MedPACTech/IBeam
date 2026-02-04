@@ -1,431 +1,254 @@
-﻿using AutoMapper;
-using IBeam.DataModels.System;
-using IBeam.Models.Interfaces;
-using IBeam.Repositories.Interfaces;
+﻿using IBeam.Repositories.Abstractions;
 using IBeam.Services.Abstractions;
-using IBeam.Utilities.Auditing;
 using IBeam.Utilities.Exceptions;
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
-namespace IBeam.Services
+namespace IBeam.Services.Core
 {
-    public abstract class BaseService<TDTO, TModel> : IBaseService<TDTO, TModel>
-        where TDTO : class, IEntity 
-        where TModel : class, IBaseModel 
+    public abstract class BaseService<TEntity, TModel> : IBaseService<TEntity, TModel>
+        where TEntity : class, IEntity
+        where TModel : class
     {
         protected readonly string _serviceName;
-        protected readonly IBaseRepository<TDTO> _repository;
-        protected readonly IMapper _mapper;
-        protected readonly IAuditService _audit;                   // generic fallback
-        protected readonly IEntityAuditService<TDTO>? _typedAudit; // per-entity overlay
+        protected readonly IRepository<TEntity> _repository;
+        protected readonly IModelMapper<TEntity, TModel> _mapper;
 
-        /// <summary>Allow retrieving a single entity by Id (default: true to support new model creation).</summary>
+        protected readonly IAuditService? _audit; // optional
+        protected readonly IEntityAuditService<TEntity>? _typedAudit; // optional overlay
+
         protected virtual bool AllowGetById { get; set; } = true;
-
-        /// <summary>Allow retrieving multiple entities by Ids.</summary>
         protected virtual bool AllowGetByIds { get; set; } = false;
-
-        /// <summary>Allow retrieving all entities (non-archived by default).</summary>
         protected virtual bool AllowGetAll { get; set; } = false;
-
-        /// <summary>Allow retrieving all entities with archived toggle.</summary>
         protected virtual bool AllowGetAllWithArchived { get; set; } = false;
 
-        /// <summary>Allow saving (create/update) a single entity.</summary>
         protected virtual bool AllowSave { get; set; } = false;
-
-        /// <summary>Allow saving multiple entities at once.</summary>
         protected virtual bool AllowSaveAll { get; set; } = false;
 
-        /// <summary>Allow archiving/unarchiving records.</summary>
         protected virtual bool AllowArchive { get; set; } = false;
-
-        /// <summary>Allow deleting an entity by Id.</summary>
+        protected virtual bool AllowUnarchive { get; set; } = false;
         protected virtual bool AllowDelete { get; set; } = false;
 
-        /// <summary>Allow returning a new model instance when an empty Id is requested.</summary>
-        protected virtual bool AllowNewModel { get; private set; } = true;
-
-        //TODO: IAudit, IMapper, IBaseRepository<TDTO> should be injected via DI container, not constructor
-        //TODO: Can these services be nullable ? If so, we need to handle that in the methods
         protected BaseService(
-            IBaseRepository<TDTO> repository,
-            IAuditService auditService,
-            IMapper mapper,
-            IEnumerable<IEntityAuditService<TDTO>> typedAudits // resolves to empty if none
-            )
+            IRepository<TEntity> repository,
+            IModelMapper<TEntity, TModel> mapper,
+            IAuditService? audit = null)
         {
-            _serviceName = GetType().Name; // e.g., PatientService
-            _repository = repository;
-            _audit = auditService;
-            _mapper = mapper;
-            _typedAudit = _audit as IEntityAuditService<TDTO>; // typedAudits.FirstOrDefault(); // null if not registered
+            _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+            _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+            _audit = audit;
+            _typedAudit = audit as IEntityAuditService<TEntity>;
+            _serviceName = GetType().Name;
         }
 
-        #region Mapper Methods
+        // ---- Mapping exposure ----
+        public TEntity ToEntity(TModel model) => _mapper.ToEntity(model);
+        public TModel ToModel(TEntity entity) => _mapper.ToModel(entity);
+        public IEnumerable<TEntity> ToEntity(IEnumerable<TModel> models) => _mapper.ToEntity(models);
+        public IEnumerable<TModel> ToModel(IEnumerable<TEntity> entities) => _mapper.ToModel(entities);
 
-        public TDTO ToDto(TModel model) => _mapper.Map<TDTO>(model);
-        public TModel ToModel(TDTO dto) => _mapper.Map<TModel>(dto);
-        public IEnumerable<TDTO> ToDto(IEnumerable<TModel> models) => _mapper.Map<IEnumerable<TDTO>>(models);
-        public IEnumerable<TModel> ToModel(IEnumerable<TDTO> dtos) => _mapper.Map<IEnumerable<TModel>>(dtos);
+        // ---- Hooks (override in derived services) ----
+        protected virtual IEnumerable<TModel> PostGetAll(IEnumerable<TModel> models) => models;
+        protected virtual IEnumerable<TModel> PostGetByIds(IEnumerable<TModel> models) => models;
+        protected virtual TModel PostGetById(TModel model) => model;
 
-        #endregion
+        protected virtual void PreSave(TModel model, bool isUpdate) { }
+        protected virtual void PostSave(TModel model, bool isUpdate) { }
 
-        #region CRUD Methods
+        protected virtual void PreArchive(Guid id) { }
+        protected virtual void PostArchive(Guid id) { }
 
-        /// <summary>Get all (non-archived).</summary>
+        protected virtual void PreUnarchive(Guid id) { }
+        protected virtual void PostUnarchive(Guid id) { }
+
+        protected virtual void PreDelete(Guid id) { }
+        protected virtual void PostDelete(Guid id) { }
+
+        // ---- Reads ----
         public virtual IEnumerable<TModel> GetAll()
         {
-            if (!AllowGetAll) throw new MethodAccessException($"{nameof(GetAll)} method is not allowed.");
+            if (!AllowGetAll) throw new MethodAccessException($"{nameof(GetAll)} is not allowed.");
+
             try
             {
-                var dtos = _repository.GetAll();
-                var models = ToModel(dtos).ToList();
-                return PostGetAll(models);
+                // Assumes IRepository<TEntity>.GetAll() returns non-archived/non-deleted by default.
+                var entities = _repository.GetAll();
+                return PostGetAll(ToModel(entities).ToList());
             }
             catch (RepositoryException) { throw; }
-            catch (Exception ex)
-            {
-                throw new ServiceException(ex, nameof(GetAll), _serviceName);
-            }
+            catch (Exception ex) { throw new ServiceException(ex, nameof(GetAll), _serviceName); }
         }
 
-        /// <summary>Get all with archived toggle (used by BaseController route /withArchived).</summary>
-        public virtual IEnumerable<TModel> GetAllWithArchived(bool withArchived = true)
+        public virtual IEnumerable<TModel> GetAllWithArchived(bool includeArchived = true)
         {
-            if (!AllowGetAllWithArchived) throw new MethodAccessException($"{nameof(GetAllWithArchived)} method is not allowed.");
+            if (!AllowGetAllWithArchived) throw new MethodAccessException($"{nameof(GetAllWithArchived)} is not allowed.");
+
             try
             {
-                var dtos = _repository.GetAll(withArchived);
-                var models = ToModel(dtos).ToList();
-                return PostGetAll(models);
+                // Assumes IRepository<TEntity>.GetAll(includeArchived) exists (matches your prior pattern).
+                // If your IRepository uses options instead, we’ll adapt this call.
+                var entities = _repository.GetAll(includeArchived);
+                return PostGetAll(ToModel(entities).ToList());
             }
             catch (RepositoryException) { throw; }
-            catch (Exception ex)
-            {
-                throw new ServiceException(ex, nameof(GetAllWithArchived), _serviceName, withArchived);
-            }
+            catch (Exception ex) { throw new ServiceException(ex, nameof(GetAllWithArchived), _serviceName); }
         }
 
-        /// <summary>Get a single item by Id. If allowed and Id is empty, returns a new model instance.</summary>
         public virtual TModel GetById(Guid id)
         {
-            if (!AllowGetById) throw new MethodAccessException($"{nameof(GetById)} method is not allowed.");
-
-            if (AllowNewModel && id == Guid.Empty)
-            {
-                return NewModel(); // allow easy initialization (e.g., blank ProgramStage)
-            }
+            if (!AllowGetById) throw new MethodAccessException($"{nameof(GetById)} is not allowed.");
 
             try
             {
-                var dto = _repository.GetById(id);
-                var model = ToModel(dto);
-                return PostGetById(model);
+                var entity = _repository.GetById(id);
+                return PostGetById(ToModel(entity));
             }
             catch (RepositoryException) { throw; }
-            catch (Exception ex)
-            {
-                throw new ServiceException(ex, nameof(GetById), _serviceName, id);
-            }
+            catch (Exception ex) { throw new ServiceException(ex, nameof(GetById), _serviceName); }
         }
 
-        /// <summary>Get multiple items by Ids.</summary>
         public virtual IEnumerable<TModel> GetByIds(IEnumerable<Guid> ids)
         {
-            if (!AllowGetByIds) throw new MethodAccessException($"{nameof(GetByIds)} method is not allowed.");
+            if (!AllowGetByIds) throw new MethodAccessException($"{nameof(GetByIds)} is not allowed.");
+
+            var list = ids?.ToList() ?? new List<Guid>();
+            if (list.Count == 0) return Enumerable.Empty<TModel>();
 
             try
             {
-                var idList = ids?.ToList() ?? new List<Guid>();
-                if (idList.Count == 0) return Enumerable.Empty<TModel>();
-
-                var dtos = _repository.GetByIds(idList);
-                var models = ToModel(dtos).ToList();
-                return PostGetByIds(models);
+                var entities = _repository.GetByIds(list);
+                return PostGetByIds(ToModel(entities).ToList());
             }
             catch (RepositoryException) { throw; }
-            catch (Exception ex)
-            {
-                throw new ServiceException(ex, nameof(GetByIds), _serviceName, ids);
-            }
+            catch (Exception ex) { throw new ServiceException(ex, nameof(GetByIds), _serviceName); }
         }
 
-        /// <summary>Create or update a single item.</summary>
+        // ---- Writes ----
         public virtual TModel Save(TModel model)
         {
-            if (!AllowSave) throw new MethodAccessException($"{nameof(Save)} method is not allowed.");
-
-            bool isUpdate = model.Id != Guid.Empty;
-
-            // Pre-save hook
-            PreSave(model, isUpdate);
-            isUpdate = model.Id != Guid.Empty;
+            if (!AllowSave) throw new MethodAccessException($"{nameof(Save)} is not allowed.");
 
             try
             {
-                var dto = ToDto(model);
+                var entityCandidate = ToEntity(model);
+                var isUpdate = entityCandidate.Id != Guid.Empty;
 
-                // If creating, ensure new Id (works with repo rule that can also generate Ids)
-                if (!isUpdate && dto.Id == Guid.Empty)
-                {
-                    dto.Id = Guid.NewGuid();
-                }
+                PreSave(model, isUpdate);
 
-                _repository.Save(dto);
-                model.Id = dto.Id;
+                var entity = ToEntity(model); // remap after PreSave in case model changed
+                var saved = _repository.Save(entity);
 
-                // Post-save hook
                 PostSave(model, isUpdate);
 
-                // Audit
-                if (isUpdate) LogUpdate(dto);
-                else LogCreate(dto);
+                if (isUpdate) _typedAudit?.LogUpdate(saved);
+                else _typedAudit?.LogCreate(saved);
 
-                return ToModel(dto);
+                return ToModel(saved);
             }
             catch (RepositoryException) { throw; }
-            catch (Exception ex)
-            {
-                throw new ServiceException(ex, nameof(Save), _serviceName, model);
-            }
+            catch (Exception ex) { throw new ServiceException(ex, nameof(Save), _serviceName); }
         }
 
-        /// <summary>Bulk save. Honors AllowSaveAll (or override to allow).</summary>
         public virtual IEnumerable<TModel> SaveAll(IEnumerable<TModel> models)
         {
-            if (!AllowSaveAll) throw new MethodAccessException($"{nameof(SaveAll)} method is not allowed.");
+            if (!AllowSaveAll) throw new MethodAccessException($"{nameof(SaveAll)} is not allowed.");
 
             var list = models?.ToList() ?? new List<TModel>();
             if (list.Count == 0) return Enumerable.Empty<TModel>();
 
             try
             {
-                // Pre hooks
                 foreach (var m in list)
                 {
-                    var isUpdate = m.Id != Guid.Empty;
+                    var isUpdate = ToEntity(m).Id != Guid.Empty;
                     PreSave(m, isUpdate);
                 }
 
-                var dtos = list.Select(ToDto).ToList();
+                var entities = ToEntity(list).ToList();
+                var saved = _repository.SaveAll(entities).ToList();
 
-                // Ensure IDs for creates
-                foreach (var dto in dtos)
-                    if (dto.Id == Guid.Empty) dto.Id = Guid.NewGuid();
-
-                var saved = _repository.SaveAll(dtos);
-
-                // Align back ids & post hooks
-                for (int i = 0; i < saved.Count; i++)
+                // Audit as update/create per-entity after save
+                foreach (var e in saved)
                 {
-                    list[i].Id = saved[i].Id;
-                    var isUpdate = dtos[i].Id != Guid.Empty; // after mapping; mostly true here
-                    PostSave(list[i], isUpdate);
-                }
-
-                // Audit
-                foreach (var dto in saved)
-                {
-                    // If needed, you can add logic to separate create/update audits
-                    LogUpdate(dto);
+                    // “create vs update” detection for bulk can vary; simplest is “Id existed before”
+                    // override in derived service if you need precision
+                    _typedAudit?.LogUpdate(e);
                 }
 
                 return ToModel(saved).ToList();
             }
             catch (RepositoryException) { throw; }
-            catch (Exception ex)
-            {
-                throw new ServiceException(ex, nameof(SaveAll), _serviceName, models);
-            }
+            catch (Exception ex) { throw new ServiceException(ex, nameof(SaveAll), _serviceName); }
         }
 
-        /// <summary>Archive a single item.</summary>
-        public virtual void Archive(TModel model)
+        // ---- Archive / delete ----
+        public virtual void Archive(Guid id)
         {
-            if (!AllowArchive) throw new MethodAccessException($"{nameof(Archive)} method is not allowed.");
-            ValidateModel(model);
-
-            PreArchive(model);
-
+            if (!AllowArchive) throw new MethodAccessException($"{nameof(Archive)} is not allowed.");
             try
             {
-                var dto = ToDto(model);
-                _repository.Archive(dto);
-                PostArchive(model);
+                PreArchive(id);
+                _repository.Archive(id);
+                PostArchive(id);
             }
             catch (RepositoryException) { throw; }
-            catch (Exception ex)
-            {
-                throw new ServiceException(ex, nameof(Archive), _serviceName, model);
-            }
+            catch (Exception ex) { throw new ServiceException(ex, nameof(Archive), _serviceName); }
         }
 
-        /// <summary>Archive many items.</summary>
-        public virtual void ArchiveAll(IEnumerable<TModel> models)
+        public void Archive(TModel model)
         {
-            if (!AllowArchive) throw new MethodAccessException($"{nameof(ArchiveAll)} method is not allowed.");
-            var list = models?.ToList() ?? new List<TModel>();
-            if (list.Count == 0) return;
+            var id = ToEntity(model).Id;
+            Archive(id);
+        }
 
+        public void ArchiveAll(IEnumerable<TModel> models)
+        {
+            foreach (var id in ToEntity(models ?? Array.Empty<TModel>()).Select(e => e.Id))
+                Archive(id);
+        }
+
+        public virtual void Unarchive(Guid id)
+        {
+            if (!AllowUnarchive) throw new MethodAccessException($"{nameof(Unarchive)} is not allowed.");
             try
             {
-                foreach (var m in list) PreArchive(m);
-
-                var dtos = list.Select(ToDto).ToList();
-                _repository.ArchiveAll(dtos);
-
-                foreach (var m in list) PostArchive(m);
+                PreUnarchive(id);
+                _repository.Unarchive(id);
+                PostUnarchive(id);
             }
             catch (RepositoryException) { throw; }
-            catch (Exception ex)
-            {
-                throw new ServiceException(ex, nameof(ArchiveAll), _serviceName, models);
-            }
+            catch (Exception ex) { throw new ServiceException(ex, nameof(Unarchive), _serviceName); }
         }
 
-        /// <summary>Unarchive a single item.</summary>
-        public virtual void Unarchive(TModel model)
+        public void Unarchive(TModel model)
         {
-            if (!AllowArchive) throw new MethodAccessException($"{nameof(Unarchive)} method is not allowed.");
-            ValidateModel(model);
-
-            try
-            {
-                var dto = ToDto(model);
-                _repository.Unarchive(dto);
-            }
-            catch (RepositoryException) { throw; }
-            catch (Exception ex)
-            {
-                throw new ServiceException(ex, nameof(Unarchive), _serviceName, model);
-            }
+            var id = ToEntity(model).Id;
+            Unarchive(id);
         }
 
-        /// <summary>Unarchive many items.</summary>
-        public virtual void UnarchiveAll(IEnumerable<TModel> models)
+        public void UnarchiveAll(IEnumerable<TModel> models)
         {
-            if (!AllowArchive) throw new MethodAccessException($"{nameof(UnarchiveAll)} method is not allowed.");
-            var list = models?.ToList() ?? new List<TModel>();
-            if (list.Count == 0) return;
-
-            try
-            {
-                var dtos = list.Select(ToDto).ToList();
-                _repository.UnarchiveAll(dtos);
-            }
-            catch (RepositoryException) { throw; }
-            catch (Exception ex)
-            {
-                throw new ServiceException(ex, nameof(UnarchiveAll), _serviceName, models);
-            }
+            foreach (var id in ToEntity(models ?? Array.Empty<TModel>()).Select(e => e.Id))
+                Unarchive(id);
         }
 
-        /// <summary>Delete by Id.</summary>
         public virtual void Delete(Guid id)
         {
-            if (!AllowDelete) throw new MethodAccessException($"{nameof(Delete)} method is not allowed.");
-
-            // Load to let derived classes hook into delete lifecycle and for auditing
-            var model = GetById(id);
-            var dto = ToDto(model);
-
-            PreDelete(model);
-
+            if (!AllowDelete) throw new MethodAccessException($"{nameof(Delete)} is not allowed.");
             try
             {
-                _repository.DeleteById(id); // consistent with your repo method names
-                PostDelete(model);
-                LogDelete(dto);
+                PreDelete(id);
+
+                // If you want “service-level audit on delete”, either:
+                // 1) fetch entity first, then delete, then LogDelete(entity)
+                // 2) let repositories/audit pipeline handle it
+                _repository.Delete(id);
+
+                PostDelete(id);
             }
             catch (RepositoryException) { throw; }
-            catch (Exception ex)
-            {
-                throw new ServiceException(ex, nameof(Delete), _serviceName, id);
-            }
+            catch (Exception ex) { throw new ServiceException(ex, nameof(Delete), _serviceName); }
         }
-
-        #endregion
-
-        #region Helper Methods
-
-        protected void ValidateModel(TModel model)
-        {
-            if (model == null)
-                throw new ArgumentNullException(nameof(model), "The model provided is null.");
-        }
-
-        #endregion
-
-        #region Overridable Hooks for Derived Classes
-
-        protected virtual List<TModel> PostGetAll(List<TModel> models) => models;
-        protected virtual TModel PostGetById(TModel model) => model;
-        protected virtual List<TModel> PostGetByIds(List<TModel> models) => models;
-
-        protected virtual void PreSave(TModel model, bool isUpdate) { }
-        protected virtual void PostSave(TModel model, bool isUpdate) { }
-        protected virtual void PreDelete(TModel model) { }
-        protected virtual void PostDelete(TModel model) { }
-        protected virtual void PreArchive(TModel model) { }
-        protected virtual void PostArchive(TModel model) { }
-
-        #endregion
-
-        #region Methods for Logging
-
-        protected abstract TModel NewModel();
-
-        protected virtual void LogCreate(TDTO dto)
-        {
-            if (_typedAudit != null)
-                _typedAudit.LogCreate(dto);
-            else
-                _audit.LogAudit(
-                    new AuditEvent()
-                    {
-                        EntityId = dto.Id,
-                        EntityName = typeof(TDTO).Name,
-                        Action = AuditAction.Create,
-                        Data = dto
-                    });
-        }
-
-        protected virtual void LogUpdate(TDTO dto)
-        {
-            if (_typedAudit != null)
-                _typedAudit.LogUpdate(dto);
-            else
-                _audit.LogAudit(
-                    new AuditEvent()
-                    {
-                        EntityId = dto.Id,
-                        EntityName = typeof(TDTO).Name,
-                        Action = AuditAction.Update,
-                        Data = dto
-                    });
-        }
-
-        protected virtual void LogDelete(TDTO dto)
-        {
-            if (_typedAudit != null)
-                _typedAudit.LogDelete(dto);
-            else
-                _audit.LogAudit(
-                    new AuditEvent()
-                    {
-                        EntityId = dto.Id,
-                        EntityName = typeof(TDTO).Name,
-                        Action = AuditAction.Delete,
-                        Data = dto
-                    }
-                    );
-        }
-
-        protected virtual AuditEvent BuildAuditEvent(AuditAction action, TDTO dto, object? data = null)
-        => AuditEventBuilder.Build(action, dto, data);
-
-
-        #endregion
     }
 }
