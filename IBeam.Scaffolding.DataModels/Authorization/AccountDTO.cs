@@ -6,7 +6,7 @@ namespace IBeam.Scaffolding.DataModels
 {
     [Serializable]
 	[Alias("Accounts")]
-	public class AccountDTO : IDTO, IDTOArchive
+	public class AccountDTO : IEntity, IArchivableEntity
 	{
 		public Guid Id { get; set; }
 		public string PasswordHash { get; set; }

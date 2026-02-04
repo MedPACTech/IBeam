@@ -10,8 +10,8 @@ using System.Collections.Generic;
 namespace IBeam.Services
 {
     public abstract class BaseService<TDTO, TModel> : IBaseService<TDTO, TModel>
-        where TDTO : class, IDTO
-        where TModel : class, IBaseModel
+        where TDTO : class, IEntity 
+        where TModel : class, IBaseModel 
     {
         protected readonly string _serviceName;
         protected readonly IBaseRepository<TDTO> _repository;

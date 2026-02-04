@@ -1,26 +1,53 @@
+# Build results
+**/bin/
+**/obj/
 
-/IBeam.API/obj
-/IBeam.DataModels/bin
-/IBeam.DataModels/obj
-/IBeam.Mappings/obj
-/IBeam.Models/bin
-/IBeam.Models/obj
-/IBeam.Repositories/bin
-/IBeam.Repositories/obj
-/IBeam.Services/bin
-/IBeam.Services/obj
-/IBeam.Tests/bin
-/IBeam.Tests/obj
-/IBeam.Utilities/bin
-/IBeam.Utilities/obj
-/IBeam.API/bin
-/IBeam.Mappings/bin
-/.vs
-*.dll
-*.pdb
-/IBeam.Scaffolding.Models/obj
-/IBeam.Services.Scaffold/bin
-/IBeam.Services.Scaffold/obj
-/IBeam.Scaffolding.DataModels/obj
-/IBeam.Repositories.Scaffold/obj
-/IBeam.Repositories.Scaffold/bin
+# User-specific files
+**/*.user
+**/*.rsuser
+**/*.suo
+**/*.userosscache
+**/*.sln.docstates
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# NuGet
+**/packages/
+*.nupkg
+*.snupkg
+# (If you use packages.lock.json and want to keep it, remove this line)
+# packages.lock.json
+
+# Test results / coverage
+**/TestResults/
+**/*.trx
+**/*.coverage
+**/*.coveragexml
+**/coverage*/
+**/.sonarqube/
+**/.scannerwork/
+
+# ASP.NET / publish outputs
+**/publish/
+**/app.publish/
+
+# Local secrets
+**/secrets.json
+**/appsettings.*.local.json
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Azure Storage emulator / Azurite
+__azurite_db_blob__.json
+__azurite_db_blob_extent__.json
+__azurite_db_queue__.json
+__azurite_db_queue_extent__.json
+__azurite_db_table__.json
