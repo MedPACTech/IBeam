@@ -1,4 +1,4 @@
-using IBeam.DataModels.System;
+using IBeam.Repositories.Abstractions;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace IBeam.Repositories.Core;
@@ -42,12 +42,6 @@ public abstract class RepositoryBase<T> : IRepository<T>
         // Similar to your current pattern
         RepositoryName = typeof(T).FullName ?? typeof(T).Name;
         RepositoryCacheName = $"{RepositoryName}Cache";
-
-        if (IsTenantSpecific && !TenantContext.IsTenantIdSet())
-        {
-            throw new InvalidOperationException(
-                $"TenantId is required for {RepositoryName} but is not set in the TenantContext.");
-        }
     }
 
     public async Task<T?> GetByIdAsync(Guid id)
@@ -95,7 +89,7 @@ public abstract class RepositoryBase<T> : IRepository<T>
     {
         ValidateTenantId();
 
-        var canCache = Options.EnableCache && !includeArchived && !includeDeleted;
+        var canCache = !IsTenantSpecific && Options.EnableCache && !includeArchived && !includeDeleted;
 
         if (canCache && MemoryCache.TryGetValue(RepositoryCacheName, out IReadOnlyList<T>? cached) && cached != null)
             return cached;
@@ -186,7 +180,7 @@ public abstract class RepositoryBase<T> : IRepository<T>
         var entity = await RequireEntityAsync(id);
 
         if (entity is not IArchivableEntity archivable)
-            throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(IArchivableEntity)}.");
+            throw new RepositoryValidationException(RepositoryName, "ArchiveAsync", $"Entity of type {typeof(T).Name} does not implement {nameof(IArchivableEntity)}.");
 
         archivable.IsArchived = true;
         await SaveAsync(entity);
@@ -199,7 +193,7 @@ public abstract class RepositoryBase<T> : IRepository<T>
         var entity = await RequireEntityAsync(id);
 
         if (entity is not IArchivableEntity archivable)
-            throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(IArchivableEntity)}.");
+            throw new RepositoryValidationException(RepositoryName, "UnarchiveAsync", $"Entity of type {typeof(T).Name} does not implement {nameof(IArchivableEntity)}.");
 
         archivable.IsArchived = false;
         await SaveAsync(entity);
@@ -224,7 +218,7 @@ public abstract class RepositoryBase<T> : IRepository<T>
         foreach (var e in visible)
         {
             if (e is not IArchivableEntity a)
-                throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(IArchivableEntity)}.");
+                throw new RepositoryValidationException(RepositoryName, "ArchiveAllAsync", $"Entity of type {typeof(T).Name} does not implement {nameof(IArchivableEntity)}.");
 
             a.IsArchived = true;
         }
@@ -250,7 +244,7 @@ public abstract class RepositoryBase<T> : IRepository<T>
         foreach (var e in visible)
         {
             if (e is not IArchivableEntity a)
-                throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(IArchivableEntity)}.");
+                throw new RepositoryValidationException(RepositoryName, "UnarchiveAllAsync", $"Entity of type {typeof(T).Name} does not implement {nameof(IArchivableEntity)}.");
 
             a.IsArchived = false;
         }
@@ -272,7 +266,8 @@ public abstract class RepositoryBase<T> : IRepository<T>
     protected void ValidateTenantId()
     {
         if (IsTenantSpecific && !TenantContext.IsTenantIdSet())
-            throw new InvalidOperationException($"TenantId is required for {RepositoryName} but is not set in the current context.");
+            throw new RepositoryValidationException(RepositoryName, "ValidateTenantId",
+                $"TenantId is required for {RepositoryName} but is not set in the current context.");
     }
 
     protected void ApplyIdPolicy(T entity)
@@ -280,7 +275,7 @@ public abstract class RepositoryBase<T> : IRepository<T>
         if (!Options.IdGeneratedByRepository)
         {
             if (entity.Id == Guid.Empty)
-                throw new InvalidOperationException("Empty Id is not allowed when Ids are managed externally.");
+                throw new RepositoryValidationException(RepositoryName, "ApplyIdPolicy", "Empty Id is not allowed when Ids are managed externally.");
         }
         else
         {
@@ -294,20 +289,27 @@ public abstract class RepositoryBase<T> : IRepository<T>
         if (!IsTenantSpecific) return;
 
         if (entity is not ITenantEntity tenantEntity)
-            throw new InvalidOperationException($"Entity of type {typeof(T).Name} does not implement {nameof(ITenantEntity)}, but the repository is tenant-specific.");
+            throw new RepositoryValidationException(
+                RepositoryName, "ApplyTenantPolicy",
+                $"Entity of type {typeof(T).Name} does not implement {nameof(ITenantEntity)}, but the repository is tenant-specific.");
 
-        if (!TenantContext.TenantId.HasValue)
-            throw new InvalidOperationException("TenantId is required but TenantContext.TenantId is null.");
+        if (!TenantContext.TenantId.HasValue || TenantContext.TenantId.Value == Guid.Empty)
+            throw new RepositoryValidationException(
+                RepositoryName, "ApplyTenantPolicy",
+                "TenantId is required but TenantContext.TenantId is not set.");
 
+        // ?? Require services to pass a tenant-stamped entity
         if (tenantEntity.TenantId == Guid.Empty)
-            tenantEntity.TenantId = TenantContext.TenantId.Value;
+            throw new RepositoryValidationException(
+                RepositoryName, "ApplyTenantPolicy",
+                $"Entity TenantId is empty. TenantId must be set to {TenantContext.TenantId.Value:D} before calling {RepositoryName}.");
 
         if (tenantEntity.TenantId != TenantContext.TenantId.Value)
-        {
-            throw new InvalidOperationException(
-                $"TenantId mismatch. Entity belongs to TenantId {tenantEntity.TenantId}, but repository is for TenantId {TenantContext.TenantId}.");
-        }
+            throw new RepositoryValidationException(
+                RepositoryName, "ApplyTenantPolicy",
+                $"TenantId mismatch. Entity belongs to TenantId {tenantEntity.TenantId:D}, but repository context is TenantId {TenantContext.TenantId.Value:D}.");
     }
+
 
     protected T? ApplyTenantVisibility(T? entity)
     {

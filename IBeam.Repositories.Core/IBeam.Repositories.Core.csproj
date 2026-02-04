@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\IBeam.DataModels\IBeam.DataModels.csproj" />
+    <ProjectReference Include="..\IBeam.Repositories.Abstractions\IBeam.Repositories.Abstractions.csproj" />
     <ProjectReference Include="..\IBeam.Utilities\IBeam.Utilities.csproj" />
   </ItemGroup>
 

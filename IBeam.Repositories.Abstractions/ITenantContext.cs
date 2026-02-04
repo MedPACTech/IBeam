@@ -1,4 +1,4 @@
-namespace IBeam.Repositories.Core;
+namespace IBeam.Repositories.Abstractions;
 
 public interface ITenantContext
 {

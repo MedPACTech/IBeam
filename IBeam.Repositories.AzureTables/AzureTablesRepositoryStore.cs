@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Azure;
 using Azure.Data.Tables;
-using IBeam.DataModels.System;
+using IBeam.Repositories.Abstractions;
 using IBeam.Repositories.AzureTables.Internal;
 using IBeam.Repositories.Core;
 using Microsoft.Extensions.Options;

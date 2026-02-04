@@ -1,4 +1,4 @@
-using IBeam.Repositories.Core;
+using IBeam.Repositories.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IBeam.Repositories.OrmLite;
