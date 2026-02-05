@@ -4,6 +4,7 @@ using IBeam.Utilities.Exceptions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ServiceException = IBeam.Services.Abstractions.ServiceException;
 
 namespace IBeam.Services.Core
 {
@@ -12,7 +13,7 @@ namespace IBeam.Services.Core
         where TModel : class
     {
         protected readonly string _serviceName;
-        protected readonly IRepository<TEntity> _repository;
+        protected readonly IBaseRepository<TEntity> _repository;
         protected readonly IModelMapper<TEntity, TModel> _mapper;
 
         protected readonly IAuditService? _audit; // optional
@@ -31,7 +32,7 @@ namespace IBeam.Services.Core
         protected virtual bool AllowDelete { get; set; } = false;
 
         protected BaseService(
-            IRepository<TEntity> repository,
+            IBaseRepository<TEntity> repository,
             IModelMapper<TEntity, TModel> mapper,
             IAuditService? audit = null)
         {

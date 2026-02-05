@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using ServiceException = IBeam.Services.Abstractions.ServiceException;
 
 namespace IBeam.Services.Core
 {
@@ -14,7 +15,7 @@ namespace IBeam.Services.Core
         where TModel : class
     {
         protected readonly string _serviceName;
-        protected readonly IRepository<TEntity> _repository;
+        protected readonly IBaseRepositoryAsync<TEntity> _repository;
         protected readonly IModelMapper<TEntity, TModel> _mapper;
 
         protected readonly IAuditServiceAsync? _audit;
@@ -33,7 +34,7 @@ namespace IBeam.Services.Core
         protected virtual bool AllowDelete { get; set; } = false;
 
         protected BaseServiceAsync(
-            IRepository<TEntity> repository,
+            IBaseRepositoryAsync<TEntity> repository,
             IModelMapper<TEntity, TModel> mapper,
             IAuditServiceAsync? audit = null)
         {
@@ -71,7 +72,7 @@ namespace IBeam.Services.Core
 
             try
             {
-                var entities = await _repository.GetAllAsync(ct).ConfigureAwait(false);
+                var entities = await _repository.GetAllAsync(ct: ct).ConfigureAwait(false);
                 return PostGetAll(ToModel(entities).ToList());
             }
             catch (RepositoryException) { throw; }
@@ -84,7 +85,7 @@ namespace IBeam.Services.Core
 
             try
             {
-                var entities = await _repository.GetAllAsync(includeArchived, ct).ConfigureAwait(false);
+                var entities = await _repository.GetAllAsync(includeArchived, ct: ct).ConfigureAwait(false);
                 return PostGetAll(ToModel(entities).ToList());
             }
             catch (RepositoryException) { throw; }
@@ -97,7 +98,7 @@ namespace IBeam.Services.Core
 
             try
             {
-                var entity = await _repository.GetByIdAsync(id, ct).ConfigureAwait(false);
+                var entity = await _repository.GetByIdAsync(id, ct: ct).ConfigureAwait(false);
                 return PostGetById(ToModel(entity));
             }
             catch (RepositoryException) { throw; }
@@ -113,7 +114,7 @@ namespace IBeam.Services.Core
 
             try
             {
-                var entities = await _repository.GetByIdsAsync(list, ct).ConfigureAwait(false);
+                var entities = await _repository.GetByIdsAsync(list, ct: ct).ConfigureAwait(false);
                 return PostGetByIds(ToModel(entities).ToList());
             }
             catch (RepositoryException) { throw; }
