@@ -19,8 +19,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\IBeam.DataModels\IBeam.DataModels.csproj" />
-    <ProjectReference Include="..\IBeam.Repositories\IBeam.Repositories.csproj" />
     <ProjectReference Include="..\IBeam.Scaffolding.DataModels\IBeam.Scaffolding.DataModels.csproj" />
     <ProjectReference Include="..\IBeam.Utilities\IBeam.Utilities.csproj" />
   </ItemGroup>

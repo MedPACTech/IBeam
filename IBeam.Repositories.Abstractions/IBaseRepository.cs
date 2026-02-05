@@ -10,5 +10,14 @@ public interface IBaseRepository<T> where T : class, IEntity
     IReadOnlyList<T> SaveAll(IReadOnlyList<T> entities);
 
     bool Archive(Guid id);
-    bool Delete(Guid id);
+
+    bool ArchiveAll(IReadOnlyList<Guid> ids);
+
+    bool Unarchive(Guid id);
+
+    bool UnarchiveAll(IReadOnlyList<Guid> ids);
+
+    void Delete(Guid id);
+
+    void DeleteAll(IReadOnlyList<Guid> ids);
 }
