@@ -34,7 +34,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IBeam.Models\IBeam.Models.csproj" />
-    <ProjectReference Include="..\IBeam.Services.Scaffold\IBeam.Scaffolding.Services.csproj" />
     <ProjectReference Include="..\IBeam.Services\IBeam.Services.Core.csproj" />
     <ProjectReference Include="..\IBeam.Repositories.OrmLite\IBeam.Repositories.OrmLite.csproj" />
     <ProjectReference Include="..\IBeam.Repositories.Core\IBeam.Repositories.Core.csproj" />

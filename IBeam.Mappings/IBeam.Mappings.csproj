@@ -22,9 +22,4 @@
     <PackageReference Include="AutoMapper" Version="15.0.1" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\IBeam.Scaffolding.DataModels\IBeam.Scaffolding.DataModels.csproj" />
-    <ProjectReference Include="..\IBeam.Scaffolding.Models\IBeam.Scaffolding.Models.csproj" />
-  </ItemGroup>
-
 </Project>
