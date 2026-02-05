@@ -1,10 +1,10 @@
-using System.Text.Json;
 using Azure;
 using Azure.Data.Tables;
 using IBeam.Repositories.Abstractions;
 using IBeam.Repositories.AzureTables.Internal;
 using IBeam.Repositories.Core;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace IBeam.Repositories.AzureTables;
 
@@ -18,15 +18,13 @@ public sealed class AzureTablesRepositoryStore<T> : IRepositoryStore<T>
 
     private readonly TableServiceClient _serviceClient;
     private readonly AzureTablesOptions _options;
-    private readonly ITenantContext _tenantContext;
     private TableClient? _table;
 
     private bool IsTenantSpecific => typeof(ITenantEntity).IsAssignableFrom(typeof(T));
 
-    public AzureTablesRepositoryStore(IOptions<AzureTablesOptions> options, ITenantContext tenantContext)
+    public AzureTablesRepositoryStore(IOptions<AzureTablesOptions> options)
     {
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        _tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
 
         if (string.IsNullOrWhiteSpace(_options.ConnectionString))
             throw new InvalidOperationException("AzureTablesOptions.ConnectionString must be configured.");
@@ -34,7 +32,7 @@ public sealed class AzureTablesRepositoryStore<T> : IRepositoryStore<T>
         _serviceClient = new TableServiceClient(_options.ConnectionString);
     }
 
-    private async Task<TableClient> GetTableAsync()
+    private async Task<TableClient> GetTableAsync(CancellationToken ct)
     {
         if (_table != null) return _table;
 
@@ -42,7 +40,7 @@ public sealed class AzureTablesRepositoryStore<T> : IRepositoryStore<T>
         var table = _serviceClient.GetTableClient(tableName);
 
         if (_options.CreateTablesIfNotExists)
-            await table.CreateIfNotExistsAsync();
+            await table.CreateIfNotExistsAsync(ct);
 
         _table = table;
         return table;
@@ -59,12 +57,16 @@ public sealed class AzureTablesRepositoryStore<T> : IRepositoryStore<T>
         return alnum;
     }
 
-    private string GetPartitionKeyForRead()
+    private string PartitionKeyForTenant(Guid? tenantId)
     {
         if (!IsTenantSpecific) return "global";
-        var tenantId = _tenantContext.TenantId ?? Guid.Empty;
-        return tenantId == Guid.Empty ? "global" : tenantId.ToString("N");
+
+        if (!tenantId.HasValue || tenantId.Value == Guid.Empty)
+            throw new InvalidOperationException($"TenantId is required for tenant-specific table '{typeof(T).Name}'.");
+
+        return tenantId.Value.ToString("N");
     }
+
 
     private static string ToRowKey(Guid id) => id.ToString("N");
 
@@ -74,6 +76,7 @@ public sealed class AzureTablesRepositoryStore<T> : IRepositoryStore<T>
         RowKey = ToRowKey(entity.Id),
         Type = typeof(T).FullName,
         Data = JsonSerializer.Serialize(entity, JsonOptions)
+        //SchemaVersion = _options.SchemaVersion TODO: implement versioning
     };
 
     private static T? Unwrap(AzureTableEnvelope? env)
@@ -81,71 +84,93 @@ public sealed class AzureTablesRepositoryStore<T> : IRepositoryStore<T>
             ? null
             : JsonSerializer.Deserialize<T>(env.Data, JsonOptions);
 
-    public async Task<T?> GetByIdAsync(Guid id)
+    private static string PartitionKeyForWrite(Guid? tenantId, T entity, bool isTenantSpecific)
+    {
+        if (!isTenantSpecific) return "global";
+
+        if (entity is ITenantEntity te && te.TenantId != Guid.Empty)
+            return te.TenantId.ToString("N");
+
+        if (tenantId.HasValue && tenantId.Value != Guid.Empty)
+            return tenantId.Value.ToString("N");
+
+        throw new InvalidOperationException($"TenantId is required for tenant-specific table '{typeof(T).Name}'.");
+    }
+
+    public Task<T?> GetByIdAsync(Guid? tenantId, Guid id, CancellationToken ct = default)
+    => Execute("GetByIdAsync", async () =>
     {
         if (id == Guid.Empty) return null;
 
-        var table = await GetTableAsync();
-        var pk = GetPartitionKeyForRead();
+        var table = await GetTableAsync(ct);
+        var pk = PartitionKeyForTenant(tenantId);
         var rk = ToRowKey(id);
 
-        var response = await table.GetEntityIfExistsAsync<AzureTableEnvelope>(pk, rk);
+        var response = await table.GetEntityIfExistsAsync<AzureTableEnvelope>(pk, rk, cancellationToken: ct);
         return response.HasValue ? Unwrap(response.Value) : null;
-    }
+    });
 
-    public async Task<IReadOnlyList<T>> GetByIdsAsync(IEnumerable<Guid> ids)
+
+    public async Task<IReadOnlyList<T>> GetByIdsAsync(Guid? tenantId, IReadOnlyList<Guid> ids, CancellationToken ct = default)
     {
         var idList = ids?.Where(x => x != Guid.Empty).Distinct().ToList() ?? new();
         if (idList.Count == 0) return Array.Empty<T>();
 
-        var tasks = idList.Select(GetByIdAsync).ToList();
+        var throttler = new SemaphoreSlim(8);
+
+        var tasks = idList.Select(async id =>
+        {
+            await throttler.WaitAsync(ct);
+            try
+            {
+                return await GetByIdAsync(tenantId, id, ct); // already wrapped
+            }
+            finally
+            {
+                throttler.Release();
+            }
+        });
+
         var results = await Task.WhenAll(tasks);
         return results.Where(x => x != null).Cast<T>().ToList();
     }
 
-    public async Task<IReadOnlyList<T>> GetAllAsync()
+    public Task<IReadOnlyList<T>> GetAllAsync(Guid? tenantId, CancellationToken ct = default)
+    => Execute("GetAllAsync", async () =>
     {
-        var table = await GetTableAsync();
-        var pk = GetPartitionKeyForRead();
+        var table = await GetTableAsync(ct);
+        var pk = PartitionKeyForTenant(tenantId);
+
         var filter = TableClient.CreateQueryFilter<AzureTableEnvelope>(x => x.PartitionKey == pk);
 
         var list = new List<T>();
-        await foreach (var env in table.QueryAsync<AzureTableEnvelope>(filter: filter))
+        await foreach (var env in table.QueryAsync<AzureTableEnvelope>(filter: filter, cancellationToken: ct))
         {
             var entity = Unwrap(env);
             if (entity != null) list.Add(entity);
         }
 
-        return list;
-    }
+        return (IReadOnlyList<T>)list;
+    });
 
-    public async Task<T> UpsertAsync(T entity)
-    {
-        var table = await GetTableAsync();
-
-        var pk = "global";
-        if (entity is ITenantEntity te && te.TenantId != Guid.Empty)
-            pk = te.TenantId.ToString("N");
-        else if (IsTenantSpecific && _tenantContext.TenantId is Guid tid && tid != Guid.Empty)
-            pk = tid.ToString("N");
-
-        await table.UpsertEntityAsync(Wrap(entity, pk), TableUpdateMode.Replace);
-        return entity;
-    }
-
-    public async Task<IReadOnlyList<T>> UpsertAllAsync(IEnumerable<T> entities)
-    {
-        var table = await GetTableAsync();
-        var list = entities?.Where(x => x != null).ToList() ?? new();
-        if (list.Count == 0) return Array.Empty<T>();
-
-        // Must batch by PartitionKey; max 100 per transaction
-        var groups = list.GroupBy(e =>
+    public Task<T> UpsertAsync(Guid? tenantId, T entity, CancellationToken ct = default)
+        => Execute("UpsertAsync", async () =>
         {
-            if (e is ITenantEntity te && te.TenantId != Guid.Empty) return te.TenantId.ToString("N");
-            if (IsTenantSpecific && _tenantContext.TenantId is Guid tid && tid != Guid.Empty) return tid.ToString("N");
-            return "global";
+            ArgumentNullException.ThrowIfNull(entity);
+            var table = await GetTableAsync(ct);
+            var pk = PartitionKeyForWrite(tenantId, entity, IsTenantSpecific);
+            await table.UpsertEntityAsync(Wrap(entity, pk), TableUpdateMode.Replace, ct);
+            return entity;
         });
+
+    public Task<IReadOnlyList<T>> UpsertAllAsync(Guid? tenantId, IReadOnlyList<T> entities, CancellationToken ct = default)
+    => Execute("UpsertAllAsync", async () =>
+    {
+        var table = await GetTableAsync(ct);
+        var list = entities?.Where(x => x != null).ToList() ?? new();
+        if (list.Count == 0) return (IReadOnlyList<T>)Array.Empty<T>();
+
+        var groups = list.GroupBy(e => PartitionKeyForWrite(tenantId, e, IsTenantSpecific));
 
         foreach (var g in groups)
         {
@@ -153,31 +178,105 @@ public sealed class AzureTablesRepositoryStore<T> : IRepositoryStore<T>
 
             foreach (var e in g)
             {
-                batch.Add(new TableTransactionAction(TableTransactionActionType.UpsertReplace, Wrap(e, g.Key)));
+                batch.Add(new TableTransactionAction(
+                    TableTransactionActionType.UpsertReplace,
+                    Wrap(e, g.Key)));
 
                 if (batch.Count == 100)
                 {
-                    await table.SubmitTransactionAsync(batch);
+                    await table.SubmitTransactionAsync(batch, ct);
                     batch.Clear();
                 }
             }
 
             if (batch.Count > 0)
-                await table.SubmitTransactionAsync(batch);
+                await table.SubmitTransactionAsync(batch, ct);
         }
 
-        return list;
-    }
+        return (IReadOnlyList<T>)list;
+    });
 
-    public async Task HardDeleteAsync(Guid id)
+
+    public async Task HardDeleteAsync(Guid? tenantId, Guid id, CancellationToken ct = default)
+        => await Execute("HardDeleteAsync", async () =>
     {
         if (id == Guid.Empty) return;
 
-        var table = await GetTableAsync();
-        var pk = GetPartitionKeyForRead();
+        var table = await GetTableAsync(ct);
+        var pk = PartitionKeyForTenant(tenantId);
         var rk = ToRowKey(id);
 
-        try { await table.DeleteEntityAsync(pk, rk, ETag.All); }
+        try { await table.DeleteEntityAsync(pk, rk, ETag.All, ct); }
         catch (RequestFailedException ex) when (ex.Status == 404) { /* ignore */ }
+    });
+
+    public Task HardDeleteAllAsync(Guid? tenantId, IReadOnlyList<Guid> ids, CancellationToken ct = default)
+    => Execute("HardDeleteAllAsync", async () =>
+    {
+        var table = await GetTableAsync(ct);
+
+        var list = ids?.Where(x => x != Guid.Empty).Distinct().ToList() ?? new();
+        if (list.Count == 0) return;
+
+        var pk = PartitionKeyForTenant(tenantId);
+
+        var batch = new List<TableTransactionAction>(100);
+        foreach (var id in list)
+        {
+            var rk = ToRowKey(id);
+            var env = new AzureTableEnvelope { PartitionKey = pk, RowKey = rk, ETag = ETag.All };
+            batch.Add(new TableTransactionAction(TableTransactionActionType.Delete, env));
+
+            if (batch.Count == 100)
+            {
+                await SubmitDeleteBatchSafely(table, batch, pk, ct);
+                batch.Clear();
+            }
+        }
+
+        if (batch.Count > 0)
+            await SubmitDeleteBatchSafely(table, batch, pk, ct);
+    });
+
+
+    private static async Task SubmitDeleteBatchSafely(
+        TableClient table,
+        List<TableTransactionAction> batch,
+        string pk,
+        CancellationToken ct)
+    {
+        try
+        {
+            await table.SubmitTransactionAsync(batch, ct);
+        }
+        catch (RequestFailedException)
+        {
+            // Fall back to individual deletes and ignore 404s
+            foreach (var action in batch)
+            {
+                var env = (AzureTableEnvelope)action.Entity;
+                try { await table.DeleteEntityAsync(pk, env.RowKey, ETag.All, ct); }
+                catch (RequestFailedException ex) when (ex.Status == 404) { }
+            }
+        }
     }
+
+    private async Task<TResult> Execute<TResult>(string op, Func<Task<TResult>> work)
+    {
+        try { return await work(); }
+        catch (RequestFailedException ex)
+        {
+            throw new RepositoryStoreException(typeof(T).Name, op, ex);
+        }
+    }
+
+    private async Task Execute(string op, Func<Task> work)
+    {
+        try { await work(); }
+        catch (RequestFailedException ex)
+        {
+            throw new RepositoryStoreException(typeof(T).Name, op, ex);
+        }
+    }
+
 }

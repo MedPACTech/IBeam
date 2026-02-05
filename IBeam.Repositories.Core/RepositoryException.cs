@@ -19,3 +19,15 @@ public sealed class RepositoryValidationException : RepositoryException
         : base(repository, operation, message, inner) { }
 }
 
+public sealed class RepositoryStoreException : Exception
+{
+    public string RepositoryName { get; }
+    public string Operation { get; }
+
+    public RepositoryStoreException(string repositoryName, string operation, Exception inner)
+        : base($"Repository store error in '{repositoryName}' during '{operation}'.", inner)
+    {
+        RepositoryName = repositoryName;
+        Operation = operation;
+    }
+}

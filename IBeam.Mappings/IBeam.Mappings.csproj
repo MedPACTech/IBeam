@@ -23,7 +23,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\IBeam.DataModels\IBeam.DataModels.csproj" />
     <ProjectReference Include="..\IBeam.Scaffolding.DataModels\IBeam.Scaffolding.DataModels.csproj" />
     <ProjectReference Include="..\IBeam.Scaffolding.Models\IBeam.Scaffolding.Models.csproj" />
   </ItemGroup>

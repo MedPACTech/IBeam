@@ -10,4 +10,6 @@ public interface IRepositoryStore<T> where T : class, IEntity
     Task<IReadOnlyList<T>> UpsertAllAsync(Guid? tenantId, IReadOnlyList<T> entities, CancellationToken ct = default);
 
     Task HardDeleteAsync(Guid? tenantId, Guid id, CancellationToken ct = default);
+
+    Task HardDeleteAllAsync(Guid? tenantId, IReadOnlyList<Guid> ids, CancellationToken ct = default);
 }

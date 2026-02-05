@@ -8,7 +8,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddIBeamAzureTablesRepositories(this IServiceCollection services)
     {
         services.AddScoped(typeof(IRepositoryStore<>), typeof(AzureTablesRepositoryStore<>));
-        services.AddScoped(typeof(IRepository<>), typeof(AzureTablesRepository<>));
+        services.AddScoped(typeof(IBaseRepository<>), typeof(AzureTablesRepositoryAsync<>));
         return services;
     }
 
