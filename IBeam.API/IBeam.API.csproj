@@ -38,7 +38,6 @@
     <ProjectReference Include="..\IBeam.Services\IBeam.Services.Core.csproj" />
     <ProjectReference Include="..\IBeam.Repositories.OrmLite\IBeam.Repositories.OrmLite.csproj" />
     <ProjectReference Include="..\IBeam.Repositories.Core\IBeam.Repositories.Core.csproj" />
-    <ProjectReference Include="..\IBeam.DataModels\IBeam.DataModels.csproj" />
     <ProjectReference Include="..\IBeam.Repositories.AzureTables\IBeam.Repositories.AzureTables.csproj" />
 
   </ItemGroup>
