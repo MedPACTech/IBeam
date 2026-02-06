@@ -4,10 +4,10 @@ trigger:
     - main
   paths:
     include:
-    - IBeam.Services/**
+    - IBeam.Scaffolding.Models/**
     - .azure-pipelines/templates/**
     - IBeam.sln
-    - .azure-pipelines/pipelines.IBeam.Services.nupkg.yml
+    - .azure-pipelines/pipelines.IBeam.Scaffolding.Models.nupkg.yml
 
 pool:
   vmImage: 'ubuntu-22.04'
@@ -25,7 +25,7 @@ variables:
   value: '**/IBeam.sln'
 
 - name: project
-  value: '**/IBeam.Services.csproj'
+  value: '**/IBeam.Scaffolding.Models.csproj'
 
 - name: packageLocation
   value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
