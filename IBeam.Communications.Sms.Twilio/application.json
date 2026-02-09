@@ -1,0 +1,13 @@
+{
+  "IBeam": {
+    "Communications": {
+      "Sms": {
+        "Twilio": {
+          "AccountSid": "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+          "AuthToken": "your-auth-token",
+          "FromPhoneNumber": "+15551234567"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "IBeam": {
+    "Database": {
+      "Identity": {
+        "Provider": "SqlServer",
+        "ConnectionString": "Server=localhost;Database=IBeam.Identity;Trusted_Connection=True;TrustServerCertificate=True;",
+        "EnableSensitiveDataLogging": false,
+        "CommandTimeoutSeconds": 30
+      }
+    },
+    "Communications": {
+      "Email": {
+        "AzureCommunications": {
+          "ConnectionString": "endpoint=https://...;accesskey=...",
+          "DefaultFromAddress": "DoNotReply@yourdomain.com",
+          "DefaultFromDisplayName": "IBeam Notifications"
+        }
+      }
+    }
+  }
+}

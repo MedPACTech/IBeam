@@ -1,0 +1,60 @@
+////Create all based on yaml name
+
+$repoUrl = "https://github.com/MedPACTech/IBeam"
+$branch  = "main"
+$sc      = "f6aea96b-6653-4f5f-b821-80b5bc3497ba"
+
+Get-ChildItem ".\.azure-pipelines" -Filter "pipelines.*.nupkg.yml" | ForEach-Object {
+  $yamlPath = "/.azure-pipelines/$($_.Name)"
+
+  # pipelines.XYZ.nupkg.yml  ->  XYZ.Nupkg
+  $baseName = $_.Name -replace '^pipelines\.', '' -replace '\.nupkg\.yml$', ''
+  $pipeName = "$baseName.Nupkg"
+
+  Write-Host "Creating pipeline: $pipeName  ($yamlPath)"
+
+  az pipelines create `
+    --name "$pipeName" `
+    --repository "$repoUrl" `
+    --repository-type github `
+    --branch "$branch" `
+    --yaml-path "$yamlPath" `
+    --service-connection "$sc" `
+    --skip-first-run true
+}
+
+///Run All based on name
+
+$ids = az pipelines list --query "[?ends_with(name, '.Nupkg')].id" -o tsv
+
+foreach ($id in $ids) {
+  Write-Host "Queueing NuGet pipeline id=$id"
+  az pipelines run --id $id --branch main
+}
+
+
+///Delete all based on name
+
+# Delete all pipelines starting with "IBeam"
+$toDelete = az pipelines list --query "[?starts_with(name, 'IBeam')].id" -o tsv
+
+foreach ($id in $toDelete) {
+  Write-Host "Deleting pipeline id=$id"
+  az pipelines delete --id $id --yes
+}
+
+
+//Delete with prompt
+
+$items = az pipelines list --query "[?starts_with(name, 'IBeam')].[name,id]" -o tsv
+
+foreach ($line in $items) {
+  $parts = $line -split "`t"
+  $name = $parts[0]
+  $id   = $parts[1]
+
+  $ans = Read-Host "Delete '$name' (id=$id)? y/N"
+  if ($ans -eq "y") {
+    az pipelines delete --id $id --yes
+  }
+}
