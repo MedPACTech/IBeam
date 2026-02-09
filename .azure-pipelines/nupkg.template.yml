@@ -1,13 +1,13 @@
-﻿trigger:
+trigger:
   branches:
     include:
     - main
   paths:
     include:
-    - IBeam.Identity.Abstractions/**
+    - {PROJECT_FOLDER}/**
     - .azure-pipelines/templates/**
     - IBeam.sln
-    - .azure-pipelines/pipelines.IBeam.Identity.Abstractions.nupkg.yml
+    - .azure-pipelines/pipelines.{PROJECT_NAME}.nupkg.yml
 
 pool:
   vmImage: 'ubuntu-22.04'
@@ -22,7 +22,7 @@ variables:
 - name: solution
   value: '**/IBeam.sln'
 - name: project
-  value: '**/IBeam.Identity.Abstractions.csproj'
+  value: '**/{PROJECT_NAME}.csproj'
 - name: packageLocation
   value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
 - name: apiKey
