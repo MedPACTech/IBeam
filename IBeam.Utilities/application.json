@@ -1,11 +1,16 @@
 {
   "IBeam": {
+    "Environment": "Local",
     "Identity": {
-      "Otp": {
-        "CodeLength": 6,
-        "ExpirationMinutes": 10,
-        "MaxAttempts": 5
-      }
+      "TokenIssuer": "IBeam.Identity",
+      "TokenAudience": "IBeam.Clients",
+      "TokenExpirationMinutes": 60
+    },
+    "Otp": {
+      "CodeLength": 6,
+      "ExpirationSeconds": 300,
+      "MaxAttempts": 5,
+      "ResendCooldownSeconds": 60
     },
     "Communications": {
       "Email": {
@@ -14,16 +19,16 @@
           "DefaultFromAddress": "DoNotReply@yourdomain.com",
           "DefaultFromDisplayName": "IBeam Notifications"
         }
+      },
+      "Sms": {
+        "Enabled": false
       }
     }
   },
-
   "Logging": {
     "LogLevel": {
       "Default": "Information",
       "Microsoft.AspNetCore": "Warning"
     }
-  },
-
-  "AllowedHosts": "*"
+  }
 }
