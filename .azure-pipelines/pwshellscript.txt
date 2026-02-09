@@ -1,0 +1,214 @@
+////Create all based on yaml name
+
+$repoUrl = "https://github.com/MedPACTech/IBeam"
+$branch  = "main"
+$sc      = "f6aea96b-6653-4f5f-b821-80b5bc3497ba"
+
+Get-ChildItem ".\.azure-pipelines" -Filter "pipelines.*.nupkg.yml" | ForEach-Object {
+  $yamlPath = "/.azure-pipelines/$($_.Name)"
+
+  # pipelines.XYZ.nupkg.yml  ->  XYZ.Nupkg
+  $baseName = $_.Name -replace '^pipelines\.', '' -replace '\.nupkg\.yml$', ''
+  $pipeName = "$baseName.Nupkg"
+
+  Write-Host "Creating pipeline: $pipeName  ($yamlPath)"
+
+  az pipelines create `
+    --name "$pipeName" `
+    --repository "$repoUrl" `
+    --repository-type github `
+    --branch "$branch" `
+    --yaml-path "$yamlPath" `
+    --service-connection "$sc" `
+    --skip-first-run true
+}
+
+///Run All based on name
+
+$ids = az pipelines list --query "[?ends_with(name, '.Nupkg')].id" -o tsv
+
+foreach ($id in $ids) {
+  Write-Host "Queueing NuGet pipeline id=$id"
+  az pipelines run --id $id --branch main
+}
+
+
+///Delete all based on name
+
+# Delete all pipelines starting with "IBeam"
+$toDelete = az pipelines list --query "[?starts_with(name, 'IBeam')].id" -o tsv
+
+foreach ($id in $toDelete) {
+  Write-Host "Deleting pipeline id=$id"
+  az pipelines delete --id $id --yes
+}
+
+
+//Delete with prompt
+
+$items = az pipelines list --query "[?starts_with(name, 'IBeam')].[name,id]" -o tsv
+
+foreach ($line in $items) {
+  $parts = $line -split "`t"
+  $name = $parts[0]
+  $id   = $parts[1]
+
+  $ans = Read-Host "Delete '$name' (id=$id)? y/N"
+  if ($ans -eq "y") {
+    az pipelines delete --id $id --yes
+  }
+}
+
+//Cancel named builds
+
+# Cancel queued/in-progress runs for pipelines whose name starts with "IBeam"
+$runs = az pipelines runs list `
+  --query "[?starts_with(definition.name, 'IBeam') && (status=='notStarted' || status=='inProgress')].[id,definition.name,status]" `
+  -o tsv
+
+if (-not $runs) {
+  Write-Host "No queued or in-progress IBeam runs found."
+  return
+}
+
+foreach ($line in $runs) {
+  $parts = $line -split "`t"
+  $runId = $parts[0]
+  $pipe  = $parts[1]
+  $stat  = $parts[2]
+
+  Write-Host "Canceling run $runId ($pipe) [$stat]"
+  az pipelines build cancel --build-id $runId | Out-Null
+}
+ //Cancel All
+$runs = az pipelines runs list `
+  --query "[?(status=='notStarted' || status=='inProgress')].[id,definition.name,status]" `
+  -o tsv
+
+foreach ($line in $runs) {
+  $parts = $line -split "`t"
+  $runId = $parts[0]
+  $pipe  = $parts[1]
+  $stat  = $parts[2]
+
+  Write-Host "Canceling run $runId ($pipe) [$stat]"
+  az pipelines build cancel --build-id $runId | Out-Null
+}
+
+
+////Create Yaml for each project based on template: <# 
+Creates .azure-pipelines/pipelines.<ProjectName>.nupkg.yml for each .csproj in the repo.
+- Uses your provided YAML template.
+- Skips if the YAML already exists.
+- Derives trigger path as: <project folder>/**
+- Derives csproj glob as: **/<ProjectName>.csproj
+- Always includes:
+  - .azure-pipelines/templates/**
+  - IBeam.sln
+  - .azure-pipelines/pipelines.<ProjectName>.nupkg.yml
+#>
+
+$ErrorActionPreference = "Stop"
+
+$repoRoot = Get-Location
+$pipelineDir = Join-Path $repoRoot ".azure-pipelines"
+if (!(Test-Path $pipelineDir)) { New-Item -ItemType Directory -Path $pipelineDir | Out-Null }
+
+# Find all csproj files under repo (excluding bin/obj)
+$csprojs = Get-ChildItem -Path $repoRoot -Recurse -Filter "*.csproj" -File |
+  Where-Object {
+    $_.FullName -notmatch "\\bin\\" -and
+    $_.FullName -notmatch "\\obj\\" -and
+    $_.FullName -notmatch "\\\\.git\\"
+  }
+
+function To-RepoRelativeUnixPath([string]$fullPath) {
+  $rel = Resolve-Path $fullPath | ForEach-Object {
+    $_.Path.Substring($repoRoot.Path.TrimEnd('\','/').Length).TrimStart('\','/')
+  }
+  return ($rel -replace "\\","/")
+}
+
+$template = @"
+trigger:
+  branches:
+    include:
+    - main
+  paths:
+    include:
+    - {PROJECT_FOLDER}/**
+    - .azure-pipelines/templates/**
+    - IBeam.sln
+    - .azure-pipelines/pipelines.{PROJECT_NAME}.nupkg.yml
+
+pool:
+  vmImage: 'ubuntu-22.04'
+
+variables:
+- group: GitHubNuGetSecrets
+
+- name: buildPlatform
+  value: 'AnyCPU'
+- name: buildConfiguration
+  value: 'Release'
+- name: solution
+  value: '**/IBeam.sln'
+- name: project
+  value: '**/{PROJECT_NAME}.csproj'
+- name: packageLocation
+  value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
+- name: apiKey
+  value: '$(GH_TOKEN)'
+
+stages:
+- stage: BuildAndPush
+  jobs:
+  - job: BuildJob
+    steps:
+    - checkout: self
+      clean: true
+      fetchDepth: 1
+      lfs: false
+      fetchTags: false
+
+    - template: templates/dotnet-nuget-build.yml
+      parameters:
+        solution: $(solution)
+        project: $(project)
+        packageLocation: $(packageLocation)
+        apiKey: $(apiKey)
+"@
+
+$created = 0
+$skipped = 0
+
+foreach ($csproj in $csprojs) {
+  $projectName = [System.IO.Path]::GetFileNameWithoutExtension($csproj.Name)
+
+  # Folder relative to repo root for trigger path
+  $projectFolderRel = To-RepoRelativeUnixPath $csproj.Directory.FullName
+
+  $ymlName = "pipelines.$projectName.nupkg.yml"
+  $ymlPath = Join-Path $pipelineDir $ymlName
+
+  if (Test-Path $ymlPath) {
+    Write-Host "Skipping existing: $ymlName"
+    $skipped++
+    continue
+  }
+
+  $content = $template `
+    -replace "\{PROJECT_NAME\}", [Regex]::Escape($projectName) `
+    -replace "\{PROJECT_FOLDER\}", [Regex]::Escape($projectFolderRel)
+
+  # The -replace above escapes regex chars; we want literal text, so unescape backslashes from Regex::Escape
+  $content = $content -replace "\\\\", "\"
+
+  Set-Content -Path $ymlPath -Value $content -Encoding UTF8 -NoNewline
+  Write-Host "Created: $ymlName"
+  $created++
+}
+
+Write-Host ""
+Write-Host "Done. Created: $created  Skipped: $skipped"
+Write-Host "Output directory: $pipelineDir"
