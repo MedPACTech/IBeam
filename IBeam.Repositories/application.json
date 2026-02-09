@@ -1,0 +1,30 @@
+{
+  "IBeam": {
+    "Environment": "Development",
+
+    "Identity": {
+      "Issuer": "IBeam",
+      "Audience": "IBeam.Clients"
+    },
+
+    "Otp": {
+      "CodeLength": 6,
+      "ExpirationMinutes": 5,
+      "MaxAttempts": 5
+    },
+
+    "Communications": {
+      "Email": {
+        "AzureCommunications": {
+          "ConnectionString": "endpoint=https://...;accesskey=...",
+          "DefaultFromAddress": "DoNotReply@yourdomain.com",
+          "DefaultFromDisplayName": "IBeam Notifications"
+        }
+      }
+    },
+
+    "Logging": {
+      "EnableSensitiveData": false
+    }
+  }
+}
