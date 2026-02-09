@@ -1,13 +1,13 @@
-trigger:
+﻿trigger:
   branches:
     include:
     - main
   paths:
     include:
-    - IBeam.Services/**
+    - IBeam.Services.Abstractions/**
     - .azure-pipelines/templates/**
     - IBeam.sln
-    - .azure-pipelines/pipelines.IBeam.Services.nupkg.yml
+    - .azure-pipelines/pipelines.IBeam.Services.Abstractions.nupkg.yml
 
 pool:
   vmImage: 'ubuntu-22.04'
@@ -17,19 +17,14 @@ variables:
 
 - name: buildPlatform
   value: 'AnyCPU'
-
 - name: buildConfiguration
   value: 'Release'
-
 - name: solution
   value: '**/IBeam.sln'
-
 - name: project
-  value: '**/IBeam.Services.csproj'
-
+  value: '**/IBeam.Services.Abstractions.csproj'
 - name: packageLocation
   value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
-
 - name: apiKey
   value: '$(GH_TOKEN)'
 
@@ -43,6 +38,7 @@ stages:
       fetchDepth: 1
       lfs: false
       fetchTags: false
+
     - template: templates/dotnet-nuget-build.yml
       parameters:
         solution: $(solution)
