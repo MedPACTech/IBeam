@@ -38,6 +38,11 @@ stages:
   jobs:
   - job: BuildJob
     steps:
+    - checkout: self
+      clean: true
+      fetchDepth: 1
+      lfs: false
+      fetchTags: false
     - template: templates/dotnet-nuget-build.yml
       parameters:
         solution: $(solution)
