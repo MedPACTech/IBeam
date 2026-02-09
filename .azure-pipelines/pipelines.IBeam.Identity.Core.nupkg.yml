@@ -1,4 +1,4 @@
-trigger:
+﻿trigger:
   branches:
     include:
     - main
@@ -17,19 +17,14 @@ variables:
 
 - name: buildPlatform
   value: 'AnyCPU'
-
 - name: buildConfiguration
   value: 'Release'
-
 - name: solution
   value: '**/IBeam.sln'
-
 - name: project
   value: '**/IBeam.Identity.Core.csproj'
-
 - name: packageLocation
   value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
-
 - name: apiKey
   value: '$(GH_TOKEN)'
 
@@ -38,6 +33,12 @@ stages:
   jobs:
   - job: BuildJob
     steps:
+    - checkout: self
+      clean: true
+      fetchDepth: 1
+      lfs: false
+      fetchTags: false
+
     - template: templates/dotnet-nuget-build.yml
       parameters:
         solution: $(solution)
