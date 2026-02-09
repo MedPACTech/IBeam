@@ -1,10 +1,15 @@
 {
   "IBeam": {
+    "Application": {
+      "Name": "IBeam API",
+      "Environment": "Local"
+    },
     "Identity": {
       "Otp": {
         "CodeLength": 6,
         "ExpirationMinutes": 10,
-        "MaxAttempts": 5
+        "MaxAttempts": 5,
+        "AllowResend": true
       }
     },
     "Communications": {
@@ -17,13 +22,11 @@
       }
     }
   },
-
   "Logging": {
     "LogLevel": {
       "Default": "Information",
       "Microsoft.AspNetCore": "Warning"
     }
   },
-
   "AllowedHosts": "*"
 }

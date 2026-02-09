@@ -3,8 +3,9 @@
     "Identity": {
       "Otp": {
         "CodeLength": 6,
-        "ExpirationMinutes": 10,
-        "MaxAttempts": 5
+        "ExpirationMinutes": 5,
+        "MaxAttempts": 5,
+        "LockoutMinutes": 15
       }
     },
     "Communications": {
@@ -17,13 +18,11 @@
       }
     }
   },
-
   "Logging": {
     "LogLevel": {
       "Default": "Information",
       "Microsoft.AspNetCore": "Warning"
     }
   },
-
   "AllowedHosts": "*"
 }

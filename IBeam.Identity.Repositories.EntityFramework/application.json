@@ -1,10 +1,11 @@
 {
   "IBeam": {
-    "Identity": {
-      "Otp": {
-        "CodeLength": 6,
-        "ExpirationMinutes": 10,
-        "MaxAttempts": 5
+    "Database": {
+      "Identity": {
+        "Provider": "SqlServer",
+        "ConnectionString": "Server=localhost;Database=IBeam.Identity;Trusted_Connection=True;TrustServerCertificate=True;",
+        "EnableSensitiveDataLogging": false,
+        "CommandTimeoutSeconds": 30
       }
     },
     "Communications": {
@@ -16,14 +17,5 @@
         }
       }
     }
-  },
-
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
-    }
-  },
-
-  "AllowedHosts": "*"
+  }
 }

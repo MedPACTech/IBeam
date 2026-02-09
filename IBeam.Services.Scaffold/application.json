@@ -1,12 +1,5 @@
 {
   "IBeam": {
-    "Identity": {
-      "Otp": {
-        "CodeLength": 6,
-        "ExpirationMinutes": 10,
-        "MaxAttempts": 5
-      }
-    },
     "Communications": {
       "Email": {
         "AzureCommunications": {
@@ -15,15 +8,21 @@
           "DefaultFromDisplayName": "IBeam Notifications"
         }
       }
+    },
+    "Otp": {
+      "CodeLength": 6,
+      "ExpirationMinutes": 10,
+      "MaxAttempts": 5
+    },
+    "Identity": {
+      "RequireConfirmedEmail": true
     }
   },
-
   "Logging": {
     "LogLevel": {
       "Default": "Information",
       "Microsoft.AspNetCore": "Warning"
     }
   },
-
   "AllowedHosts": "*"
 }

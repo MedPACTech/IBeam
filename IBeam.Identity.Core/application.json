@@ -4,7 +4,9 @@
       "Otp": {
         "CodeLength": 6,
         "ExpirationMinutes": 10,
-        "MaxAttempts": 5
+        "MaxAttempts": 5,
+        "ReuseBlockedMinutes": 15,
+        "HashAlgorithm": "SHA256"
       }
     },
     "Communications": {
@@ -16,14 +18,5 @@
         }
       }
     }
-  },
-
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
-    }
-  },
-
-  "AllowedHosts": "*"
+  }
 }

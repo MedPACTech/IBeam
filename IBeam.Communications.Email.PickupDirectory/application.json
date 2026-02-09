@@ -1,0 +1,14 @@
+{
+  "IBeam": {
+    "Communications": {
+      "Email": {
+        "PickupDirectory": {
+          "Enabled": true,
+          "PickupPath": "C:\\IBeam\\EmailPickup",
+          "DefaultFromAddress": "DoNotReply@ibeam.local",
+          "DefaultFromDisplayName": "IBeam Notifications"
+        }
+      }
+    }
+  }
+}

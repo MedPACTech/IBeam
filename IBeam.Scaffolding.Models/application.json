@@ -1,29 +1,26 @@
 {
   "IBeam": {
-    "Identity": {
-      "Otp": {
-        "CodeLength": 6,
-        "ExpirationMinutes": 10,
-        "MaxAttempts": 5
-      }
-    },
+    "Environment": "Development",
     "Communications": {
       "Email": {
         "AzureCommunications": {
-          "ConnectionString": "endpoint=https://...;accesskey=...",
+          "ConnectionString": "endpoint=https://your-resource.communication.azure.com/;accesskey=YOUR_ACCESS_KEY",
           "DefaultFromAddress": "DoNotReply@yourdomain.com",
           "DefaultFromDisplayName": "IBeam Notifications"
         }
       }
+    },
+    "Otp": {
+      "CodeLength": 6,
+      "ExpirationMinutes": 10,
+      "MaxAttempts": 5
     }
   },
-
   "Logging": {
     "LogLevel": {
       "Default": "Information",
       "Microsoft.AspNetCore": "Warning"
     }
   },
-
   "AllowedHosts": "*"
 }
