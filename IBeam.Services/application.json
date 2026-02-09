@@ -1,0 +1,27 @@
+{
+  "IBeam": {
+    "Identity": {
+      "Otp": {
+        "CodeLength": 6,
+        "ExpirationMinutes": 5,
+        "MaxAttempts": 5
+      }
+    },
+    "Communications": {
+      "Email": {
+        "AzureCommunications": {
+          "ConnectionString": "endpoint=https://...;accesskey=...",
+          "DefaultFromAddress": "DoNotReply@yourdomain.com",
+          "DefaultFromDisplayName": "IBeam Notifications"
+        }
+      }
+    }
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
+}
