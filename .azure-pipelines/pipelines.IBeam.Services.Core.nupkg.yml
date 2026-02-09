@@ -4,10 +4,10 @@
     - main
   paths:
     include:
-    - IBeam.Identity.Abstractions/**
+    - IBeam.Services/**
     - .azure-pipelines/templates/**
     - IBeam.sln
-    - .azure-pipelines/pipelines.IBeam.Identity.Abstractions.nupkg.yml
+    - .azure-pipelines/pipelines.IBeam.Services.Core.nupkg.yml
 
 pool:
   vmImage: 'ubuntu-22.04'
@@ -22,7 +22,7 @@ variables:
 - name: solution
   value: '**/IBeam.sln'
 - name: project
-  value: '**/IBeam.Identity.Abstractions.csproj'
+  value: '**/IBeam.Services.Core.csproj'
 - name: packageLocation
   value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
 - name: apiKey
