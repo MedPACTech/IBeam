@@ -1,12 +1,18 @@
 {
   "IBeam": {
+    "Environment": "Development",
+
     "Identity": {
-      "Otp": {
-        "CodeLength": 6,
-        "ExpirationMinutes": 10,
-        "MaxAttempts": 5
-      }
+      "Issuer": "IBeam",
+      "Audience": "IBeam.Clients"
     },
+
+    "Otp": {
+      "CodeLength": 6,
+      "ExpirationMinutes": 5,
+      "MaxAttempts": 5
+    },
+
     "Communications": {
       "Email": {
         "AzureCommunications": {
@@ -15,15 +21,10 @@
           "DefaultFromDisplayName": "IBeam Notifications"
         }
       }
-    }
-  },
+    },
 
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
+    "Logging": {
+      "EnableSensitiveData": false
     }
-  },
-
-  "AllowedHosts": "*"
+  }
 }

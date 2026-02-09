@@ -1,9 +1,10 @@
 {
   "IBeam": {
+    "Environment": "Local",
     "Identity": {
       "Otp": {
         "CodeLength": 6,
-        "ExpirationMinutes": 10,
+        "ExpirationMinutes": 5,
         "MaxAttempts": 5
       }
     },
@@ -17,13 +18,10 @@
       }
     }
   },
-
   "Logging": {
     "LogLevel": {
       "Default": "Information",
       "Microsoft.AspNetCore": "Warning"
     }
-  },
-
-  "AllowedHosts": "*"
+  }
 }
