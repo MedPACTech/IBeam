@@ -55,6 +55,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.DemoService", "IBeam.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.DemoApi", "IBeam.Demo\IBeam.DemoApi\IBeam.DemoApi.csproj", "{3E2C6522-40C8-4C88-925E-17B432D7DF71}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Communications.Email.Templating", "IBeam.Communications.Email.Core\IBeam.Communications.Email.Templating.csproj", "{EEA705E9-326D-475C-95B2-446C692CA565}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -365,6 +367,18 @@ Global
 		{3E2C6522-40C8-4C88-925E-17B432D7DF71}.Release|x64.Build.0 = Release|Any CPU
 		{3E2C6522-40C8-4C88-925E-17B432D7DF71}.Release|x86.ActiveCfg = Release|Any CPU
 		{3E2C6522-40C8-4C88-925E-17B432D7DF71}.Release|x86.Build.0 = Release|Any CPU
+		{EEA705E9-326D-475C-95B2-446C692CA565}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EEA705E9-326D-475C-95B2-446C692CA565}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EEA705E9-326D-475C-95B2-446C692CA565}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{EEA705E9-326D-475C-95B2-446C692CA565}.Debug|x64.Build.0 = Debug|Any CPU
+		{EEA705E9-326D-475C-95B2-446C692CA565}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{EEA705E9-326D-475C-95B2-446C692CA565}.Debug|x86.Build.0 = Debug|Any CPU
+		{EEA705E9-326D-475C-95B2-446C692CA565}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EEA705E9-326D-475C-95B2-446C692CA565}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EEA705E9-326D-475C-95B2-446C692CA565}.Release|x64.ActiveCfg = Release|Any CPU
+		{EEA705E9-326D-475C-95B2-446C692CA565}.Release|x64.Build.0 = Release|Any CPU
+		{EEA705E9-326D-475C-95B2-446C692CA565}.Release|x86.ActiveCfg = Release|Any CPU
+		{EEA705E9-326D-475C-95B2-446C692CA565}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
