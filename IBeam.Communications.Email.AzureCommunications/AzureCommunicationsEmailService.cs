@@ -1,12 +1,12 @@
 using Azure;
 using Azure.Communication.Email;
-using IBeam.Communications.Email.Abstractions;
+using IBeam.Communications.Abstractions;
 using Microsoft.Extensions.Options;
 
 // Aliases to avoid EmailAddress ambiguity
-using IBeamEmailAddress = IBeam.Communications.Email.Abstractions.EmailAddress;
+using IBeamEmailAddress = IBeam.Communications.Abstractions.EmailAddress;
 using AzureEmailAddress = Azure.Communication.Email.EmailAddress;
-using EmailMessage = IBeam.Communications.Email.Abstractions.EmailMessage;
+using EmailMessage = IBeam.Communications.Abstractions.EmailMessage;
 
 namespace IBeam.Communications.Email.AzureCommunications;
 
@@ -40,10 +40,9 @@ public sealed class AzureCommunicationsEmailService : IEmailService
         };
 
         var recipients = new EmailRecipients(
-            message.To
-                .Select(t => new AzureEmailAddress(t.Address, t.DisplayName))
-                .ToList()
+            message.To.Select(addr => new AzureEmailAddress(addr)).ToList()
         );
+
 
         var azureMessage = new Azure.Communication.Email.EmailMessage(
             senderAddress: from.Address,
@@ -77,8 +76,8 @@ public sealed class AzureCommunicationsEmailService : IEmailService
         if (options?.FromOverride is not null)
             return options.FromOverride;
 
-        if (message.From is not null)
-            return message.From;
+        if (!string.IsNullOrWhiteSpace(message.FromAddress))
+            return new IBeamEmailAddress(message.FromAddress, message.FromName);
 
         if (options?.UseDefaultFromIfMissing ?? true)
         {

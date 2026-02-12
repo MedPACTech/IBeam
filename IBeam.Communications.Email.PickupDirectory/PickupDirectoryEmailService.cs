@@ -1,8 +1,8 @@
 using System.Net.Mail;
-using IBeam.Communications.Email.Abstractions;
+using IBeam.Communications.Abstractions;
 
 // Alias to avoid ambiguity if other packages introduce EmailAddress types later
-using IBeamEmailAddress = IBeam.Communications.Email.Abstractions.EmailAddress;
+using IBeamEmailAddress = IBeam.Communications.Abstractions.EmailAddress;
 
 namespace IBeam.Communications.Email.PickupDirectory;
 
@@ -33,7 +33,8 @@ public sealed class PickupDirectoryEmailService : IEmailService
         };
 
         foreach (var to in message.To)
-            mail.To.Add(ToMailAddress(to));
+            mail.To.Add(ToMailAddress(provider, to));
+
 
         // body logic
         if (!string.IsNullOrWhiteSpace(message.TextBody) && !string.IsNullOrWhiteSpace(message.HtmlBody))
@@ -77,8 +78,8 @@ public sealed class PickupDirectoryEmailService : IEmailService
         if (options?.FromOverride is not null)
             return options.FromOverride;
 
-        if (message.From is not null)
-            return message.From;
+        if (!string.IsNullOrWhiteSpace(message.FromAddress))
+            return new IBeamEmailAddress(message.FromAddress, message.FromName);
 
         if (options?.UseDefaultFromIfMissing ?? true)
         {
@@ -92,7 +93,18 @@ public sealed class PickupDirectoryEmailService : IEmailService
     }
 
     private static MailAddress ToMailAddress(IBeamEmailAddress addr)
-        => string.IsNullOrWhiteSpace(addr.DisplayName)
-            ? new MailAddress(addr.Address)
-            : new MailAddress(addr.Address, addr.DisplayName);
+    => string.IsNullOrWhiteSpace(addr.DisplayName)
+        ? new MailAddress(addr.Address)
+        : new MailAddress(addr.Address, addr.DisplayName);
+
+    private static MailAddress ToMailAddress(string provider, string addr)
+    {
+        if (string.IsNullOrWhiteSpace(addr))
+            throw new EmailValidationException(provider, "Recipient email address is required.");
+
+        try { return new MailAddress(addr.Trim()); }
+        catch (FormatException ex)
+        { throw new EmailValidationException(provider, $"Invalid recipient email address: '{addr}'."); }
+    }
+
 }

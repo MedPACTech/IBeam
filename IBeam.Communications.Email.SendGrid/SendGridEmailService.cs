@@ -1,9 +1,9 @@
-using IBeam.Communications.Email.Abstractions;
+using IBeam.Communications.Abstractions;
 using Microsoft.Extensions.Options;
 using SendGrid;
 using SendGrid.Helpers.Mail;
 
-using IBeamEmailAddress = IBeam.Communications.Email.Abstractions.EmailAddress;
+using IBeamEmailAddress = IBeam.Communications.Abstractions.EmailAddress;
 
 namespace IBeam.Communications.Email.SendGrid;
 
@@ -44,7 +44,13 @@ public sealed class SendGridEmailService : IEmailService
             sgMessage.HtmlContent = message.HtmlBody;
 
         // recipients
-        sgMessage.AddTos(message.To.Select(SendGridAddressMapper.ToSendGrid).ToList());
+        sgMessage.AddTos(
+            message.To
+                .Select(addr => new IBeamEmailAddress(addr))
+                .Select(SendGridAddressMapper.ToSendGrid)
+                .ToList()
+        );
+
 
         // sandbox
         if (_options.SandboxMode)
@@ -77,8 +83,8 @@ public sealed class SendGridEmailService : IEmailService
         if (options?.FromOverride is not null)
             return options.FromOverride;
 
-        if (message.From is not null)
-            return message.From;
+        if (!string.IsNullOrWhiteSpace(message.FromAddress))
+            return new IBeamEmailAddress(message.FromAddress, message.FromName);
 
         if (options?.UseDefaultFromIfMissing ?? true)
         {
@@ -90,4 +96,5 @@ public sealed class SendGridEmailService : IEmailService
 
         throw new EmailValidationException(provider, "From is required (no sender provided and default sender disabled).");
     }
+
 }

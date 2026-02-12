@@ -1,6 +1,6 @@
-﻿using IBeam.Communications.Email.Abstractions;
+﻿using IBeam.Communications.Abstractions;
 
-namespace IBeam.Communications.Email.Core;
+namespace IBeam.Communications.Email.Templating;
 
 public sealed class TemplatedEmailService : ITemplatedEmailService
 {
@@ -30,7 +30,9 @@ public sealed class TemplatedEmailService : ITemplatedEmailService
 
         var rendered = await _renderer.RenderAsync(templateName, model, ct);
 
-        // Build EmailMessage based on your IBeam model
+        if (string.IsNullOrWhiteSpace(rendered.Html) && string.IsNullOrWhiteSpace(rendered.Text))
+            throw new InvalidOperationException($"Template '{templateName}' rendered empty content.");
+
         var msg = new EmailMessage
         {
             Subject = subject,
@@ -38,11 +40,6 @@ public sealed class TemplatedEmailService : ITemplatedEmailService
             TextBody = rendered.Text
         };
 
-        // IMPORTANT: adjust this to match your EmailMessage recipient API.
-        // Common patterns:
-        //   msg.To.Add(new EmailAddress(recipient));
-        //   msg.To.Add(recipient);
-        //   msg.To = new[] { recipient };
         AddToRecipient(msg, recipient);
 
         await _email.SendAsync(msg, options, ct);
@@ -50,8 +47,7 @@ public sealed class TemplatedEmailService : ITemplatedEmailService
 
     private static void AddToRecipient(EmailMessage msg, string recipient)
     {
-        // TODO: update once we see EmailMessage shape.
-        // Placeholder example:
-        msg.To = new[] { recipient };
+        // Recommended EmailMessage shape: List<string> To
+        msg.To.Add(recipient);
     }
 }

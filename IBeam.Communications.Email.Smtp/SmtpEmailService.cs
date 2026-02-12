@@ -1,4 +1,4 @@
-using IBeam.Communications.Email.Abstractions;
+using IBeam.Communications.Abstractions;
 using Microsoft.Extensions.Options;
 using System.Net;
 using System.Net.Mail;
@@ -27,7 +27,8 @@ public sealed class SmtpEmailService : IEmailService
         };
 
         foreach (var to in message.To)
-            mail.To.Add(ToMailAddress(to));
+            mail.To.Add(ToMailAddress(provider, to));
+
 
         // If both provided, add alternate views
         if (!string.IsNullOrWhiteSpace(message.TextBody) && !string.IsNullOrWhiteSpace(message.HtmlBody))
@@ -81,8 +82,8 @@ public sealed class SmtpEmailService : IEmailService
         if (options?.FromOverride is not null)
             return options.FromOverride;
 
-        if (message.From is not null)
-            return message.From;
+        if (!string.IsNullOrWhiteSpace(message.FromAddress))
+            return new EmailAddress(message.FromAddress, message.FromName);
 
         if (options?.UseDefaultFromIfMissing ?? true)
         {
@@ -99,4 +100,15 @@ public sealed class SmtpEmailService : IEmailService
         => string.IsNullOrWhiteSpace(addr.DisplayName)
             ? new MailAddress(addr.Address)
             : new MailAddress(addr.Address, addr.DisplayName);
+
+    private static MailAddress ToMailAddress(string provider, string addr)
+    {
+        if (string.IsNullOrWhiteSpace(addr))
+            throw new EmailValidationException(provider, "Recipient email address is required.");
+
+        try { return new MailAddress(addr.Trim()); }
+        catch (FormatException)
+        { throw new EmailValidationException(provider, $"Invalid recipient email address: '{addr}'."); }
+    }
+
 }
