@@ -1,3 +1,3 @@
-﻿namespace IBeam.Communications.Email.Abstractions;
+﻿namespace IBeam.Communications.Abstractions;
 
 public sealed record EmailAddress(string Address, string? DisplayName = null);

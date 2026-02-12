@@ -1,4 +1,4 @@
-﻿namespace IBeam.Communications.Email.Abstractions;
+﻿namespace IBeam.Communications.Abstractions;
 
 public static class EmailDefaults
 {
