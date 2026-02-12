@@ -1,4 +1,4 @@
-namespace IBeam.Communications.Email.Templates;
+namespace IBeam.Communications.Email.Abstractions;
 
 public sealed class EmailTemplateOptions
 {

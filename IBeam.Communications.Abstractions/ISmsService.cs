@@ -1,8 +1,6 @@
-using System;
-
 namespace IBeam.Communications.Abstractions;
 
-public class ISmsService
+public interface ISmsService
 {
-
+    Task SendAsync(SmsMessage message, SmsSendOptions? options = null, CancellationToken ct = default);
 }
