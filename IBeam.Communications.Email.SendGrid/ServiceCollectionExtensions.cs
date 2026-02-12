@@ -1,4 +1,4 @@
-﻿using IBeam.Communications.Email.Abstractions;
+﻿using IBeam.Communications.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
