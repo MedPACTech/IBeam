@@ -1,10 +1,10 @@
-﻿using IBeam.Communications.Email.Abstractions;
+﻿using IBeam.Communications.Abstractions;
 using SendGrid.Helpers.Mail;
 using EmailAddress = SendGrid.Helpers.Mail.EmailAddress;
 
 
 // Alias our type to avoid ambiguity if needed later
-using IBeamEmailAddress = IBeam.Communications.Email.Abstractions.EmailAddress;
+using IBeamEmailAddress = IBeam.Communications.Abstractions.EmailAddress;
 
 namespace IBeam.Communications.Email.SendGrid;
 
