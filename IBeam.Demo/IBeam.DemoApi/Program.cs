@@ -1,8 +1,9 @@
+using System.Text;
 using IBeam.DemoService;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models; 
-using System.Text;
+using Microsoft.OpenApi;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,7 +13,7 @@ builder.Services.AddEndpointsApiExplorer();
 // DemoService composes Identity via AddIBeamIdentity(...)
 builder.Services.AddDemoService(builder.Configuration);
 
-// JWT auth middleware (reads JwtOptions from config)
+// JWT auth middleware (reads Jwt options from config)
 var jwtSection = builder.Configuration.GetSection("Jwt");
 var issuer = jwtSection["Issuer"];
 var audience = jwtSection["Audience"];
@@ -43,33 +44,32 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
-//builder.Services.AddSwaggerGen();
-
-builder.Services.AddSwaggerGen(c =>
+// ASP.NET Core OpenAPI document generation
+builder.Services.AddOpenApi(options =>
 {
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    options.AddDocumentTransformer((document, context, ct) =>
     {
-        Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        Scheme = "Bearer",
-        BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Enter: Bearer {your JWT token}"
-    });
+        document.Components ??= new OpenApiComponents();
+        document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
 
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
+        document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
         {
-            new OpenApiSecurityScheme
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            Description = "Paste JWT only (no 'Bearer ' prefix)."
+        };
+
+        document.Security =
+        [
+            new OpenApiSecurityRequirement
             {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
+                { new OpenApiSecuritySchemeReference("Bearer"), new List<string>() }
+            }
+        ];
+
+        document.SetReferenceHostDocument();
+        return Task.CompletedTask;
     });
 });
 
@@ -77,8 +77,8 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.MapOpenApi();            // /openapi/v1.json
+    app.MapScalarApiReference(); // interactive UI (Swagger-like)
 }
 
 app.UseHttpsRedirection();
