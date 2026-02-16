@@ -2,6 +2,7 @@
 using Azure.Communication.Sms;
 using IBeam.Communications.Abstractions;
 using Microsoft.Extensions.Options;
+using SmsSendOptions = IBeam.Communications.Abstractions.SmsSendOptions;
 
 namespace IBeam.Communications.Sms.AzureCommunications;
 
