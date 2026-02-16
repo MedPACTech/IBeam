@@ -2,9 +2,6 @@
 using Azure.Communication.Sms;
 using IBeam.Communications.Abstractions;
 using Microsoft.Extensions.Options;
-//using AzureSmsSendOptions = Azure.Communication.Sms.SmsSendOptions;
-using SmsSendOptions = IBeam.Communications.Abstractions.SmsSendOptions;
-
 
 namespace IBeam.Communications.Sms.AzureCommunications;
 
@@ -33,56 +30,66 @@ public sealed class AzureCommunicationsSmsService : ISmsService
     {
         if (message is null) throw new ArgumentNullException(nameof(message));
 
-        var to = Normalize(message.ToPhoneNumber);
         var body = (message.Body ?? string.Empty).Trim();
-
-        if (string.IsNullOrWhiteSpace(to))
-            throw new SmsValidationException("ToPhoneNumber is required.");
-
         if (string.IsNullOrWhiteSpace(body))
             throw new SmsValidationException("Body is required.");
 
+        if (message.To is null || message.To.Count == 0)
+            throw new SmsValidationException("At least one recipient phone number is required.");
+
         var from = ResolveFrom(options?.FromPhoneNumber, message.FromPhoneNumber);
 
-        try
+        // Azure SMS is 1-to-1; send to each
+        foreach (var toRaw in message.To)
         {
-            // Azure SDK call: SendAsync(from, to, message)
-            var resp = await _client.SendAsync(from: from, to: to, message: body, cancellationToken: ct);
+            var to = Normalize(toRaw);
+            if (string.IsNullOrWhiteSpace(to))
+                throw new SmsValidationException("Recipient phone number cannot be empty.");
 
-            var result = resp.Value;
+            try
+            {
+                var resp = await _client.SendAsync(
+                    from: from,
+                    to: to,
+                    message: body,
+                    cancellationToken: ct);
 
-            if (!result.Successful)
+                var result = resp.Value;
+
+                // Azure can return a non-success result without throwing
+                if (!result.Successful)
+                {
+                    throw new SmsProviderException(
+                        provider: ProviderName,
+                        message: string.IsNullOrWhiteSpace(result.ErrorMessage)
+                            ? "SMS provider reported failure."
+                            : result.ErrorMessage,
+                        isTransient: false,
+                        providerCode: result.HttpStatusCode.ToString());
+                }
+            }
+            catch (RequestFailedException ex)
+            {
+                throw TranslateAzureException(ex);
+            }
+            catch (SmsProviderException)
+            {
+                throw;
+            }
+            catch (Exception ex)
             {
                 throw new SmsProviderException(
                     provider: ProviderName,
-                    message: string.IsNullOrWhiteSpace(result.ErrorMessage)
-                        ? "SMS provider reported failure."
-                        : result.ErrorMessage,
-                    isTransient: false,                 // usually permanent when provider says “no”
-                    providerCode: result.HttpStatusCode.ToString());
+                    message: "Unexpected SMS provider error.",
+                    isTransient: true,
+                    providerCode: null,
+                    inner: ex);
             }
-
-        }
-        catch (RequestFailedException ex)
-        {
-            throw TranslateAzureException(ex);
-        }
-        catch (Exception ex)
-        {
-            // Unknown error; treat as transient by default
-            throw new SmsProviderException(
-                provider: ProviderName,
-                message: "Unexpected SMS provider error.",
-                isTransient: true,
-                providerCode: null,
-                inner: ex);
         }
     }
 
     private string ResolveFrom(string? overrideFrom, string? messageFrom)
     {
-        // Standard IBeam resolution rule:
-        // override -> message -> provider default -> shared default -> error
         var from =
             FirstNonEmpty(overrideFrom) ??
             FirstNonEmpty(messageFrom) ??
@@ -99,11 +106,10 @@ public sealed class AzureCommunicationsSmsService : ISmsService
         => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
     private static string Normalize(string? phone)
-        => (phone ?? string.Empty).Trim(); // later: E.164 normalization if you want
+        => (phone ?? string.Empty).Trim(); // later: E.164 normalization
 
     private static SmsProviderException TranslateAzureException(RequestFailedException ex)
     {
-        // Heuristic: 429 + 5xx transient, most other 4xx permanent
         var status = ex.Status;
         var transient = status == 429 || status >= 500;
 
