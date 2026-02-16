@@ -1,5 +1,4 @@
 ﻿using IBeam.Communications.Abstractions;
-using IBeam.Communications.Email.Abstractions;
 using Microsoft.Extensions.Options;
 using System.Text;
 
