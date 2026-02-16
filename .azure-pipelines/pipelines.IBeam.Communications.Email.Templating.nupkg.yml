@@ -1,0 +1,47 @@
+﻿trigger:
+  branches:
+    include:
+    - main
+  paths:
+    include:
+    - IBeam.Communications.Email.Templating/**
+    - .azure-pipelines/templates/**
+    - IBeam.sln
+    - .azure-pipelines/pipelines.IBeam.Communications.Email.Templating.nupkg.yml
+
+pool:
+  vmImage: 'ubuntu-22.04'
+
+variables:
+- group: GitHubNuGetSecrets
+
+- name: buildPlatform
+  value: 'AnyCPU'
+- name: buildConfiguration
+  value: 'Release'
+- name: solution
+  value: '**/IBeam.sln'
+- name: project
+  value: '**/IBeam.Communications.Email.Templating.csproj'
+- name: packageLocation
+  value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
+- name: apiKey
+  value: '$(GH_TOKEN)'
+
+stages:
+- stage: BuildAndPush
+  jobs:
+  - job: BuildJob
+    steps:
+    - checkout: self
+      clean: true
+      fetchDepth: 1
+      lfs: false
+      fetchTags: false
+
+    - template: templates/dotnet-nuget-build.yml
+      parameters:
+        solution: $(solution)
+        project: $(project)
+        packageLocation: $(packageLocation)
+        apiKey: $(apiKey)
