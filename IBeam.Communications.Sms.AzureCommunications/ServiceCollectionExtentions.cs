@@ -1,6 +1,7 @@
 ﻿using IBeam.Communications.Abstractions;
-using IBeam.Communications.Sms.AzureCommunications;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace IBeam.Communications.Sms.AzureCommunications;
 
 public static class ServiceCollectionExtensions
 {
@@ -8,14 +9,14 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         Action<AzureCommunicationsSmsOptions> configure)
     {
-        services.AddOptions<AzureCommunicationsSmsOptions>()
-            .Configure(configure)
-            .Validate(o => !string.IsNullOrWhiteSpace(o.ConnectionString), "ConnectionString is required.")
-            .ValidateOnStart();
+        services.Configure(configure);
 
-        services.AddOptions<SmsOptions>(); // shared defaults
+        // Ensure global SmsOptions exists
+        services.AddOptions<SmsOptions>();
 
+        // Provider registration
         services.AddSingleton<ISmsService, AzureCommunicationsSmsService>();
+
         return services;
     }
 }
