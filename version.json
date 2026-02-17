@@ -1,0 +1,11 @@
+{
+  "version": "1.4-dev",
+  "cloudBuild": {
+    "setVersionVariables": true,
+    "setAllVariables": true
+  },
+  "publicReleaseRefSpec": [
+    "^refs/heads/main$",
+    "^refs/tags/v\\d+\\.\\d+\\.\\d+$"
+  ]
+}
