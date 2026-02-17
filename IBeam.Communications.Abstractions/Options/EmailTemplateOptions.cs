@@ -2,6 +2,9 @@ namespace IBeam.Communications.Abstractions;
 
 public sealed class EmailTemplateOptions
 {
-    // e.g. "Templates" or "EmailTemplates"
-    public string TemplateDirectoryName { get; set; } = "Templates";
+    public const string SectionName = "IBeam:EmailTemplating";
+    public string? BasePath { get; set; } // required
+    public string? HtmlExtension { get; set; } = ".html";
+    public string? TextExtension { get; set; } = ".txt";
 }
+

@@ -6,15 +6,23 @@ public abstract class CommunicationsException : Exception
         : base(message, inner) { }
 }
 
+public abstract class ValidationExceptionBase : CommunicationsException
+{
+    protected ValidationExceptionBase(string message, Exception? inner = null)
+        : base(message, inner) { }
+}
+
+
 // ----------------------
 // Email (capability-level)
 // ----------------------
 
-public sealed class EmailValidationException : CommunicationsException
+public sealed class EmailValidationException : ValidationExceptionBase
 {
     public EmailValidationException(string message, Exception? inner = null)
         : base(message, inner) { }
 }
+
 
 public sealed class EmailConfigurationException : CommunicationsException
 {
@@ -26,31 +34,25 @@ public sealed class EmailConfigurationException : CommunicationsException
 // Email (provider-level)
 // ----------------------
 
-public sealed class EmailProviderException : CommunicationsException
+public sealed class EmailProviderException : ProviderException
 {
-    public string Provider { get; }
-    public bool IsTransient { get; }
-    public string? ProviderCode { get; }
-
     public EmailProviderException(
         string provider,
         string message,
         bool isTransient,
         string? providerCode = null,
         Exception? inner = null)
-        : base(message, inner)
+        : base(provider, message, isTransient, providerCode, inner)
     {
-        Provider = string.IsNullOrWhiteSpace(provider) ? "Unknown" : provider;
-        IsTransient = isTransient;
-        ProviderCode = providerCode;
     }
 }
+
 
 // ----------------------
 // SMS (capability-level)
 // ----------------------
 
-public sealed class SmsValidationException : CommunicationsException
+public sealed class SmsValidationException : ValidationExceptionBase
 {
     public SmsValidationException(string message, Exception? inner = null)
         : base(message, inner) { }
@@ -66,13 +68,27 @@ public sealed class SmsConfigurationException : CommunicationsException
 // SMS (provider-level)
 // ----------------------
 
-public sealed class SmsProviderException : CommunicationsException
+public sealed class SmsProviderException : ProviderException
+{
+    public SmsProviderException(
+        string provider,
+        string message,
+        bool isTransient,
+        string? providerCode = null,
+        Exception? inner = null)
+        : base(provider, message, isTransient, providerCode, inner)
+    {
+    }
+}
+
+
+public abstract class ProviderException : CommunicationsException
 {
     public string Provider { get; }
     public bool IsTransient { get; }
     public string? ProviderCode { get; }
 
-    public SmsProviderException(
+    protected ProviderException(
         string provider,
         string message,
         bool isTransient,
@@ -80,8 +96,28 @@ public sealed class SmsProviderException : CommunicationsException
         Exception? inner = null)
         : base(message, inner)
     {
-        Provider = string.IsNullOrWhiteSpace(provider) ? "Unknown" : provider;
+        Provider = string.IsNullOrWhiteSpace(provider)
+            ? "Unknown"
+            : provider;
+
         IsTransient = isTransient;
         ProviderCode = providerCode;
+    }
+}
+
+public sealed class EmailTemplateException : CommunicationsException
+{
+    public EmailTemplateException(string message, Exception? inner = null)
+        : base(message, inner) { }
+}
+
+public sealed class EmailTemplateNotFoundException : CommunicationsException
+{
+    public string TemplateName { get; }
+
+    public EmailTemplateNotFoundException(string templateName, Exception? inner = null)
+        : base($"Email template '{templateName}' was not found.", inner)
+    {
+        TemplateName = templateName;
     }
 }
