@@ -1,34 +1,47 @@
-# ASP.NET Core (.NET Framework)
-# Build and test ASP.NET Core projects targeting the full .NET Framework.
-# Add steps that publish symbols, save build artifacts, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
-
 trigger:
-- main
+  branches:
+    include:
+    - main
+  paths:
+    include:
+    - IBeam.Communications.Email.Templating/**
+    - .azure-pipelines/templates/**
+    - IBeam.sln
+    - .azure-pipelines/pipelines.IBeam.Communications.Email.Templating.nupkg.yml
 
 pool:
-  vmImage: 'windows-latest'
+  vmImage: 'ubuntu-22.04'
 
 variables:
-  solution: '**/*.sln'
-  buildPlatform: 'Any CPU'
-  buildConfiguration: 'Release'
+- group: GitHubNuGetSecrets
 
-steps:
-- task: NuGetToolInstaller@1
+- name: buildPlatform
+  value: 'AnyCPU'
+- name: buildConfiguration
+  value: 'Release'
+- name: solution
+  value: '**/IBeam.sln'
+- name: project
+  value: '**/IBeam.Communications.Email.Templating.csproj'
+- name: packageLocation
+  value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
+- name: apiKey
+  value: '$(GH_TOKEN)'
 
-- task: NuGetCommand@2
-  inputs:
-    restoreSolution: '$(solution)'
+stages:
+- stage: BuildAndPush
+  jobs:
+  - job: BuildJob
+    steps:
+    - checkout: self
+      clean: true
+      fetchDepth: 1
+      lfs: false
+      fetchTags: false
 
-- task: VSBuild@1
-  inputs:
-    solution: '$(solution)'
-    msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:DesktopBuildPackageLocation="$(build.artifactStagingDirectory)\WebApp.zip" /p:DeployIisAppPath="Default Web Site"'
-    platform: '$(buildPlatform)'
-    configuration: '$(buildConfiguration)'
-
-- task: VSTest@2
-  inputs:
-    platform: '$(buildPlatform)'
-    configuration: '$(buildConfiguration)'
+    - template: templates/dotnet-nuget-build.yml
+      parameters:
+        solution: $(solution)
+        project: $(project)
+        packageLocation: $(packageLocation)
+        apiKey: $(apiKey)
