@@ -59,6 +59,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Communications.Email.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Communications.Sms.AzureCommunications", "IBeam.Communications.Sms.AzureCommunications\IBeam.Communications.Sms.AzureCommunications.csproj", "{9A67A5C4-577D-4D75-A359-F3FBB6AB26DF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Communications.Core", "IBeam.Communications.Core\IBeam.Communications.Core.csproj", "{DC1318AC-1A93-4791-BA6C-7715A070599F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -393,6 +395,18 @@ Global
 		{9A67A5C4-577D-4D75-A359-F3FBB6AB26DF}.Release|x64.Build.0 = Release|Any CPU
 		{9A67A5C4-577D-4D75-A359-F3FBB6AB26DF}.Release|x86.ActiveCfg = Release|Any CPU
 		{9A67A5C4-577D-4D75-A359-F3FBB6AB26DF}.Release|x86.Build.0 = Release|Any CPU
+		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Debug|x64.Build.0 = Debug|Any CPU
+		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Debug|x86.Build.0 = Debug|Any CPU
+		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Release|x64.ActiveCfg = Release|Any CPU
+		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Release|x64.Build.0 = Release|Any CPU
+		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Release|x86.ActiveCfg = Release|Any CPU
+		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

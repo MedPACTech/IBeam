@@ -1,63 +1,47 @@
 ﻿using Azure;
 using Azure.Communication.Sms;
 using IBeam.Communications.Abstractions;
+using IBeam.Communications.Core.Options;
+using IBeam.Communications.Core.Policies;
+using IBeam.Communications.Core.Validation;
 using Microsoft.Extensions.Options;
-using SmsSendOptions = IBeam.Communications.Abstractions.SmsSendOptions;
+using SmsSendOptions = IBeam.Communications.Abstractions.SmsSendOptions; //TODO perhaps rename to avoid conflict with Azure.Communication.Sms.SmsSendOptions
 
 namespace IBeam.Communications.Sms.AzureCommunications;
 
 public sealed class AzureCommunicationsSmsService : ISmsService
 {
     private const string ProviderName = "AzureCommunicationServices";
-
     private readonly SmsClient _client;
-    private readonly AzureCommunicationsSmsOptions _providerOptions;
-    private readonly SmsOptions _smsOptions;
+    private readonly SmsDefaultsOptions _defaults;
 
     public AzureCommunicationsSmsService(
         IOptions<AzureCommunicationsSmsOptions> providerOptions,
-        IOptions<SmsOptions> smsOptions)
+        IOptions<SmsDefaultsOptions> defaults)
     {
-        _providerOptions = providerOptions?.Value ?? throw new ArgumentNullException(nameof(providerOptions));
-        _smsOptions = smsOptions?.Value ?? new SmsOptions();
+        var opt = providerOptions?.Value ?? throw new ArgumentNullException(nameof(providerOptions));
+        _defaults = defaults?.Value ?? throw new ArgumentNullException(nameof(defaults));
 
-        if (string.IsNullOrWhiteSpace(_providerOptions.ConnectionString))
+        if (string.IsNullOrWhiteSpace(opt.ConnectionString))
             throw new SmsConfigurationException("Azure Communications SMS ConnectionString is required.");
 
-        _client = new SmsClient(_providerOptions.ConnectionString);
+        _client = new SmsClient(opt.ConnectionString);
     }
 
     public async Task SendAsync(SmsMessage message, SmsSendOptions? options = null, CancellationToken ct = default)
     {
-        if (message is null) throw new ArgumentNullException(nameof(message));
+        SmsMessageValidator.Validate(message);
 
-        var body = (message.Body ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(body))
-            throw new SmsValidationException("Body is required.");
+        var from = SenderResolution.ResolveSmsFrom(options, message, _defaults);
+        var body = message.Body.Trim();
 
-        if (message.To is null || message.To.Count == 0)
-            throw new SmsValidationException("At least one recipient phone number is required.");
-
-        var from = ResolveFrom(options?.FromPhoneNumber, message.FromPhoneNumber);
-
-        // Azure SMS is 1-to-1; send to each
-        foreach (var toRaw in message.To)
+        try
         {
-            var to = Normalize(toRaw);
-            if (string.IsNullOrWhiteSpace(to))
-                throw new SmsValidationException("Recipient phone number cannot be empty.");
-
-            try
+            foreach (var to in message.To.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim()))
             {
-                var resp = await _client.SendAsync(
-                    from: from,
-                    to: to,
-                    message: body,
-                    cancellationToken: ct);
-
+                var resp = await _client.SendAsync(from: from, to: to, message: body, cancellationToken: ct);
                 var result = resp.Value;
 
-                // Azure can return a non-success result without throwing
                 if (!result.Successful)
                 {
                     throw new SmsProviderException(
@@ -69,45 +53,21 @@ public sealed class AzureCommunicationsSmsService : ISmsService
                         providerCode: result.HttpStatusCode.ToString());
                 }
             }
-            catch (RequestFailedException ex)
-            {
-                throw TranslateAzureException(ex);
-            }
-            catch (SmsProviderException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                throw new SmsProviderException(
-                    provider: ProviderName,
-                    message: "Unexpected SMS provider error.",
-                    isTransient: true,
-                    providerCode: null,
-                    inner: ex);
-            }
+        }
+        catch (RequestFailedException ex)
+        {
+            throw TranslateAzureException(ex);
+        }
+        catch (Exception ex)
+        {
+            throw new SmsProviderException(
+                provider: ProviderName,
+                message: "Unexpected SMS provider error.",
+                isTransient: true,
+                providerCode: null,
+                inner: ex);
         }
     }
-
-    private string ResolveFrom(string? overrideFrom, string? messageFrom)
-    {
-        var from =
-            FirstNonEmpty(overrideFrom) ??
-            FirstNonEmpty(messageFrom) ??
-            FirstNonEmpty(_providerOptions.DefaultFromPhoneNumber) ??
-            FirstNonEmpty(_smsOptions.DefaultFromPhoneNumber);
-
-        if (string.IsNullOrWhiteSpace(from))
-            throw new SmsConfigurationException("No FromPhoneNumber provided and no DefaultFromPhoneNumber configured.");
-
-        return from!;
-    }
-
-    private static string? FirstNonEmpty(string? s)
-        => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
-
-    private static string Normalize(string? phone)
-        => (phone ?? string.Empty).Trim(); // later: E.164 normalization
 
     private static SmsProviderException TranslateAzureException(RequestFailedException ex)
     {

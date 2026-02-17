@@ -1,6 +1,3 @@
-﻿
+﻿namespace IBeam.Communications.Abstractions;
 
-namespace IBeam.Communications.Abstractions
-{    
-    public sealed record RenderedEmailTemplate(string? Html, string? Text);
-}
+public sealed record RenderedEmailTemplate(string? HtmlBody, string? TextBody);
