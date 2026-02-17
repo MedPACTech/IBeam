@@ -6,7 +6,7 @@ This library is intentionally **provider-agnostic**: it defines the contracts an
 
 ## Package contents
 
-Namespace: `IBeam.Communications.Email.Abstractions`
+Namespace: `IBeam.Communications.Abstractions`
 
 ### Core contract
 - **`IEmailService`**
@@ -42,7 +42,7 @@ Example (pseudo-code):
 ### 2) Send an email
 
 ```csharp
-using IBeam.Communications.Email.Abstractions;
+using IBeam.Communications.Abstractions;
 
 public sealed class WelcomeEmailSender
 {
