@@ -1,92 +1,99 @@
 using Azure;
 using Azure.Communication.Email;
 using IBeam.Communications.Abstractions;
+using IBeam.Communications.Core.Options;
+using IBeam.Communications.Core.Policies;
+using IBeam.Communications.Core.Validation;
 using Microsoft.Extensions.Options;
-
-// Aliases to avoid EmailAddress ambiguity
-using IBeamEmailAddress = IBeam.Communications.Abstractions.EmailAddress;
-using AzureEmailAddress = Azure.Communication.Email.EmailAddress;
 using EmailMessage = IBeam.Communications.Abstractions.EmailMessage;
 
 namespace IBeam.Communications.Email.AzureCommunications;
 
 public sealed class AzureCommunicationsEmailService : IEmailService
 {
-    private readonly AzureCommunicationsEmailOptions _options;
+    private const string ProviderName = "AzureCommunicationServices";
     private readonly EmailClient _client;
+    private readonly EmailDefaultsOptions _defaults;
 
-    public AzureCommunicationsEmailService(IOptions<AzureCommunicationsEmailOptions> options)
+    public AzureCommunicationsEmailService(
+        IOptions<AzureCommunicationsEmailOptions> providerOptions,
+        IOptions<EmailDefaultsOptions> defaults)
     {
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        var opt = providerOptions?.Value ?? throw new ArgumentNullException(nameof(providerOptions));
+        _defaults = defaults?.Value ?? throw new ArgumentNullException(nameof(defaults));
 
-        if (string.IsNullOrWhiteSpace(_options.ConnectionString))
-            throw new ArgumentException("ConnectionString is required.", nameof(options));
+        if (string.IsNullOrWhiteSpace(opt.ConnectionString))
+            throw new EmailConfigurationException("Azure Communications Email ConnectionString is required.");
 
-        _client = new EmailClient(_options.ConnectionString);
+        _client = new EmailClient(opt.ConnectionString);
     }
 
     public async Task SendAsync(EmailMessage message, EmailSendOptions? options = null, CancellationToken ct = default)
     {
-        const string provider = nameof(AzureCommunicationsEmailService);
+        EmailMessageValidator.Validate(message);
 
-        EmailDefaults.ValidateMessageForSend(provider, message);
-
-        IBeamEmailAddress from = ResolveFrom(provider, message, options);
-
-        var content = new EmailContent(message.Subject)
-        {
-            PlainText = string.IsNullOrWhiteSpace(message.TextBody) ? null : message.TextBody,
-            Html = string.IsNullOrWhiteSpace(message.HtmlBody) ? null : message.HtmlBody
-        };
-
-        var recipients = new EmailRecipients(
-            message.To.Select(addr => new AzureEmailAddress(addr)).ToList()
-        );
-
-
-        var azureMessage = new Azure.Communication.Email.EmailMessage(
-            senderAddress: from.Address,
-            content: content,
-            recipients: recipients
-        );
+        var (fromAddress, fromName) = SenderResolution.ResolveEmailFrom(options, message, _defaults);
 
         try
         {
-            ct.ThrowIfCancellationRequested();
+            var content = new EmailContent(message.Subject)
+            {
+                PlainText = message.TextBody,
+                Html = message.HtmlBody
+            };
 
-            // WaitUntil.Completed matches your earlier snippet
-            _ = await _client.SendAsync(
-                wait: WaitUntil.Completed,
-                message: azureMessage,
-                cancellationToken: ct
-            ).ConfigureAwait(false);
+            var toList = message.To
+                .Select(x => (x ?? string.Empty).Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => new Azure.Communication.Email.EmailAddress(x))
+                .ToList();
+
+            var recipients = new EmailRecipients(toList);
+
+            // Keep sender as raw email address for ACS
+            var acsMessage = new Azure.Communication.Email.EmailMessage(
+                senderAddress: fromAddress,
+                recipients: recipients,
+                content: content);
+
+            await _client.SendAsync(WaitUntil.Completed, acsMessage, ct);
         }
         catch (RequestFailedException ex)
         {
-            throw new EmailServiceException(provider, $"ACS email send failed (Status={ex.Status}).", ex);
+            throw TranslateAzureException(ex);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex)
         {
-            throw new EmailServiceException(provider, "ACS email send failed.", ex);
+            throw new EmailProviderException(
+                provider: ProviderName,
+                message: "Unexpected email provider error.",
+                isTransient: true,
+                providerCode: null,
+                inner: ex);
         }
     }
 
-    private IBeamEmailAddress ResolveFrom(string provider, EmailMessage message, EmailSendOptions? options)
+    private static EmailProviderException TranslateAzureException(RequestFailedException ex)
     {
-        if (options?.FromOverride is not null)
-            return options.FromOverride;
+        var status = ex.Status;
+        var transient = status == 429 || status >= 500;
 
-        if (!string.IsNullOrWhiteSpace(message.FromAddress))
-            return new IBeamEmailAddress(message.FromAddress, message.FromName);
-
-        if (options?.UseDefaultFromIfMissing ?? true)
+        var friendly = status switch
         {
-            if (string.IsNullOrWhiteSpace(_options.DefaultFromAddress))
-                throw new EmailValidationException(provider, "DefaultFromAddress is not configured.");
+            400 => "Email request rejected (invalid parameters).",
+            401 or 403 => "Email provider authentication/authorization failed.",
+            404 => "Email provider endpoint/resource not found.",
+            408 => "Email provider timeout.",
+            429 => "Email provider rate limit exceeded.",
+            _ when status >= 500 => "Email provider temporary failure.",
+            _ => "Email provider error."
+        };
 
-            return new IBeamEmailAddress(_options.DefaultFromAddress, _options.DefaultFromDisplayName);
-        }
-
-        throw new EmailValidationException(provider, "From is required (no sender provided and default sender disabled).");
+        return new EmailProviderException(
+            provider: ProviderName,
+            message: friendly,
+            isTransient: transient,
+            providerCode: ex.ErrorCode,
+            inner: ex);
     }
 }

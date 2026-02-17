@@ -25,6 +25,13 @@ steps:
     restoreSolution: ${{ parameters.solution }}
     feedsToUse: 'select'
 
+- script: |
+    set -e
+    dotnet tool install --tool-path . nbgv
+    ./nbgv cloud
+  displayName: 'NBGV: set version variables'
+
+# Build
 - task: DotNetCoreCLI@2
   displayName: 'Build Project'
   inputs:
@@ -32,12 +39,20 @@ steps:
     projects: ${{ parameters.project }}
     arguments: '--configuration ${{ parameters.buildConfiguration }}'
 
+# Clean artifact folder (prevents stale nupkg issues)
+- script: rm -rf $(Build.ArtifactStagingDirectory)/*
+  displayName: 'Clean artifact staging directory'
+
+# Pack (uses NBGV version)
 - task: DotNetCoreCLI@2
   displayName: 'Create NuGet Package'
   inputs:
     command: 'pack'
     packagesToPack: ${{ parameters.project }}
     packDirectory: '$(Build.ArtifactStagingDirectory)'
+    arguments: >
+      --configuration ${{ parameters.buildConfiguration }}
+      --no-build
 
 - script: |
     dotnet nuget push "$(Build.ArtifactStagingDirectory)/**/*.nupkg" \

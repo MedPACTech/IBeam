@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IBeam.Communications.Abstractions\IBeam.Communications.Abstractions.csproj" />
+    <ProjectReference Include="..\IBeam.Communications.Core\IBeam.Communications.Core.csproj" />
   </ItemGroup>
 
 </Project>

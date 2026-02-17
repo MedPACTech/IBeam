@@ -2,10 +2,6 @@
 
 public sealed class AzureCommunicationsSmsOptions
 {
+    public const string SectionName = "IBeam:Communications:Sms:Providers:AzureCommunications";
     public string ConnectionString { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Optional provider-level default sender (E.164). If null, falls back to SmsOptions.DefaultFromPhoneNumber.
-    /// </summary>
-    public string? DefaultFromPhoneNumber { get; set; }
 }

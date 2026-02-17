@@ -3,7 +3,7 @@ namespace IBeam.Communications.Abstractions;
 public interface ITemplatedEmailService
 {
     Task SendTemplatedEmailAsync(
-        string recipient,
+        IReadOnlyCollection<string> to,
         string subject,
         string templateName,
         object? model = null,

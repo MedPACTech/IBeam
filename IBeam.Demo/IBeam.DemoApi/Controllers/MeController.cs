@@ -8,9 +8,9 @@ namespace IBeam.DemoApi.Controllers;
 [Route("api/me")]
 public sealed class MeController : ControllerBase
 {
-  [Authorize]
-  [ProducesResponseType(StatusCodes.Status200OK)]
-  [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 
     [HttpGet("whoami")]
     public IActionResult WhoAmI()

@@ -14,15 +14,15 @@ public sealed class TemplatedEmailService : ITemplatedEmailService
     }
 
     public async Task SendTemplatedEmailAsync(
-        string recipient,
+        IReadOnlyCollection<string> to,
         string subject,
         string templateName,
         object? model = null,
         EmailSendOptions? options = null,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(recipient))
-            throw new ArgumentException("Recipient is required.", nameof(recipient));
+        if (to == null || to.Count == 0)
+            throw new ArgumentException("At least one recipient is required.", nameof(to));
         if (string.IsNullOrWhiteSpace(subject))
             throw new ArgumentException("Subject is required.", nameof(subject));
         if (string.IsNullOrWhiteSpace(templateName))
@@ -30,24 +30,28 @@ public sealed class TemplatedEmailService : ITemplatedEmailService
 
         var rendered = await _renderer.RenderAsync(templateName, model, ct);
 
-        if (string.IsNullOrWhiteSpace(rendered.Html) && string.IsNullOrWhiteSpace(rendered.Text))
+        if (string.IsNullOrWhiteSpace(rendered.HtmlBody) && string.IsNullOrWhiteSpace(rendered.TextBody))
             throw new InvalidOperationException($"Template '{templateName}' rendered empty content.");
 
         var msg = new EmailMessage
         {
             Subject = subject,
-            HtmlBody = rendered.Html,
-            TextBody = rendered.Text
+            HtmlBody = rendered.HtmlBody,
+            TextBody = rendered.TextBody
         };
 
-        AddToRecipient(msg, recipient);
+        AddToRecipients(msg, to);
 
         await _email.SendAsync(msg, options, ct);
     }
 
-    private static void AddToRecipient(EmailMessage msg, string recipient)
+    private static void AddToRecipients(EmailMessage msg, IReadOnlyCollection<string> to)
     {
         // Recommended EmailMessage shape: List<string> To
-        msg.To.Add(recipient);
+        foreach (var recipient in to)
+        {
+            msg.To.Add(recipient);
+        }
     }
+
 }
