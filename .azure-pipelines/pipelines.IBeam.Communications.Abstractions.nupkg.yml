@@ -1,11 +1,11 @@
-trigger:
+﻿trigger:
   branches:
     include:
     - main
     - develop
     - feature/*
     - bugfix/*
-  tags:
+ tags:
     include:
     - v*
   paths:
@@ -21,6 +21,8 @@ pool:
 variables:
 - group: GitHubNuGetSecrets
 
+- name: buildPlatform
+  value: 'AnyCPU'
 - name: buildConfiguration
   value: 'Release'
 - name: solution

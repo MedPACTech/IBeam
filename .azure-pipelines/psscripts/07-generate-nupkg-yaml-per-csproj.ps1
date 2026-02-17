@@ -36,6 +36,9 @@ trigger:
   branches:
     include:
     - main
+    - develop
+    - feature/*
+    - bugfix/*
   paths:
     include:
     - {PROJECT_FOLDER}/**
@@ -69,9 +72,9 @@ stages:
     steps:
     - checkout: self
       clean: true
-      fetchDepth: 1
+      fetchDepth: 0        # NBGV needs full history
+      fetchTags: true      # needed for tag-based release versions
       lfs: false
-      fetchTags: false
 
     - template: templates/dotnet-nuget-build.yml
       parameters:
@@ -79,6 +82,7 @@ stages:
         project: $(project)
         packageLocation: $(packageLocation)
         apiKey: $(apiKey)
+        buildConfiguration: $(buildConfiguration)
 "@
 
 $created = 0

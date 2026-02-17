@@ -10,10 +10,10 @@
     - v*
   paths:
     include:
-    - IBeam.Repositories.OrmLite/**
+    - IBeam.Demo/IBeam.DemoApi/**
     - .azure-pipelines/templates/**
     - IBeam.sln
-    - .azure-pipelines/pipelines.IBeam.Repositories.OrmLite.nupkg.yml
+    - .azure-pipelines/pipelines.IBeam.DemoApi.nupkg.yml
 
 pool:
   vmImage: 'ubuntu-22.04'
@@ -28,7 +28,7 @@ variables:
 - name: solution
   value: '**/IBeam.sln'
 - name: project
-  value: '**/IBeam.Repositories.OrmLite.csproj'
+  value: '**/IBeam.DemoApi.csproj'
 - name: packageLocation
   value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
 - name: apiKey
