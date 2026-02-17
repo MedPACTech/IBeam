@@ -36,7 +36,9 @@ steps:
   inputs:
     command: 'build'
     projects: ${{ parameters.project }}
-    arguments: '--configuration ${{ parameters.buildConfiguration }}'
+    arguments: >
+      --configuration ${{ parameters.buildConfiguration }}
+      --no-build
 
 - task: DotNetCoreCLI@2
   displayName: 'Create NuGet Package'
@@ -45,6 +47,9 @@ steps:
     packagesToPack: ${{ parameters.project }}
     packDirectory: '$(Build.ArtifactStagingDirectory)'
     arguments: '--configuration ${{ parameters.buildConfiguration }}'
+
+- script: rm -rf $(Build.ArtifactStagingDirectory)/*
+  displayName: "Clean artifact staging directory"
 
 - script: |
     dotnet nuget push "$(Build.ArtifactStagingDirectory)/**/*.nupkg" \
