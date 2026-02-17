@@ -10,13 +10,16 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddOptions<AzureCommunicationsEmailOptions>()
-            .Bind(configuration.GetSection(AzureCommunicationsEmailOptions.SectionName))
+        services
+            .AddOptions<AzureCommunicationsEmailOptions>()
+            .Configure(o => configuration
+                .GetSection(AzureCommunicationsEmailOptions.SectionName)
+                .Bind(o))
             .Validate(o => !string.IsNullOrWhiteSpace(o.ConnectionString), "ConnectionString is required.")
-            .Validate(o => !string.IsNullOrWhiteSpace(o.DefaultFromAddress), "DefaultFromAddress is required.")
             .ValidateOnStart();
 
         services.AddSingleton<IEmailService, AzureCommunicationsEmailService>();
+
         return services;
     }
 }
