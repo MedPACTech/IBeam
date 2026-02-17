@@ -1,11 +1,11 @@
-trigger:
+﻿trigger:
   branches:
     include:
     - main
     - develop
     - feature/*
     - bugfix/*
- tags:
+  tags:
     include:
     - v*
   paths:
@@ -23,19 +23,14 @@ variables:
 
 - name: buildPlatform
   value: 'AnyCPU'
-
 - name: buildConfiguration
   value: 'Release'
-
 - name: solution
   value: '**/IBeam.sln'
-
 - name: project
   value: '**/IBeam.Communications.Email.AzureCommunications.csproj'
-
 - name: packageLocation
   value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
-
 - name: apiKey
   value: '$(GH_TOKEN)'
 
@@ -44,6 +39,12 @@ stages:
   jobs:
   - job: BuildJob
     steps:
+    - checkout: self
+      clean: true
+      fetchDepth: 0        # NBGV needs full history
+      fetchTags: true      # needed for tag-based release versions
+      lfs: false
+
     - template: templates/dotnet-nuget-build.yml
       parameters:
         solution: $(solution)

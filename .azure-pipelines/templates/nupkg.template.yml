@@ -5,7 +5,7 @@ trigger:
     - develop
     - feature/*
     - bugfix/*
- tags:
+  tags:
     include:
     - v*
   paths:

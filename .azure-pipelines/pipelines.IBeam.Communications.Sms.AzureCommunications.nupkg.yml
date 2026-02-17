@@ -1,11 +1,11 @@
-trigger:
+﻿trigger:
   branches:
     include:
     - main
     - develop
     - feature/*
     - bugfix/*
- tags:
+  tags:
     include:
     - v*
   paths:
