@@ -25,6 +25,12 @@ steps:
     restoreSolution: ${{ parameters.solution }}
     feedsToUse: 'select'
 
+- script: |
+    set -e
+    dotnet tool install --tool-path . nbgv
+    ./nbgv cloud
+  displayName: 'NBGV: set version variables'
+
 - task: DotNetCoreCLI@2
   displayName: 'Build Project'
   inputs:
@@ -38,6 +44,7 @@ steps:
     command: 'pack'
     packagesToPack: ${{ parameters.project }}
     packDirectory: '$(Build.ArtifactStagingDirectory)'
+    arguments: '--configuration ${{ parameters.buildConfiguration }}'
 
 - script: |
     dotnet nuget push "$(Build.ArtifactStagingDirectory)/**/*.nupkg" \
