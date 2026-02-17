@@ -11,36 +11,80 @@ public sealed class FileEmailTemplateRenderer : IEmailTemplateRenderer
     public FileEmailTemplateRenderer(IOptions<EmailTemplateOptions> options)
     {
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        if (string.IsNullOrWhiteSpace(_options.TemplateDirectoryName))
-            throw new ArgumentException("TemplateDirectoryName is required.", nameof(options));
     }
 
-    public async Task<RenderedEmailTemplate> RenderAsync(string templateName, object? model, CancellationToken ct = default)
+    public async Task<RenderedEmailTemplate> RenderAsync(
+        string templateName,
+        object? model = null,
+        CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(templateName))
-            throw new ArgumentException("Template name is required.", nameof(templateName));
+            throw new EmailValidationException("Template name is required.");
 
-        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        var templatePath = Path.Combine(baseDir, _options.TemplateDirectoryName, templateName);
+        if (string.IsNullOrWhiteSpace(_options.BasePath))
+            throw new EmailTemplateException("EmailTemplateOptions.BasePath is not configured.");
 
-        if (!File.Exists(templatePath))
-            throw new FileNotFoundException($"Email template not found: {templateName}", templatePath);
+        // Normalize and prevent path traversal
+        if (templateName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+            templateName.Contains("..", StringComparison.Ordinal))
+        {
+            throw new EmailValidationException("Invalid template name.");
+        }
 
-        var html = await File.ReadAllTextAsync(templatePath, Encoding.UTF8, ct);
+        var basePath = Path.GetFullPath(_options.BasePath);
 
-        // Backwards-compatible formatting:
-        // - if model is object[] => replace {0},{1},...
-        // - else if model is not null => replace {0} with model.ToString()
+        var htmlPath = Path.Combine(basePath, templateName + _options.HtmlExtension);
+        var textPath = Path.Combine(basePath, templateName + _options.TextExtension);
+
+        string? html = null;
+        string? text = null;
+
+        try
+        {
+            if (File.Exists(htmlPath))
+                html = await File.ReadAllTextAsync(htmlPath, Encoding.UTF8, ct);
+
+            if (File.Exists(textPath))
+                text = await File.ReadAllTextAsync(textPath, Encoding.UTF8, ct);
+        }
+        catch (Exception ex)
+        {
+            throw new EmailTemplateException($"Failed reading template '{templateName}' from files.", ex);
+        }
+
+        if (html is null && text is null)
+            throw new EmailTemplateNotFoundException(templateName);
+
+        html = ApplySimpleFormatting(html, model);
+        text = ApplySimpleFormatting(text, model);
+
+        if (string.IsNullOrWhiteSpace(html) && string.IsNullOrWhiteSpace(text))
+            throw new EmailTemplateException($"Template '{templateName}' rendered empty content.");
+
+        return new RenderedEmailTemplate(
+            html,
+            text
+        );
+    }
+
+    private static string? ApplySimpleFormatting(string? input, object? model)
+    {
+        if (string.IsNullOrEmpty(input) || model is null)
+            return input;
+
+        // Minimal compatibility formatting:
+        // - object[] => {0},{1},...
+        // - otherwise => {0} only
         if (model is object[] args)
         {
             for (var i = 0; i < args.Length; i++)
-                html = html.Replace("{" + i + "}", args[i]?.ToString());
-        }
-        else if (model is not null)
-        {
-            html = html.Replace("{0}", model.ToString());
+            {
+                input = input.Replace("{" + i + "}", args[i]?.ToString(), StringComparison.Ordinal);
+            }
+
+            return input;
         }
 
-        return new RenderedEmailTemplate(Html: html, Text: null);
+        return input.Replace("{0}", model.ToString(), StringComparison.Ordinal);
     }
 }

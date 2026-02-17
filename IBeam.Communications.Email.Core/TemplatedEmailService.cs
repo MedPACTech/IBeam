@@ -22,36 +22,49 @@ public sealed class TemplatedEmailService : ITemplatedEmailService
         CancellationToken ct = default)
     {
         if (to == null || to.Count == 0)
-            throw new ArgumentException("At least one recipient is required.", nameof(to));
+            throw new EmailValidationException("At least one recipient is required.");
+
         if (string.IsNullOrWhiteSpace(subject))
-            throw new ArgumentException("Subject is required.", nameof(subject));
+            throw new EmailValidationException("Subject is required.");
+
         if (string.IsNullOrWhiteSpace(templateName))
-            throw new ArgumentException("Template name is required.", nameof(templateName));
+            throw new EmailValidationException("Template name is required.");
 
-        var rendered = await _renderer.RenderAsync(templateName, model, ct);
+        RenderedEmailTemplate rendered;
+        try
+        {
+            rendered = await _renderer.RenderAsync(templateName, model, ct);
+        }
+        catch (EmailTemplateNotFoundException)
+        {
+            throw; // keep it specific
+        }
+        catch (Exception ex)
+        {
+            throw new EmailTemplateException($"Failed to render template '{templateName}'.", ex);
+        }
 
-        if (string.IsNullOrWhiteSpace(rendered.HtmlBody) && string.IsNullOrWhiteSpace(rendered.TextBody))
-            throw new InvalidOperationException($"Template '{templateName}' rendered empty content.");
+        if (string.IsNullOrWhiteSpace(rendered.HtmlBody) &&
+            string.IsNullOrWhiteSpace(rendered.TextBody))
+        {
+            throw new EmailTemplateException($"Template '{templateName}' rendered empty content.");
+        }
 
-        var msg = new EmailMessage
+        var message = new EmailMessage
         {
             Subject = subject,
             HtmlBody = rendered.HtmlBody,
             TextBody = rendered.TextBody
         };
 
-        AddToRecipients(msg, to);
-
-        await _email.SendAsync(msg, options, ct);
-    }
-
-    private static void AddToRecipients(EmailMessage msg, IReadOnlyCollection<string> to)
-    {
-        // Recommended EmailMessage shape: List<string> To
-        foreach (var recipient in to)
+        foreach (var r in to)
         {
-            msg.To.Add(recipient);
+            message.To.Add(r);
         }
-    }
 
+        // or, if To is List<string>
+        message.To.AddRange(to);
+
+        await _email.SendAsync(message, options, ct);
+    }
 }

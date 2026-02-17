@@ -1,4 +1,6 @@
-﻿namespace IBeam.Communications.Core.Policies;
+﻿using IBeam.Communications.Abstractions;
+
+namespace IBeam.Communications.Core.Policies;
 
 public static class Normalization
 {
