@@ -13,9 +13,14 @@ Creates .azure-pipelines/pipelines.<ProjectName>.nupkg.yml for each .csproj in t
 $ErrorActionPreference = "Stop"
 
 $scriptDir    = $PSScriptRoot
-$repoRoot     = (Resolve-Path (Join-Path $scriptDir "..")).Path
+$repoRoot     = (Resolve-Path (Join-Path $scriptDir "..\..")).Path
 $pipelineDir  = Join-Path $repoRoot ".azure-pipelines"
-$templatePath = Join-Path $pipelineDir "nupkg.template.yml"
+$templatePath = Join-Path $pipelineDir "templates\nupkg.template.yml"
+
+Write-Host "scriptDir:    $scriptDir"
+Write-Host "repoRoot:     $repoRoot"
+Write-Host "pipelineDir:  $pipelineDir"
+Write-Host "templatePath: $templatePath"
 
 if (!(Test-Path $pipelineDir)) { New-Item -ItemType Directory -Path $pipelineDir | Out-Null }
 if (!(Test-Path $templatePath)) { throw "Template file not found: $templatePath" }
