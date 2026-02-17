@@ -4,6 +4,10 @@ Create Azure DevOps pipelines for each YAML matching:
 
 Pipeline name output:
   pipelines.XYZ.nupkg.yml -> XYZ.Nupkg
+
+Behavior:
+- If pipeline exists: skip (no update)
+- If not: create
 #>
 
 $ErrorActionPreference = "Stop"
@@ -12,17 +16,20 @@ $repoUrl = "https://github.com/MedPACTech/IBeam"
 $branch  = "main"
 $sc      = "f6aea96b-6653-4f5f-b821-80b5bc3497ba"
 
-# Optional: ensure you're logged in + correct org/project already set
-# az devops configure --defaults organization=https://dev.azure.com/<ORG> project=<PROJECT>
-
 Get-ChildItem ".\.azure-pipelines" -Filter "pipelines.*.nupkg.yml" | ForEach-Object {
   $yamlPath = "/.azure-pipelines/$($_.Name)"
 
-  # pipelines.XYZ.nupkg.yml -> XYZ.Nupkg
   $baseName = $_.Name -replace '^pipelines\.', '' -replace '\.nupkg\.yml$', ''
   $pipeName = "$baseName.Nupkg"
 
-  Write-Host "Creating pipeline: $pipeName  ($yamlPath)"
+  $existingId = az pipelines list --query "[?name=='$pipeName'].id | [0]" -o tsv 2>$null
+
+  if ($existingId) {
+    Write-Host "Exists, skipping: $pipeName (id=$existingId)"
+    return
+  }
+
+  Write-Host "Creating pipeline: $pipeName -> $yamlPath"
 
   az pipelines create `
     --name "$pipeName" `
@@ -31,5 +38,14 @@ Get-ChildItem ".\.azure-pipelines" -Filter "pipelines.*.nupkg.yml" | ForEach-Obj
     --branch "$branch" `
     --yaml-path "$yamlPath" `
     --service-connection "$sc" `
-    --skip-first-run true
+    --skip-first-run true 2>&1 | Out-Host
 }
+
+
+<#$matches = az pipelines list --query "[?name=='$pipeName'].id" -o tsv
+if ($matches) {
+  $count = @($matches -split "`n" | Where-Object { $_ -ne "" }).Count
+  if ($count -gt 1) { Write-Warning "Multiple pipelines named '$pipeName' found! Skipping."; return }
+  Write-Host "Exists, skipping: $pipeName (id=$matches)"
+  return
+}#>
