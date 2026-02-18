@@ -1,4 +1,4 @@
-namespace IBeam.Identity.Core.Auth.Contracts;
+namespace IBeam.Identity.Abstractions.Models;
 
 public sealed record RegisterRequest(
     string Email,
