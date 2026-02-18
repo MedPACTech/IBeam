@@ -6,8 +6,3 @@ public interface ITokenService
 {
     Task<TokenResult> CreateAccessTokenAsync(Guid userId, Guid tenantId, IReadOnlyList<ClaimItem> claims, CancellationToken ct = default);
 }
-
-public interface IClock
-{
-    DateTimeOffset UtcNow { get; }
-}

@@ -2,15 +2,6 @@
 
 using IBeam.Identity.Abstractions.Models;
 
-public sealed record OtpChallengeRecord(
-    string ChallengeId,
-    string Email,
-    OtpPurpose Purpose,
-    string CodeHash,
-    DateTimeOffset ExpiresAt,
-    int AttemptCount,
-    Guid? TenantId);
-
 public interface IOtpChallengeStore
 {
     Task SaveAsync(OtpChallengeRecord record, CancellationToken ct = default);
