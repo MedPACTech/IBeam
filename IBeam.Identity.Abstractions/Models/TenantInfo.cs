@@ -1,8 +1,9 @@
 namespace IBeam.Identity.Abstractions.Models;
 
-public sealed record TenantInfo
-(
+public sealed record TenantInfo(
     Guid TenantId,
     string Name,
-    bool IsDefault = false
+    IReadOnlyList<string> Roles,
+    bool IsActive
 );
+

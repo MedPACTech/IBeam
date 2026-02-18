@@ -4,5 +4,14 @@ using IBeam.Identity.Abstractions.Models;
 
 public interface ITokenService
 {
-    Task<TokenResult> CreateAccessTokenAsync(Guid userId, Guid tenantId, IReadOnlyList<ClaimItem> claims, CancellationToken ct = default);
+    Task<TokenResult> CreateAccessTokenAsync(
+        Guid userId,
+        Guid tenantId,
+        IReadOnlyList<ClaimItem> claims,
+        CancellationToken ct = default);
+
+    Task<TokenResult> CreatePreTenantTokenAsync(
+        Guid userId,
+        IReadOnlyList<ClaimItem> claims,
+        CancellationToken ct = default);
 }

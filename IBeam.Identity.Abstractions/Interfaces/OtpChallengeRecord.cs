@@ -1,6 +1,6 @@
-namespace IBeam.Identity.Abstractions.Interfaces;
-
 using IBeam.Identity.Abstractions.Models;
+
+namespace IBeam.Identity.Abstractions.Interfaces;
 
 public sealed record OtpChallengeRecord(
     string ChallengeId,
@@ -9,4 +9,8 @@ public sealed record OtpChallengeRecord(
     string CodeHash,
     DateTimeOffset ExpiresAt,
     int AttemptCount,
-    Guid? TenantId);
+    Guid? TenantId,
+    bool IsConsumed,
+    string? VerificationToken,
+    DateTimeOffset? VerificationTokenExpiresAt);
+

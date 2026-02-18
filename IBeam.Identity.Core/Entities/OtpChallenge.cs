@@ -1,5 +1,4 @@
 using IBeam.Identity.Abstractions.Models;
-using IBeam.Identity.Core.Otp.Contracts;
 
 namespace IBeam.Identity.Core.Entities;
 
