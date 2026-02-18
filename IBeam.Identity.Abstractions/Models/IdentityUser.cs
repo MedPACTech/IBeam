@@ -7,12 +7,3 @@ public sealed record IdentityUser
     bool EmailConfirmed,
     string? DisplayName = null
 );
-
-public sealed record TenantInfo
-(
-    Guid TenantId,
-    string Name,
-    bool IsDefault = false
-);
-
-public sealed record ClaimItem(string Type, string Value, string? ValueType = null);
