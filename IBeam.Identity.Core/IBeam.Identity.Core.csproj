@@ -7,7 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Folder Include="Auth\Contracts\" />
     <Folder Include="Auth\Interfaces\" />
+    <Folder Include="Contracts\" />
     <Folder Include="Messaging\" />
   </ItemGroup>
 
