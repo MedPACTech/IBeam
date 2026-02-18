@@ -1,11 +1,4 @@
-namespace IBeam.Identity.Core.Auth.Contracts;
-
-public sealed record TenantInfo(
-    Guid TenantId,
-    string? DisplayName,
-    IReadOnlyList<string> Roles,
-    string Status
-);
+namespace IBeam.Identity.Abstractions.Models;
 
 public sealed record AuthResultResponse(
     AuthTokenResponse? Token,

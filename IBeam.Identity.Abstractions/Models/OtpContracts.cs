@@ -1,19 +1,19 @@
-namespace IBeam.Identity.Core.Otp.Contracts;
+namespace IBeam.Identity.Abstractions.Models;
 
-public enum OtpPurpose
-{
-    Login = 1,
-    PasswordReset = 2,
-    Register = 3,
-    ChangeEmail = 4,
-    ChangePhone = 5
-}
+//public enum OtpPurpose
+//{
+//    Login = 1,
+//    PasswordReset = 2,
+//    Register = 3,
+//    ChangeEmail = 4,
+//    ChangePhone = 5
+//}
 
-public enum OtpChannel
-{
-    Email = 1,
-    Sms = 2
-}
+//public enum OtpChannel
+//{
+//    Email = 1,
+//    Sms = 2
+//}
 
 public sealed record CreateOtpChallengeRequest(
     OtpPurpose Purpose,

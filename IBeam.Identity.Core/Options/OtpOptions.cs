@@ -1,8 +1,8 @@
-using System;
+//using System;
 
-namespace IBeam.Identity.Core.Options;
+//namespace IBeam.Identity.Core.Options;
 
-public class OtpOptions
-{
+//public class OtpOptions
+//{
 
-}
+//}

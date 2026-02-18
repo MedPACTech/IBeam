@@ -1,4 +1,4 @@
-namespace IBeam.Identity.Core.PasswordReset.Contracts;
+namespace IBeam.Identity.Abstractions.Models;
 
 public sealed record RequestPasswordResetRequest(
     string Identifier,        // email/username/phone
