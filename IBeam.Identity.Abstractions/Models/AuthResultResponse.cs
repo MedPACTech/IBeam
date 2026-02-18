@@ -1,13 +1,13 @@
-namespace IBeam.Identity.Abstractions.Models;
+using IBeam.Identity.Abstractions.Models;
 
 public sealed record AuthResultResponse(
-    AuthTokenResponse? Token,
+    TokenResult? Token,
     bool RequiresTenantSelection,
     string? PreTenantToken,
     IReadOnlyList<TenantInfo> Tenants
 )
 {
-    public static AuthResultResponse WithToken(AuthTokenResponse token)
+    public static AuthResultResponse WithToken(TokenResult token)
         => new(token, false, null, Array.Empty<TenantInfo>());
 
     public static AuthResultResponse RequiresSelection(string preTenantToken, IReadOnlyList<TenantInfo> tenants)

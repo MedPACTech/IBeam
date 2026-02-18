@@ -1,3 +1,4 @@
-namespace IBeam.Identity.Core.Auth.Contracts;
+namespace IBeam.Identity.Abstractions.Models;
 
-public sealed record SelectTenantRequest(Guid TenantId);
+public sealed record SelectTenantRequest(Guid TenantId,
+    bool SetAsDefault);

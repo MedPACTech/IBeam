@@ -7,14 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Auth\Contracts\" />
-    <Folder Include="Auth\Interfaces\" />
-    <Folder Include="Contracts\" />
-    <Folder Include="Messaging\" />
+    <PackageReference Include="Microsoft.Extensions.Identity.Stores" Version="8.0.19" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.16.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Identity.Stores" Version="8.0.19" />
+    <ProjectReference Include="..\IBeam.Identity.Abstractions\IBeam.Identity.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

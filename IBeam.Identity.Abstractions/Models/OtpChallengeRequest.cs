@@ -4,3 +4,4 @@ public sealed record OtpChallengeRequest(
     string Email,
     OtpPurpose Purpose,
     Guid? TenantId = null);
+

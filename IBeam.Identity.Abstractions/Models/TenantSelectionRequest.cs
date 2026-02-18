@@ -2,4 +2,5 @@
 
 public sealed record TenantSelectionRequest(
     Guid UserId,
-    Guid TenantId);
+    Guid TenantId,
+    bool SetAsDefault);
