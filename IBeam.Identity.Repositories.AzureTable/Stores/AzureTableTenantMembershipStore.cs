@@ -2,172 +2,325 @@
 using Azure.Data.Tables;
 using IBeam.Identity.Abstractions.Exceptions;
 using IBeam.Identity.Abstractions.Interfaces;
-using IBeam.Identity.Core.Entities;
+using IBeam.Identity.Abstractions.Models;
 using IBeam.Identity.Repositories.AzureTable.Entities;
+using IBeam.Identity.Repositories.AzureTable.Options;
+using IBeam.Identity.Repositories.AzureTable.Types;
 using Microsoft.Extensions.Options;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace IBeam.Identity.Repositories.AzureTable.Stores
+namespace IBeam.Identity.Repositories.AzureTable.Stores;
+
+internal sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
 {
-    internal sealed class AzureTableOtpChallengeStore : IOtpChallengeStore
+    private readonly TableServiceClient _serviceClient;
+    private readonly AzureTableIdentityOptions _opts;
+
+    public AzureTableTenantMembershipStore(TableServiceClient serviceClient, IOptions<AzureTableIdentityOptions> opts)
     {
-        private readonly TableServiceClient _serviceClient;
-        private readonly AzureTableIdentityOptions _opts;
-
-        public AzureTableOtpChallengeStore(TableServiceClient serviceClient, IOptions<AzureTableIdentityOptions> opts)
-        {
-            _serviceClient = serviceClient;
-            _opts = opts.Value;
-        }
-
-        public async Task SaveAsync(OtpChallengeRecord record, CancellationToken ct = default)
-        {
-            try
-            {
-                var table = GetOtpTable();
-
-                var entity = ToEntity(record);
-                await table.UpsertEntityAsync(entity, TableUpdateMode.Replace, ct).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                throw IdentityExceptionTranslator.ToProviderException(ex);
-            }
-        }
-
-        public async Task<OtpChallengeRecord?> GetAsync(Guid challengeId, CancellationToken ct = default)
-        {
-            try
-            {
-                var table = GetOtpTable();
-                var pk = PartitionFor(challengeId);
-                var rk = challengeId.ToString("D");
-
-                var response = await table.GetEntityIfExistsAsync<OtpChallengeEntity>(pk, rk, cancellationToken: ct)
-                    .ConfigureAwait(false);
-
-                return response.HasValue ? FromEntity(response.Value) : null;
-            }
-            catch (Exception ex)
-            {
-                throw IdentityExceptionTranslator.ToProviderException(ex);
-            }
-        }
-
-        public async Task IncrementAttemptAsync(Guid challengeId, CancellationToken ct = default)
-        {
-            try
-            {
-                var table = GetOtpTable();
-                var pk = PartitionFor(challengeId);
-                var rk = challengeId.ToString("D");
-
-                // Optimistic concurrency loop
-                for (var i = 0; i < 5; i++)
-                {
-                    var get = await table.GetEntityAsync<OtpChallengeEntity>(pk, rk, cancellationToken: ct).ConfigureAwait(false);
-                    var entity = get.Value;
-
-                    entity.AttemptCount += 1;
-
-                    try
-                    {
-                        await table.UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
-                        return;
-                    }
-                    catch (RequestFailedException rfe) when (rfe.Status == 412) // Precondition Failed (ETag mismatch)
-                    {
-                        // retry
-                    }
-                }
-
-                throw new IdentityProviderException("Failed to increment OTP attempts due to concurrent updates.");
-            }
-            catch (Exception ex)
-            {
-                throw IdentityExceptionTranslator.ToProviderException(ex);
-            }
-        }
-
-        public async Task MarkConsumedAsync(Guid challengeId, string verificationToken, DateTimeOffset verificationTokenExpiresAt, CancellationToken ct = default)
-        {
-            try
-            {
-                var table = GetOtpTable();
-                var pk = PartitionFor(challengeId);
-                var rk = challengeId.ToString("D");
-
-                for (var i = 0; i < 5; i++)
-                {
-                    var get = await table.GetEntityAsync<OtpChallengeEntity>(pk, rk, cancellationToken: ct).ConfigureAwait(false);
-                    var entity = get.Value;
-
-                    entity.IsConsumed = true;
-                    entity.VerificationToken = verificationToken;
-                    entity.VerificationTokenExpiresAt = verificationTokenExpiresAt;
-
-                    try
-                    {
-                        await table.UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
-                        return;
-                    }
-                    catch (RequestFailedException rfe) when (rfe.Status == 412)
-                    {
-                        // retry
-                    }
-                }
-
-                throw new IdentityProviderException("Failed to mark OTP challenge consumed due to concurrent updates.");
-            }
-            catch (Exception ex)
-            {
-                throw IdentityExceptionTranslator.ToProviderException(ex);
-            }
-        }
-
-        private TableClient GetOtpTable()
-            => _serviceClient.GetTableClient($"{_opts.TablePrefix}{_opts.OtpChallengesTableName}");
-
-        private static string PartitionFor(Guid challengeId)
-        {
-            // Simple, scalable-enough partition strategy:
-            // bucket by first 2 chars of guid so partitions distribute
-            var s = challengeId.ToString("N");
-            return $"OTP-{s.Substring(0, 2)}";
-        }
-
-        private static OtpChallengeEntity ToEntity(OtpChallengeRecord r)
-            => new()
-            {
-                PartitionKey = PartitionFor(r.ChallengeId),
-                RowKey = r.ChallengeId.ToString("D"),
-                UserId = r.UserId,
-                Channel = r.Channel,
-                Destination = r.Destination,
-                CodeHash = r.CodeHash,
-                ExpiresAt = r.ExpiresAt,
-                AttemptCount = r.AttemptCount,
-                IsConsumed = r.IsConsumed,
-                VerificationToken = r.VerificationToken,
-                VerificationTokenExpiresAt = r.VerificationTokenExpiresAt,
-                CreatedAt = r.CreatedAt,
-            };
-
-        private static OtpChallengeRecord FromEntity(OtpChallengeEntity e)
-            => new OtpChallengeRecord(
-                challengeId: Guid.Parse(e.RowKey),
-                userId: e.UserId,
-                channel: e.Channel,
-                destination: e.Destination,
-                codeHash: e.CodeHash,
-                expiresAt: e.ExpiresAt,
-                attemptCount: e.AttemptCount,
-                isConsumed: e.IsConsumed,
-                verificationToken: e.VerificationToken,
-                verificationTokenExpiresAt: e.VerificationTokenExpiresAt,
-                createdAt: e.CreatedAt
-            );
+        _serviceClient = serviceClient;
+        _opts = opts.Value;
     }
+
+    public async Task<IReadOnlyList<TenantInfo>> GetTenantsForUserAsync(Guid userId, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var table = GetUserTenantsTable();
+            var userIdStr = userId.ToString("D");
+            var pk = _opts.UserTenantsPk(userIdStr);
+
+            var memberships = new List<UserTenantEntity>();
+
+            await foreach (var e in table.QueryAsync<UserTenantEntity>(x => x.PartitionKey == pk, cancellationToken: ct)
+                .ConfigureAwait(false))
+            {
+                // Skip malformed rows
+                if (string.IsNullOrWhiteSpace(e.TenantId))
+                {
+                    // legacy fallback if you still have old rows
+                    if (_opts.TryParseTenantIdFromUserTenantsRk(e.RowKey, out var parsed))
+                        e.TenantId = parsed.ToString("D");
+                    else
+                        continue;
+                }
+
+                memberships.Add(e);
+            }
+
+            // Optional enrichment from Tenants table
+            var nameMap = await GetTenantNameMapAsync(
+                memberships.Select(m => m.TenantId).Distinct(),
+                ct).ConfigureAwait(false);
+
+            return memberships.Select(m =>
+            {
+                var tid = Guid.Parse(m.TenantId);
+
+                var name =
+                    nameMap.TryGetValue(tid, out var n) ? n :
+                    (m.TenantDisplayName ?? string.Empty);
+
+                return new TenantInfo(
+                    TenantId: tid,
+                    Name: name,
+                    Roles: SplitRoles(m.RolesCsv),
+                    IsActive: IsActiveStatus(m.Status)
+                );
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
+
+    public async Task<TenantInfo?> GetTenantForUserAsync(Guid userId, Guid tenantId, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var table = GetUserTenantsTable();
+            var userIdStr = userId.ToString("D");
+            var pk = _opts.UserTenantsPk(userIdStr);
+
+            var rk = _opts.UserTenantsRk(tenantId);
+
+            var resp = await table.GetEntityIfExistsAsync<UserTenantEntity>(pk, rk, cancellationToken: ct)
+                .ConfigureAwait(false);
+
+            if (!resp.HasValue) return null;
+
+            var m = resp.Value;
+
+            // Canonical tenant name
+            var name = await TryGetTenantNameAsync(tenantId, ct).ConfigureAwait(false)
+                ?? (m.TenantDisplayName ?? string.Empty);
+
+            return new TenantInfo(
+                TenantId: tenantId,
+                Name: name,
+                Roles: SplitRoles(m.RolesCsv),
+                IsActive: IsActiveStatus(m.Status)
+            );
+        }
+        catch (Exception ex)
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
+
+    public async Task<Guid?> GetDefaultTenantIdAsync(Guid userId, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var table = GetUserTenantsTable();
+            var userIdStr = userId.ToString("D");
+            var pk = _opts.UserTenantsPk(userIdStr);
+
+
+            await foreach (var e in table.QueryAsync<UserTenantEntity>(
+                x => x.PartitionKey == pk && x.IsDefault == true,
+                cancellationToken: ct).ConfigureAwait(false))
+            {
+                if (!string.IsNullOrWhiteSpace(e.TenantId) && Guid.TryParse(e.TenantId, out var tid))
+                    return tid;
+
+                if (_opts.TryParseTenantIdFromUserTenantsRk(e.RowKey, out var parsed))
+                    return parsed;
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
+
+    public async Task SetDefaultTenantAsync(Guid userId, Guid tenantId, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var table = GetUserTenantsTable();
+            var userIdStr = userId.ToString("D");
+            var pk = _opts.UserTenantsPk(userIdStr);
+
+            var targetRk = _opts.UserTenantsRk(tenantId);
+
+            var entities = new List<UserTenantEntity>();
+            await foreach (var e in table.QueryAsync<UserTenantEntity>(x => x.PartitionKey == pk, cancellationToken: ct)
+                .ConfigureAwait(false))
+                entities.Add(e);
+
+            var target = entities.FirstOrDefault(x => x.RowKey == targetRk);
+            if (target is null)
+                throw new IdentityValidationException($"User '{userId}' is not a member of tenant '{tenantId}'.");
+
+            var now = DateTimeOffset.UtcNow;
+
+            var toUpdate = new List<UserTenantEntity>();
+
+            foreach (var e in entities)
+            {
+                var shouldBeDefault = (e.RowKey == targetRk);
+
+                if (e.IsDefault != shouldBeDefault)
+                {
+                    e.IsDefault = shouldBeDefault;
+                    if (shouldBeDefault)
+                        e.LastSelectedAt = now;
+
+                    toUpdate.Add(e);
+                }
+            }
+
+            if (toUpdate.Count == 0) return;
+
+            foreach (var batch in Batch(toUpdate, 100))
+            {
+                var actions = batch
+                    .Select(e => new TableTransactionAction(TableTransactionActionType.UpdateReplace, e))
+                    .ToList();
+
+                await table.SubmitTransactionAsync(actions, ct).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
+
+    // -------- helpers --------
+
+    private async Task<List<UserTenantEntity>> GetUserMembershipsAsync(string userId, CancellationToken ct)
+    {
+        var table = GetUserTenantsTable();
+        var pk = _opts.UserTenantsPk(userId);
+
+
+        var list = new List<UserTenantEntity>();
+        await foreach (var e in table.QueryAsync<UserTenantEntity>(x => x.PartitionKey == pk, cancellationToken: ct).ConfigureAwait(false))
+        {
+            // If you support status filtering, apply here
+            if (!string.Equals(e.Status, "Active", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            // Ensure TenantId is populated even if older rows only have RowKey format
+            if (string.IsNullOrWhiteSpace(e.TenantId) && _opts.TryParseTenantIdFromUserTenantsRk(e.RowKey, out var parsed))
+                e.TenantId = parsed.ToString("D");
+
+            list.Add(e);
+        }
+
+        return list;
+    }
+
+    private async Task<Dictionary<Guid, string>> GetTenantNamesAsync(IEnumerable<string> tenantIds, CancellationToken ct)
+    {
+        var table = GetTenantsTable();
+
+        var ids = tenantIds
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty)
+            .Where(g => g != Guid.Empty)
+            .Distinct()
+            .ToList();
+
+        if (ids.Count == 0)
+            return new Dictionary<Guid, string>();
+
+        // Point reads; can be parallelized later if needed
+        var dict = new Dictionary<Guid, string>(ids.Count);
+        foreach (var id in ids)
+        {
+            var resp = await table.GetEntityIfExistsAsync<TenantEntity>("TEN", id.ToString("D"), cancellationToken: ct).ConfigureAwait(false);
+            if (resp.HasValue)
+                dict[id] = resp.Value.Name ?? string.Empty;
+        }
+
+        return dict;
+    }
+
+    private TableClient GetUserTenantsTable()
+        => _serviceClient.GetTableClient($"{_opts.TablePrefix}{_opts.UserTenantsTableName}");
+
+    private TableClient GetTenantsTable()
+    => _serviceClient.GetTableClient($"{_opts.TablePrefix}{_opts.TenantsTableName}");
+
+    private async Task<Dictionary<Guid, string>> GetTenantNameMapAsync(IEnumerable<string> tenantIds, CancellationToken ct)
+    {
+        var table = GetTenantsTable();
+
+        var ids = tenantIds
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => Guid.TryParse(x, out var g) ? g : Guid.Empty)
+            .Where(g => g != Guid.Empty)
+            .Distinct()
+            .ToList();
+
+        var dict = new Dictionary<Guid, string>();
+        foreach (var id in ids)
+        {
+            var resp = await table.GetEntityIfExistsAsync<TenantEntity>("TEN", id.ToString("D"), cancellationToken: ct)
+                .ConfigureAwait(false);
+
+            if (resp.HasValue)
+                dict[id] = resp.Value.Name ?? string.Empty;
+        }
+
+        return dict;
+    }
+
+    private async Task<string?> TryGetTenantNameAsync(Guid tenantId, CancellationToken ct)
+    {
+        var table = GetTenantsTable();
+        var resp = await table.GetEntityIfExistsAsync<TenantEntity>("TEN", tenantId.ToString("D"), cancellationToken: ct)
+            .ConfigureAwait(false);
+
+        return resp.HasValue ? (resp.Value.Name ?? string.Empty) : null;
+    }
+
+
+    private static string[] SplitRoles(string? csv)
+        => (csv ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static IEnumerable<List<T>> Batch<T>(IEnumerable<T> items, int size)
+    {
+        var batch = new List<T>(size);
+        foreach (var item in items)
+        {
+            batch.Add(item);
+            if (batch.Count == size)
+            {
+                yield return batch;
+                batch = new List<T>(size);
+            }
+        }
+        if (batch.Count > 0)
+            yield return batch;
+    }
+
+    private static bool IsActiveStatus(string? status)
+    => string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase);
+
+   
+
 }

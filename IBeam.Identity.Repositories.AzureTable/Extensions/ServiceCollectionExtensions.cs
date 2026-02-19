@@ -1,0 +1,91 @@
+using Azure.Data.Tables;
+using ElCamino.AspNetCore.Identity.AzureTable;
+using ElCamino.AspNetCore.Identity.AzureTable.Model;
+using IBeam.Identity.Abstractions.Interfaces;
+using IBeam.Identity.Abstractions.Schema;
+using IBeam.Identity.Repositories.AzureTable.Options;
+using IBeam.Identity.Repositories.AzureTable.Schema;
+using IBeam.Identity.Repositories.AzureTable.Stores;
+using IBeam.Identity.Repositories.AzureTable.Types;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using System;
+
+namespace IBeam.Identity.Repositories.AzureTable.Extensions
+{
+    public static class ServiceCollectionExtensions
+    {
+        /// <summary>
+        /// Registers ONLY AzureTable provider services/stores + schema management.
+        /// Does NOT register Core orchestration services.
+        /// </summary>
+        public static IServiceCollection AddIBeamIdentityAzureTable(this IServiceCollection services, IConfiguration configuration)
+        {
+            // Options (bind + validate)
+            services.AddOptions<AzureTableIdentityOptions>()
+                .Bind(configuration.GetSection("IBeam:Identity:AzureTable"))
+                .Validate(o =>
+                {
+                    o.Validate();
+                    return true;
+                })
+                .ValidateOnStart();
+
+            // Singletons built from options (no manual Get<T>(), no duplication)
+            services.AddSingleton(sp =>
+            {
+                var opts = sp.GetRequiredService<IOptions<AzureTableIdentityOptions>>().Value;
+                return new TableServiceClient(opts.StorageConnectionString);
+            });
+
+            services.AddSingleton(sp =>
+            {
+                var opts = sp.GetRequiredService<IOptions<AzureTableIdentityOptions>>().Value;
+                return new IdentityConfiguration
+                {
+                    TablePrefix = opts.TablePrefix,
+                    IndexTableName = opts.IndexTableName,
+                    UserTableName = opts.UserTableName,
+                    RoleTableName = opts.RoleTableName,
+                };
+            });
+
+            // ElCamino context (scoped)
+            services.AddScoped(sp =>
+            {
+                var cfg = sp.GetRequiredService<IdentityConfiguration>();
+                var client = sp.GetRequiredService<TableServiceClient>();
+                return new IdentityCloudContext(cfg, client);
+            });
+
+            // Provider-internal Microsoft Identity wiring
+            var identityBuilder = services
+                .AddIdentityCore<ApplicationUser>(options =>
+                {
+                    // keep empty for now; later bind password/lockout/token options here
+                })
+                .AddRoles<ApplicationRole>()
+                .AddSignInManager()
+                .AddDefaultTokenProviders();
+
+            // Hook ElCamino Azure Table stores
+            // NOTE: depending on ElCamino version, this may need to use the captured singleton instances.
+            identityBuilder.AddAzureTableStores<IdentityCloudContext>(
+                () => services.BuildServiceProvider().GetRequiredService<IdentityConfiguration>(),   // <- if this is required by your ElCamino overloads, we will adjust
+                () => services.BuildServiceProvider().GetRequiredService<TableServiceClient>());    // <- see note above
+
+            // Abstractions stores (scoped)
+            services.AddScoped<IIdentityUserStore, AzureTableIdentityUserStore>();
+            services.AddScoped<ITenantMembershipStore, AzureTableTenantMembershipStore>();
+            services.AddScoped<IOtpChallengeStore, AzureTableOtpChallengeStore>();
+
+            // Schema manager + startup ensure
+            services.AddScoped<IIdentitySchemaManager, AzureTableIdentitySchemaManager>();
+            services.AddHostedService<AzureTableIdentitySchemaHostedService>();
+
+            return services;
+        }
+    }
+}
