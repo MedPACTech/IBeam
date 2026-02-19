@@ -1,5 +1,6 @@
 using Azure.Data.Tables;
 using IBeam.Identity.Core.Tenants;
+using IBeam.Identity.Repositories.AzureTable.Options;
 using IBeam.Identity.Repositories.AzureTable.Tenants.Entities;
 
 namespace IBeam.Identity.Repositories.AzureTable.Tenants;
