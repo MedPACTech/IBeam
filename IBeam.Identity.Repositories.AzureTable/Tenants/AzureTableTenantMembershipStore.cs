@@ -1,6 +1,8 @@
 using Azure.Data.Tables;
-using IBeam.Identity.Core.Auth.Contracts;
-using IBeam.Identity.Core.Tenants;
+using IBeam.Identity.Abstractions.Interfaces;
+using IBeam.Identity.Abstractions.Models;
+using IBeam.Identity.Repositories.AzureTable.Entities;
+using IBeam.Identity.Repositories.AzureTable.Options;
 
 namespace IBeam.Identity.Repositories.AzureTable.Tenants;
 
@@ -26,23 +28,25 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
     public async Task<IReadOnlyList<TenantInfo>> GetTenantsForUserAsync(string userId, CancellationToken ct = default)
     {
         var table = GetUserTenantsTable();
-        var pk = _opts.UserPk(userId);
+        var pk = _opts.UserTenantsPk(userId);
 
         var results = new List<TenantInfo>();
 
         await foreach (var e in table.QueryAsync<UserTenantEntity>(x => x.PartitionKey == pk, cancellationToken: ct))
         {
-            if (!_opts.TryParseTenantIdFromRowKey(e.RowKey, out var tenantId))
+            if (!_opts.TryParseTenantIdFromUserTenantsRk(e.RowKey, out var tenantId))
                 continue;
 
             var roles = (e.RolesCsv ?? "")
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
+            var isActive = string.Equals(e.Status, "Active", StringComparison.OrdinalIgnoreCase);
+
             results.Add(new TenantInfo(
                 tenantId,
-                e.DisplayName,
+                e.TenantDisplayName,
                 roles,
-                e.Status ?? "Active"
+                isActive
             ));
         }
 
@@ -52,8 +56,8 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
     public async Task<TenantInfo?> GetTenantForUserAsync(string userId, Guid tenantId, CancellationToken ct = default)
     {
         var table = GetUserTenantsTable();
-        var pk = _opts.UserPk(userId);
-        var rk = _opts.TenantRk(tenantId);
+        var pk = _opts.UserTenantsPk(userId);
+        var rk = _opts.UserTenantsRk(tenantId);
 
         try
         {
@@ -63,7 +67,9 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
             var roles = (e.RolesCsv ?? "")
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-            return new TenantInfo(tenantId, e.DisplayName, roles, e.Status ?? "Active");
+            var isActive = string.Equals(e.Status, "Active", StringComparison.OrdinalIgnoreCase);
+
+            return new TenantInfo(tenantId, e.TenantDisplayName, roles, isActive);
         }
         catch
         {
@@ -74,13 +80,13 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
     public async Task<Guid?> GetDefaultTenantIdAsync(string userId, CancellationToken ct = default)
     {
         var table = GetUserTenantsTable();
-        var pk = _opts.UserPk(userId);
+        var pk = _opts.UserTenantsPk(userId);
 
         await foreach (var e in table.QueryAsync<UserTenantEntity>(
                            x => x.PartitionKey == pk && x.IsDefault == true,
                            cancellationToken: ct))
         {
-            if (_opts.TryParseTenantIdFromRowKey(e.RowKey, out var tenantId))
+            if (_opts.TryParseTenantIdFromUserTenantsRk(e.RowKey, out var tenantId))
                 return tenantId;
         }
 
@@ -90,8 +96,8 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
     public async Task SetDefaultTenantAsync(string userId, Guid tenantId, CancellationToken ct = default)
     {
         var table = GetUserTenantsTable();
-        var pk = _opts.UserPk(userId);
-        var rk = _opts.TenantRk(tenantId);
+        var pk = _opts.UserTenantsPk(userId);
+        var rk = _opts.UserTenantsRk(tenantId);
 
         // Verify membership exists
         try

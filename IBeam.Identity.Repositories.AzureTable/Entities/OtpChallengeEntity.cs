@@ -1,30 +1,43 @@
-﻿using System;
-using Azure;
+﻿using Azure;
 using Azure.Data.Tables;
 
-namespace IBeam.Identity.Repositories.AzureTable.Entities
+internal sealed class OtpChallengeEntity : ITableEntity
 {
-    internal sealed class OtpChallengeEntity : ITableEntity
-    {
-        public string PartitionKey { get; set; } = default!;
-        public string RowKey { get; set; } = default!;
-        public DateTimeOffset? Timestamp { get; set; }
-        public ETag ETag { get; set; }
+    // Keys (computed by provider key helper)
+    public string PartitionKey { get; set; } = default!;
+    public string RowKey { get; set; } = default!;
+    public DateTimeOffset? Timestamp { get; set; }
+    public ETag ETag { get; set; }
 
-        // Domain fields
-        public string UserId { get; set; } = default!;
-        public string Channel { get; set; } = default!; // "sms" / "email" etc.
-        public string Destination { get; set; } = default!; // phone/email masked or full (your choice)
+    // Identity / scoping
+    public string ChallengeId { get; set; } = default!;      // Guid as string (no leaks)
+    public string? TenantId { get; set; }                    // null allowed for pre-tenant flows
+    public string Purpose { get; set; } = default!;          // e.g. "login", "mfa", "tenant-select", etc.
 
-        public string CodeHash { get; set; } = default!;
-        public DateTimeOffset ExpiresAt { get; set; }
+    // Target
+    public string Channel { get; set; } = default!;          // "sms" | "email"
+    public string Destination { get; set; } = default!;      // phone/email normalized
+    public string DestinationHash { get; set; } = default!;  // stable hash for partitioning / lookups (optional but useful)
 
-        public int AttemptCount { get; set; }
-        public bool IsConsumed { get; set; }
+    // OTP secret (never store raw code)
+    public string CodeHash { get; set; } = default!;         // hash(code + nonce/salt)
+    public string CodeNonce { get; set; } = default!;        // random per challenge (or salt)
 
-        public string? VerificationToken { get; set; }
-        public DateTimeOffset? VerificationTokenExpiresAt { get; set; }
+    // Lifecycle
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
+    public bool IsConsumed { get; set; }
+    public DateTimeOffset? ConsumedAt { get; set; }
 
-        public DateTimeOffset CreatedAt { get; set; }
-    }
+    // Security / abuse controls
+    public int AttemptCount { get; set; }
+    public DateTimeOffset? LastAttemptAt { get; set; }
+    public DateTimeOffset? ResendAvailableAt { get; set; }
+
+    // Compatibility: keep only if Core/Abstractions still references it today
+    public string? Email { get; set; }                       // optional; should mirror Destination when Channel == "email"
+
+    public string? VerificationToken { get; set; }
+    public DateTimeOffset? VerificationTokenExpiresAt { get; set; }
+
 }

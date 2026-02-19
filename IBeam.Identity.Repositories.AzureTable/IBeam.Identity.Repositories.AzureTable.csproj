@@ -21,7 +21,6 @@
 
   <ItemGroup>
     <Folder Include="Tenants\" />
-    <Folder Include="Types\" />
   </ItemGroup>
 
 </Project>
