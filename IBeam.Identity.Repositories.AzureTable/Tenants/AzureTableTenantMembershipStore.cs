@@ -25,10 +25,11 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
         return table;
     }
 
-    public async Task<IReadOnlyList<TenantInfo>> GetTenantsForUserAsync(string userId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<TenantInfo>> GetTenantsForUserAsync(Guid userId, CancellationToken ct = default)
     {
         var table = GetUserTenantsTable();
-        var pk = _opts.UserTenantsPk(userId);
+        var userIdStr = userId.ToString("D");
+        var pk = _opts.UserTenantsPk(userIdStr);
 
         var results = new List<TenantInfo>();
 
@@ -53,10 +54,11 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
         return results;
     }
 
-    public async Task<TenantInfo?> GetTenantForUserAsync(string userId, Guid tenantId, CancellationToken ct = default)
+    public async Task<TenantInfo?> GetTenantForUserAsync(Guid userId, Guid tenantId, CancellationToken ct = default)
     {
         var table = GetUserTenantsTable();
-        var pk = _opts.UserTenantsPk(userId);
+        var userIdStr = userId.ToString("D");
+        var pk = _opts.UserTenantsPk(userIdStr);
         var rk = _opts.UserTenantsRk(tenantId);
 
         try
@@ -77,10 +79,11 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
         }
     }
 
-    public async Task<Guid?> GetDefaultTenantIdAsync(string userId, CancellationToken ct = default)
+    public async Task<Guid?> GetDefaultTenantIdAsync(Guid userId, CancellationToken ct = default)
     {
         var table = GetUserTenantsTable();
-        var pk = _opts.UserTenantsPk(userId);
+        var userIdStr = userId.ToString("D");
+        var pk = _opts.UserTenantsPk(userIdStr);
 
         await foreach (var e in table.QueryAsync<UserTenantEntity>(
                            x => x.PartitionKey == pk && x.IsDefault == true,
@@ -93,10 +96,11 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
         return null;
     }
 
-    public async Task SetDefaultTenantAsync(string userId, Guid tenantId, CancellationToken ct = default)
+    public async Task SetDefaultTenantAsync(Guid userId, Guid tenantId, CancellationToken ct = default)
     {
         var table = GetUserTenantsTable();
-        var pk = _opts.UserTenantsPk(userId);
+        var userIdStr = userId.ToString("D");
+        var pk = _opts.UserTenantsPk(userIdStr);
         var rk = _opts.UserTenantsRk(tenantId);
 
         // Verify membership exists
