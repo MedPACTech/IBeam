@@ -40,7 +40,7 @@ public sealed class OtpService : IOtpService
 
         var record = new OtpChallengeRecord(
             ChallengeId: challengeId,
-            Email: request.Channel == OtpChannel.Email ? request.Destination.Trim() : "", // keep field if record still uses Email
+            Destination: request.Channel == OtpChannel.Email ? request.Destination.Trim() : "", // keep field if record still uses Email
             Purpose: request.Purpose,
             CodeHash: HashCode(code, opts.HashSalt),
             ExpiresAt: expiresAt,
@@ -92,12 +92,13 @@ public sealed class OtpService : IOtpService
         var providedHash = HashCode(request.Code.Trim(), opts.HashSalt);
         var ok = FixedTimeEquals(record.CodeHash, providedHash);
 
-        await _store.IncrementAttemptAsync(record.ChallengeId, ct);
-
         if (!ok)
+        {
+            await _store.IncrementAttemptAsync(record.ChallengeId, ct);
             return new OtpVerifyResult(false);
+        }
 
-        var verificationToken = CreateVerificationToken(record);
+        var verificationToken = CreateVerificationToken(record, opts.VerificationTokenSecret);
         var tokenExpiresAt = now.AddMinutes(opts.VerificationTokenMinutes);
 
         await _store.MarkConsumedAsync(record.ChallengeId, verificationToken, tokenExpiresAt, ct);
@@ -136,10 +137,16 @@ public sealed class OtpService : IOtpService
         return CryptographicOperations.FixedTimeEquals(ba, bb);
     }
 
-    private static string CreateVerificationToken(OtpChallengeRecord record)
+    private static string CreateVerificationToken(OtpChallengeRecord record, string secret)
     {
-        var payload = $"{record.ChallengeId}|{record.Email}|{record.Purpose}|{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(payload));
+        if (string.IsNullOrWhiteSpace(secret))
+            throw new IdentityProviderException("OTP verification token secret is not configured.");
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var payload = $"{record.ChallengeId}|{record.Destination}|{record.Purpose}|{record.TenantId}|{now}";
+        var key = Encoding.UTF8.GetBytes(secret);
+        using var hmac = new System.Security.Cryptography.HMACSHA256(key);
+        var bytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
         return Convert.ToBase64String(bytes);
     }
 }

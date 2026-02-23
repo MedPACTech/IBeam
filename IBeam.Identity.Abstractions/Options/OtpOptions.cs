@@ -12,5 +12,7 @@ public sealed class OtpOptions
     // NEW: used when hashing codes at rest
     // You can also move this to a secure secret provider later (KeyVault, etc.)
     public string HashSalt { get; init; } = "change-me";
+
+    public string VerificationTokenSecret { get; set; } = "";
 }
 

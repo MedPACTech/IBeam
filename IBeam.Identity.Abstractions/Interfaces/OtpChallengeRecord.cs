@@ -1,10 +1,8 @@
-using IBeam.Identity.Abstractions.Models;
-
-namespace IBeam.Identity.Abstractions.Interfaces;
+namespace IBeam.Identity.Abstractions.Models;
 
 public sealed record OtpChallengeRecord(
     string ChallengeId,
-    string Email,
+    string Destination, // email address or phone number
     OtpPurpose Purpose,
     string CodeHash,
     DateTimeOffset ExpiresAt,
