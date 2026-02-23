@@ -1,6 +1,6 @@
 using IBeam.Identity.Abstractions.Models;
 
-namespace IBeam.Identity.Core.Entities;
+namespace IBeam.Identity.Services.Entities;
 
 public sealed class OtpChallengeEntity
 {

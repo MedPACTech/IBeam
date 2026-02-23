@@ -1,4 +1,4 @@
-//namespace IBeam.Identity.Core.Options;
+//namespace IBeam.Identity.Services.Options;
 
 //public enum IdentityStoreType
 //{

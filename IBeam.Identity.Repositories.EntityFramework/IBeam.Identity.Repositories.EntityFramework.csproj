@@ -11,7 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\IBeam.Identity.Core\IBeam.Identity.Core.csproj" />
+    <ProjectReference Include="..\IBeam.Identity.Services\IBeam.Identity.Sevices.csproj" />
   </ItemGroup>
 
   <ItemGroup>

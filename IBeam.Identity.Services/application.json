@@ -1,4 +1,3 @@
-
 {
   "IBeam": {
     "Identity": {
@@ -6,6 +5,7 @@
         "CodeLength": 6,
         "ExpirationMinutes": 10,
         "MaxAttempts": 5,
+        "ReuseBlockedMinutes": 15,
         "HashAlgorithm": "SHA256"
       }
     },
@@ -18,12 +18,5 @@
         }
       }
     }
-  },
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
-    }
-  },
-  "AllowedHosts": "*"
+  }
 }

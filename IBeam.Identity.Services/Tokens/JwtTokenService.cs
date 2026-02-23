@@ -8,7 +8,7 @@ using IBeam.Identity.Abstractions.Options;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-namespace IBeam.Identity.Core.Tokens;
+namespace IBeam.Identity.Services.Tokens;
 
 public sealed class JwtTokenService : ITokenService
 {

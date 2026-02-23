@@ -6,7 +6,7 @@ using IBeam.Identity.Abstractions.Models;
 using IBeam.Identity.Abstractions.Options;
 using Microsoft.Extensions.Options;
 
-namespace IBeam.Identity.Core.Otp;
+namespace IBeam.Identity.Services.Otp;
 
 public sealed class OtpService : IOtpService
 {

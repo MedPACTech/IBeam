@@ -1,7 +1,7 @@
 using System.Security.Claims;
-using IBeam.Identity.Core.Auth.Contracts;
-using IBeam.Identity.Core.Otp.Contracts;
-using IBeam.Identity.Core.Otp.Interfaces;
+using IBeam.Identity.Services.Auth.Contracts;
+using IBeam.Identity.Services.Otp.Contracts;
+using IBeam.Identity.Services.Otp.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

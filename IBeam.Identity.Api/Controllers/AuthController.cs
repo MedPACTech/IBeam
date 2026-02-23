@@ -1,6 +1,4 @@
 using System.Security.Claims;
-using IBeam.Identity.Core.Auth.Contracts;
-using IBeam.Identity.Core.Auth.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
