@@ -12,12 +12,15 @@ public sealed class OtpService : IOtpService
 {
     private readonly IOtpChallengeStore _store;
     private readonly IOptionsMonitor<OtpOptions> _options;
+    private readonly IOtpSender _sender;
 
     public OtpService(
         IOtpChallengeStore store,
+        IOtpSender sender,
         IOptionsMonitor<OtpOptions> options)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
+        _sender = sender ?? throw new ArgumentNullException(nameof(sender));
         _options = options ?? throw new ArgumentNullException(nameof(options));
     }
 
