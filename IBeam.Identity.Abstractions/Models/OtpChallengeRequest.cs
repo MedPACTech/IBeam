@@ -1,7 +1,8 @@
 ﻿namespace IBeam.Identity.Abstractions.Models;
 
 public sealed record OtpChallengeRequest(
-    string Email,
+    OtpChannel Channel,
+    string Destination,
     OtpPurpose Purpose,
-    Guid? TenantId = null);
+    Guid? TenantId);
 
