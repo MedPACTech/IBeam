@@ -1,4 +1,6 @@
-﻿namespace IBeam.Identity.Abstractions.Interfaces;
+﻿using IBeam.Identity.Abstractions.Models;
+
+namespace IBeam.Identity.Abstractions.Interfaces;
 
 public interface IOtpChallengeStore
 {

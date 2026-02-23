@@ -153,7 +153,7 @@ internal sealed class AzureTableOtpChallengeStore : IOtpChallengeStore
             PartitionKey = PartitionFor(r.ChallengeId),
             RowKey = r.ChallengeId,
 
-            Email = r.Email,
+            Destination = r.Destination,
             Purpose = r.Purpose.ToString(),
             TenantId = r.TenantId?.ToString("D"),
 
@@ -174,7 +174,7 @@ internal sealed class AzureTableOtpChallengeStore : IOtpChallengeStore
     private static OtpChallengeRecord FromEntity(OtpChallengeEntity e)
         => new OtpChallengeRecord(
             ChallengeId: e.RowKey,
-            Email: e.Email,
+            Destination: e.Destination,
             Purpose: Enum.Parse<OtpPurpose>(e.Purpose, ignoreCase: true),
             TenantId: string.IsNullOrWhiteSpace(e.TenantId) ? null : Guid.Parse(e.TenantId),
 
