@@ -24,8 +24,8 @@ public sealed class OtpService : IOtpService
     public async Task<OtpChallengeResult> CreateChallengeAsync(OtpChallengeRequest request, CancellationToken ct = default)
     {
         if (request is null) throw new ArgumentNullException(nameof(request));
-        if (string.IsNullOrWhiteSpace(request.Email))
-            throw new IdentityValidationException("Email is required.");
+        if (string.IsNullOrWhiteSpace(request.Destination))
+            throw new IdentityValidationException("Destination is required.");
 
         var opts = _options.CurrentValue;
 
@@ -37,7 +37,7 @@ public sealed class OtpService : IOtpService
 
         var record = new OtpChallengeRecord(
             ChallengeId: challengeId,
-            Email: request.Email.Trim(),
+            Email: request.Channel == OtpChannel.Email ? request.Destination.Trim() : "", // keep field if record still uses Email
             Purpose: request.Purpose,
             CodeHash: HashCode(code, opts.HashSalt),
             ExpiresAt: expiresAt,
@@ -49,9 +49,14 @@ public sealed class OtpService : IOtpService
 
         await _store.SaveAsync(record, ct);
 
-        // NOTE: sending is currently NOT in your store/abstractions shown here.
-        // If you have IOtpSender elsewhere, call it here.
-        // e.g. await _sender.SendEmailAsync(record.Email, code, record.Purpose, ct);
+        // send plaintext code via configured delivery mechanism
+        await _sender.SendAsync(
+            channel: request.Channel,
+            destination: request.Destination.Trim(),
+            code: code,
+            purpose: request.Purpose,
+            tenantId: request.TenantId,
+            ct: ct);
 
         return new OtpChallengeResult(record.ChallengeId, record.ExpiresAt);
     }
