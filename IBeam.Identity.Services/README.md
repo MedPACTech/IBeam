@@ -1,94 +1,72 @@
-# IBeam Identity Services
+# IBeam Identity Core
 
-IBeam Identity Services is a core backend component of the **IBeam** ecosystem.  
-It provides identity-related capabilities including authentication workflows, OTP (One-Time Password) generation, challenge storage, and delivery mechanisms.
-
-This service is designed to be secure, extensible, and environment-agnostic, supporting multiple delivery channels and configuration profiles.
+IBeam Identity Core is a foundational library for the **IBeam ecosystem**, responsible for identity, authentication, and security-related services. It is designed to be used by IBeam APIs and services, with a strong focus on OTP-based authentication and extensibility.
 
 ---
 
 ## ✨ Features
 
-- ASP.NET Core Web API
-- OTP challenge generation and validation
-- Pluggable OTP senders (Email, SMS, etc.)
-- Secure OTP hashing and expiration handling
-- Multi-environment configuration support
-- Options Pattern–based configuration
-- Clean separation of contracts, services, and infrastructure
+- Identity and authentication primitives
+- OTP (One-Time Password) challenge generation and validation
+- Pluggable OTP delivery mechanisms (email, SMS, etc.)
+- Secure cryptographic utilities
+- Options-based configuration using `Microsoft.Extensions.Options`
+- Clean separation of contracts, entities, and services
 
 ---
 
 ## 🧱 Tech Stack
 
 - **.NET:** 10.0
-- **Framework:** ASP.NET Core Web API
-- **Configuration:** application.json + environment overrides
-- **Dependency Injection:** Microsoft.Extensions.DependencyInjection
-- **Options Pattern:** Microsoft.Extensions.Options
+- **Language:** C#
+- **Configuration:** application.json / appsettings.json
+- **Patterns:** Options pattern, Dependency Injection
+- **Security:** Cryptographically secure OTP generation
 
 ---
 
 ## 📁 Project Structure
 
 IBeam.Identity.Services/
-├── Controllers/
-├── Core/
-│ ├── Entities/
-│ ├── Options/
-│ └── Otp/
+├── Entities/
+│ ├── OtpChallenge.cs
+│ └── IdentityUser.cs
+├── Options/
+│ └── OtpOptions.cs
+├── Otp/
 │ ├── Contracts/
-│ └── Interfaces/
+│ ├── Interfaces/
+│ └── Models/
 ├── Services/
-│ └── Otp/
-├── Infrastructure/
-├── application.json
-├── Program.cs
-└── Startup.cs
+│ └── OtpService.cs
+├── Extensions/
+├── IBeam.Identity.Services.csproj
+└── README.md
 
 
 ---
 
 ## ⚙️ Configuration
 
-All configuration is managed through `application.json` and environment-specific overrides.
-
-Key configuration sections include:
-
-- OTP behavior (length, expiration, retry limits)
-- Communications (email/SMS providers)
-- Security and hashing settings
+This library uses strongly-typed options bound from `application.json` (or `appsettings.json`).  
+OTP behavior, expiration, and delivery are configurable via the `IBeam:Identity:Otp` section.
 
 ---
 
 ## 🔐 OTP Flow (High-Level)
 
 1. Client requests an OTP challenge
-2. Service generates a secure OTP code
-3. OTP is hashed and stored with expiration metadata
-4. OTP is delivered via configured sender
-5. Client submits OTP for validation
-6. Challenge is validated and consumed
+2. `OtpService` generates a secure code
+3. Challenge is persisted via `IOtpChallengeStore`
+4. OTP is delivered via a configured `IOtpSender`
+5. Client submits OTP for verification
+6. Challenge is validated and marked as used/expired
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Usage
 
-1. Restore dependencies  
-   ```bash
-   dotnet restore
-2. Run the service : dotnet run
-3. Configure delivery providers in application.json
+Register services in your API or host application:
 
-🧩 Extensibility
-
-Add new OTP delivery channels by implementing IOtpSender
-
-Swap storage mechanisms via IOtpChallengeStore
-
-Extend identity workflows without modifying core logic
-
-📄 License
-
-Proprietary – IBeam Platform
-© IBeam
+```csharp
+services.AddIBeamIdentity(configuration);

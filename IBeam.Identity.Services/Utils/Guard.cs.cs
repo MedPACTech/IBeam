@@ -1,4 +1,4 @@
-namespace IBeam.Identity.Core.Utilities;
+namespace IBeam.Identity.Services.Utilities;
 
 public static class Guard
 {

@@ -8,8 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\IBeam.Identity.Abstractions\IBeam.Identity.Abstractions.csproj" />
-    <ProjectReference Include="..\..\IBeam.Identity.Core\IBeam.Identity.Core.csproj" />
-    <ProjectReference Include="..\..\IBeam.Identity.Services\IBeam.Identity.Services.csproj" />
+    <ProjectReference Include="..\..\IBeam.Identity.Services\IBeam.Identity.Sevices.csproj" />
     <ProjectReference Include="..\..\IBeam.Identity.Repositories.AzureTable\IBeam.Identity.Repositories.AzureTable.csproj" />
     <ProjectReference Include="..\..\IBeam.Communications.Abstractions\IBeam.Communications.Abstractions.csproj" />
     <ProjectReference Include="..\..\IBeam.Communications.Email.AzureCommunications\IBeam.Communications.Email.AzureCommunications.csproj" />

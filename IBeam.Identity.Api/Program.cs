@@ -1,5 +1,5 @@
 using System.Text;
-using IBeam.Identity.Core.Options;
+using IBeam.Identity.Services.Options;
 using IBeam.Identity.Services.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
