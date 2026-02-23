@@ -34,9 +34,6 @@ internal sealed class OtpChallengeEntity : ITableEntity
     public DateTimeOffset? LastAttemptAt { get; set; }
     public DateTimeOffset? ResendAvailableAt { get; set; }
 
-    // Compatibility: keep only if Core/Abstractions still references it today
-    public string? Email { get; set; }                       // optional; should mirror Destination when Channel == "email"
-
     public string? VerificationToken { get; set; }
     public DateTimeOffset? VerificationTokenExpiresAt { get; set; }
 
