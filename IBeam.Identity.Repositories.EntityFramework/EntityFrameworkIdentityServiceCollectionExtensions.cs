@@ -1,4 +1,4 @@
-﻿using IBeam.Identity.Core.Tenants;
+﻿using IBeam.Identity.Services.Tenants;
 using IBeam.Identity.Repositories.EntityFramework.Data;
 using IBeam.Identity.Repositories.EntityFramework.Options;
 using IBeam.Identity.Repositories.EntityFramework.Tenants;

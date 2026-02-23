@@ -1,5 +1,5 @@
-using IBeam.Identity.Core.Auth.Contracts;
-using IBeam.Identity.Core.Tenants;
+using IBeam.Identity.Services.Auth.Contracts;
+using IBeam.Identity.Services.Tenants;
 
 namespace IBeam.Identity.Repositories.EntityFramework.Tenants;
 

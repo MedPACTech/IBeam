@@ -1,7 +1,7 @@
 using System.Security.Claims;
-using IBeam.Identity.Core.Auth.Contracts;
-using IBeam.Identity.Core.Auth.Interfaces;
-using IBeam.Identity.Core.Tenants;
+using IBeam.Identity.Services.Auth.Contracts;
+using IBeam.Identity.Services.Auth.Interfaces;
+using IBeam.Identity.Services.Tenants;
 using IBeam.Identity.Repositories.EntityFramework.Types;
 using Microsoft.AspNetCore.Identity;
 

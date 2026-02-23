@@ -1,4 +1,4 @@
-using IBeam.Identity.Core.Auth.Interfaces;
+using IBeam.Identity.Services.Auth.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
 namespace IBeam.DemoApi.Controllers;

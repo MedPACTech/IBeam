@@ -35,7 +35,7 @@ IBeam.Identity/
 │ ├── Program.cs
 │ └── application.json
 │
-├── IBeam.Identity.Core/
+├── IBeam.Identity.Services/
 │ ├── Entities/
 │ ├── Options/
 │ ├── Otp/

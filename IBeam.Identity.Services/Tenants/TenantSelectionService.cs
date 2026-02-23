@@ -2,7 +2,7 @@ using IBeam.Identity.Abstractions.Exceptions;
 using IBeam.Identity.Abstractions.Interfaces;
 using IBeam.Identity.Abstractions.Models;
 
-namespace IBeam.Identity.Core.Tenants;
+namespace IBeam.Identity.Services.Tenants;
 
 public sealed class TenantSelectionService : ITenantSelectionService
 {

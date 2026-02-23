@@ -1,5 +1,5 @@
-using IBeam.Identity.Core.PasswordReset.Contracts;
-using IBeam.Identity.Core.PasswordReset.Interfaces;
+using IBeam.Identity.Services.PasswordReset.Contracts;
+using IBeam.Identity.Services.PasswordReset.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
 namespace IBeam.Identity.Api.Controllers;

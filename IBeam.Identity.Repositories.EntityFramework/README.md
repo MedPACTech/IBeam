@@ -69,7 +69,7 @@ Supports managed identity–based authentication where applicable
 
 🧩 Related Projects
 
-IBeam.Identity.Core
+IBeam.Identity.Services
 
 IBeam.Identity.Services
 
