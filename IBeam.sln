@@ -63,7 +63,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		version.json = version.json
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Identity.Sevices", "IBeam.Identity.Services\IBeam.Identity.Sevices.csproj", "{4939B360-B54A-B261-9924-E33BCD68379E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Identity.Services", "IBeam.Identity.Services\IBeam.Identity.Services.csproj", "{4939B360-B54A-B261-9924-E33BCD68379E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
