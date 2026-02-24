@@ -96,8 +96,64 @@ internal sealed class AzureTableIdentityUserStore : IIdentityUserStore
         }
     }
 
+    public async Task<AbstractionIdentityUser?> FindByPhoneAsync(string phoneNumber, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            var normalized = NormalizePhone(phoneNumber);
+            var user = await Task.Run(() =>
+                _userManager.Users.FirstOrDefault(u => u.PhoneNumber == normalized), ct);
+            return user is null ? null : MapOrThrow(user);
+        }
+        catch (Exception ex) when (!IsCancellation(ex))
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
+    public async Task UpdateEmailAsync(Guid userId, string newEmail, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            var user = await _userManager.FindByIdAsync(userId.ToString("D"));
+            if (user is null) throw new InvalidOperationException("User not found.");
+            user.Email = NormalizeEmail(newEmail);
+            user.UserName = user.Email;
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+                throw new InvalidOperationException("Failed to update email: " + string.Join(", ", result.Errors.Select(e => e.Description)));
+        }
+        catch (Exception ex) when (!IsCancellation(ex))
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
+    public async Task UpdatePhoneAsync(Guid userId, string newPhone, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            var user = await _userManager.FindByIdAsync(userId.ToString("D"));
+            if (user is null) throw new InvalidOperationException("User not found.");
+            user.PhoneNumber = NormalizePhone(newPhone);
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+                throw new InvalidOperationException("Failed to update phone: " + string.Join(", ", result.Errors.Select(e => e.Description)));
+        }
+        catch (Exception ex) when (!IsCancellation(ex))
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
     private static string NormalizeEmail(string email)
         => (email ?? string.Empty).Trim().ToLowerInvariant();
+
+    private static string NormalizePhone(string phone)
+        => (phone ?? string.Empty).Trim();
 
     private static bool IsCancellation(Exception ex)
         => ex is OperationCanceledException;
