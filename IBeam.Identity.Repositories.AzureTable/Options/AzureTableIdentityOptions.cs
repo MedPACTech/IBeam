@@ -5,6 +5,7 @@ namespace IBeam.Identity.Repositories.AzureTable.Options;
 
 public sealed class AzureTableIdentityOptions
 {
+    public const string SectionName = "IBeam:Identity:AzureTable";
     // Connection
     [Required]
     public string StorageConnectionString { get; set; } = string.Empty;
