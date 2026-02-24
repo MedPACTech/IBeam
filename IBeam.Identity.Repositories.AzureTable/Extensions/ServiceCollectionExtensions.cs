@@ -25,7 +25,7 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
         {
             // Options (bind + validate)
             services.AddOptions<AzureTableIdentityOptions>()
-                .Bind(configuration.GetSection("IBeam:Identity:AzureTable"))
+                .Bind(configuration.GetSection(AzureTableIdentityOptions.SectionName))
                 .Validate(o =>
                 {
                     o.Validate();

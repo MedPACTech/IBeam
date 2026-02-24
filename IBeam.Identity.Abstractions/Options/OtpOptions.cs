@@ -2,6 +2,8 @@ namespace IBeam.Identity.Abstractions.Options;
 
 public sealed class OtpOptions
 {
+    public const string SectionName = "IBeam:Identity:Otp";
+
     public int CodeLength { get; init; } = 6;
     public int ExpirationMinutes { get; init; } = 5;
     public int MaxAttempts { get; init; } = 5;
@@ -14,5 +16,11 @@ public sealed class OtpOptions
     public string HashSalt { get; init; } = "change-me";
 
     public string VerificationTokenSecret { get; set; } = "";
+
+    public void Validate()
+    {
+        //TODO: add validation logic (e.g. CodeLength > 0, ExpirationMinutes > 0, etc.)
+        
+    }
 }
 
