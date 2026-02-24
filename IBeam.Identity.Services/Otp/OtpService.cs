@@ -12,11 +12,11 @@ public sealed class OtpService : IOtpService
 {
     private readonly IOtpChallengeStore _store;
     private readonly IOptionsMonitor<OtpOptions> _options;
-    private readonly ISender _sender;
+    private readonly IIdentityCommunicationSender _sender;
 
     public OtpService(
         IOtpChallengeStore store,
-        ISender sender,
+        IIdentityCommunicationSender sender,
         IOptionsMonitor<OtpOptions> options)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
@@ -53,13 +53,17 @@ public sealed class OtpService : IOtpService
         await _store.SaveAsync(record, ct);
 
         // send plaintext code via configured delivery mechanism
-        await _sender.SendAsync(
-            channel: request.Channel,
-            destination: request.Destination.Trim(),
-            code: code,
-            purpose: request.Purpose,
-            tenantId: request.TenantId,
-            ct: ct);
+        var message = new IdentitySenderMessage
+        {
+            Channel = request.Channel,
+            Destination = request.Destination.Trim(),
+            Code = code,
+            Purpose = request.Purpose,
+            TenantId = request.TenantId,
+            ExpiresAt = expiresAt
+            // Add more properties as needed
+        };
+        await _sender.SendAsync(message, ct);
 
         return new OtpChallengeResult(record.ChallengeId, record.ExpiresAt);
     }
