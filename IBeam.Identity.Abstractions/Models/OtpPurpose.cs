@@ -4,5 +4,9 @@ public enum OtpPurpose
 {
     EmailVerification,
     LoginMfa,
-    PasswordReset
+    PasswordReset,
+    UserRegistration,
+    PhoneVerification,
+    ChangeEmail,
+    ChangePhone
 }

@@ -4,13 +4,13 @@ using IBeam.Identity.Abstractions.Models;
 
 namespace IBeam.Identity.Services.Auth;
 
-public sealed class IdentityAuthService : IIdentityAuthService
+public sealed class PasswordAuthService : IIdentityAuthService
 {
     private readonly IIdentityUserStore _users;
     private readonly ITenantMembershipStore _tenants;
     private readonly ITokenService _tokens;
 
-    public IdentityAuthService(
+    public PasswordAuthService(
         IIdentityUserStore users,
         ITenantMembershipStore tenants,
         ITokenService tokens)
@@ -26,15 +26,11 @@ public sealed class IdentityAuthService : IIdentityAuthService
         if (string.IsNullOrWhiteSpace(request.Email)) throw new IdentityValidationException("Email is required.");
         if (string.IsNullOrWhiteSpace(request.Password)) throw new IdentityValidationException("Password is required.");
 
-        // NOTE: adjust if your CreateAsync signature/result differs
         var result = await _users.CreateAsync(request, ct);
-
         if (!result.Succeeded)
             throw new IdentityValidationException("Registration failed.", result.Errors);
-
         if (result.User is null)
             throw new IdentityProviderException("UnknownProvider", "User store returned success but no user.");
-
     }
 
     public async Task<AuthResultResponse> PasswordLoginAsync(PasswordLoginRequest request, CancellationToken ct = default)
@@ -53,24 +49,19 @@ public sealed class IdentityAuthService : IIdentityAuthService
 
         var tenants = await _tenants.GetTenantsForUserAsync(user.UserId, ct);
         var activeTenants = tenants.Where(t => t.IsActive).ToList();
-
         if (activeTenants.Count == 0)
             throw new IdentityUnauthorizedException("No active tenant membership.");
 
-        // 1 active tenant -> issue tenant-scoped token
         if (activeTenants.Count == 1)
         {
             var t = activeTenants[0];
-
             var claims = BuildBaseClaims(user.UserId, user.Email);
             AddTenantClaims(claims, t.TenantId);
             AddRoleClaims(claims, t.Roles);
-
             var token = await _tokens.CreateAccessTokenAsync(user.UserId, t.TenantId, claims, ct);
             return AuthResultResponse.WithToken(token);
         }
 
-        // multiple tenants -> use default if present
         var defaultTenantId = await _tenants.GetDefaultTenantIdAsync(user.UserId, ct);
         if (defaultTenantId.HasValue)
         {
@@ -80,18 +71,14 @@ public sealed class IdentityAuthService : IIdentityAuthService
                 var claims = BuildBaseClaims(user.UserId, user.Email);
                 AddTenantClaims(claims, def.TenantId);
                 AddRoleClaims(claims, def.Roles);
-
                 var token = await _tokens.CreateAccessTokenAsync(user.UserId, def.TenantId, claims, ct);
                 return AuthResultResponse.WithToken(token);
             }
         }
 
-        // No default -> issue pre-tenant token and require selection
         var preClaims = BuildBaseClaims(user.UserId, user.Email);
         preClaims.Add(new ClaimItem("pt", "1"));
-
         var pre = await _tokens.CreatePreTenantTokenAsync(user.UserId, preClaims, ct);
-
         return AuthResultResponse.RequiresSelection(pre.AccessToken, activeTenants);
     }
 
@@ -99,18 +86,14 @@ public sealed class IdentityAuthService : IIdentityAuthService
     {
         var userGuid = ParseUserId(userId);
         if (request is null) throw new ArgumentNullException(nameof(request));
-
         var tenant = await _tenants.GetTenantForUserAsync(userGuid, request.TenantId, ct);
         if (tenant is null || !tenant.IsActive)
             throw new IdentityUnauthorizedException("No active tenant membership.");
-
         if (request.SetAsDefault)
             await _tenants.SetDefaultTenantAsync(userGuid, request.TenantId, ct);
-
-        var claims = BuildBaseClaims(userGuid, string.Empty); //TODO: May add identifiers later here
+        var claims = BuildBaseClaims(userGuid, string.Empty);
         AddTenantClaims(claims, tenant.TenantId);
         AddRoleClaims(claims, tenant.Roles);
-
         var token = await _tokens.CreateAccessTokenAsync(userGuid, tenant.TenantId, claims, ct);
         return ToAuthTokenResponse(token);
     }
@@ -122,10 +105,8 @@ public sealed class IdentityAuthService : IIdentityAuthService
     {
         if (string.IsNullOrWhiteSpace(userId))
             throw new IdentityValidationException("userId is required.");
-
         if (!Guid.TryParse(userId, out var guid))
             throw new IdentityValidationException("userId must be a GUID.");
-
         return guid;
     }
 
@@ -139,10 +120,6 @@ public sealed class IdentityAuthService : IIdentityAuthService
             new("sub", userId.ToString("D")),
             new("uid", userId.ToString("D")),
         };
-
-        //if (!string.IsNullOrWhiteSpace(email))
-        //    claims.Add(new("email", email));
-
         return claims;
     }
 
@@ -154,7 +131,6 @@ public sealed class IdentityAuthService : IIdentityAuthService
     private static void AddRoleClaims(List<ClaimItem> claims, IEnumerable<string>? roles)
     {
         if (roles is null) return;
-
         foreach (var r in roles.Where(x => !string.IsNullOrWhiteSpace(x)))
             claims.Add(new("role", r));
     }

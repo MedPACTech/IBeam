@@ -12,10 +12,10 @@ namespace IBeam.Identity.Services.Tokens;
 
 public sealed class JwtTokenService : ITokenService
 {
-    private readonly TokenOptions _options;
+    private readonly JwtOptions _options;
     private readonly JwtSecurityTokenHandler _handler = new();
 
-    public JwtTokenService(IOptions<TokenOptions> options)
+    public JwtTokenService(IOptions<JwtOptions> options)
     {
         _options = options.Value ?? throw new ArgumentNullException(nameof(options));
         Validate(_options);
@@ -120,7 +120,7 @@ public sealed class JwtTokenService : ITokenService
         return _handler.WriteToken(token);
     }
 
-    private static void Validate(TokenOptions o)
+    private static void Validate(JwtOptions o)
     {
         if (string.IsNullOrWhiteSpace(o.Issuer))
             throw new IdentityValidationException("TokenOptions.Issuer is required.");
