@@ -1,6 +1,6 @@
 namespace IBeam.Identity.Abstractions.Models;
 
-public enum OtpPurpose
+public enum SenderPurpose
 {
     EmailVerification,
     LoginMfa,

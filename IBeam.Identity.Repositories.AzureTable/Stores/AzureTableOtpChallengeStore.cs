@@ -175,7 +175,7 @@ internal sealed class AzureTableOtpChallengeStore : IOtpChallengeStore
         => new OtpChallengeRecord(
             ChallengeId: e.RowKey,
             Destination: e.Destination,
-            Purpose: Enum.Parse<OtpPurpose>(e.Purpose, ignoreCase: true),
+            Purpose: Enum.Parse<SenderPurpose>(e.Purpose, ignoreCase: true),
             TenantId: string.IsNullOrWhiteSpace(e.TenantId) ? null : Guid.Parse(e.TenantId),
 
             CodeHash: e.CodeHash,

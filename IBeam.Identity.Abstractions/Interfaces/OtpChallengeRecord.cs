@@ -7,7 +7,7 @@ namespace IBeam.Identity.Abstractions.Models;
 public sealed record OtpChallengeRecord(
     string ChallengeId,
     string Destination, // email address or phone number
-    OtpPurpose Purpose,
+    SenderPurpose Purpose,
     string CodeHash,
     DateTimeOffset ExpiresAt,
     int AttemptCount,

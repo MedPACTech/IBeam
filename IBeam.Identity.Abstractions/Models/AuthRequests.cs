@@ -11,9 +11,9 @@ public sealed record PasswordLoginRequest(
 
 public sealed record RequestOtpRequest(
     string Identifier,      // email or phone (we'll support both)
-    OtpChannel Channel);
+    SenderChannel Channel);
 
 public sealed record VerifyOtpRequest(
     string Identifier,      // email or phone
-    OtpChannel Channel,
+    SenderChannel Channel,
     string Code);

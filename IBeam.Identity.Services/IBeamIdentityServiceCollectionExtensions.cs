@@ -45,7 +45,7 @@ public static class IBeamIdentityServiceCollectionExtensions
         services.AddScoped<ITokenService, JwtTokenService>();
 
 
-        // Note: IOtpChallengeStore, IOtpSender, and other dependencies must be registered by the consumer or by repository/communications packages.
+        // Note: IOtpChallengeStore, ISender, and other dependencies must be registered by the consumer or by repository/communications packages.
 
         return services;
     }

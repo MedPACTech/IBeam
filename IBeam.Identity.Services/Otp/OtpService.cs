@@ -12,11 +12,11 @@ public sealed class OtpService : IOtpService
 {
     private readonly IOtpChallengeStore _store;
     private readonly IOptionsMonitor<OtpOptions> _options;
-    private readonly IOtpSender _sender;
+    private readonly ISender _sender;
 
     public OtpService(
         IOtpChallengeStore store,
-        IOtpSender sender,
+        ISender sender,
         IOptionsMonitor<OtpOptions> options)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
@@ -40,7 +40,7 @@ public sealed class OtpService : IOtpService
 
         var record = new OtpChallengeRecord(
             ChallengeId: challengeId,
-            Destination: request.Channel == OtpChannel.Email ? request.Destination.Trim() : "", // keep field if record still uses Email
+            Destination: request.Channel == SenderChannel.Email ? request.Destination.Trim() : "", // keep field if record still uses Email
             Purpose: request.Purpose,
             CodeHash: HashCode(code, opts.HashSalt),
             ExpiresAt: expiresAt,
