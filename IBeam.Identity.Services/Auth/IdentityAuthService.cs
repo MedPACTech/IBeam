@@ -54,7 +54,7 @@
 
 //        var (channel, normalized) = NormalizeDestination(destination);
 
-//        var request = new OtpChallengeRequest(channel, normalized, OtpPurpose.UserRegistration, tenantId);
+//        var request = new OtpChallengeRequest(channel, normalized, SenderPurpose.UserRegistration, tenantId);
 //        return await _otpService.CreateChallengeAsync(request, ct);
 //    }
 
@@ -80,7 +80,7 @@
 
 
 //    // Helper for normalization and channel detection. Move to utility later.
-//    private static (OtpChannel channel, string normalized) NormalizeDestination(string destination)
+//    private static (SenderChannel channel, string normalized) NormalizeDestination(string destination)
 //    {
 //        destination = destination.Trim();
 //        // Simple email regex
@@ -91,7 +91,7 @@
 //        if (emailRegex.IsMatch(destination))
 //        {
 //            // Normalize email: uppercase
-//            return (OtpChannel.Email, destination.ToUpperInvariant());
+//            return (SenderChannel.Email, destination.ToUpperInvariant());
 //        }
 //        else if (phoneRegex.IsMatch(destination))
 //        {
@@ -102,7 +102,7 @@
 //                normalized = normalized.Substring(3);
 //            else if (normalized.StartsWith("+"))
 //                normalized = normalized.Substring(1);
-//            return (OtpChannel.Sms, normalized);
+//            return (SenderChannel.Sms, normalized);
 //        }
 //        else
 //        {

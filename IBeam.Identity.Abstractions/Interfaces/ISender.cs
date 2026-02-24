@@ -2,13 +2,13 @@
 
 using IBeam.Identity.Abstractions.Models;
 
-public interface IOtpSender
+public interface ISender
 {
     Task SendAsync(
-        OtpChannel channel,
+        SenderChannel channel,
         string destination,
         string code,
-        OtpPurpose purpose,
+        SenderPurpose purpose,
         Guid? tenantId,
         CancellationToken ct = default);
 }

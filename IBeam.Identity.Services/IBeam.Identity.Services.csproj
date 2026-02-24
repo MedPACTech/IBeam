@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\IBeam.Communications.Abstractions\IBeam.Communications.Abstractions.csproj" />
     <ProjectReference Include="..\IBeam.Identity.Abstractions\IBeam.Identity.Abstractions.csproj" />
   </ItemGroup>
 

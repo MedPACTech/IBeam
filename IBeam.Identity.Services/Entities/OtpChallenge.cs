@@ -5,8 +5,8 @@ namespace IBeam.Identity.Services.Entities;
 public sealed class OtpChallengeEntity
 {
     public Guid ChallengeId { get; set; }
-    public OtpPurpose Purpose { get; set; }
-    public OtpChannel Channel { get; set; }
+    public SenderPurpose Purpose { get; set; }
+    public SenderChannel Channel { get; set; }
 
     public string Destination { get; set; } = "";
     public string? TenantHint { get; set; }
