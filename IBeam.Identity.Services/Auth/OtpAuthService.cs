@@ -2,6 +2,7 @@ using IBeam.Identity.Abstractions.Exceptions;
 using IBeam.Identity.Abstractions.Interfaces;
 using IBeam.Identity.Abstractions.Models;
 using IBeam.Identity.Services.Otp;
+using IBeam.Identity.Services.Utils;
 
 namespace IBeam.Identity.Services.Auth;
 
@@ -29,18 +30,17 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
 
     public async Task<OtpChallengeResult> RegisterUserViaOtpAsync(string destination, Guid? tenantId = null, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(destination))
-            throw new IdentityValidationException("Destination is required.");
-        var (channel, normalized) = NormalizeDestination(destination);
-        var request = new OtpChallengeRequest(channel, normalized, OtpPurpose.UserRegistration, tenantId);
+        IdentityUtils.ThrowIfNullOrWhiteSpace(destination, nameof(destination));
+        var (channel, normalized) = IdentityUtils.NormalizeDestination(destination);
+        var request = new OtpChallengeRequest(channel, normalized, SenderPurpose.UserRegistration, tenantId);
         return await _otpService.CreateChallengeAsync(request, ct);
     }
 
     public async Task<CreateUserResult> CompleteUserRegistrationViaOtpAsync(string challengeId, string code, string email, string? displayName = null, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(challengeId)) throw new IdentityValidationException("ChallengeId is required.");
-        if (string.IsNullOrWhiteSpace(code)) throw new IdentityValidationException("Code is required.");
-        if (string.IsNullOrWhiteSpace(email)) throw new IdentityValidationException("Email is required.");
+        IdentityUtils.ThrowIfNullOrWhiteSpace(challengeId, nameof(challengeId));
+        IdentityUtils.ThrowIfNullOrWhiteSpace(code, nameof(code));
+        IdentityUtils.ThrowIfNullOrWhiteSpace(email, nameof(email));
         var verifyResult = await _otpService.VerifyAsync(new OtpVerifyRequest(challengeId, code), ct);
         if (!verifyResult.Success)
             throw new IdentityValidationException("OTP verification failed.");
@@ -51,17 +51,16 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
 
     public async Task<OtpChallengeResult> BeginOtpLoginAsync(string destination, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(destination))
-            throw new IdentityValidationException("Destination is required.");
-        var (channel, normalized) = NormalizeDestination(destination);
-        var request = new OtpChallengeRequest(channel, normalized, OtpPurpose.LoginMfa, null);
+        IdentityUtils.ThrowIfNullOrWhiteSpace(destination, nameof(destination));
+        var (channel, normalized) = IdentityUtils.NormalizeDestination(destination);
+        var request = new OtpChallengeRequest(channel, normalized, SenderPurpose.LoginMfa, null);
         return await _otpService.CreateChallengeAsync(request, ct);
     }
 
     public async Task<AuthResultResponse> CompleteOtpLoginAsync(string challengeId, string code, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(challengeId)) throw new IdentityValidationException("ChallengeId is required.");
-        if (string.IsNullOrWhiteSpace(code)) throw new IdentityValidationException("Code is required.");
+        IdentityUtils.ThrowIfNullOrWhiteSpace(challengeId, nameof(challengeId));
+        IdentityUtils.ThrowIfNullOrWhiteSpace(code, nameof(code));
         var verifyResult = await _otpService.VerifyAsync(new OtpVerifyRequest(challengeId, code), ct);
         if (!verifyResult.Success)
             throw new IdentityValidationException("OTP verification failed.");
@@ -69,7 +68,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         if (challenge is null)
             throw new IdentityValidationException("OTP challenge not found.");
         IdentityUser? user = null;
-        if (challenge.Purpose != OtpPurpose.LoginMfa)
+        if (challenge.Purpose != SenderPurpose.LoginMfa)
             throw new IdentityValidationException("OTP challenge is not for login.");
         if (challenge.Destination.Contains("@"))
         {
@@ -117,10 +116,10 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
     public async Task<OtpChallengeResult> BeginAddEmailAsync(Guid userId, string newEmail, CancellationToken ct = default)
     {
         if (userId == Guid.Empty) throw new IdentityValidationException("UserId is required.");
-        if (string.IsNullOrWhiteSpace(newEmail)) throw new IdentityValidationException("New email is required.");
-        var (channel, normalized) = NormalizeDestination(newEmail);
-        if (channel != OtpChannel.Email) throw new IdentityValidationException("Destination must be a valid email.");
-        var request = new OtpChallengeRequest(channel, normalized, OtpPurpose.EmailVerification, null);
+        IdentityUtils.ThrowIfNullOrWhiteSpace(newEmail, nameof(newEmail));
+        var (channel, normalized) = IdentityUtils.NormalizeDestination(newEmail);
+        if (channel != SenderChannel.Email) throw new IdentityValidationException("Destination must be a valid email.");
+        var request = new OtpChallengeRequest(channel, normalized, SenderPurpose.EmailVerification, null);
         return await _otpService.CreateChallengeAsync(request, ct);
     }
 
@@ -128,9 +127,9 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
     public async Task<bool> CompleteAddEmailAsync(Guid userId, string challengeId, string code, string newEmail, CancellationToken ct = default)
     {
         if (userId == Guid.Empty) throw new IdentityValidationException("UserId is required.");
-        if (string.IsNullOrWhiteSpace(challengeId)) throw new IdentityValidationException("ChallengeId is required.");
-        if (string.IsNullOrWhiteSpace(code)) throw new IdentityValidationException("Code is required.");
-        if (string.IsNullOrWhiteSpace(newEmail)) throw new IdentityValidationException("New email is required.");
+        IdentityUtils.ThrowIfNullOrWhiteSpace(challengeId, nameof(challengeId));
+        IdentityUtils.ThrowIfNullOrWhiteSpace(code, nameof(code));
+        IdentityUtils.ThrowIfNullOrWhiteSpace(newEmail, nameof(newEmail));
         var verifyResult = await _otpService.VerifyAsync(new OtpVerifyRequest(challengeId, code), ct);
         if (!verifyResult.Success) throw new IdentityValidationException("OTP verification failed.");
         await _users.UpdateEmailAsync(userId, newEmail, ct);
@@ -141,10 +140,10 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
     public async Task<OtpChallengeResult> BeginAddPhoneAsync(Guid userId, string newPhone, CancellationToken ct = default)
     {
         if (userId == Guid.Empty) throw new IdentityValidationException("UserId is required.");
-        if (string.IsNullOrWhiteSpace(newPhone)) throw new IdentityValidationException("New phone is required.");
-        var (channel, normalized) = NormalizeDestination(newPhone);
-        if (channel != OtpChannel.Sms) throw new IdentityValidationException("Destination must be a valid phone number.");
-        var request = new OtpChallengeRequest(channel, normalized, OtpPurpose.PhoneVerification, null);
+        IdentityUtils.ThrowIfNullOrWhiteSpace(newPhone, nameof(newPhone));
+        var (channel, normalized) = IdentityUtils.NormalizeDestination(newPhone);
+        if (channel != SenderChannel.Sms) throw new IdentityValidationException("Destination must be a valid phone number.");
+        var request = new OtpChallengeRequest(channel, normalized, SenderPurpose.PhoneVerification, null);
         return await _otpService.CreateChallengeAsync(request, ct);
     }
 
@@ -152,39 +151,16 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
     public async Task<bool> CompleteAddPhoneAsync(Guid userId, string challengeId, string code, string newPhone, CancellationToken ct = default)
     {
         if (userId == Guid.Empty) throw new IdentityValidationException("UserId is required.");
-        if (string.IsNullOrWhiteSpace(challengeId)) throw new IdentityValidationException("ChallengeId is required.");
-        if (string.IsNullOrWhiteSpace(code)) throw new IdentityValidationException("Code is required.");
-        if (string.IsNullOrWhiteSpace(newPhone)) throw new IdentityValidationException("New phone is required.");
+        IdentityUtils.ThrowIfNullOrWhiteSpace(challengeId, nameof(challengeId));
+        IdentityUtils.ThrowIfNullOrWhiteSpace(code, nameof(code));
+        IdentityUtils.ThrowIfNullOrWhiteSpace(newPhone, nameof(newPhone));
         var verifyResult = await _otpService.VerifyAsync(new OtpVerifyRequest(challengeId, code), ct);
         if (!verifyResult.Success) throw new IdentityValidationException("OTP verification failed.");
         await _users.UpdatePhoneAsync(userId, newPhone, ct);
         return true;
     }
 
-// Helper for normalization and channel detection. Move to utility later.
-private static (OtpChannel channel, string normalized) NormalizeDestination(string destination)
-    {
-        destination = destination.Trim();
-        var emailRegex = new System.Text.RegularExpressions.Regex(@"^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        var phoneRegex = new System.Text.RegularExpressions.Regex(@"^\+?[0-9 .-]+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        if (emailRegex.IsMatch(destination))
-        {
-            return (OtpChannel.Email, destination.ToUpperInvariant());
-        }
-        else if (phoneRegex.IsMatch(destination))
-        {
-            var normalized = destination.Replace("-", "").Replace(".", "").Replace(" ", "");
-            if (normalized.StartsWith("+01"))
-                normalized = normalized.Substring(3);
-            else if (normalized.StartsWith("+"))
-                normalized = normalized.Substring(1);
-            return (OtpChannel.Sms, normalized);
-        }
-        else
-        {
-            throw new IdentityValidationException("Destination must be a valid email or phone number.");
-        }
-    }
+
 
     private static List<ClaimItem> BuildBaseClaims(Guid userId, string? email)
     {
