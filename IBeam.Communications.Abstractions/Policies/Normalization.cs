@@ -1,6 +1,6 @@
 ﻿using IBeam.Communications.Abstractions;
 
-namespace IBeam.Communications.Core.Policies;
+namespace IBeam.Communications.Abstractions.Policies;
 
 public static class Normalization
 {

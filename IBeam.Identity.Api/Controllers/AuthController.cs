@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using IBeam.Identity.Abstractions.Interfaces;
+using IBeam.Identity.Abstractions.Models;
 
 namespace IBeam.Identity.Api.Controllers;
 
@@ -8,58 +10,35 @@ namespace IBeam.Identity.Api.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private readonly IAuthService _auth;
+    private readonly IIdentityOtpAuthService _otpAuth;
 
-    public AuthController(IAuthService auth) => _auth = auth;
-
-    [HttpPost("register")]
-    public async Task<IActionResult> Register(RegisterRequest req)
+    public AuthController(IIdentityOtpAuthService otpAuth)
     {
-        await _auth.RegisterAsync(req);
-        return Ok();
+
+        _otpAuth = otpAuth;
     }
 
-    [HttpPost("password-login")]
-    public async Task<IActionResult> PasswordLogin(PasswordLoginRequest req)
+   
+    [HttpPost("register-otp")]
+    public async Task<IActionResult> RegisterWithOtp([FromBody] RegisterUserOtpRequest req, CancellationToken ct)
     {
-        var result = await _auth.PasswordLoginAsync(req);
+        // RegisterUserOtpRequest should have a Destination (email or phone)
+        var result = await _otpAuth.RegisterUserViaOtpAsync(req.Destination, req.TenantId, ct);
         return Ok(result);
     }
 
-    [HttpPost("select-tenant")]
-    [Authorize]
-    public async Task<IActionResult> SelectTenant(SelectTenantRequest req)
+    [HttpGet()]
+    public async Task<IActionResult> PingAuth(CancellationToken ct)
     {
-        var userId =
-            User.FindFirstValue(ClaimTypes.NameIdentifier) ??
-            User.FindFirstValue("sub");
-
-        if (string.IsNullOrWhiteSpace(userId))
-            return Unauthorized();
-
-        var token = await _auth.SelectTenantAsync(userId, req);
-        return Ok(token);
+        // RegisterUserOtpRequest should have a Destination (email or phone)
+        var result = true;
+        return Ok(result);
     }
-
-    [HttpPost("switch-tenant")]
-    [Authorize]
-    public async Task<IActionResult> SwitchTenant(SelectTenantRequest req, CancellationToken ct)
-    {
-        var userId =
-            User.FindFirstValue(ClaimTypes.NameIdentifier) ??
-            User.FindFirstValue("sub");
-
-        if (string.IsNullOrWhiteSpace(userId))
-            return Unauthorized();
-
-        // Optional: prevent using a pre-tenant token to switch tenants
-        if (User.FindFirstValue("pt") == "1")
-            return Forbid();
-
-        var token = await _auth.SwitchTenantAsync(userId, req, ct);
-        return Ok(token);
-    }
-
-
-    
 }
+
+        // You may need to define this DTO if not already present:
+        public class RegisterUserOtpRequest
+        {
+            public string Destination { get; set; } = string.Empty;
+            public Guid? TenantId { get; set; }
+        }

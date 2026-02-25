@@ -1,9 +1,8 @@
 using Azure;
 using Azure.Communication.Email;
 using IBeam.Communications.Abstractions;
-using IBeam.Communications.Core.Options;
-using IBeam.Communications.Core.Policies;
-using IBeam.Communications.Core.Validation;
+using IBeam.Communications.Abstractions.Policies;
+using IBeam.Communications.Abstractions.Validation;
 using Microsoft.Extensions.Options;
 using EmailMessage = IBeam.Communications.Abstractions.EmailMessage;
 
@@ -13,11 +12,11 @@ public sealed class AzureCommunicationsEmailService : IEmailService
 {
     private const string ProviderName = "AzureCommunicationServices";
     private readonly EmailClient _client;
-    private readonly EmailDefaultsOptions _defaults;
+    private readonly EmailOptions _defaults;
 
     public AzureCommunicationsEmailService(
         IOptions<AzureCommunicationsEmailOptions> providerOptions,
-        IOptions<EmailDefaultsOptions> defaults)
+        IOptions<EmailOptions> defaults)
     {
         var opt = providerOptions?.Value ?? throw new ArgumentNullException(nameof(providerOptions));
         _defaults = defaults?.Value ?? throw new ArgumentNullException(nameof(defaults));
@@ -28,7 +27,7 @@ public sealed class AzureCommunicationsEmailService : IEmailService
         _client = new EmailClient(opt.ConnectionString);
     }
 
-    public async Task SendAsync(EmailMessage message, EmailSendOptions? options = null, CancellationToken ct = default)
+    public async Task SendAsync(EmailMessage message, EmailOptions? options = null, CancellationToken ct = default)
     {
         EmailMessageValidator.Validate(message);
 

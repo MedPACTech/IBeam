@@ -1,13 +1,15 @@
+using IBeam.Communications.Abstractions.Options;
+
 namespace IBeam.Communications.Abstractions;
 
 public interface ISmsService
 {
-    Task SendAsync(SmsMessage message, SmsSendOptions? options = null, CancellationToken ct = default);
+    Task SendAsync(SmsMessage message, SmsOptions? options = null, CancellationToken ct = default);
 
     async Task SendAsync(
         string to,
         string body,
-        SmsSendOptions? options = null,
+        SmsOptions? options = null,
         CancellationToken ct = default)
     {
         var message = new SmsMessage

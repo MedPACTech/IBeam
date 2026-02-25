@@ -1,6 +1,6 @@
 ﻿using IBeam.Communications.Abstractions;
 
-namespace IBeam.Communications.Core.Validation;
+namespace IBeam.Communications.Abstractions.Validation;
 
 public static class EmailMessageValidator
 {
