@@ -28,7 +28,9 @@ internal sealed class AzureTableIdentitySchemaHostedService : IHostedService
         try
         {
             using var scope = _serviceProvider.CreateScope();
+            _logger.LogInformation("DI scope created.");
             var schemaManager = scope.ServiceProvider.GetRequiredService<IIdentitySchemaManager>();
+            _logger.LogInformation("IIdentitySchemaManager resolved.");
 
             _logger.LogInformation("Checking AzureTable identity schema status...");
 
@@ -54,9 +56,7 @@ internal sealed class AzureTableIdentitySchemaHostedService : IHostedService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "AzureTable identity schema ensure failed.");
-
-            // Fail fast: if schema can't be ensured, running the app will produce confusing runtime errors.
+            _logger.LogError(ex, "Error during DI scope or schema manager resolution.");
             throw;
         }
     }
