@@ -1,14 +1,18 @@
 ﻿using IBeam.Communications.Abstractions;
-using IBeam.Communications.Core.Options;
+using IBeam.Communications.Abstractions.Options;
 
-namespace IBeam.Communications.Core.Policies;
+namespace IBeam.Communications.Abstractions.Policies;
 
 public static class SenderResolution
 {
+
+    //TODO: Currently we provide no override options for SMS or Email, but we may want to in the future,
+
+
     public static (string FromAddress, string? FromName) ResolveEmailFrom(
-        EmailSendOptions? options,
+        EmailOptions? options,
         EmailMessage message,
-        EmailDefaultsOptions defaults)
+        EmailOptions defaults)
     {
         var fromAddress =
             FirstNonEmpty(options?.FromAddress) ??
@@ -27,9 +31,9 @@ public static class SenderResolution
     }
 
     public static string ResolveSmsFrom(
-        SmsSendOptions? options,
+        SmsOptions? options,
         SmsMessage message,
-        SmsDefaultsOptions defaults)
+        SmsOptions defaults)
     {
         var from =
             FirstNonEmpty(options?.FromPhoneNumber) ??

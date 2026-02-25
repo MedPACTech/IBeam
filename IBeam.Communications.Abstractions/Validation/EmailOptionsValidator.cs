@@ -1,11 +1,10 @@
-﻿using IBeam.Communications.Core.Options;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 
-namespace IBeam.Communications.Core.Validation;
+namespace IBeam.Communications.Abstractions.Validation;
 
-public sealed class EmailDefaultsOptionsValidator : IValidateOptions<EmailDefaultsOptions>
+public sealed class EmailOptionsValidator : IValidateOptions<EmailOptions>
 {
-    public ValidateOptionsResult Validate(string? name, EmailDefaultsOptions options)
+    public ValidateOptionsResult Validate(string? name, EmailOptions options)
     {
         if (options is null) return ValidateOptionsResult.Fail("Email defaults options are missing.");
 

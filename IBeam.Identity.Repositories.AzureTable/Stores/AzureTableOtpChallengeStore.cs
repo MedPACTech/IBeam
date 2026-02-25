@@ -29,6 +29,7 @@ internal sealed class AzureTableOtpChallengeStore : IOtpChallengeStore
         try
         {
             var table = GetOtpTable();
+            await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false); // <-- Ensure table exists
             var entity = ToEntity(record);
 
             await table.UpsertEntityAsync(entity, TableUpdateMode.Replace, ct).ConfigureAwait(false);

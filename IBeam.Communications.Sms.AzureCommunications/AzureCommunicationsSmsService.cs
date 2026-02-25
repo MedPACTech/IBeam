@@ -1,11 +1,10 @@
 ﻿using Azure;
 using Azure.Communication.Sms;
 using IBeam.Communications.Abstractions;
-using IBeam.Communications.Core.Options;
-using IBeam.Communications.Core.Policies;
-using IBeam.Communications.Core.Validation;
+using IBeam.Communications.Abstractions.Options;
+using IBeam.Communications.Abstractions.Policies;
+using IBeam.Communications.Abstractions.Validation;
 using Microsoft.Extensions.Options;
-using SmsSendOptions = IBeam.Communications.Abstractions.SmsSendOptions; //TODO perhaps rename to avoid conflict with Azure.Communication.Sms.SmsSendOptions
 
 namespace IBeam.Communications.Sms.AzureCommunications;
 
@@ -13,11 +12,11 @@ public sealed class AzureCommunicationsSmsService : ISmsService
 {
     private const string ProviderName = "AzureCommunicationServices";
     private readonly SmsClient _client;
-    private readonly SmsDefaultsOptions _defaults;
+    private readonly SmsOptions _defaults;
 
     public AzureCommunicationsSmsService(
         IOptions<AzureCommunicationsSmsOptions> providerOptions,
-        IOptions<SmsDefaultsOptions> defaults)
+        IOptions<SmsOptions> defaults)
     {
         var opt = providerOptions?.Value ?? throw new ArgumentNullException(nameof(providerOptions));
         _defaults = defaults?.Value ?? throw new ArgumentNullException(nameof(defaults));
@@ -28,7 +27,7 @@ public sealed class AzureCommunicationsSmsService : ISmsService
         _client = new SmsClient(opt.ConnectionString);
     }
 
-    public async Task SendAsync(SmsMessage message, SmsSendOptions? options = null, CancellationToken ct = default)
+    public async Task SendAsync(SmsMessage message, SmsOptions? options = null, CancellationToken ct = default)
     {
         SmsMessageValidator.Validate(message);
 

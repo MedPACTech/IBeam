@@ -1,11 +1,11 @@
-﻿using IBeam.Communications.Core.Options;
+﻿using IBeam.Communications.Abstractions.Options;
 using Microsoft.Extensions.Options;
 
-namespace IBeam.Communications.Core.Validation;
+namespace IBeam.Communications.Abstractions.Validation;
 
-public sealed class SmsDefaultsOptionsValidator : IValidateOptions<SmsDefaultsOptions>
+public sealed class SmsOptionsValidator : IValidateOptions<SmsOptions>
 {
-    public ValidateOptionsResult Validate(string? name, SmsDefaultsOptions options)
+    public ValidateOptionsResult Validate(string? name, SmsOptions options)
     {
         if (options is null) return ValidateOptionsResult.Fail("Sms defaults options are missing.");
 
