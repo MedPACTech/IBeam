@@ -6,7 +6,7 @@ namespace IBeam.Communications.Sms.AzureCommunications;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddIBeamAzureCommunicationsSms(
+    public static IServiceCollection AddIBeamCommunicationsSmsAzure(
         this IServiceCollection services,
         IConfiguration configuration)
     {

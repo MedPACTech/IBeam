@@ -7,6 +7,6 @@ public interface ITemplatedEmailService
         string subject,
         string templateName,
         object? model = null,
-        EmailSendOptions? options = null,
+        EmailOptions? options = null,
         CancellationToken ct = default);
 }

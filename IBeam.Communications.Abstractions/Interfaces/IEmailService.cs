@@ -2,14 +2,14 @@
 
 public interface IEmailService
 {
-    Task SendAsync(EmailMessage message, EmailSendOptions? options = null, CancellationToken ct = default);
+    Task SendAsync(EmailMessage message, EmailOptions? options = null, CancellationToken ct = default);
 
     async Task SendAsync(
         string to,
         string subject,
         string? htmlBody = null,
         string? textBody = null,
-        EmailSendOptions? options = null,
+        EmailOptions? options = null,
         CancellationToken ct = default)
     {
         var message = new EmailMessage

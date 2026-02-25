@@ -1,6 +1,7 @@
 using IBeam.Identity.Abstractions.Interfaces;
 using IBeam.Identity.Abstractions.Models;
 using IBeam.Communications.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IBeam.Identity.Services.Otp;
 
@@ -10,14 +11,11 @@ public class IdentityCommunicationAdapter : IIdentityCommunicationSender
     private readonly ISmsService? _smsService;
     private readonly ITemplatedEmailService? _templatedEmailService;
 
-    public IdentityCommunicationAdapter(
-        IEmailService? emailService,
-        ISmsService? smsService,
-        ITemplatedEmailService? templatedEmailService)
+    public IdentityCommunicationAdapter(IServiceProvider sp)
     {
-        _emailService = emailService;
-        _smsService = smsService;
-        _templatedEmailService = templatedEmailService;
+        _emailService = sp.GetService<IEmailService>();
+        _smsService = sp.GetService<ISmsService>();
+        _templatedEmailService = sp.GetService<ITemplatedEmailService>();
     }
 
     public async Task SendAsync(IdentitySenderMessage message, CancellationToken ct = default)

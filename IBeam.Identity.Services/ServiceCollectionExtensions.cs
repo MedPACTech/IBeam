@@ -9,7 +9,7 @@ using IBeam.Identity.Abstractions.Options;
 
 namespace IBeam.Identity.Services;
 
-public static class IBeamIdentityServiceCollectionExtensions
+public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Registers IBeam Identity core services and options for DI.
