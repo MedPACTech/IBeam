@@ -32,9 +32,18 @@ internal sealed class AzureTableIdentitySchemaHostedService : IHostedService
 
             _logger.LogInformation("Checking AzureTable identity schema status...");
 
-            await Task.WhenAny(
-                schemaManager.ApplyAsync(cancellationToken),
-                Task.Delay(TimeSpan.FromSeconds(30), cancellationToken));
+            var applyTask = schemaManager.ApplyAsync(cancellationToken);
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(30)); // No cancellation token here
+
+            var completedTask = await Task.WhenAny(applyTask, timeoutTask);
+
+            if (completedTask == timeoutTask)
+            {
+                _logger.LogError("AzureTable identity schema ensure timed out after 30 seconds.");
+                throw new TimeoutException("AzureTable identity schema ensure timed out.");
+            }
+
+            await applyTask; // Propagate exceptions if any
 
             _logger.LogInformation("AzureTable identity schema is ready.");
         }
