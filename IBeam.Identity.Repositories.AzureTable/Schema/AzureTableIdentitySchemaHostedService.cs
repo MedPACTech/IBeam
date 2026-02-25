@@ -30,7 +30,11 @@ internal sealed class AzureTableIdentitySchemaHostedService : IHostedService
             using var scope = _serviceProvider.CreateScope();
             var schemaManager = scope.ServiceProvider.GetRequiredService<IIdentitySchemaManager>();
 
-            await schemaManager.ApplyAsync(cancellationToken).ConfigureAwait(false);
+            _logger.LogInformation("Checking AzureTable identity schema status...");
+
+            await Task.WhenAny(
+                schemaManager.ApplyAsync(cancellationToken),
+                Task.Delay(TimeSpan.FromSeconds(30), cancellationToken));
 
             _logger.LogInformation("AzureTable identity schema is ready.");
         }
