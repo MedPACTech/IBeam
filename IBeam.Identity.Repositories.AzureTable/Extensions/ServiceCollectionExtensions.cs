@@ -82,8 +82,8 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
             services.AddScoped<IOtpChallengeStore, AzureTableOtpChallengeStore>();
 
             // Schema manager + startup ensure
-            services.AddScoped<IIdentitySchemaManager, AzureTableIdentitySchemaManager>();
-            services.AddHostedService<AzureTableIdentitySchemaHostedService>();
+            // services.AddScoped<IIdentitySchemaManager, AzureTableIdentitySchemaManager>();
+            // services.AddHostedService<AzureTableIdentitySchemaHostedService>();
 
             return services;
         }
