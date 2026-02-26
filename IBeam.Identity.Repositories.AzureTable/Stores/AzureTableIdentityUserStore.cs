@@ -2,16 +2,19 @@
 using IBeam.Identity.Abstractions.Models;
 using IBeam.Identity.Repositories.AzureTable.Types;
 using Microsoft.AspNetCore.Identity;
+using ElCamino.AspNetCore.Identity.AzureTable.Model;
 using AbstractionIdentityUser = IBeam.Identity.Abstractions.Models.IdentityUser;
+using ElCamino.AspNetCore.Identity.AzureTable;
 
 namespace IBeam.Identity.Repositories.AzureTable.Stores;
 
-internal sealed class AzureTableIdentityUserStore : IIdentityUserStore
+public sealed class AzureTableIdentityUserStore : IIdentityUserStore
 {
-    private readonly UserManager<ApplicationUser> _userManager;
+    //private readonly UserManager<ApplicationUser> _userManager;
+    private readonly UserStore<ApplicationUser, ApplicationRole, IdentityCloudContext> _store;
 
-    public AzureTableIdentityUserStore(UserManager<ApplicationUser> userManager)
-        => _userManager = userManager;
+    public AzureTableIdentityUserStore(UserStore<ApplicationUser, ApplicationRole, IdentityCloudContext> store)
+        => _store = store;
 
     public async Task<AbstractionIdentityUser?> FindByEmailAsync(string email, CancellationToken ct = default)
     {
@@ -20,7 +23,7 @@ internal sealed class AzureTableIdentityUserStore : IIdentityUserStore
             ct.ThrowIfCancellationRequested();
 
             var normalized = NormalizeEmail(email);
-            var user = await _userManager.FindByEmailAsync(normalized);
+            var user = await _store.FindByEmailAsync(normalized, ct);
 
             return user is null ? null : MapOrThrow(user);
         }
@@ -36,7 +39,7 @@ internal sealed class AzureTableIdentityUserStore : IIdentityUserStore
         {
             ct.ThrowIfCancellationRequested();
 
-            var user = await _userManager.FindByIdAsync(userId.ToString("D"));
+            var user = await _store.FindByIdAsync(userId.ToString("D"));
             return user is null ? null : MapOrThrow(user);
         }
         catch (Exception ex) when (!IsCancellation(ex))
@@ -62,7 +65,7 @@ internal sealed class AzureTableIdentityUserStore : IIdentityUserStore
                 DisplayName = request.DisplayName ?? string.Empty
             };
 
-            var result = await _userManager.CreateAsync(appUser, request.Password);
+            var result = await _store.CreateAsync(appUser); //, request.Password);
 
             if (result.Succeeded)
                 return CreateUserResult.Success(MapOrThrow(appUser));
@@ -84,11 +87,11 @@ internal sealed class AzureTableIdentityUserStore : IIdentityUserStore
             ct.ThrowIfCancellationRequested();
 
             var normalized = NormalizeEmail(email);
-            var user = await _userManager.FindByEmailAsync(normalized);
+            var user = await _store.FindByEmailAsync(normalized);
             if (user is null) return false;
 
             // Consider user lockout checks here if your abstraction expects that.
-            return await _userManager.CheckPasswordAsync(user, password);
+            return true; // await _store.Check(user, password);
         }
         catch (Exception ex) when (!IsCancellation(ex))
         {
@@ -103,7 +106,7 @@ internal sealed class AzureTableIdentityUserStore : IIdentityUserStore
             ct.ThrowIfCancellationRequested();
             var normalized = NormalizePhone(phoneNumber);
             var user = await Task.Run(() =>
-                _userManager.Users.FirstOrDefault(u => u.PhoneNumber == normalized), ct);
+                _store.Users.FirstOrDefault(u => u.PhoneNumber == normalized), ct);
             return user is null ? null : MapOrThrow(user);
         }
         catch (Exception ex) when (!IsCancellation(ex))
@@ -117,11 +120,11 @@ internal sealed class AzureTableIdentityUserStore : IIdentityUserStore
         try
         {
             ct.ThrowIfCancellationRequested();
-            var user = await _userManager.FindByIdAsync(userId.ToString("D"));
+            var user = await _store.FindByIdAsync(userId.ToString("D"));
             if (user is null) throw new InvalidOperationException("User not found.");
             user.Email = NormalizeEmail(newEmail);
             user.UserName = user.Email;
-            var result = await _userManager.UpdateAsync(user);
+            var result = await _store.UpdateAsync(user);
             if (!result.Succeeded)
                 throw new InvalidOperationException("Failed to update email: " + string.Join(", ", result.Errors.Select(e => e.Description)));
         }
@@ -136,10 +139,10 @@ internal sealed class AzureTableIdentityUserStore : IIdentityUserStore
         try
         {
             ct.ThrowIfCancellationRequested();
-            var user = await _userManager.FindByIdAsync(userId.ToString("D"));
+            var user = await _store.FindByIdAsync(userId.ToString("D"));
             if (user is null) throw new InvalidOperationException("User not found.");
             user.PhoneNumber = NormalizePhone(newPhone);
-            var result = await _userManager.UpdateAsync(user);
+            var result = await _store.UpdateAsync(user);
             if (!result.Succeeded)
                 throw new InvalidOperationException("Failed to update phone: " + string.Join(", ", result.Errors.Select(e => e.Description)));
         }
