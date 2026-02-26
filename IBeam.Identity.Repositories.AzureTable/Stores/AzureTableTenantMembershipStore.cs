@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace IBeam.Identity.Repositories.AzureTable.Stores;
 
-internal sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
+public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
 {
     private readonly TableServiceClient _serviceClient;
     private readonly AzureTableIdentityOptions _opts;

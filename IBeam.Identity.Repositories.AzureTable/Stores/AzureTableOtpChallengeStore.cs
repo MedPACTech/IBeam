@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace IBeam.Identity.Repositories.AzureTable.Stores;
 
-internal sealed class AzureTableOtpChallengeStore : IOtpChallengeStore
+public sealed class AzureTableOtpChallengeStore : IOtpChallengeStore
 {
     private readonly TableServiceClient _serviceClient;
     private readonly AzureTableIdentityOptions _opts;
