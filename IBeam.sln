@@ -55,8 +55,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Communications.Email.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Communications.Sms.AzureCommunications", "IBeam.Communications.Sms.AzureCommunications\IBeam.Communications.Sms.AzureCommunications.csproj", "{9A67A5C4-577D-4D75-A359-F3FBB6AB26DF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Communications.Core", "IBeam.Communications.Core\IBeam.Communications.Core.csproj", "{DC1318AC-1A93-4791-BA6C-7715A070599F}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{00DDA1C4-47B3-428A-8D9D-45B8AC00699B}"
 	ProjectSection(SolutionItems) = preProject
 		Directory.Build.Props = Directory.Build.Props
@@ -64,6 +62,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Identity.Services", "IBeam.Identity.Services\IBeam.Identity.Services.csproj", "{4939B360-B54A-B261-9924-E33BCD68379E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestBedApp", "TestBedApp\TestBedApp.csproj", "{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -375,18 +375,6 @@ Global
 		{9A67A5C4-577D-4D75-A359-F3FBB6AB26DF}.Release|x64.Build.0 = Release|Any CPU
 		{9A67A5C4-577D-4D75-A359-F3FBB6AB26DF}.Release|x86.ActiveCfg = Release|Any CPU
 		{9A67A5C4-577D-4D75-A359-F3FBB6AB26DF}.Release|x86.Build.0 = Release|Any CPU
-		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Debug|x64.Build.0 = Debug|Any CPU
-		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Debug|x86.Build.0 = Debug|Any CPU
-		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Release|Any CPU.Build.0 = Release|Any CPU
-		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Release|x64.ActiveCfg = Release|Any CPU
-		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Release|x64.Build.0 = Release|Any CPU
-		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Release|x86.ActiveCfg = Release|Any CPU
-		{DC1318AC-1A93-4791-BA6C-7715A070599F}.Release|x86.Build.0 = Release|Any CPU
 		{4939B360-B54A-B261-9924-E33BCD68379E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4939B360-B54A-B261-9924-E33BCD68379E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4939B360-B54A-B261-9924-E33BCD68379E}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -399,6 +387,18 @@ Global
 		{4939B360-B54A-B261-9924-E33BCD68379E}.Release|x64.Build.0 = Release|Any CPU
 		{4939B360-B54A-B261-9924-E33BCD68379E}.Release|x86.ActiveCfg = Release|Any CPU
 		{4939B360-B54A-B261-9924-E33BCD68379E}.Release|x86.Build.0 = Release|Any CPU
+		{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}.Debug|x64.Build.0 = Debug|Any CPU
+		{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}.Debug|x86.Build.0 = Debug|Any CPU
+		{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}.Release|x64.ActiveCfg = Release|Any CPU
+		{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}.Release|x64.Build.0 = Release|Any CPU
+		{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}.Release|x86.ActiveCfg = Release|Any CPU
+		{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

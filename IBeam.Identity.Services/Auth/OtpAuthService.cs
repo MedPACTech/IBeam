@@ -8,18 +8,18 @@ namespace IBeam.Identity.Services.Auth;
 
 public sealed class OtpAuthService : IIdentityOtpAuthService
     {
-   // private readonly IIdentityUserStore _users;
+    private readonly IIdentityUserStore _users;
     //private readonly ITenantMembershipStore _tenants;
    // private readonly ITokenService _tokens;
     private readonly IOtpService _otpService;
     //private readonly IOtpChallengeStore _otpChallengeStore;
 
     public OtpAuthService(
-        
+        IIdentityUserStore users,
         IOtpService otpService
        )
     {
-        //_users = users ?? throw new ArgumentNullException(nameof(users));
+        _users = users ?? throw new ArgumentNullException(nameof(users));
         //_tenants = tenants ?? throw new ArgumentNullException(nameof(tenants));
        // _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
         _otpService = otpService ?? throw new ArgumentNullException(nameof(otpService));
@@ -34,18 +34,18 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         return await _otpService.CreateChallengeAsync(request, ct);
     }
 
-    //public async Task<CreateUserResult> CompleteUserRegistrationViaOtpAsync(string challengeId, string code, string email, string? displayName = null, CancellationToken ct = default)
-    //{
-    //    IdentityUtils.ThrowIfNullOrWhiteSpace(challengeId, nameof(challengeId));
-    //    IdentityUtils.ThrowIfNullOrWhiteSpace(code, nameof(code));
-    //    IdentityUtils.ThrowIfNullOrWhiteSpace(email, nameof(email));
-    //    var verifyResult = await _otpService.VerifyAsync(new OtpVerifyRequest(challengeId, code), ct);
-    //    if (!verifyResult.Success)
-    //        throw new IdentityValidationException("OTP verification failed.");
-    //    var userRequest = new RegisterUserRequest(email, string.Empty, displayName);
-    //    var result = await _users.CreateAsync(userRequest, ct);
-    //    return result;
-    //}
+    public async Task<CreateUserResult> CompleteUserRegistrationViaOtpAsync(string challengeId, string code, string email, string? displayName = null, CancellationToken ct = default)
+    {
+        IdentityUtils.ThrowIfNullOrWhiteSpace(challengeId, nameof(challengeId));
+        IdentityUtils.ThrowIfNullOrWhiteSpace(code, nameof(code));
+        IdentityUtils.ThrowIfNullOrWhiteSpace(email, nameof(email));
+        var verifyResult = await _otpService.VerifyAsync(new OtpVerifyRequest(challengeId, code), ct);
+        if (!verifyResult.Success)
+            throw new IdentityValidationException("OTP verification failed.");
+        var userRequest = new RegisterUserRequest(email, string.Empty, displayName);
+        var result = await _users.CreateAsync(userRequest, ct);
+        return result;
+    }
 
     //public async Task<OtpChallengeResult> BeginOtpLoginAsync(string destination, CancellationToken ct = default)
     //{

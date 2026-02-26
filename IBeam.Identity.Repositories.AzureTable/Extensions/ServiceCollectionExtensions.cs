@@ -34,13 +34,13 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
                 .ValidateOnStart();
 
             // Singletons built from options (no manual Get<T>(), no duplication)
-            services.AddSingleton(sp =>
+            services.AddSingleton<TableServiceClient>(sp =>
             {
                 var opts = sp.GetRequiredService<IOptions<AzureTableIdentityOptions>>().Value;
                 return new TableServiceClient(opts.StorageConnectionString);
             });
 
-            services.AddSingleton(sp =>
+            services.AddSingleton<IdentityConfiguration>(sp =>
             {
                 var opts = sp.GetRequiredService<IOptions<AzureTableIdentityOptions>>().Value;
                 return new IdentityConfiguration
@@ -53,7 +53,7 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
             });
 
             // ElCamino context (scoped)
-            services.AddScoped(sp =>
+            services.AddScoped<IdentityCloudContext>(sp =>
             {
                 var cfg = sp.GetRequiredService<IdentityConfiguration>();
                 var client = sp.GetRequiredService<TableServiceClient>();
@@ -73,13 +73,13 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
             // Hook ElCamino Azure Table stores
             // NOTE: depending on ElCamino version, this may need to use the captured singleton instances.
             identityBuilder.AddAzureTableStores<IdentityCloudContext>(
-                () => services.BuildServiceProvider().GetRequiredService<IdentityConfiguration>(),   // <- if this is required by your ElCamino overloads, we will adjust
-                () => services.BuildServiceProvider().GetRequiredService<TableServiceClient>());    // <- see note above
+                sp => sp.GetRequiredService<IdentityConfiguration>(),
+                sp => sp.GetRequiredService<TableServiceClient>());
 
             // Abstractions stores (scoped)
-            services.AddScoped<IIdentityUserStore, AzureTableIdentityUserStore>();
-            services.AddScoped<ITenantMembershipStore, AzureTableTenantMembershipStore>();
-            services.AddScoped<IOtpChallengeStore, AzureTableOtpChallengeStore>();
+            //services.AddScoped<IIdentityUserStore, AzureTableIdentityUserStore>();
+           // services.AddScoped<ITenantMembershipStore, AzureTableTenantMembershipStore>();
+           // services.AddScoped<IOtpChallengeStore, AzureTableOtpChallengeStore>();
 
             // Schema manager + startup ensure
             // services.AddScoped<IIdentitySchemaManager, AzureTableIdentitySchemaManager>();

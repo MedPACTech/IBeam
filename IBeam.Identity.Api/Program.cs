@@ -3,12 +3,18 @@ using IBeam.Communications.Sms.AzureCommunications;
 using IBeam.Identity.Abstractions.Interfaces;
 using IBeam.Identity.Abstractions.Options;
 using IBeam.Identity.Repositories.AzureTable.Extensions;
+using IBeam.Identity.Repositories.AzureTable.Tenants;
+using IBeam.Identity.Repositories.AzureTable.Types;
+using IBeam.Identity.Repositories.AzureTable.Stores;
 using IBeam.Identity.Services;
 using IBeam.Identity.Services.Otp;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using System.Text;
+using ElCamino.AspNetCore.Identity.AzureTable;
+using Microsoft.AspNet.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,13 +58,23 @@ builder.Services.AddSwaggerGen(options =>
 // Register IBeam Identity core services
 builder.Services.AddIBeamCommunications(builder.Configuration);
 
+//// Register Azure Table repository implementation
+builder.Services.AddIBeamIdentityAzureTable(builder.Configuration);
+
+//builder.Services.AddScoped<IIdentityUserStore, AzureTableIdentityUserStore>();
+
+//builder.Services.AddScoped<
+//    ElCamino.AspNetCore.Identity.AzureTable.UserStore<ApplicationUser, ApplicationRole, IdentityCloudContext>
+//   >();
+builder.Services.AddScoped<UserStore<ApplicationUser, ApplicationRole, IdentityCloudContext>>();
+builder.Services.AddScoped<IIdentityUserStore, AzureTableIdentityUserStore>();
+builder.Services.AddScoped<ITenantMembershipStore, AzureTableTenantMembershipStore>();
+builder.Services.AddScoped<IOtpChallengeStore, AzureTableOtpChallengeStore>();
+
 //// Register All Auth services
 builder.Services.AddIBeamIdentityServices(builder.Configuration);
 
 ////builder.Services.AddIBeamIdentityAuthPasswordService();
-
-//// Register Azure Table repository implementation
-builder.Services.AddIBeamIdentityAzureTable(builder.Configuration);
 
 //// Register Azure SMS provider (if using SMS for OTP)
 builder.Services.AddIBeamCommunicationsSmsAzure(builder.Configuration);
@@ -69,6 +85,7 @@ builder.Services.AddScoped<IIdentityCommunicationSender, IdentityCommunicationAd
 builder.Services.AddIBeamIdentityAuthOtpService();
 //// Register Data Protection (required for token providers)
 builder.Services.AddDataProtection();
+
 
 // JWT validation (matches your JwtTokenService settings)
 var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
@@ -94,6 +111,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var userStore = scope.ServiceProvider.GetRequiredService<UserStore<ApplicationUser, ApplicationRole, IdentityCloudContext>>();
+    //You can now use userManager here for testing / seeding
+}
 
 if (app.Environment.IsDevelopment())
 {

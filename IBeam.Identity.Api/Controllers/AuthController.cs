@@ -27,6 +27,15 @@ public class AuthController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("register-otp/complete")]
+    public async Task<IActionResult> CompleteRegisterWithOtp([FromBody] CompleteRegisterUserOtpRequest req, CancellationToken ct)
+    {
+        // CompleteRegisterUserOtpRequest should have a Code and a Destination (email or phone)
+        var result = await _otpAuth.CompleteUserRegistrationViaOtpAsync(req.ChallengeId, req.Code, req.Destination, null, ct);
+        return Ok(result);
+    }
+
+
     [HttpGet()]
     public async Task<IActionResult> PingAuth(CancellationToken ct)
     {
@@ -42,3 +51,11 @@ public class AuthController : ControllerBase
             public string Destination { get; set; } = string.Empty;
             public Guid? TenantId { get; set; }
         }
+
+        public class CompleteRegisterUserOtpRequest
+        {
+            public string ChallengeId { get; set; } = string.Empty;
+            public string Destination { get; set; } = string.Empty;
+            public string Code { get; set; } = string.Empty;
+            public Guid? TenantId { get; set; }
+}
