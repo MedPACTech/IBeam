@@ -56,6 +56,8 @@ internal sealed class AzureTableTenantProvisioningService : ITenantProvisioningS
         {
             PartitionKey = _opts.TenantUsersPk(tenantId),   // "TEN#{tenantId}"
             RowKey = _opts.TenantUsersRk(userIdStr),        // "USR#{userId}"
+            TenantId = tenantId.ToString("D"),
+            UserId = userIdStr,
             Status = "Active",
             RolesCsv = "Owner,Admin",
             CreatedAt = now
