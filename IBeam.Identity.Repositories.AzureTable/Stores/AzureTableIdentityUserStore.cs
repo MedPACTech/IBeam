@@ -55,11 +55,16 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
             ct.ThrowIfCancellationRequested();
 
             var email = NormalizeEmail(request.Email);
+            var phone = NormalizePhone(request.PhoneNumber);
+            var userName = !string.IsNullOrWhiteSpace(email) ? email : phone;
+            if (string.IsNullOrWhiteSpace(userName))
+                throw new InvalidOperationException("Either email or phone number is required.");
 
             var appUser = new ApplicationUser
             {
-                UserName = email,
-                Email = email,
+                UserName = userName,
+                Email = string.IsNullOrWhiteSpace(email) ? null : email,
+                PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone,
 
                 // optional if your provider-internal user keeps it
                 DisplayName = request.DisplayName ?? string.Empty
@@ -152,10 +157,10 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
         }
     }
 
-    private static string NormalizeEmail(string email)
+    private static string NormalizeEmail(string? email)
         => (email ?? string.Empty).Trim().ToLowerInvariant();
 
-    private static string NormalizePhone(string phone)
+    private static string NormalizePhone(string? phone)
         => (phone ?? string.Empty).Trim();
 
     private static bool IsCancellation(Exception ex)
@@ -171,6 +176,8 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
             UserId: id,
             Email: u.Email ?? string.Empty,
             EmailConfirmed: u.EmailConfirmed,
+            PhoneNumber: u.PhoneNumber,
+            PhoneConfirmed: u.PhoneNumberConfirmed,
             DisplayName: u.DisplayName
         );
     }

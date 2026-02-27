@@ -38,9 +38,10 @@ public sealed class OtpService : IOtpService
         var now = DateTimeOffset.UtcNow;
         var expiresAt = now.AddMinutes(opts.ExpirationMinutes);
 
+        var normalizedDestination = request.Destination.Trim();
         var record = new OtpChallengeRecord(
             ChallengeId: challengeId,
-            Destination: request.Channel == SenderChannel.Email ? request.Destination.Trim() : "", // keep field if record still uses Email
+            Destination: normalizedDestination,
             Purpose: request.Purpose,
             CodeHash: HashCode(code, opts.HashSalt),
             ExpiresAt: expiresAt,
@@ -56,7 +57,7 @@ public sealed class OtpService : IOtpService
         var message = new IdentitySenderMessage
         {
             Channel = request.Channel,
-            Destination = request.Destination.Trim(),
+            Destination = normalizedDestination,
             Code = code,
             Purpose = request.Purpose,
             TenantId = request.TenantId,
