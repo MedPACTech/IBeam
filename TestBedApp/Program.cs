@@ -3,42 +3,43 @@ using ElCamino.AspNetCore.Identity.AzureTable;
 using ElCamino.AspNetCore.Identity.AzureTable.Model;
 using IBeam.Identity.Repositories.AzureTable.Options;
 using Microsoft.AspNetCore.Identity;
-
+using Microsoft.Extensions.Options;
+using System.Diagnostics;
+using ElCaminoIdentityRole = ElCamino.AspNetCore.Identity.AzureTable.Model.IdentityRole;
+using ElCaminoIdentityUser = ElCamino.AspNetCore.Identity.AzureTable.Model.IdentityUser;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add controllers
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Register Azure Table options (replace with your actual config section)
 builder.Services.AddOptions<AzureTableIdentityOptions>()
-    .Configure(o =>
+    .Bind(builder.Configuration.GetSection(AzureTableIdentityOptions.SectionName))
+    .Validate(o =>
     {
-        o.StorageConnectionString = "UseDevelopmentStorage=true"; // or your real connection string
-        // Optionally set TablePrefix, IndexTableName, etc.
-    });
+        o.Validate();
+        return true;
+    })
+    .ValidateOnStart();
 
-// Register TableServiceClient and IdentityConfiguration as singletons
-builder.Services.AddSingleton<TableServiceClient>(sp =>
-{
-    var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AzureTableIdentityOptions>>().Value;
-    return new TableServiceClient(opts.StorageConnectionString);
-});
-builder.Services.AddSingleton<IdentityConfiguration>(sp =>
-{
-    var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AzureTableIdentityOptions>>().Value;
-    return new IdentityConfiguration
-    {
-        TablePrefix = opts.TablePrefix,
-        IndexTableName = opts.IndexTableName,
-        UserTableName = opts.UserTableName,
-        RoleTableName = opts.RoleTableName,
-    };
-});
+var identityOptions = builder.Configuration
+    .GetSection(AzureTableIdentityOptions.SectionName)
+    .Get<AzureTableIdentityOptions>() ?? new AzureTableIdentityOptions();
+identityOptions.Validate();
 
-// Register IdentityCloudContext as scoped
+var identityTableClient = new TableServiceClient(identityOptions.StorageConnectionString);
+var identityConfiguration = new IdentityConfiguration
+{
+    TablePrefix = identityOptions.TablePrefix,
+    IndexTableName = identityOptions.IndexTableName,
+    UserTableName = identityOptions.UserTableName,
+    RoleTableName = identityOptions.RoleTableName,
+};
+
+builder.Services.AddSingleton(identityTableClient);
+builder.Services.AddSingleton(identityConfiguration);
+
 builder.Services.AddScoped<IdentityCloudContext>(sp =>
 {
     var cfg = sp.GetRequiredService<IdentityConfiguration>();
@@ -46,22 +47,27 @@ builder.Services.AddScoped<IdentityCloudContext>(sp =>
     return new IdentityCloudContext(cfg, client);
 });
 
-// Register ElCamino Identity
-var identityBuilder = builder.Services
-    .AddIdentityCore<ElCamino.AspNetCore.Identity.AzureTable.Model.IdentityUser>(options => { })
-    .AddRoles<ElCamino.AspNetCore.Identity.AzureTable.Model.IdentityRole>()
-    .AddSignInManager()
-    .AddDefaultTokenProviders();
+builder.Services
+    .AddIdentity<ElCaminoIdentityUser, ElCaminoIdentityRole>(options =>
+    {
+        options.User.RequireUniqueEmail = true;
+    })
+    .AddAzureTableStores<IdentityCloudContext>(
+        _ => identityConfiguration,
+        _ => identityTableClient);
 
-identityBuilder.AddAzureTableStores<IdentityCloudContext>(
-    sp => sp.GetRequiredService<IdentityConfiguration>(),
-    sp => sp.GetRequiredService<TableServiceClient>());
-
-builder.Services.AddDataProtection();
-builder.Services.AddCors();
-
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
+
+var runStartupDiags = builder.Configuration.GetValue<bool>("IBeam:Identity:RunStartupDiagnostics");
+if (runStartupDiags)
+{
+    using var scope = app.Services.CreateScope();
+    var sp = scope.ServiceProvider;
+    await LogResolveResult<IUserStore<ElCaminoIdentityUser>>(sp, "IUserStore<IdentityUser>");
+    await LogResolveResult<UserManager<ElCaminoIdentityUser>>(sp, "UserManager<IdentityUser>");
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -69,23 +75,31 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+await identityTableClient.CreateTableIfNotExistsAsync(identityConfiguration.TablePrefix + identityConfiguration.IndexTableName);
+await identityTableClient.CreateTableIfNotExistsAsync(identityConfiguration.TablePrefix + identityConfiguration.UserTableName);
+await identityTableClient.CreateTableIfNotExistsAsync(identityConfiguration.TablePrefix + identityConfiguration.RoleTableName);
+
+app.UseAuthentication();
 app.UseAuthorization();
-app.UseCors(policy =>
-    policy.AllowAnyOrigin()
-          .AllowAnyMethod()
-          .AllowAnyHeader());
 app.MapControllers();
 
-using (var scope = app.Services.CreateScope())
-{
-    var opts = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AzureTableIdentityOptions>>().Value;
-    Console.WriteLine($"AzureTableIdentityOptions: StorageConnectionString={opts.StorageConnectionString}, UserTableName={opts.UserTableName}, RoleTableName={opts.RoleTableName}");
-
-    if (string.IsNullOrWhiteSpace(opts.StorageConnectionString))
-    {
-        throw new InvalidOperationException("AzureTableIdentityOptions.StorageConnectionString is missing!");
-    }
-}
-
 app.Run();
+
+static async Task LogResolveResult<T>(IServiceProvider services, string name) where T : class
+{
+    var sw = Stopwatch.StartNew();
+    var resolveTask = Task.Run(() => services.GetService<T>());
+    var timeoutTask = Task.Delay(TimeSpan.FromSeconds(8));
+    var completed = await Task.WhenAny(resolveTask, timeoutTask);
+    sw.Stop();
+
+    if (completed == timeoutTask)
+    {
+        Console.WriteLine($"[Startup DI] {name}: TIMEOUT after {sw.ElapsedMilliseconds}ms");
+        return;
+    }
+
+    var instance = await resolveTask;
+    var status = instance is null ? "NULL" : "OK";
+    Console.WriteLine($"[Startup DI] {name}: {status} in {sw.ElapsedMilliseconds}ms");
+}
