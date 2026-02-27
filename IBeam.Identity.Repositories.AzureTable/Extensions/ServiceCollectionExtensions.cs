@@ -6,6 +6,7 @@ using IBeam.Identity.Abstractions.Schema;
 using IBeam.Identity.Repositories.AzureTable.Options;
 using IBeam.Identity.Repositories.AzureTable.Schema;
 using IBeam.Identity.Repositories.AzureTable.Stores;
+using IBeam.Identity.Repositories.AzureTable.Tenants;
 using IBeam.Identity.Repositories.AzureTable.Types;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
@@ -75,9 +76,11 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
                 _ => tableClient);
 
             // Abstractions stores (scoped)
-            //services.AddScoped<IIdentityUserStore, AzureTableIdentityUserStore>();
-           // services.AddScoped<ITenantMembershipStore, AzureTableTenantMembershipStore>();
-           // services.AddScoped<IOtpChallengeStore, AzureTableOtpChallengeStore>();
+            services.AddScoped<UserStore<ApplicationUser, ApplicationRole, IdentityCloudContext>>();
+            services.AddScoped<IIdentityUserStore, AzureTableIdentityUserStore>();
+            services.AddScoped<ITenantMembershipStore, AzureTableTenantMembershipStore>();
+            services.AddScoped<IOtpChallengeStore, AzureTableOtpChallengeStore>();
+            services.AddScoped<ITenantProvisioningService, AzureTableTenantProvisioningService>();
 
             // Schema manager + startup ensure
             services.AddScoped<IIdentitySchemaManager, AzureTableIdentitySchemaManager>();

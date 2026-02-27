@@ -1,11 +1,9 @@
 using IBeam.Communications.Abstractions;
+using IBeam.Communications.Email.AzureCommunications;
 using IBeam.Communications.Sms.AzureCommunications;
 using IBeam.Identity.Abstractions.Interfaces;
 using IBeam.Identity.Abstractions.Options;
 using IBeam.Identity.Repositories.AzureTable.Extensions;
-using IBeam.Identity.Repositories.AzureTable.Tenants;
-using IBeam.Identity.Repositories.AzureTable.Types;
-using IBeam.Identity.Repositories.AzureTable.Stores;
 using IBeam.Identity.Services;
 using IBeam.Identity.Services.Otp;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -60,16 +58,6 @@ builder.Services.AddIBeamCommunications(builder.Configuration);
 //// Register Azure Table repository implementation
 builder.Services.AddIBeamIdentityAzureTable(builder.Configuration);
 
-//builder.Services.AddScoped<IIdentityUserStore, AzureTableIdentityUserStore>();
-
-//builder.Services.AddScoped<
-//    ElCamino.AspNetCore.Identity.AzureTable.UserStore<ApplicationUser, ApplicationRole, IdentityCloudContext>
-//   >();
-builder.Services.AddScoped<UserStore<ApplicationUser, ApplicationRole, IdentityCloudContext>>();
-builder.Services.AddScoped<IIdentityUserStore, AzureTableIdentityUserStore>();
-builder.Services.AddScoped<ITenantMembershipStore, AzureTableTenantMembershipStore>();
-builder.Services.AddScoped<IOtpChallengeStore, AzureTableOtpChallengeStore>();
-
 //// Register All Auth services
 builder.Services.AddIBeamIdentityServices(builder.Configuration);
 
@@ -77,6 +65,7 @@ builder.Services.AddIBeamIdentityServices(builder.Configuration);
 
 //// Register Azure SMS provider (if using SMS for OTP)
 builder.Services.AddIBeamCommunicationsSmsAzure(builder.Configuration);
+builder.Services.AddIBeamAzureCommunicationsEmail(builder.Configuration);
 
 //// Register your communication adapter for OTP/email/SMS
 builder.Services.AddScoped<IIdentityCommunicationSender, IdentityCommunicationAdapter>();
