@@ -65,6 +65,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Identity.Services", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestBedApp", "TestBedApp\TestBedApp.csproj", "{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ElCamino.AuthSmoke", "ElCamino.AuthSmoke\ElCamino.AuthSmoke.csproj", "{D3EAF025-8466-4C12-A661-2FE46971B6B8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -399,6 +401,18 @@ Global
 		{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}.Release|x64.Build.0 = Release|Any CPU
 		{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}.Release|x86.ActiveCfg = Release|Any CPU
 		{7E2695DF-8F0C-41A5-AF60-A483CC81AB1C}.Release|x86.Build.0 = Release|Any CPU
+		{D3EAF025-8466-4C12-A661-2FE46971B6B8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D3EAF025-8466-4C12-A661-2FE46971B6B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D3EAF025-8466-4C12-A661-2FE46971B6B8}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D3EAF025-8466-4C12-A661-2FE46971B6B8}.Debug|x64.Build.0 = Debug|Any CPU
+		{D3EAF025-8466-4C12-A661-2FE46971B6B8}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D3EAF025-8466-4C12-A661-2FE46971B6B8}.Debug|x86.Build.0 = Debug|Any CPU
+		{D3EAF025-8466-4C12-A661-2FE46971B6B8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D3EAF025-8466-4C12-A661-2FE46971B6B8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D3EAF025-8466-4C12-A661-2FE46971B6B8}.Release|x64.ActiveCfg = Release|Any CPU
+		{D3EAF025-8466-4C12-A661-2FE46971B6B8}.Release|x64.Build.0 = Release|Any CPU
+		{D3EAF025-8466-4C12-A661-2FE46971B6B8}.Release|x86.ActiveCfg = Release|Any CPU
+		{D3EAF025-8466-4C12-A661-2FE46971B6B8}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -10,7 +10,7 @@ using IBeam.Identity.Repositories.AzureTable.Types;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Hosting;
 using System;
 
 namespace IBeam.Identity.Repositories.AzureTable.Extensions
@@ -33,24 +33,23 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
                 })
                 .ValidateOnStart();
 
-            // Singletons built from options (no manual Get<T>(), no duplication)
-            services.AddSingleton<TableServiceClient>(sp =>
-            {
-                var opts = sp.GetRequiredService<IOptions<AzureTableIdentityOptions>>().Value;
-                return new TableServiceClient(opts.StorageConnectionString);
-            });
+            // Capture and validate once to avoid recursive DI resolution in ElCamino store delegates.
+            var opts = configuration
+                .GetSection(AzureTableIdentityOptions.SectionName)
+                .Get<AzureTableIdentityOptions>() ?? new AzureTableIdentityOptions();
+            opts.Validate();
 
-            services.AddSingleton<IdentityConfiguration>(sp =>
+            var tableClient = new TableServiceClient(opts.StorageConnectionString);
+            var identityConfig = new IdentityConfiguration
             {
-                var opts = sp.GetRequiredService<IOptions<AzureTableIdentityOptions>>().Value;
-                return new IdentityConfiguration
-                {
-                    TablePrefix = opts.TablePrefix,
-                    IndexTableName = opts.IndexTableName,
-                    UserTableName = opts.UserTableName,
-                    RoleTableName = opts.RoleTableName,
-                };
-            });
+                TablePrefix = opts.TablePrefix,
+                IndexTableName = opts.IndexTableName,
+                UserTableName = opts.UserTableName,
+                RoleTableName = opts.RoleTableName,
+            };
+
+            services.AddSingleton(tableClient);
+            services.AddSingleton(identityConfig);
 
             // ElCamino context (scoped)
             services.AddScoped<IdentityCloudContext>(sp =>
@@ -71,10 +70,9 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
                 .AddDefaultTokenProviders();
 
             // Hook ElCamino Azure Table stores
-            // NOTE: depending on ElCamino version, this may need to use the captured singleton instances.
             identityBuilder.AddAzureTableStores<IdentityCloudContext>(
-                sp => sp.GetRequiredService<IdentityConfiguration>(),
-                sp => sp.GetRequiredService<TableServiceClient>());
+                _ => identityConfig,
+                _ => tableClient);
 
             // Abstractions stores (scoped)
             //services.AddScoped<IIdentityUserStore, AzureTableIdentityUserStore>();
@@ -82,8 +80,8 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
            // services.AddScoped<IOtpChallengeStore, AzureTableOtpChallengeStore>();
 
             // Schema manager + startup ensure
-            // services.AddScoped<IIdentitySchemaManager, AzureTableIdentitySchemaManager>();
-            // services.AddHostedService<AzureTableIdentitySchemaHostedService>();
+            services.AddScoped<IIdentitySchemaManager, AzureTableIdentitySchemaManager>();
+            services.AddHostedService<AzureTableIdentitySchemaHostedService>();
 
             return services;
         }

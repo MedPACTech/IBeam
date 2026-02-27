@@ -14,7 +14,6 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using System.Text;
 using ElCamino.AspNetCore.Identity.AzureTable;
-using Microsoft.AspNet.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -111,12 +110,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
-
-using (var scope = app.Services.CreateScope())
-{
-    var userStore = scope.ServiceProvider.GetRequiredService<UserStore<ApplicationUser, ApplicationRole, IdentityCloudContext>>();
-    //You can now use userManager here for testing / seeding
-}
 
 if (app.Environment.IsDevelopment())
 {
