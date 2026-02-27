@@ -32,30 +32,37 @@ public sealed class AzureTableIdentityOptions
         => $"{TablePrefix}{baseName}";
 
     // ----- Key helpers (membership tables) -----
-    // UserTenants: PK = "USR#{userId}", RK = "TEN#{tenantId}"
-    public string UserTenantsPk(string userId) => $"USR#{NormalizeId(userId)}";
-    public string UserTenantsRk(Guid tenantId) => $"TEN#{tenantId:D}";
+    // UserTenants: PK = "USR|{userId}", RK = "TEN|{tenantId}"
+    public string UserTenantsPk(string userId) => $"USR|{NormalizeId(userId)}";
+    public string UserTenantsRk(Guid tenantId) => $"TEN|{tenantId:D}";
 
     public bool TryParseTenantIdFromUserTenantsRk(string rowKey, out Guid tenantId)
     {
         tenantId = Guid.Empty;
         if (string.IsNullOrWhiteSpace(rowKey)) return false;
-        if (!rowKey.StartsWith("TEN#", StringComparison.OrdinalIgnoreCase)) return false;
+        if (rowKey.StartsWith("TEN|", StringComparison.OrdinalIgnoreCase))
+            return Guid.TryParse(rowKey.Substring(4), out tenantId);
+        if (rowKey.StartsWith("TEN#", StringComparison.OrdinalIgnoreCase))
+            return Guid.TryParse(rowKey.Substring(4), out tenantId);
 
-        return Guid.TryParse(rowKey.Substring(4), out tenantId);
+        return false;
     }
 
-    // TenantUsers: PK = "TEN#{tenantId}", RK = "USR#{userId}"
-    public string TenantUsersPk(Guid tenantId) => $"TEN#{tenantId:D}";
-    public string TenantUsersRk(string userId) => $"USR#{NormalizeId(userId)}";
+    // TenantUsers: PK = "TEN|{tenantId}", RK = "USR|{userId}"
+    public string TenantUsersPk(Guid tenantId) => $"TEN|{tenantId:D}";
+    public string TenantUsersRk(string userId) => $"USR|{NormalizeId(userId)}";
 
     public bool TryParseUserIdFromTenantUsersRk(string rowKey, out string userId)
     {
         userId = string.Empty;
         if (string.IsNullOrWhiteSpace(rowKey)) return false;
-        if (!rowKey.StartsWith("USR#", StringComparison.OrdinalIgnoreCase)) return false;
+        if (rowKey.StartsWith("USR|", StringComparison.OrdinalIgnoreCase) ||
+            rowKey.StartsWith("USR#", StringComparison.OrdinalIgnoreCase))
+        {
+            userId = rowKey.Substring(4);
+            return !string.IsNullOrWhiteSpace(userId);
+        }
 
-        userId = rowKey.Substring(4);
         return !string.IsNullOrWhiteSpace(userId);
     }
 

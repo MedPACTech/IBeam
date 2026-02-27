@@ -75,8 +75,8 @@ builder.Services.AddIBeamIdentityAuthOtpService();
 builder.Services.AddDataProtection();
 
 
-// JWT validation (matches your JwtTokenService settings)
-var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
+// JWT validation (matches JwtTokenService section binding)
+var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
 jwt.Validate();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

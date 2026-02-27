@@ -59,6 +59,23 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         var challenge = await _otpChallengeStore.GetAsync(challengeId, ct);
         if (challenge is null)
             throw new IdentityValidationException("OTP challenge not found.");
+
+        // Safety guarantee: ensure the challenge is consumed after successful verification.
+        if (!challenge.IsConsumed)
+        {
+            if (string.IsNullOrWhiteSpace(verifyResult.VerificationToken) || !verifyResult.ExpiresAt.HasValue)
+                throw new IdentityProviderException("OTP verification did not return a valid verification token.");
+
+            await _otpChallengeStore.MarkConsumedAsync(
+                challengeId,
+                verifyResult.VerificationToken,
+                verifyResult.ExpiresAt.Value,
+                ct);
+
+            challenge = await _otpChallengeStore.GetAsync(challengeId, ct)
+                ?? throw new IdentityProviderException("OTP challenge could not be reloaded after consume.");
+        }
+
         if (challenge.Purpose != SenderPurpose.UserRegistration)
             throw new IdentityValidationException("OTP challenge purpose is invalid for registration.");
 
@@ -108,7 +125,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             AddTenantClaims(claims, tenant.TenantId);
             AddRoleClaims(claims, tenant.Roles);
             var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
-            return AuthResultResponse.WithToken(token);
+            return AuthResultResponse.WithToken(token, createdNewUser);
         }
 
         var defaultTenantId = await _tenants.GetDefaultTenantIdAsync(user.UserId, ct);
@@ -121,14 +138,14 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
                 AddTenantClaims(claims, defaultTenant.TenantId);
                 AddRoleClaims(claims, defaultTenant.Roles);
                 var token = await _tokens.CreateAccessTokenAsync(user.UserId, defaultTenant.TenantId, claims, ct);
-                return AuthResultResponse.WithToken(token);
+                return AuthResultResponse.WithToken(token, createdNewUser);
             }
         }
 
         var preClaims = BuildBaseClaims(user);
         preClaims.Add(new ClaimItem("pt", "1"));
         var preToken = await _tokens.CreatePreTenantTokenAsync(user.UserId, preClaims, ct);
-        return AuthResultResponse.RequiresSelection(preToken.AccessToken, activeTenants);
+        return AuthResultResponse.RequiresSelection(preToken.AccessToken, activeTenants, createdNewUser);
     }
 
     private static List<ClaimItem> BuildBaseClaims(IdentityUser user)
