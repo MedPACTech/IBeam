@@ -30,21 +30,38 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         _otpChallengeStore = otpChallengeStore ?? throw new ArgumentNullException(nameof(otpChallengeStore));
     }
 
-    public async Task<OtpChallengeResult> RegisterUserViaOtpAsync(string destination, Guid? tenantId = null, CancellationToken ct = default)
+    public async Task<OtpChallengeResult> StartOtpAsync(string destination, Guid? tenantId = null, CancellationToken ct = default)
     {
         IdentityUtils.ThrowIfNullOrWhiteSpace(destination, nameof(destination));
 
         var (channel, normalized) = IdentityUtils.NormalizeDestination(destination);
-        var request = new OtpChallengeRequest(channel, normalized, SenderPurpose.UserRegistration, tenantId);
+        var request = new OtpChallengeRequest(channel, normalized, SenderPurpose.LoginMfa, tenantId);
         return await _otpService.CreateChallengeAsync(request, ct);
     }
 
-    public async Task<AuthResultResponse> CompleteUserRegistrationViaOtpAsync(
+    public async Task<AuthResultResponse> CompleteOtpAsync(
         string challengeId,
         string code,
         string destination,
         string? displayName = null,
         CancellationToken ct = default)
+    {
+        return await CompleteOtpInternalAsync(
+            challengeId,
+            code,
+            destination,
+            expectedPurposes: new[] { SenderPurpose.LoginMfa, SenderPurpose.UserRegistration },
+            displayName,
+            ct);
+    }
+
+    private async Task<AuthResultResponse> CompleteOtpInternalAsync(
+        string challengeId,
+        string code,
+        string destination,
+        IReadOnlyCollection<SenderPurpose> expectedPurposes,
+        string? displayName,
+        CancellationToken ct)
     {
         IdentityUtils.ThrowIfNullOrWhiteSpace(challengeId, nameof(challengeId));
         IdentityUtils.ThrowIfNullOrWhiteSpace(code, nameof(code));
@@ -76,8 +93,8 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
                 ?? throw new IdentityProviderException("OTP challenge could not be reloaded after consume.");
         }
 
-        if (challenge.Purpose != SenderPurpose.UserRegistration)
-            throw new IdentityValidationException("OTP challenge purpose is invalid for registration.");
+        if (!expectedPurposes.Contains(challenge.Purpose))
+            throw new IdentityValidationException("OTP challenge purpose is invalid for authentication.");
 
         var (_, normalizedFromChallenge) = IdentityUtils.NormalizeDestination(challenge.Destination);
         if (!string.Equals(normalizedFromChallenge, normalizedDestination, StringComparison.OrdinalIgnoreCase))

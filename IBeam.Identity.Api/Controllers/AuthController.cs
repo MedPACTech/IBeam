@@ -17,15 +17,15 @@ public class AuthController : ControllerBase
         _otpAuth = otpAuth;
     }
 
-    [HttpPost("register-otp")]
-    public async Task<IActionResult> RegisterWithOtp([FromBody] RegisterUserOtpRequest req, CancellationToken ct)
+    [HttpPost("startotp")]
+    public async Task<IActionResult> StartOtp([FromBody] StartOtpRequest req, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(req.Destination))
             return BadRequest(new { message = "Destination is required." });
 
         try
         {
-            var result = await _otpAuth.RegisterUserViaOtpAsync(req.Destination, req.TenantId, ct);
+            var result = await _otpAuth.StartOtpAsync(req.Destination, req.TenantId, ct);
             return Ok(result);
         }
         catch (IdentityValidationException ex)
@@ -34,8 +34,8 @@ public class AuthController : ControllerBase
         }
     }
 
-    [HttpPost("register-otp/complete")]
-    public async Task<IActionResult> CompleteRegisterWithOtp([FromBody] CompleteRegisterUserOtpRequest req, CancellationToken ct)
+    [HttpPost("completeotp")]
+    public async Task<IActionResult> CompleteOtp([FromBody] CompleteOtpRequest req, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(req.ChallengeId))
             return BadRequest(new { message = "ChallengeId is required." });
@@ -46,7 +46,7 @@ public class AuthController : ControllerBase
 
         try
         {
-            var result = await _otpAuth.CompleteUserRegistrationViaOtpAsync(
+            var result = await _otpAuth.CompleteOtpAsync(
                 req.ChallengeId,
                 req.Code,
                 req.Destination,
@@ -71,17 +71,16 @@ public class AuthController : ControllerBase
     }
 }
 
-public class RegisterUserOtpRequest
+public class StartOtpRequest
 {
     public string Destination { get; set; } = string.Empty;
     public Guid? TenantId { get; set; }
 }
 
-public class CompleteRegisterUserOtpRequest
+public class CompleteOtpRequest
 {
     public string ChallengeId { get; set; } = string.Empty;
     public string Destination { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
     public string? DisplayName { get; set; }
-    public Guid? TenantId { get; set; }
 }
