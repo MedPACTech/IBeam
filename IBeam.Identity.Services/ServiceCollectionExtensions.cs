@@ -44,6 +44,9 @@ public static class ServiceCollectionExtensions
         services.AddOptions<OAuthOptions>()
         .Bind(configuration.GetSection(OAuthOptions.SectionName));
 
+        services.AddOptions<IdentityEmailTemplateOptions>()
+        .Bind(configuration.GetSection(IdentityEmailTemplateOptions.SectionName));
+
         // Core services
         services.AddScoped<IOtpService, OtpService>();
         //services.AddScoped<IIdentityAuthService, IdentityAuthService>();

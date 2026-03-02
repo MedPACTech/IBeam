@@ -225,7 +225,13 @@ public sealed class PasswordAuthService : IIdentityAuthService
             Purpose = SenderPurpose.UserRegistration,
             Subject = "Verify your email",
             Body = $"Click this link to finish account setup: {link}",
-            ExpiresAt = expiresAt
+            ExpiresAt = expiresAt,
+            Metadata = new Dictionary<string, object>
+            {
+                ["Link"] = link,
+                ["DisplayName"] = displayName ?? string.Empty,
+                ["ChallengeId"] = challengeId
+            }
         }, ct);
 
         return new RequestPasswordResetResponse(Accepted: true, ChallengeId: challengeId);

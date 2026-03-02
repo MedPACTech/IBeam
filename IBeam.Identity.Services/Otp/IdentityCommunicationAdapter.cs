@@ -1,7 +1,9 @@
 using IBeam.Identity.Abstractions.Interfaces;
 using IBeam.Identity.Abstractions.Models;
+using IBeam.Identity.Abstractions.Options;
 using IBeam.Communications.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace IBeam.Identity.Services.Otp;
 
@@ -10,43 +12,32 @@ public class IdentityCommunicationAdapter : IIdentityCommunicationSender
     private readonly IEmailService? _emailService;
     private readonly ISmsService? _smsService;
     private readonly ITemplatedEmailService? _templatedEmailService;
+    private readonly IdentityEmailTemplateOptions _templateOptions;
 
     public IdentityCommunicationAdapter(IServiceProvider sp)
     {
         _emailService = sp.GetService<IEmailService>();
         _smsService = sp.GetService<ISmsService>();
         _templatedEmailService = sp.GetService<ITemplatedEmailService>();
+        _templateOptions = sp.GetService<IOptions<IdentityEmailTemplateOptions>>()?.Value ?? new IdentityEmailTemplateOptions();
     }
 
     public async Task SendAsync(IdentitySenderMessage message, CancellationToken ct = default)
     {
         if (message.Channel == SenderChannel.Email)
         {
-            if (!string.IsNullOrWhiteSpace(message.Metadata?["TemplateKey"]?.ToString()) && _templatedEmailService != null)
+            var sentWithTemplate = await TrySendTemplatedEmailAsync(message, ct);
+            if (!sentWithTemplate)
             {
-                // Use templated email
-                //await _templatedEmailService.SendAsync(
-                //    to: message.Destination,
-                //    templateKey: message.Metadata["TemplateKey"].ToString(),
-                //    model: message.Metadata?["TemplateModel"] ?? new { Code = message.Code, Purpose = message.Purpose, TenantId = message.TenantId },
-                //    subject: message.Subject,
-                //    options: null,
-                //    ct: ct);
-                throw new NotImplementedException("Templated email sending is not implemented yet.");
-            }
-            else if (_emailService != null)
-            {
-                // Use plain email
+                if (_emailService is null)
+                    throw new InvalidOperationException("No email service is configured.");
+
                 await _emailService.SendAsync(
                     to: message.Destination,
                     subject: message.Subject ?? $"Your OTP Code for {message.Purpose}",
                     textBody: message.Body ?? $"Your code is: {message.Code}",
                     options: null,
                     ct: ct);
-            }
-            else
-            {
-                throw new InvalidOperationException("No email service is configured.");
             }
         }
         else if (message.Channel == SenderChannel.Sms)
@@ -64,5 +55,72 @@ public class IdentityCommunicationAdapter : IIdentityCommunicationSender
         {
             throw new NotSupportedException($"Unsupported channel: {message.Channel}");
         }
+    }
+
+    private async Task<bool> TrySendTemplatedEmailAsync(IdentitySenderMessage message, CancellationToken ct)
+    {
+        if (!_templateOptions.Enabled)
+            return false;
+
+        if (_templatedEmailService is null)
+        {
+            if (_templateOptions.FallbackToPlainIfMissingTemplate)
+                return false;
+            throw new InvalidOperationException("Templated email is enabled but no templated email service is registered.");
+        }
+
+        var configured = _templateOptions.TryGetTemplate(message.Purpose, out var definition);
+        var templateName = configured
+            ? definition.TemplateName
+            : (_templateOptions.UseTemplatesForAllEmail && message.Purpose.HasValue ? message.Purpose.Value.ToString() : null);
+
+        if (string.IsNullOrWhiteSpace(templateName))
+            return false;
+
+        var subject = configured && !string.IsNullOrWhiteSpace(definition.Subject)
+            ? definition.Subject!
+            : (message.Subject ?? $"Notification: {message.Purpose}");
+
+        var model = BuildTemplateModel(message);
+
+        try
+        {
+            await _templatedEmailService.SendTemplatedEmailAsync(
+                to: new[] { message.Destination },
+                subject: subject,
+                templateName: templateName,
+                model: model,
+                options: null,
+                ct: ct);
+
+            return true;
+        }
+        catch when (_templateOptions.FallbackToPlainIfMissingTemplate)
+        {
+            return false;
+        }
+    }
+
+    private static Dictionary<string, object?> BuildTemplateModel(IdentitySenderMessage message)
+    {
+        var model = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Destination"] = message.Destination,
+            ["Code"] = message.Code,
+            ["Subject"] = message.Subject,
+            ["Body"] = message.Body,
+            ["Name"] = message.Name,
+            ["Purpose"] = message.Purpose?.ToString(),
+            ["TenantId"] = message.TenantId?.ToString("D"),
+            ["ExpiresAt"] = message.ExpiresAt?.ToString("O")
+        };
+
+        if (message.Metadata is not null)
+        {
+            foreach (var kv in message.Metadata)
+                model[kv.Key] = kv.Value;
+        }
+
+        return model;
     }
 }

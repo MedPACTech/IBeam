@@ -22,4 +22,10 @@
     <ProjectReference Include="..\IBeam.Identity.Services\IBeam.Identity.Services.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Templates\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
