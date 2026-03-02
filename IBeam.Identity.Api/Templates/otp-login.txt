@@ -1,6 +1,6 @@
 Hello,
 
 Your verification code is: {{Code}}
-This code expires at: {{ExpiresAt}}
+This code expires in: {{ExpiresAt}} minute(s)
 
 If you did not request this code, you can ignore this email.

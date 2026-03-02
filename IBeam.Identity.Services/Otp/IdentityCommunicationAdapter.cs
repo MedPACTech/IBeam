@@ -81,7 +81,7 @@ public class IdentityCommunicationAdapter : IIdentityCommunicationSender
             ? definition.Subject!
             : (message.Subject ?? $"Notification: {message.Purpose}");
 
-        var model = BuildTemplateModel(message);
+        var model = BuildTemplateModel(message, _templateOptions);
 
         try
         {
@@ -101,8 +101,16 @@ public class IdentityCommunicationAdapter : IIdentityCommunicationSender
         }
     }
 
-    private static Dictionary<string, object?> BuildTemplateModel(IdentitySenderMessage message)
+    private static Dictionary<string, object?> BuildTemplateModel(IdentitySenderMessage message, IdentityEmailTemplateOptions options)
     {
+        var expiresInMinutes = message.ExpiresAt.HasValue
+            ? Math.Max(0, (int)Math.Ceiling((message.ExpiresAt.Value - DateTimeOffset.UtcNow).TotalMinutes))
+            : (int?)null;
+
+        var expiresAtValue = options.ExpirationDisplay == ExpirationDisplayMode.MinutesRemaining
+            ? (object?)expiresInMinutes
+            : message.ExpiresAt?.ToString("O");
+
         var model = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
             ["Destination"] = message.Destination,
@@ -112,7 +120,9 @@ public class IdentityCommunicationAdapter : IIdentityCommunicationSender
             ["Name"] = message.Name,
             ["Purpose"] = message.Purpose?.ToString(),
             ["TenantId"] = message.TenantId?.ToString("D"),
-            ["ExpiresAt"] = message.ExpiresAt?.ToString("O")
+            ["ExpiresAt"] = expiresAtValue,
+            ["ExpiresAtUtc"] = message.ExpiresAt?.ToString("O"),
+            ["ExpiresInMinutes"] = expiresInMinutes
         };
 
         if (message.Metadata is not null)

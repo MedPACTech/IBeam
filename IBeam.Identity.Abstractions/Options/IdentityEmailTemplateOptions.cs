@@ -9,6 +9,7 @@ public sealed class IdentityEmailTemplateOptions
     public bool Enabled { get; init; } = false;
     public bool UseTemplatesForAllEmail { get; init; } = false;
     public bool FallbackToPlainIfMissingTemplate { get; init; } = true;
+    public ExpirationDisplayMode ExpirationDisplay { get; init; } = ExpirationDisplayMode.UtcTimestamp;
     public Dictionary<string, IdentityEmailTemplateDefinition> PurposeTemplates { get; init; } =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -19,6 +20,12 @@ public sealed class IdentityEmailTemplateOptions
 
         return PurposeTemplates.TryGetValue(purpose.Value.ToString(), out template!);
     }
+}
+
+public enum ExpirationDisplayMode
+{
+    UtcTimestamp = 0,
+    MinutesRemaining = 1
 }
 
 public sealed class IdentityEmailTemplateDefinition
