@@ -1,76 +1,90 @@
-# IBeam Identity API
+# IBeam.Identity.Api
 
-IBeam Identity API is the core identity and authentication service for the **IBeam** ecosystem.  
-It is built on **ASP.NET Core (.NET 10)** and provides secure, extensible identity capabilities including OTP-based authentication and communications support.
+`IBeam.Identity.Api` is the HTTP host for Identity authentication and account APIs.
 
----
+## What this project does
 
-## ✨ Features
+- Hosts REST endpoints for:
+  - OTP start/complete
+  - Email/password registration and login
+  - 2FA setup/complete/disable/method change
+  - OAuth start/complete
+  - OAuth account link/unlink/list
+  - Refresh token rotation
+  - Session listing and session revoke
+- Applies feature flags to enable/disable endpoint groups at runtime.
+- Uses JWT bearer auth for protected endpoints.
+- Uses Swagger for API testing.
 
-- ASP.NET Core Web API
-- Multi-environment configuration (Local, Development, Test, Prod)
-- Identity & authentication services
-- One-Time Password (OTP) generation and validation
-- Pluggable OTP delivery (Email, SMS, etc.)
-- Designed for extensibility across the IBeam platform
+## Startup wiring
 
----
+`Program.cs` currently registers:
 
-## 🧱 Tech Stack
+- Communications providers (email/sms)
+- Azure Table repository stores
+- Identity services (`AddIBeamIdentityServices`)
+- OTP auth service
+- Password auth service
+- OAuth auth service
+- Memory cache and HttpClient (OAuth)
 
-- **.NET:** 10.0
-- **Framework:** ASP.NET Core Web API
-- **Configuration:** application.json + environment overrides
-- **Dependency Injection:** Microsoft.Extensions.*
-- **Options Pattern:** Strongly typed configuration
+## Required configuration
 
----
+### `IBeam:Identity:AzureTable`
 
-## 📁 Project Structure
+Storage and table names for identity persistence (required when using Azure Table repository).
 
-IBeam.Identity.Api/
-├── application.json
-├── application.Development.json
-├── application.Test.json
-├── application.Prod.json
-├── Program.cs
-├── Controllers/
-├── Services/
-│ └── Otp/
-├── Core/
-│ ├── Entities/
-│ ├── Options/
-│ └── Interfaces/
-└── Infrastructure/
+### `IBeam:Identity:Jwt`
 
+- `Issuer`
+- `Audience`
+- `SigningKey`
+- `AccessTokenMinutes`
+- `PreTenantTokenMinutes`
+- `RefreshTokenDays`
+- `ClockSkewSeconds`
 
----
+### `IBeam:Identity:Otp`
 
-## ⚙️ Configuration
+OTP generation/verification settings:
 
-The API uses a layered configuration approach:
+- `CodeLength`
+- `ExpirationMinutes`
+- `MaxAttempts`
+- `HashSalt`
+- `VerificationTokenSecret`
+- `VerificationTokenMinutes`
 
-- `application.json` – base settings
-- `application.{Environment}.json` – environment-specific overrides
+### `IBeam:Identity:Features`
 
-Configuration is bound using the **Options pattern**.
+Runtime endpoint switches:
 
----
+- `Otp`
+- `PasswordAuth`
+- `TwoFactor`
+- `OAuth`
+- `TenantSelection`
+- `ClaimsEnrichment`
 
-## 🔐 OTP Flow (High-Level)
+### `IBeam:Identity:OAuth`
 
-1. Client requests OTP challenge
-2. API generates secure OTP code
-3. OTP is stored with expiration
-4. OTP is delivered via configured sender (email/SMS)
-5. Client submits OTP for verification
-6. API validates and completes authentication
+OAuth provider definitions and endpoints for Google/Microsoft (or additional providers).
 
----
+### Communications settings
 
-## 🚀 Running the API
+- `IBeam:Communications:Email:*`
+- `IBeam:Communications:Sms:*`
+
+These are used by OTP and verification emails/sms.
+
+## Running locally
 
 ```bash
 dotnet restore
 dotnet build
-dotnet run
+dotnet run --project IBeam.Identity.Api
+```
+
+Swagger UI:
+
+- `/swagger`

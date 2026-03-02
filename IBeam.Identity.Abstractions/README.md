@@ -1,89 +1,37 @@
-
 # IBeam.Identity.Abstractions
 
-`IBeam.Identity.Abstractions` defines the core contracts, interfaces, and models for authentication and identity management in the IBeam ecosystem. It provides a set of abstractions for user registration, authentication, OTP (One-Time Password) flows, token generation, and multi-tenant management, enabling modular and flexible implementations across different services.
+`IBeam.Identity.Abstractions` contains contracts and shared models for the Identity platform.
 
-This project does **not** contain implementation logic. Instead, it allows other projects to implement these interfaces for various storage providers, OTP delivery mechanisms, or authentication strategies, ensuring consistency and extensibility throughout the platform.
+## What this project does
 
----
+- Defines service interfaces for auth flows:
+  - Password auth (`IIdentityAuthService`)
+  - OTP auth (`IIdentityOtpAuthService`)
+  - OAuth auth (`IIdentityOAuthAuthService`)
+  - Token/session management (`ITokenService`)
+- Defines storage contracts:
+  - User store (`IIdentityUserStore`)
+  - OTP challenge store (`IOtpChallengeStore`)
+  - Tenant membership/provisioning stores
+  - External login store (`IExternalLoginStore`)
+  - Auth session store (`IAuthSessionStore`)
+- Defines shared request/response models and option classes.
 
-## 🗝️ What Does This Project Provide?
+This project has no runtime implementation. It is referenced by API, Services, and Repositories.
 
-- **Interfaces** for:
-  - User registration and authentication (`IIdentityAuthService`, `IIdentityRegistrationService`)
-  - User and tenant storage (`IIdentityUserStore`, `ITenantMembershipStore`)
-  - OTP challenge and verification (`IOtpService`, `IOtpChallengeStore`)
-  - Token creation (`ITokenService`)
-  - Claims enrichment and context (`IClaimsEnricher`, `ClaimsEnrichmentContext`)
-- **Models** for requests and responses (e.g., `RegisterUserRequest`, `AuthResultResponse`, `IdentityUser`, `OtpChallengeRequest`, `TokenResult`)
-- **Options** for configuration (e.g., `IdentityOptions`, `OtpOptions`, `FeatureOptions`)
-- **Exceptions** for identity-related error handling
-- **Schema** contracts for advanced identity workflows
+## Key configuration models
 
-These abstractions are used by other IBeam projects to implement concrete identity services, repositories, and authentication flows.
+These options classes are consumed by implementation projects:
 
----
+- `JwtOptions` (`IBeam:Identity:Jwt`)
+- `OtpOptions` (`IBeam:Identity:Otp`)
+- `OAuthOptions` (`IBeam:Identity:OAuth`)
+- `FeatureOptions` (`IBeam:Identity:Features`)
+- `IdentityOptions` (`IBeam:Identity`) wrapper
 
----
-
-
-## ✨ Key Features
-
-- Defines the contract for all identity and authentication operations in IBeam
-- Supports OTP-based authentication and multi-tenant scenarios
-- Enables pluggable implementations for user, tenant, and OTP storage
-- Clean separation of concerns for maintainable and testable code
-- Used by API, service, and repository projects throughout the IBeam solution
-
----
-
-
-## 🧱 Tech Stack
-
-- **.NET:** 10.0
-- **Type:** Class Library (Abstractions Only)
-- **Usage:** Referenced by IBeam identity, API, and service projects
-
----
-
-
-## 📁 Project Structure (Abbreviated)
-
-IBeam.Identity.Abstractions/
-├── Interfaces/           # Core service and storage interfaces
-├── Models/               # DTOs for requests, responses, and entities
-├── Options/              # Configuration option classes
-├── Exceptions/           # Custom exception types
-├── Schema/               # Identity schema contracts
-├── application.json      # Example configuration
-└── README.md
-
-
----
-
-
-## ⚙️ Usage
-
-Reference this project in your implementation or API projects to access the identity contracts. Implement the interfaces as needed for your storage, authentication, or OTP delivery requirements.
-
-Configuration options are provided as POCOs for use with the .NET Options pattern.
-
----
-
-
-## 🔐 Example: OTP Authentication Flow
-
-1. Client requests an OTP challenge (see `IOtpService`)
-2. Implementation generates and stores OTP securely
-3. OTP is delivered via pluggable sender (Email/SMS/etc.)
-4. Client submits OTP for verification
-5. Implementation verifies OTP and returns authentication result
-
----
-
-## 🚀 Getting Started
+## Build
 
 ```bash
 dotnet restore
 dotnet build
-dotnet run
+```
