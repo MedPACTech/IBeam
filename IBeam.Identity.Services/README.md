@@ -1,72 +1,74 @@
-# IBeam Identity Core
+# IBeam.Identity.Services
 
-IBeam Identity Core is a foundational library for the **IBeam ecosystem**, responsible for identity, authentication, and security-related services. It is designed to be used by IBeam APIs and services, with a strong focus on OTP-based authentication and extensibility.
+`IBeam.Identity.Services` contains the core authentication orchestration and token logic used by the API.
 
----
+## What this project does
 
-## ✨ Features
+- Implements auth services:
+  - `PasswordAuthService`
+  - `OtpAuthService`
+  - `OAuthAuthService`
+- Implements OTP challenge lifecycle via `OtpService`.
+- Implements JWT + refresh token rotation + session operations in `JwtTokenService`.
+- Provides DI extensions for registering identity services.
 
-- Identity and authentication primitives
-- OTP (One-Time Password) challenge generation and validation
-- Pluggable OTP delivery mechanisms (email, SMS, etc.)
-- Secure cryptographic utilities
-- Options-based configuration using `Microsoft.Extensions.Options`
-- Clean separation of contracts, entities, and services
+## Service registration
 
----
+Use:
 
-## 🧱 Tech Stack
+- `AddIBeamIdentityServices(configuration)` for core services/options
+- `AddIBeamIdentityAuthPasswordService()`
+- `AddIBeamIdentityAuthOtpService()`
+- `AddIBeamIdentityAuthOAuthService()`
 
-- **.NET:** 10.0
-- **Language:** C#
-- **Configuration:** application.json / appsettings.json
-- **Patterns:** Options pattern, Dependency Injection
-- **Security:** Cryptographically secure OTP generation
+Note: store interfaces (`IIdentityUserStore`, `IOtpChallengeStore`, `IAuthSessionStore`, etc.) must be provided by a repository project.
 
----
+## Required configuration
 
-## 📁 Project Structure
+### `IBeam:Identity:Jwt`
 
-IBeam.Identity.Services/
-├── Entities/
-│ ├── OtpChallenge.cs
-│ └── IdentityUser.cs
-├── Options/
-│ └── OtpOptions.cs
-├── Otp/
-│ ├── Contracts/
-│ ├── Interfaces/
-│ └── Models/
-├── Services/
-│ └── OtpService.cs
-├── Extensions/
-├── IBeam.Identity.Services.csproj
-└── README.md
+- `Issuer`
+- `Audience`
+- `SigningKey`
+- `AccessTokenMinutes`
+- `PreTenantTokenMinutes`
+- `RefreshTokenDays`
+- `ClockSkewSeconds`
+- `KeyId` (optional)
 
+### `IBeam:Identity:Otp`
 
----
+- `CodeLength`
+- `ExpirationMinutes`
+- `MaxAttempts`
+- `HashSalt`
+- `VerificationTokenSecret`
+- `VerificationTokenMinutes`
 
-## ⚙️ Configuration
+### `IBeam:Identity:Features`
 
-This library uses strongly-typed options bound from `application.json` (or `appsettings.json`).  
-OTP behavior, expiration, and delivery are configurable via the `IBeam:Identity:Otp` section.
+- `Otp`
+- `PasswordAuth`
+- `TwoFactor`
+- `OAuth`
+- `TenantSelection`
+- `ClaimsEnrichment`
 
----
+### `IBeam:Identity:OAuth`
 
-## 🔐 OTP Flow (High-Level)
+- `StateTtlMinutes`
+- `Providers:{providerName}` entries with:
+  - `Enabled`
+  - `ClientId`
+  - `ClientSecret`
+  - `AuthorizationEndpoint`
+  - `TokenEndpoint`
+  - `UserInfoEndpoint`
+  - `Scope`
 
-1. Client requests an OTP challenge
-2. `OtpService` generates a secure code
-3. Challenge is persisted via `IOtpChallengeStore`
-4. OTP is delivered via a configured `IOtpSender`
-5. Client submits OTP for verification
-6. Challenge is validated and marked as used/expired
+## Build
 
----
-
-## 🚀 Usage
-
-Register services in your API or host application:
-
-```csharp
-services.AddIBeamIdentity(configuration);
+```bash
+dotnet restore
+dotnet build
+```
