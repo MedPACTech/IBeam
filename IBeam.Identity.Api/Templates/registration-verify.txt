@@ -1,0 +1,6 @@
+Hello {{DisplayName}},
+
+Welcome. Please verify your email by opening this link:
+{{Link}}
+
+This link expires at: {{ExpiresAt}}
