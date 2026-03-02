@@ -71,6 +71,7 @@ builder.Services.AddIBeamAzureCommunicationsEmail(builder.Configuration);
 builder.Services.AddScoped<IIdentityCommunicationSender, IdentityCommunicationAdapter>();
 
 builder.Services.AddIBeamIdentityAuthOtpService();
+builder.Services.AddIBeamIdentityAuthPasswordService();
 //// Register Data Protection (required for token providers)
 builder.Services.AddDataProtection();
 
