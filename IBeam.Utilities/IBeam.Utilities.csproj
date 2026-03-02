@@ -42,7 +42,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\IBeam.Repositories.Abstractions\IBeam.Repositories.Abstractions.csproj" />
+    <ProjectReference Include="..\IBeam.Repositories.Core\IBeam.Repositories.Core.csproj" />
   </ItemGroup>
 
 </Project>
