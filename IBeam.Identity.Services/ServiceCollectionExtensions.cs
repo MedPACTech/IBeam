@@ -38,6 +38,12 @@ public static class ServiceCollectionExtensions
         })
         .ValidateOnStart();
 
+        services.AddOptions<FeatureOptions>()
+        .Bind(configuration.GetSection("IBeam:Identity:Features"));
+
+        services.AddOptions<OAuthOptions>()
+        .Bind(configuration.GetSection(OAuthOptions.SectionName));
+
         // Core services
         services.AddScoped<IOtpService, OtpService>();
         //services.AddScoped<IIdentityAuthService, IdentityAuthService>();
@@ -73,6 +79,12 @@ public static class ServiceCollectionExtensions
     {
         // Core services
         services.AddScoped<IIdentityOtpAuthService, OtpAuthService>();
+        return services;
+    }
+
+    public static IServiceCollection AddIBeamIdentityAuthOAuthService(this IServiceCollection services)
+    {
+        services.AddScoped<IIdentityOAuthAuthService, OAuthAuthService>();
         return services;
     }
 }
