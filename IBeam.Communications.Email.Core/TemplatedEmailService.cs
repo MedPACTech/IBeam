@@ -18,7 +18,7 @@ public sealed class TemplatedEmailService : ITemplatedEmailService
         string subject,
         string templateName,
         object? model = null,
-        EmailSendOptions? options = null,
+        EmailOptions? options = null,
         CancellationToken ct = default)
     {
         if (to == null || to.Count == 0)
@@ -61,9 +61,6 @@ public sealed class TemplatedEmailService : ITemplatedEmailService
         {
             message.To.Add(r);
         }
-
-        // or, if To is List<string>
-        message.To.AddRange(to);
 
         await _email.SendAsync(message, options, ct);
     }

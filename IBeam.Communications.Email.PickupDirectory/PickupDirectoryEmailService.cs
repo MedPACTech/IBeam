@@ -1,5 +1,8 @@
 using System.Net.Mail;
 using IBeam.Communications.Abstractions;
+using IBeam.Communications.Abstractions.Policies;
+using IBeam.Communications.Abstractions.Validation;
+using Microsoft.Extensions.Options;
 
 // Alias to avoid ambiguity if other packages introduce EmailAddress types later
 using IBeamEmailAddress = IBeam.Communications.Abstractions.EmailAddress;
@@ -9,31 +12,37 @@ namespace IBeam.Communications.Email.PickupDirectory;
 public sealed class PickupDirectoryEmailService : IEmailService
 {
     private readonly PickupDirectoryEmailOptions _options;
+    private readonly EmailOptions _defaults;
 
-    public PickupDirectoryEmailService(Microsoft.Extensions.Options.IOptions<PickupDirectoryEmailOptions> options)
-        => _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-
-    public async Task SendAsync(EmailMessage message, EmailSendOptions? options = null, CancellationToken ct = default)
+    public PickupDirectoryEmailService(
+        IOptions<PickupDirectoryEmailOptions> options,
+        IOptions<EmailOptions> defaults)
     {
-        const string provider = nameof(PickupDirectoryEmailService);
+        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _defaults = defaults?.Value ?? throw new ArgumentNullException(nameof(defaults));
+    }
 
-        EmailDefaults.ValidateMessageForSend(provider, message);
+    public async Task SendAsync(EmailMessage message, EmailOptions? options = null, CancellationToken ct = default)
+    {
+        const string providerName = nameof(PickupDirectoryEmailService);
 
-        IBeamEmailAddress from = ResolveFrom(provider, message, options);
+        EmailMessageValidator.Validate(message);
+
+        var (fromAddress, fromName) = SenderResolution.ResolveEmailFrom(options, message, _defaults);
 
         if (string.IsNullOrWhiteSpace(_options.DirectoryPath))
-            throw new EmailValidationException(provider, "DirectoryPath is not configured.");
+            throw new EmailConfigurationException("PickupDirectory DirectoryPath is not configured.");
 
         Directory.CreateDirectory(_options.DirectoryPath);
 
         using var mail = new MailMessage
         {
             Subject = message.Subject,
-            From = ToMailAddress(from),
+            From = ToMailAddress(new IBeamEmailAddress(fromAddress, fromName)),
         };
 
         foreach (var to in message.To)
-            mail.To.Add(ToMailAddress(provider, to));
+            mail.To.Add(ToMailAddress(to));
 
 
         // body logic
@@ -69,27 +78,12 @@ public sealed class PickupDirectoryEmailService : IEmailService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new EmailServiceException(provider, "PickupDirectory email write failed.", ex);
+            throw new EmailProviderException(
+                provider: providerName,
+                message: "PickupDirectory email write failed.",
+                isTransient: false,
+                inner: ex);
         }
-    }
-
-    private IBeamEmailAddress ResolveFrom(string provider, EmailMessage message, EmailSendOptions? options)
-    {
-        if (options?.FromOverride is not null)
-            return options.FromOverride;
-
-        if (!string.IsNullOrWhiteSpace(message.FromAddress))
-            return new IBeamEmailAddress(message.FromAddress, message.FromName);
-
-        if (options?.UseDefaultFromIfMissing ?? true)
-        {
-            if (string.IsNullOrWhiteSpace(_options.DefaultFromAddress))
-                throw new EmailValidationException(provider, "DefaultFromAddress is not configured.");
-
-            return new IBeamEmailAddress(_options.DefaultFromAddress, _options.DefaultFromDisplayName);
-        }
-
-        throw new EmailValidationException(provider, "From is required (no sender provided and default sender disabled).");
     }
 
     private static MailAddress ToMailAddress(IBeamEmailAddress addr)
@@ -97,14 +91,14 @@ public sealed class PickupDirectoryEmailService : IEmailService
         ? new MailAddress(addr.Address)
         : new MailAddress(addr.Address, addr.DisplayName);
 
-    private static MailAddress ToMailAddress(string provider, string addr)
+    private static MailAddress ToMailAddress(string addr)
     {
         if (string.IsNullOrWhiteSpace(addr))
-            throw new EmailValidationException(provider, "Recipient email address is required.");
+            throw new EmailValidationException("Recipient email address is required.");
 
         try { return new MailAddress(addr.Trim()); }
         catch (FormatException ex)
-        { throw new EmailValidationException(provider, $"Invalid recipient email address: '{addr}'."); }
+        { throw new EmailValidationException($"Invalid recipient email address: '{addr}'.", ex); }
     }
 
 }

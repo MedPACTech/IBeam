@@ -1,4 +1,6 @@
 using IBeam.Communications.Abstractions;
+using IBeam.Communications.Abstractions.Policies;
+using IBeam.Communications.Abstractions.Validation;
 using Microsoft.Extensions.Options;
 using SendGrid;
 using SendGrid.Helpers.Mail;
@@ -10,11 +12,13 @@ namespace IBeam.Communications.Email.SendGrid;
 public sealed class SendGridEmailService : IEmailService
 {
     private readonly SendGridEmailOptions _options;
+    private readonly EmailOptions _defaults;
     private readonly ISendGridClient _client;
 
-    public SendGridEmailService(IOptions<SendGridEmailOptions> options)
+    public SendGridEmailService(IOptions<SendGridEmailOptions> options, IOptions<EmailOptions> defaults)
     {
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _defaults = defaults?.Value ?? throw new ArgumentNullException(nameof(defaults));
 
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
             throw new ArgumentException("ApiKey is required.", nameof(options));
@@ -22,13 +26,14 @@ public sealed class SendGridEmailService : IEmailService
         _client = new SendGridClient(_options.ApiKey);
     }
 
-    public async Task SendAsync(EmailMessage message, EmailSendOptions? options = null, CancellationToken ct = default)
+    public async Task SendAsync(EmailMessage message, EmailOptions? options = null, CancellationToken ct = default)
     {
-        const string provider = nameof(SendGridEmailService);
+        const string providerName = nameof(SendGridEmailService);
 
-        EmailDefaults.ValidateMessageForSend(provider, message);
+        EmailMessageValidator.Validate(message);
 
-        IBeamEmailAddress from = ResolveFrom(provider, message, options);
+        var (fromAddress, fromName) = SenderResolution.ResolveEmailFrom(options, message, _defaults);
+        IBeamEmailAddress from = new(fromAddress, fromName);
 
         var sgMessage = new SendGridMessage
         {
@@ -67,34 +72,21 @@ public sealed class SendGridEmailService : IEmailService
             if ((int)response.StatusCode >= 400)
             {
                 var body = await response.Body.ReadAsStringAsync(ct).ConfigureAwait(false);
-                throw new EmailServiceException(provider,
-                    $"SendGrid email send failed (Status={(int)response.StatusCode}): {body}");
+                throw new EmailProviderException(
+                    provider: providerName,
+                    message: $"SendGrid email send failed (Status={(int)response.StatusCode}): {body}",
+                    isTransient: (int)response.StatusCode == 429 || (int)response.StatusCode >= 500,
+                    providerCode: ((int)response.StatusCode).ToString());
             }
         }
-        catch (EmailServiceException) { throw; }
+        catch (EmailProviderException) { throw; }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new EmailServiceException(provider, "SendGrid email send failed.", ex);
+            throw new EmailProviderException(
+                provider: providerName,
+                message: "SendGrid email send failed.",
+                isTransient: true,
+                inner: ex);
         }
     }
-
-    private IBeamEmailAddress ResolveFrom(string provider, EmailMessage message, EmailSendOptions? options)
-    {
-        if (options?.FromOverride is not null)
-            return options.FromOverride;
-
-        if (!string.IsNullOrWhiteSpace(message.FromAddress))
-            return new IBeamEmailAddress(message.FromAddress, message.FromName);
-
-        if (options?.UseDefaultFromIfMissing ?? true)
-        {
-            if (string.IsNullOrWhiteSpace(_options.DefaultFromAddress))
-                throw new EmailValidationException(provider, "DefaultFromAddress is not configured.");
-
-            return new IBeamEmailAddress(_options.DefaultFromAddress, _options.DefaultFromDisplayName);
-        }
-
-        throw new EmailValidationException(provider, "From is required (no sender provided and default sender disabled).");
-    }
-
 }

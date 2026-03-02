@@ -1,4 +1,4 @@
-﻿using IBeam.Identity.Services.Tenants;
+using IBeam.Identity.Abstractions.Interfaces;
 using IBeam.Identity.Repositories.EntityFramework.Data;
 using IBeam.Identity.Repositories.EntityFramework.Options;
 using IBeam.Identity.Repositories.EntityFramework.Tenants;
@@ -39,13 +39,10 @@ public static class EntityFrameworkIdentityServiceCollectionExtensions
                     break;
 
                 case EfProvider.SqlServer:
-                    // You can support this later by adding the SqlServer provider package to this project:
-                    // Microsoft.EntityFrameworkCore.SqlServer
                     throw new InvalidOperationException(
                         "EF Provider SqlServer selected, but SqlServer provider is not included in this package yet.");
 
                 case EfProvider.Postgres:
-                    // Same idea as SqlServer: add Npgsql.EntityFrameworkCore.PostgreSQL to support.
                     throw new InvalidOperationException(
                         "EF Provider Postgres selected, but Postgres provider is not included in this package yet.");
 
