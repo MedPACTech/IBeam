@@ -81,6 +81,7 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
             services.AddScoped<ITenantMembershipStore, AzureTableTenantMembershipStore>();
             services.AddScoped<IOtpChallengeStore, AzureTableOtpChallengeStore>();
             services.AddScoped<ITenantProvisioningService, AzureTableTenantProvisioningService>();
+            services.AddScoped<IExternalLoginStore, AzureTableExternalLoginStore>();
 
             // Schema manager + startup ensure
             services.AddScoped<IIdentitySchemaManager, AzureTableIdentitySchemaManager>();

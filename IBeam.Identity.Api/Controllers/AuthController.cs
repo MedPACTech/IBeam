@@ -333,6 +333,65 @@ public class AuthController : ControllerBase
         }
     }
 
+    [Authorize]
+    [HttpGet("oauth/link/start")]
+    public async Task<IActionResult> StartOAuthLink([FromQuery] string provider, [FromQuery] string redirectUri, CancellationToken ct)
+    {
+        if (!_features.OAuth) return NotFound(new { message = "OAuth authentication is disabled." });
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+
+        try
+        {
+            var result = await _oauthAuth.StartOAuthLinkAsync(userId, provider, redirectUri, ct);
+            return Ok(result);
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
+    [Authorize]
+    [HttpPost("oauth/link/complete")]
+    public async Task<IActionResult> CompleteOAuthLink([FromBody] OAuthCallbackApiRequest req, CancellationToken ct)
+    {
+        if (!_features.OAuth) return NotFound(new { message = "OAuth authentication is disabled." });
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+
+        try
+        {
+            await _oauthAuth.LinkOAuthAsync(userId, new OAuthCallbackRequest(req.Provider, req.State, req.Code, req.RedirectUri), ct);
+            return Ok(new { linked = true, provider = req.Provider.Trim().ToLowerInvariant() });
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
+    [Authorize]
+    [HttpPost("oauth/unlink")]
+    public async Task<IActionResult> UnlinkOAuth([FromBody] OAuthUnlinkRequest req, CancellationToken ct)
+    {
+        if (!_features.OAuth) return NotFound(new { message = "OAuth authentication is disabled." });
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+        if (string.IsNullOrWhiteSpace(req.Provider))
+            return BadRequest(new { message = "Provider is required." });
+
+        try
+        {
+            await _oauthAuth.UnlinkOAuthAsync(userId, req.Provider, ct);
+            return Ok(new { linked = false, provider = req.Provider.Trim().ToLowerInvariant() });
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
     [HttpGet()]
     public IActionResult PingAuth()
     {
@@ -413,4 +472,9 @@ public class OAuthCallbackApiRequest
     public string State { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
     public string RedirectUri { get; set; } = string.Empty;
+}
+
+public class OAuthUnlinkRequest
+{
+    public string Provider { get; set; } = string.Empty;
 }
