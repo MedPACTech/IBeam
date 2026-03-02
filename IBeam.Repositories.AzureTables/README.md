@@ -1,78 +1,103 @@
-# IBeam API
+# IBeam.Repositories.AzureTables
 
-IBeam API is the core backend service for the **IBeam** ecosystem, built on **ASP.NET Core (.NET 10)**.  
-It provides foundational identity, authentication, and platform services used across IBeam applications, including OTP-based authentication and communications infrastructure.
+Azure Table Storage provider for `IBeam.Repositories`.
 
----
+## Configuration Structure
 
-## ✨ Features
+Yes, it follows the same `IBeam:*` pattern used across the solution.
 
-- ASP.NET Core Web API
-- Multi-environment configuration (Local, Development, Test, Prod)
-- Identity & authentication services
-- OTP (One-Time Password) challenge framework
-- Pluggable communications (Email, SMS, etc.)
-- Designed for extensibility across the IBeam platform
+Canonical section:
 
----
+`IBeam:Repositories:AzureTables`
 
-## 🧱 Tech Stack
+Options class:
 
-- **.NET:** 10.0
-- **Framework:** ASP.NET Core Web API
-- **Configuration:** application.json + environment overrides
-- **Dependency Injection:** Microsoft.Extensions.DependencyInjection
-- **Options Pattern:** Microsoft.Extensions.Options
+- `AzureTablesOptions.SectionName = "IBeam:Repositories:AzureTables"`
 
----
+### appsettings/application json example
 
-## 📁 Project Structure
-IBeam.API/
-├── application.json
-├── application.Development.json
-├── application.Test.json
-├── application.Prod.json
-├── Program.cs
-├── Controllers/
-├── Services/
-├── Identity/
-│ ├── Otp/
-│ ├── Authentication/
-│ └── Authorization/
-└── Infrastructure/
+```json
+{
+  "IBeam": {
+    "Repositories": {
+      "AzureTables": {
+        "ConnectionString": "UseDevelopmentStorage=true",
+        "TableNamePrefix": "IBeam",
+        "CreateTablesIfNotExists": true,
+        "StorageModel": "Envelope"
+      }
+    }
+  }
+}
+```
 
+`StorageModel` values:
+- `Envelope`
+- `EntityColumns`
 
----
+## DI Registration
 
-## ⚙️ Configuration
+Bind from configuration:
 
-All application configuration is stored in `application.json` and overridden per environment as needed.
+```csharp
+services.ConfigureIBeamAzureTables(configuration);
+services.AddIBeamAzureTablesRepositories();
+```
 
-Key configuration areas include:
+Or configure in code:
 
-- Communications (Email, SMS)
-- OTP behavior and policies
-- Identity and security settings
+```csharp
+services.ConfigureIBeamAzureTables(o =>
+{
+    o.ConnectionString = "UseDevelopmentStorage=true";
+    o.TableNamePrefix = "IBeam";
+    o.CreateTablesIfNotExists = true;
+    o.StorageModel = AzureTableStorageModel.Envelope;
+});
 
----
+services.AddIBeamAzureTablesRepositories();
+```
 
-## 🚀 Getting Started
+## What It Registers
 
-1. Ensure **.NET 10 SDK** is installed
-2. Configure `application.Development.json`
-3. Run the API:
+- `IRepositoryStore<T>` -> `AzureTablesRepositoryStore<T>`
+- `IAzureTablesRepositoryStore<T>` -> `AzureTablesRepositoryStore<T>`
+- `IBaseRepository<T>` -> `AzureTablesRepositoryAsync<T>`
 
-```bash
-dotnet run
+## Storage Models
 
-The API will start using the configured environment settings.
+- `Envelope`: stores entities as JSON in `Data` column (`PartitionKey`, `RowKey`, `Data`, `Type`).
+- `EntityColumns`: stores scalar properties as table columns.
 
-🔐 Security Notes
-Secrets should never be committed to source control
-Use environment variables or secure secret stores for production
-OTP codes and challenges are time-bound and single-use
+## Azure-Specific Store Methods
 
-📄 License
+`IAzureTablesRepositoryStore<T>` adds:
 
-Copyright © IBeam
-All rights reserved.
+- `AddAsync(...)` for insert-only
+- `UpdateAsync(...)` for update-only (supports `ETag` and `TableUpdateMode`)
+- `GetByPartitionPagedAsync(...)`
+- `QueryAsync(...)`
+
+## Partition Key Strategy
+
+Per-entity strategy is supported.
+
+Built-in helpers:
+
+```csharp
+services.UseGlobalPartitionKey<TimeZoneEntity>();
+services.UseTenantPartitionKey<BusinessAddressEntity>();
+services.UseTenantHashBucketPartitionKey<UserMessage>(16);
+```
+
+Custom strategy:
+
+```csharp
+services.AddAzureTablePartitionKeyStrategy<UserMessage>(
+    AzureTablePartitionKeyStrategies.Create<UserMessage>(
+        writePartition: (tenantId, entity) => $"{entity.TenantId:N}|{entity.UserId:N}",
+        idCandidates: (tenantId, id) => null,
+        getAllPartitions: tenantId => null));
+```
+
+If `idCandidates` is null, point reads/deletes by `Id` fall back to row-key scan.
