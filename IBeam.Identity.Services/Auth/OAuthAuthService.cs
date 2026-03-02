@@ -82,6 +82,18 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         await _externalLogins.UnlinkAsync(userId, normalizedProvider, ct);
     }
 
+    public async Task<IReadOnlyList<LinkedOAuthProvider>> GetLinkedProvidersAsync(Guid userId, CancellationToken ct = default)
+    {
+        if (userId == Guid.Empty)
+            throw new IdentityValidationException("UserId is required.");
+
+        var links = await _externalLogins.GetByUserAsync(userId, ct);
+        return links
+            .Select(x => new LinkedOAuthProvider(x.Provider, x.Email))
+            .Distinct()
+            .ToList();
+    }
+
     private Task<OAuthStartResponse> StartOAuthInternalAsync(string provider, string redirectUri, Guid? linkUserId)
     {
         if (string.IsNullOrWhiteSpace(provider))
