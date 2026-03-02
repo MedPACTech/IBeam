@@ -72,6 +72,9 @@ builder.Services.AddScoped<IIdentityCommunicationSender, IdentityCommunicationAd
 
 builder.Services.AddIBeamIdentityAuthOtpService();
 builder.Services.AddIBeamIdentityAuthPasswordService();
+builder.Services.AddIBeamIdentityAuthOAuthService();
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient();
 //// Register Data Protection (required for token providers)
 builder.Services.AddDataProtection();
 

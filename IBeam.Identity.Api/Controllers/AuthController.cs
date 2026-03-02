@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authorization;
 using IBeam.Identity.Abstractions.Exceptions;
 using IBeam.Identity.Abstractions.Interfaces;
 using IBeam.Identity.Abstractions.Models;
+using IBeam.Identity.Abstractions.Options;
+using Microsoft.Extensions.Options;
 using System.Security.Claims;
 
 namespace IBeam.Identity.Api.Controllers;
@@ -13,17 +15,27 @@ public class AuthController : ControllerBase
 {
     private readonly IIdentityOtpAuthService _otpAuth;
     private readonly IIdentityAuthService _passwordAuth;
+    private readonly IIdentityOAuthAuthService _oauthAuth;
+    private readonly FeatureOptions _features;
 
-    public AuthController(IIdentityOtpAuthService otpAuth, IIdentityAuthService passwordAuth)
+    public AuthController(
+        IIdentityOtpAuthService otpAuth,
+        IIdentityAuthService passwordAuth,
+        IIdentityOAuthAuthService oauthAuth,
+        IOptionsSnapshot<FeatureOptions> features)
     {
 
         _otpAuth = otpAuth;
         _passwordAuth = passwordAuth;
+        _oauthAuth = oauthAuth;
+        _features = features.Value;
     }
 
     [HttpPost("startotp")]
     public async Task<IActionResult> StartOtp([FromBody] StartOtpRequest req, CancellationToken ct)
     {
+        if (!_features.Otp) return NotFound(new { message = "OTP authentication is disabled." });
+
         if (string.IsNullOrWhiteSpace(req.Destination))
             return BadRequest(new { message = "Destination is required." });
 
@@ -41,6 +53,8 @@ public class AuthController : ControllerBase
     [HttpPost("completeotp")]
     public async Task<IActionResult> CompleteOtp([FromBody] CompleteOtpRequest req, CancellationToken ct)
     {
+        if (!_features.Otp) return NotFound(new { message = "OTP authentication is disabled." });
+
         if (string.IsNullOrWhiteSpace(req.ChallengeId))
             return BadRequest(new { message = "ChallengeId is required." });
         if (string.IsNullOrWhiteSpace(req.Code))
@@ -71,6 +85,8 @@ public class AuthController : ControllerBase
     [HttpPost("start-email-password-registration")]
     public async Task<IActionResult> StartEmailPasswordRegistration([FromBody] StartEmailPasswordRegistrationRequest req, CancellationToken ct)
     {
+        if (!_features.PasswordAuth) return NotFound(new { message = "Password authentication is disabled." });
+
         if (string.IsNullOrWhiteSpace(req.Email))
             return BadRequest(new { message = "Email is required." });
 
@@ -93,6 +109,8 @@ public class AuthController : ControllerBase
     [HttpPost("complete-email-password-registration")]
     public async Task<IActionResult> CompleteEmailPasswordRegistration([FromBody] CompleteEmailPasswordRegistrationRequest req, CancellationToken ct)
     {
+        if (!_features.PasswordAuth) return NotFound(new { message = "Password authentication is disabled." });
+
         if (string.IsNullOrWhiteSpace(req.Email))
             return BadRequest(new { message = "Email is required." });
         if (string.IsNullOrWhiteSpace(req.ChallengeId))
@@ -127,6 +145,8 @@ public class AuthController : ControllerBase
     [HttpPost("password-login")]
     public async Task<IActionResult> PasswordLogin([FromBody] PasswordLoginApiRequest req, CancellationToken ct)
     {
+        if (!_features.PasswordAuth) return NotFound(new { message = "Password authentication is disabled." });
+
         if (string.IsNullOrWhiteSpace(req.Email))
             return BadRequest(new { message = "Email is required." });
         if (string.IsNullOrWhiteSpace(req.Password))
@@ -154,6 +174,9 @@ public class AuthController : ControllerBase
     [HttpPost("2fa/setup/start")]
     public async Task<IActionResult> StartTwoFactorSetup([FromBody] StartTwoFactorSetupRequest req, CancellationToken ct)
     {
+        if (!_features.PasswordAuth || !_features.TwoFactor)
+            return NotFound(new { message = "Two-factor authentication is disabled." });
+
         if (string.IsNullOrWhiteSpace(req.Method))
             return BadRequest(new { message = "Method is required (email or sms)." });
 
@@ -175,6 +198,9 @@ public class AuthController : ControllerBase
     [HttpPost("2fa/setup/complete")]
     public async Task<IActionResult> CompleteTwoFactorSetup([FromBody] CompleteTwoFactorSetupRequest req, CancellationToken ct)
     {
+        if (!_features.PasswordAuth || !_features.TwoFactor)
+            return NotFound(new { message = "Two-factor authentication is disabled." });
+
         if (string.IsNullOrWhiteSpace(req.Method))
             return BadRequest(new { message = "Method is required (email or sms)." });
         if (string.IsNullOrWhiteSpace(req.ChallengeId))
@@ -199,6 +225,9 @@ public class AuthController : ControllerBase
     [HttpPost("2fa/complete-login")]
     public async Task<IActionResult> CompleteTwoFactorLogin([FromBody] CompleteTwoFactorLoginRequest req, CancellationToken ct)
     {
+        if (!_features.PasswordAuth || !_features.TwoFactor)
+            return NotFound(new { message = "Two-factor authentication is disabled." });
+
         if (string.IsNullOrWhiteSpace(req.Email))
             return BadRequest(new { message = "Email is required." });
         if (string.IsNullOrWhiteSpace(req.ChallengeId))
@@ -225,6 +254,9 @@ public class AuthController : ControllerBase
     [HttpPost("2fa/disable")]
     public async Task<IActionResult> DisableTwoFactor(CancellationToken ct)
     {
+        if (!_features.PasswordAuth || !_features.TwoFactor)
+            return NotFound(new { message = "Two-factor authentication is disabled." });
+
         if (!TryGetCurrentUserId(out var userId))
             return Unauthorized(new { message = "Authenticated user id claim is missing." });
 
@@ -243,6 +275,9 @@ public class AuthController : ControllerBase
     [HttpPost("2fa/method")]
     public async Task<IActionResult> SetPreferredTwoFactorMethod([FromBody] SetPreferredTwoFactorMethodRequest req, CancellationToken ct)
     {
+        if (!_features.PasswordAuth || !_features.TwoFactor)
+            return NotFound(new { message = "Two-factor authentication is disabled." });
+
         if (string.IsNullOrWhiteSpace(req.Method))
             return BadRequest(new { message = "Method is required (email or sms)." });
 
@@ -257,6 +292,44 @@ public class AuthController : ControllerBase
         catch (IdentityValidationException ex)
         {
             return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
+    [HttpGet("oauth/start")]
+    public async Task<IActionResult> StartOAuth([FromQuery] string provider, [FromQuery] string redirectUri, CancellationToken ct)
+    {
+        if (!_features.OAuth) return NotFound(new { message = "OAuth authentication is disabled." });
+
+        try
+        {
+            var result = await _oauthAuth.StartOAuthAsync(provider, redirectUri, ct);
+            return Ok(result);
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
+    [HttpPost("oauth/complete")]
+    public async Task<IActionResult> CompleteOAuth([FromBody] OAuthCallbackApiRequest req, CancellationToken ct)
+    {
+        if (!_features.OAuth) return NotFound(new { message = "OAuth authentication is disabled." });
+
+        try
+        {
+            var result = await _oauthAuth.CompleteOAuthAsync(
+                new OAuthCallbackRequest(req.Provider, req.State, req.Code, req.RedirectUri),
+                ct);
+            return Ok(result);
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+        catch (IdentityUnauthorizedException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
         }
     }
 
@@ -332,4 +405,12 @@ public class CompleteTwoFactorLoginRequest
 public class SetPreferredTwoFactorMethodRequest
 {
     public string Method { get; set; } = string.Empty;
+}
+
+public class OAuthCallbackApiRequest
+{
+    public string Provider { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string RedirectUri { get; set; } = string.Empty;
 }
