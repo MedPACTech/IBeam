@@ -10,10 +10,10 @@
     - v*
   paths:
     include:
-    - IBeam.Identity.Core/**
+    - IBeam.Tests.Identity.Services/**
     - .azure-pipelines/templates/**
     - IBeam.sln
-    - .azure-pipelines/pipelines.IBeam.Identity.Core.nupkg.yml
+    - .azure-pipelines/pipelines.IBeam.Tests.Identity.Services.nupkg.yml
 
 pool:
   vmImage: 'ubuntu-22.04'
@@ -28,7 +28,7 @@ variables:
 - name: solution
   value: '**/IBeam.sln'
 - name: project
-  value: '**/IBeam.Identity.Core.csproj'
+  value: '**/IBeam.Tests.Identity.Services.csproj'
 - name: packageLocation
   value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
 - name: apiKey
