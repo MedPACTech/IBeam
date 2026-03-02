@@ -17,6 +17,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IOptionsMonitor<OAuthOptions> _oauthOptions;
     private readonly IIdentityUserStore _users;
+    private readonly IExternalLoginStore _externalLogins;
     private readonly ITenantMembershipStore _tenants;
     private readonly ITenantProvisioningService _tenantProvisioning;
     private readonly ITokenService _tokens;
@@ -26,6 +27,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         IHttpClientFactory httpClientFactory,
         IOptionsMonitor<OAuthOptions> oauthOptions,
         IIdentityUserStore users,
+        IExternalLoginStore externalLogins,
         ITenantMembershipStore tenants,
         ITenantProvisioningService tenantProvisioning,
         ITokenService tokens)
@@ -34,12 +36,53 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _oauthOptions = oauthOptions ?? throw new ArgumentNullException(nameof(oauthOptions));
         _users = users ?? throw new ArgumentNullException(nameof(users));
+        _externalLogins = externalLogins ?? throw new ArgumentNullException(nameof(externalLogins));
         _tenants = tenants ?? throw new ArgumentNullException(nameof(tenants));
         _tenantProvisioning = tenantProvisioning ?? throw new ArgumentNullException(nameof(tenantProvisioning));
         _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
     }
 
     public Task<OAuthStartResponse> StartOAuthAsync(string provider, string redirectUri, CancellationToken ct = default)
+        => StartOAuthInternalAsync(provider, redirectUri, linkUserId: null);
+
+    public Task<OAuthStartResponse> StartOAuthLinkAsync(Guid userId, string provider, string redirectUri, CancellationToken ct = default)
+    {
+        if (userId == Guid.Empty)
+            throw new IdentityValidationException("UserId is required.");
+
+        return StartOAuthInternalAsync(provider, redirectUri, userId);
+    }
+
+    public async Task LinkOAuthAsync(Guid userId, OAuthCallbackRequest request, CancellationToken ct = default)
+    {
+        if (userId == Guid.Empty)
+            throw new IdentityValidationException("UserId is required.");
+        if (request is null)
+            throw new ArgumentNullException(nameof(request));
+
+        var normalizedProvider = request.Provider.Trim().ToLowerInvariant();
+        var providerOptions = GetProviderOptions(normalizedProvider);
+        var stateRecord = GetAndValidateState(request, normalizedProvider, requireLink: true);
+        if (!stateRecord.LinkUserId.HasValue || stateRecord.LinkUserId.Value != userId)
+            throw new IdentityValidationException("OAuth link state does not match authenticated user.");
+
+        var accessToken = await ExchangeCodeAsync(providerOptions, request.Code.Trim(), stateRecord.CodeVerifier, request.RedirectUri.Trim(), ct);
+        var externalUser = await GetUserInfoAsync(normalizedProvider, providerOptions, accessToken, ct);
+        await _externalLogins.LinkAsync(userId, normalizedProvider, externalUser.ProviderUserId, externalUser.Email, ct);
+    }
+
+    public async Task UnlinkOAuthAsync(Guid userId, string provider, CancellationToken ct = default)
+    {
+        if (userId == Guid.Empty)
+            throw new IdentityValidationException("UserId is required.");
+        if (string.IsNullOrWhiteSpace(provider))
+            throw new IdentityValidationException("Provider is required.");
+
+        var normalizedProvider = provider.Trim().ToLowerInvariant();
+        await _externalLogins.UnlinkAsync(userId, normalizedProvider, ct);
+    }
+
+    private Task<OAuthStartResponse> StartOAuthInternalAsync(string provider, string redirectUri, Guid? linkUserId)
     {
         if (string.IsNullOrWhiteSpace(provider))
             throw new IdentityValidationException("Provider is required.");
@@ -55,7 +98,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         var codeVerifier = CreateRandomBase64Url(48);
         var codeChallenge = CreateCodeChallenge(codeVerifier);
 
-        var cacheRecord = new OAuthStateRecord(normalizedProvider, redirectUri.Trim(), codeVerifier, expiresAt);
+        var cacheRecord = new OAuthStateRecord(normalizedProvider, redirectUri.Trim(), codeVerifier, expiresAt, linkUserId);
         _cache.Set(CacheKey(state), cacheRecord, expiresAt);
 
         var authorizationUrl = BuildAuthorizationUrl(providerOptions, normalizedProvider, redirectUri, state, codeChallenge);
@@ -77,18 +120,9 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
 
         var normalizedProvider = request.Provider.Trim().ToLowerInvariant();
         var providerOptions = GetProviderOptions(normalizedProvider);
-        var state = request.State.Trim();
-
-        if (!_cache.TryGetValue(CacheKey(state), out OAuthStateRecord? stateRecord) || stateRecord is null)
-            throw new IdentityValidationException("OAuth state is invalid or expired.");
-        _cache.Remove(CacheKey(state));
-
-        if (!string.Equals(stateRecord.Provider, normalizedProvider, StringComparison.Ordinal))
-            throw new IdentityValidationException("OAuth provider mismatch.");
-        if (!string.Equals(stateRecord.RedirectUri, request.RedirectUri.Trim(), StringComparison.OrdinalIgnoreCase))
-            throw new IdentityValidationException("OAuth redirect URI mismatch.");
-        if (stateRecord.ExpiresAt <= DateTimeOffset.UtcNow)
-            throw new IdentityValidationException("OAuth state has expired.");
+        var stateRecord = GetAndValidateState(request, normalizedProvider, requireLink: false);
+        if (stateRecord.LinkUserId.HasValue)
+            throw new IdentityValidationException("OAuth state is for linking, not sign-in.");
 
         var accessToken = await ExchangeCodeAsync(providerOptions, request.Code.Trim(), stateRecord.CodeVerifier, request.RedirectUri.Trim(), ct);
         var externalUser = await GetUserInfoAsync(normalizedProvider, providerOptions, accessToken, ct);
@@ -99,7 +133,12 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
             throw new IdentityValidationException("OAuth email must be verified.");
 
         var normalizedEmail = externalUser.Email.Trim().ToLowerInvariant();
-        var user = await _users.FindByEmailAsync(normalizedEmail, ct);
+        IdentityUser? user = null;
+        var link = await _externalLogins.FindByProviderAsync(normalizedProvider, externalUser.ProviderUserId, ct);
+        if (link is not null)
+            user = await _users.FindByIdAsync(link.UserId, ct);
+
+        user ??= await _users.FindByEmailAsync(normalizedEmail, ct);
         var createdNewUser = false;
 
         if (user is null)
@@ -117,8 +156,28 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
             createdNewUser = true;
         }
 
+        await _externalLogins.LinkAsync(user.UserId, normalizedProvider, externalUser.ProviderUserId, normalizedEmail, ct);
         await _users.SetEmailConfirmedAsync(user.UserId, true, ct);
         return await BuildAuthResultAsync(user, createdNewUser, normalizedProvider, ct);
+    }
+
+    private OAuthStateRecord GetAndValidateState(OAuthCallbackRequest request, string normalizedProvider, bool requireLink)
+    {
+        var state = request.State.Trim();
+        if (!_cache.TryGetValue(CacheKey(state), out OAuthStateRecord? stateRecord) || stateRecord is null)
+            throw new IdentityValidationException("OAuth state is invalid or expired.");
+        _cache.Remove(CacheKey(state));
+
+        if (!string.Equals(stateRecord.Provider, normalizedProvider, StringComparison.Ordinal))
+            throw new IdentityValidationException("OAuth provider mismatch.");
+        if (!string.Equals(stateRecord.RedirectUri, request.RedirectUri.Trim(), StringComparison.OrdinalIgnoreCase))
+            throw new IdentityValidationException("OAuth redirect URI mismatch.");
+        if (stateRecord.ExpiresAt <= DateTimeOffset.UtcNow)
+            throw new IdentityValidationException("OAuth state has expired.");
+        if (requireLink && !stateRecord.LinkUserId.HasValue)
+            throw new IdentityValidationException("OAuth state is not for link flow.");
+
+        return stateRecord;
     }
 
     private OAuthProviderOptions GetProviderOptions(string provider)
@@ -324,6 +383,6 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         return value.ValueKind == JsonValueKind.True || (value.ValueKind == JsonValueKind.String && bool.TryParse(value.GetString(), out var b) && b);
     }
 
-    private sealed record OAuthStateRecord(string Provider, string RedirectUri, string CodeVerifier, DateTimeOffset ExpiresAt);
+    private sealed record OAuthStateRecord(string Provider, string RedirectUri, string CodeVerifier, DateTimeOffset ExpiresAt, Guid? LinkUserId);
     private sealed record ExternalOAuthUser(string ProviderUserId, string Email, bool EmailVerified, string? DisplayName);
 }
