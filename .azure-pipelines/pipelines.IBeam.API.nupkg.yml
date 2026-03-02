@@ -1,4 +1,4 @@
-﻿trigger:
+trigger:
   branches:
     include:
     - main
@@ -10,10 +10,10 @@
     - v*
   paths:
     include:
-    - IBeam.API/**
+    - IBeam.Api/**
     - .azure-pipelines/templates/**
     - IBeam.sln
-    - .azure-pipelines/pipelines.IBeam.API.nupkg.yml
+    - .azure-pipelines/pipelines.IBeam.Api.nupkg.yml
 
 pool:
   vmImage: 'ubuntu-22.04'
@@ -28,7 +28,7 @@ variables:
 - name: solution
   value: '**/IBeam.sln'
 - name: project
-  value: '**/IBeam.API.csproj'
+  value: '**/IBeam.Api.csproj'
 - name: packageLocation
   value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
 - name: apiKey
