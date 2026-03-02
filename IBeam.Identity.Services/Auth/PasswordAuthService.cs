@@ -13,6 +13,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
     private readonly ITenantMembershipStore _tenants;
     private readonly ITenantProvisioningService _tenantProvisioning;
     private readonly ITokenService _tokens;
+    private readonly IOtpService _otpService;
     private readonly IOtpChallengeStore _otpChallenges;
     private readonly IIdentityCommunicationSender _sender;
 
@@ -21,6 +22,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         ITenantMembershipStore tenants,
         ITenantProvisioningService tenantProvisioning,
         ITokenService tokens,
+        IOtpService otpService,
         IOtpChallengeStore otpChallenges,
         IIdentityCommunicationSender sender)
     {
@@ -28,6 +30,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         _tenants = tenants ?? throw new ArgumentNullException(nameof(tenants));
         _tenantProvisioning = tenantProvisioning ?? throw new ArgumentNullException(nameof(tenantProvisioning));
         _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
+        _otpService = otpService ?? throw new ArgumentNullException(nameof(otpService));
         _otpChallenges = otpChallenges ?? throw new ArgumentNullException(nameof(otpChallenges));
         _sender = sender ?? throw new ArgumentNullException(nameof(sender));
     }
@@ -58,6 +61,16 @@ public sealed class PasswordAuthService : IIdentityAuthService
         var ok = await _users.ValidatePasswordAsync(request.Email, request.Password, ct);
         if (!ok)
             throw new IdentityUnauthorizedException("Invalid credentials.");
+
+        if (user.TwoFactorEnabled)
+        {
+            var (method, channel, destination) = ResolveTwoFactorTarget(user, user.PreferredTwoFactorMethod);
+            var challenge = await _otpService.CreateChallengeAsync(
+                new OtpChallengeRequest(channel, destination, SenderPurpose.LoginMfa, null),
+                ct);
+
+            return AuthResultResponse.RequiresTwoFactorChallenge(challenge.ChallengeId, method);
+        }
 
         var tenants = await _tenants.GetTenantsForUserAsync(user.UserId, ct);
         var activeTenants = tenants.Where(t => t.IsActive).ToList();
@@ -92,6 +105,88 @@ public sealed class PasswordAuthService : IIdentityAuthService
         preClaims.Add(new ClaimItem("pt", "1"));
         var pre = await _tokens.CreatePreTenantTokenAsync(user.UserId, preClaims, ct);
         return AuthResultResponse.RequiresSelection(pre.AccessToken, activeTenants);
+    }
+
+    public async Task<OtpChallengeResult> StartTwoFactorSetupAsync(Guid userId, string method, CancellationToken ct = default)
+    {
+        if (userId == Guid.Empty)
+            throw new IdentityValidationException("UserId is required.");
+
+        var user = await _users.FindByIdAsync(userId, ct)
+            ?? throw new IdentityValidationException("User not found.");
+
+        var (_, channel, destination) = ResolveTwoFactorTarget(user, method);
+        var purpose = channel == SenderChannel.Email ? SenderPurpose.EmailVerification : SenderPurpose.PhoneVerification;
+
+        return await _otpService.CreateChallengeAsync(
+            new OtpChallengeRequest(channel, destination, purpose, null),
+            ct);
+    }
+
+    public async Task CompleteTwoFactorSetupAsync(Guid userId, string method, string challengeId, string code, CancellationToken ct = default)
+    {
+        if (userId == Guid.Empty)
+            throw new IdentityValidationException("UserId is required.");
+        if (string.IsNullOrWhiteSpace(challengeId))
+            throw new IdentityValidationException("ChallengeId is required.");
+        if (string.IsNullOrWhiteSpace(code))
+            throw new IdentityValidationException("Code is required.");
+
+        var user = await _users.FindByIdAsync(userId, ct)
+            ?? throw new IdentityValidationException("User not found.");
+
+        var (normalizedMethod, channel, destination) = ResolveTwoFactorTarget(user, method);
+        var expectedPurpose = channel == SenderChannel.Email ? SenderPurpose.EmailVerification : SenderPurpose.PhoneVerification;
+
+        await VerifyOtpChallengeAsync(challengeId, code, destination, expectedPurpose, ct);
+        await _users.SetTwoFactorAsync(user.UserId, enabled: true, preferredMethod: normalizedMethod, ct);
+    }
+
+    public async Task<AuthResultResponse> CompleteTwoFactorLoginAsync(string email, string challengeId, string code, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            throw new IdentityValidationException("Email is required.");
+        if (string.IsNullOrWhiteSpace(challengeId))
+            throw new IdentityValidationException("ChallengeId is required.");
+        if (string.IsNullOrWhiteSpace(code))
+            throw new IdentityValidationException("Code is required.");
+
+        var user = await _users.FindByEmailAsync(email, ct);
+        if (user is null)
+            throw new IdentityUnauthorizedException("Invalid credentials.");
+        if (!user.TwoFactorEnabled)
+            throw new IdentityValidationException("Two-factor authentication is not enabled for this user.");
+
+        var (_, _, destination) = ResolveTwoFactorTarget(user, user.PreferredTwoFactorMethod);
+        await VerifyOtpChallengeAsync(challengeId, code, destination, SenderPurpose.LoginMfa, ct);
+
+        return await BuildAuthResultAsync(user, createdNewUser: false, ct);
+    }
+
+    public async Task DisableTwoFactorAsync(Guid userId, CancellationToken ct = default)
+    {
+        if (userId == Guid.Empty)
+            throw new IdentityValidationException("UserId is required.");
+
+        var user = await _users.FindByIdAsync(userId, ct)
+            ?? throw new IdentityValidationException("User not found.");
+
+        await _users.SetTwoFactorAsync(user.UserId, enabled: false, preferredMethod: null, ct);
+    }
+
+    public async Task SetPreferredTwoFactorMethodAsync(Guid userId, string method, CancellationToken ct = default)
+    {
+        if (userId == Guid.Empty)
+            throw new IdentityValidationException("UserId is required.");
+
+        var user = await _users.FindByIdAsync(userId, ct)
+            ?? throw new IdentityValidationException("User not found.");
+
+        if (!user.TwoFactorEnabled)
+            throw new IdentityValidationException("Two-factor authentication is not enabled for this user.");
+
+        var (normalizedMethod, _, _) = ResolveTwoFactorTarget(user, method);
+        await _users.SetTwoFactorAsync(user.UserId, enabled: true, preferredMethod: normalizedMethod, ct);
     }
 
     public async Task<RequestPasswordResetResponse> StartEmailPasswordRegistrationAsync(
@@ -273,6 +368,54 @@ public sealed class PasswordAuthService : IIdentityAuthService
 
         var separator = baseUrl.Contains('?') ? "&" : "?";
         return $"{baseUrl}{separator}challengeId={Uri.EscapeDataString(challengeId)}&token={Uri.EscapeDataString(verificationToken)}&email={Uri.EscapeDataString(email)}&name={Uri.EscapeDataString(displayName ?? string.Empty)}";
+    }
+
+    private async Task VerifyOtpChallengeAsync(
+        string challengeId,
+        string code,
+        string expectedDestination,
+        SenderPurpose expectedPurpose,
+        CancellationToken ct)
+    {
+        var verify = await _otpService.VerifyAsync(new OtpVerifyRequest(challengeId, code), ct);
+        if (!verify.Success)
+            throw new IdentityValidationException("OTP verification failed.");
+
+        var challenge = await _otpChallenges.GetAsync(challengeId, ct);
+        if (challenge is null)
+            throw new IdentityValidationException("OTP challenge not found.");
+        if (!challenge.IsConsumed)
+            throw new IdentityValidationException("OTP challenge was not consumed.");
+        if (challenge.Purpose != expectedPurpose)
+            throw new IdentityValidationException("OTP challenge purpose mismatch.");
+
+        var (_, normalizedExpected) = IdentityUtils.NormalizeDestination(expectedDestination);
+        var (_, normalizedActual) = IdentityUtils.NormalizeDestination(challenge.Destination);
+        if (!string.Equals(normalizedActual, normalizedExpected, StringComparison.OrdinalIgnoreCase))
+            throw new IdentityValidationException("OTP destination mismatch.");
+    }
+
+    private static (string Method, SenderChannel Channel, string Destination) ResolveTwoFactorTarget(IdentityUser user, string? requestedMethod)
+    {
+        var method = (requestedMethod ?? string.Empty).Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(method))
+            method = !string.IsNullOrWhiteSpace(user.Email) ? "email" : "sms";
+
+        if (method == "email")
+        {
+            if (string.IsNullOrWhiteSpace(user.Email))
+                throw new IdentityValidationException("User does not have an email for 2FA.");
+            return (method, SenderChannel.Email, user.Email);
+        }
+
+        if (method == "sms")
+        {
+            if (string.IsNullOrWhiteSpace(user.PhoneNumber))
+                throw new IdentityValidationException("User does not have a phone number for SMS 2FA.");
+            return (method, SenderChannel.Sms, user.PhoneNumber);
+        }
+
+        throw new IdentityValidationException("2FA method must be 'email' or 'sms'.");
     }
 
     private static Guid ParseUserId(string userId)

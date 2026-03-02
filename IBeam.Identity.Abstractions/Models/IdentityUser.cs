@@ -7,5 +7,7 @@ public sealed record IdentityUser
     bool EmailConfirmed,
     string? PhoneNumber = null,
     bool PhoneConfirmed = false,
-    string? DisplayName = null
+    string? DisplayName = null,
+    bool TwoFactorEnabled = false,
+    string? PreferredTwoFactorMethod = null
 );

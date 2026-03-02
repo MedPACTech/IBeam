@@ -154,6 +154,30 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
         }
     }
 
+    public async Task SetTwoFactorAsync(Guid userId, bool enabled, string? preferredMethod = null, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var user = await _store.FindByIdAsync(userId.ToString("D"));
+            if (user is null) throw new InvalidOperationException("User not found.");
+
+            user.TwoFactorEnabled = enabled;
+            user.PreferredTwoFactorMethod = string.IsNullOrWhiteSpace(preferredMethod)
+                ? null
+                : preferredMethod.Trim().ToLowerInvariant();
+
+            var result = await _store.UpdateAsync(user);
+            if (!result.Succeeded)
+                throw new InvalidOperationException("Failed to update two-factor settings: " + string.Join(", ", result.Errors.Select(e => e.Description)));
+        }
+        catch (Exception ex) when (!IsCancellation(ex))
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
     public async Task<AbstractionIdentityUser?> FindByPhoneAsync(string phoneNumber, CancellationToken ct = default)
     {
         try
@@ -228,7 +252,9 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
             EmailConfirmed: u.EmailConfirmed,
             PhoneNumber: u.PhoneNumber,
             PhoneConfirmed: u.PhoneNumberConfirmed,
-            DisplayName: u.DisplayName
+            DisplayName: u.DisplayName,
+            TwoFactorEnabled: u.TwoFactorEnabled,
+            PreferredTwoFactorMethod: u.PreferredTwoFactorMethod
         );
     }
 

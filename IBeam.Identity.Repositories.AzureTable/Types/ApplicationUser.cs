@@ -6,4 +6,5 @@ namespace IBeam.Identity.Repositories.AzureTable.Types;
 public class ApplicationUser : IdentityUser
 {
     public string DisplayName { get; set; } = "";
+    public string? PreferredTwoFactorMethod { get; set; }
 }

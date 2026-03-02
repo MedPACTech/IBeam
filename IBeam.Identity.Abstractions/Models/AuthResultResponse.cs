@@ -5,7 +5,10 @@ public sealed record AuthResultResponse(
     bool RequiresTenantSelection,
     string? PreTenantToken,
     IReadOnlyList<TenantInfo> Tenants,
-    bool IsNewUser = false
+    bool IsNewUser = false,
+    bool RequiresTwoFactor = false,
+    string? TwoFactorChallengeId = null,
+    string? TwoFactorMethod = null
 )
 {
     public static AuthResultResponse WithToken(TokenResult token, bool isNewUser = false)
@@ -13,4 +16,7 @@ public sealed record AuthResultResponse(
 
     public static AuthResultResponse RequiresSelection(string preTenantToken, IReadOnlyList<TenantInfo> tenants, bool isNewUser = false)
         => new(null, true, preTenantToken, tenants, isNewUser);
+
+    public static AuthResultResponse RequiresTwoFactorChallenge(string challengeId, string method)
+        => new(null, false, null, Array.Empty<TenantInfo>(), false, true, challengeId, method);
 }
