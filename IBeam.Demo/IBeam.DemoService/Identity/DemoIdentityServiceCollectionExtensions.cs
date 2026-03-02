@@ -1,4 +1,3 @@
-using IBeam.Identity.Services.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -11,7 +10,7 @@ public static class DemoIdentityServiceCollectionExtensions
         IConfiguration configuration)
     {
         // Delegate identity composition to the platform identity layer
-        services.AddIBeamIdentity(configuration);
+        //services.AddAuthenticationCore(configuration);
 
         return services;
     }
