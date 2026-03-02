@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using IBeam.Identity.Abstractions.Exceptions;
 using IBeam.Identity.Abstractions.Interfaces;
 using IBeam.Identity.Abstractions.Models;
+using System.Security.Claims;
 
 namespace IBeam.Identity.Api.Controllers;
 
@@ -148,10 +150,127 @@ public class AuthController : ControllerBase
         }
     }
 
+    [Authorize]
+    [HttpPost("2fa/setup/start")]
+    public async Task<IActionResult> StartTwoFactorSetup([FromBody] StartTwoFactorSetupRequest req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.Method))
+            return BadRequest(new { message = "Method is required (email or sms)." });
+
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+
+        try
+        {
+            var result = await _passwordAuth.StartTwoFactorSetupAsync(userId, req.Method, ct);
+            return Ok(result);
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
+    [Authorize]
+    [HttpPost("2fa/setup/complete")]
+    public async Task<IActionResult> CompleteTwoFactorSetup([FromBody] CompleteTwoFactorSetupRequest req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.Method))
+            return BadRequest(new { message = "Method is required (email or sms)." });
+        if (string.IsNullOrWhiteSpace(req.ChallengeId))
+            return BadRequest(new { message = "ChallengeId is required." });
+        if (string.IsNullOrWhiteSpace(req.Code))
+            return BadRequest(new { message = "Code is required." });
+
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+
+        try
+        {
+            await _passwordAuth.CompleteTwoFactorSetupAsync(userId, req.Method, req.ChallengeId, req.Code, ct);
+            return Ok(new { enabled = true, method = req.Method.Trim().ToLowerInvariant() });
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
+    [HttpPost("2fa/complete-login")]
+    public async Task<IActionResult> CompleteTwoFactorLogin([FromBody] CompleteTwoFactorLoginRequest req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.Email))
+            return BadRequest(new { message = "Email is required." });
+        if (string.IsNullOrWhiteSpace(req.ChallengeId))
+            return BadRequest(new { message = "ChallengeId is required." });
+        if (string.IsNullOrWhiteSpace(req.Code))
+            return BadRequest(new { message = "Code is required." });
+
+        try
+        {
+            var result = await _passwordAuth.CompleteTwoFactorLoginAsync(req.Email, req.ChallengeId, req.Code, ct);
+            return Ok(result);
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+        catch (IdentityUnauthorizedException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+    }
+
+    [Authorize]
+    [HttpPost("2fa/disable")]
+    public async Task<IActionResult> DisableTwoFactor(CancellationToken ct)
+    {
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+
+        try
+        {
+            await _passwordAuth.DisableTwoFactorAsync(userId, ct);
+            return Ok(new { enabled = false });
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
+    [Authorize]
+    [HttpPost("2fa/method")]
+    public async Task<IActionResult> SetPreferredTwoFactorMethod([FromBody] SetPreferredTwoFactorMethodRequest req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.Method))
+            return BadRequest(new { message = "Method is required (email or sms)." });
+
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+
+        try
+        {
+            await _passwordAuth.SetPreferredTwoFactorMethodAsync(userId, req.Method, ct);
+            return Ok(new { enabled = true, method = req.Method.Trim().ToLowerInvariant() });
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
     [HttpGet()]
     public IActionResult PingAuth()
     {
         return Ok(true);
+    }
+
+    private bool TryGetCurrentUserId(out Guid userId)
+    {
+        userId = Guid.Empty;
+        var raw = User.FindFirstValue("uid") ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        return Guid.TryParse(raw, out userId);
     }
 }
 
@@ -189,4 +308,28 @@ public class PasswordLoginApiRequest
 {
     public string Email { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
+}
+
+public class StartTwoFactorSetupRequest
+{
+    public string Method { get; set; } = string.Empty;
+}
+
+public class CompleteTwoFactorSetupRequest
+{
+    public string Method { get; set; } = string.Empty;
+    public string ChallengeId { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+}
+
+public class CompleteTwoFactorLoginRequest
+{
+    public string Email { get; set; } = string.Empty;
+    public string ChallengeId { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+}
+
+public class SetPreferredTwoFactorMethodRequest
+{
+    public string Method { get; set; } = string.Empty;
 }

@@ -12,6 +12,7 @@ public interface IIdentityUserStore
     Task<bool> ValidatePasswordAsync(string emailOrPhone, string password, CancellationToken ct = default);
     Task SetPasswordAsync(Guid userId, string newPassword, CancellationToken ct = default);
     Task SetEmailConfirmedAsync(Guid userId, bool confirmed, CancellationToken ct = default);
+    Task SetTwoFactorAsync(Guid userId, bool enabled, string? preferredMethod = null, CancellationToken ct = default);
 
     Task UpdateEmailAsync(Guid userId, string newEmail, CancellationToken ct = default);
     Task UpdatePhoneAsync(Guid userId, string newPhone, CancellationToken ct = default);
