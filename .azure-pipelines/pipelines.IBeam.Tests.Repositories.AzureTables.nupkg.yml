@@ -10,10 +10,10 @@
     - v*
   paths:
     include:
-    - IBeam.Repositories.Abstractions/**
+    - IBeam.Tests.Repositories.AzureTables/**
     - .azure-pipelines/templates/**
     - IBeam.sln
-    - .azure-pipelines/pipelines.IBeam.Repositories.Abstractions.nupkg.yml
+    - .azure-pipelines/pipelines.IBeam.Tests.Repositories.AzureTables.nupkg.yml
 
 pool:
   vmImage: 'ubuntu-22.04'
@@ -28,7 +28,7 @@ variables:
 - name: solution
   value: '**/IBeam.sln'
 - name: project
-  value: '**/IBeam.Repositories.Abstractions.csproj'
+  value: '**/IBeam.Tests.Repositories.AzureTables.csproj'
 - name: packageLocation
   value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
 - name: apiKey
