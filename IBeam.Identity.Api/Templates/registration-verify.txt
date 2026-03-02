@@ -3,4 +3,4 @@ Hello {{DisplayName}},
 Welcome. Please verify your email by opening this link:
 {{Link}}
 
-This link expires at: {{ExpiresAt}}
+This link expires in: {{ExpiresAt}} minute(s)
