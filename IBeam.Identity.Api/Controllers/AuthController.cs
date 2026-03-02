@@ -392,6 +392,25 @@ public class AuthController : ControllerBase
         }
     }
 
+    [Authorize]
+    [HttpGet("oauth/linked")]
+    public async Task<IActionResult> GetLinkedOAuthProviders(CancellationToken ct)
+    {
+        if (!_features.OAuth) return NotFound(new { message = "OAuth authentication is disabled." });
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+
+        try
+        {
+            var result = await _oauthAuth.GetLinkedProvidersAsync(userId, ct);
+            return Ok(result);
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
     [HttpGet()]
     public IActionResult PingAuth()
     {
