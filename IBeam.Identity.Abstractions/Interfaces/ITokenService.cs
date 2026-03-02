@@ -10,6 +10,19 @@ public interface ITokenService
         IReadOnlyList<ClaimItem> claims,
         CancellationToken ct = default);
 
+    Task<TokenResult> RefreshAccessTokenAsync(
+        string refreshToken,
+        CancellationToken ct = default);
+
+    Task<IReadOnlyList<AuthSessionInfo>> GetUserSessionsAsync(
+        Guid userId,
+        CancellationToken ct = default);
+
+    Task<bool> RevokeSessionAsync(
+        Guid userId,
+        string sessionId,
+        CancellationToken ct = default);
+
     Task<TokenResult> CreatePreTenantTokenAsync(
         Guid userId,
         IReadOnlyList<ClaimItem> claims,
