@@ -1,6 +1,6 @@
 ﻿using IBeam.Repositories.Abstractions;
 using IBeam.Services.Abstractions;
-using IBeam.Utilities.Exceptions;
+using IBeam.Repositories.Core;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -78,6 +78,7 @@ namespace IBeam.Services.Core
                 return PostGetAll(ToModel(entities).ToList());
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(GetAll), _serviceName); }
         }
 
@@ -93,6 +94,7 @@ namespace IBeam.Services.Core
                 return PostGetAll(ToModel(entities).ToList());
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(GetAllWithArchived), _serviceName); }
         }
 
@@ -103,9 +105,14 @@ namespace IBeam.Services.Core
             try
             {
                 var entity = _repository.GetById(id);
+                if (entity is null)
+                    throw new KeyNotFoundException($"{typeof(TEntity).Name} with id '{id}' was not found.");
+
                 return PostGetById(ToModel(entity));
             }
+            catch (KeyNotFoundException) { throw; }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(GetById), _serviceName); }
         }
 
@@ -122,6 +129,7 @@ namespace IBeam.Services.Core
                 return PostGetByIds(ToModel(entities).ToList());
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(GetByIds), _serviceName); }
         }
 
@@ -148,6 +156,7 @@ namespace IBeam.Services.Core
                 return ToModel(saved);
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(Save), _serviceName); }
         }
 
@@ -160,26 +169,32 @@ namespace IBeam.Services.Core
 
             try
             {
-                foreach (var m in list)
+                var isUpdates = new List<bool>(list.Count);
+                foreach (var model in list)
                 {
-                    var isUpdate = ToEntity(m).Id != Guid.Empty;
-                    PreSave(m, isUpdate);
+                    var isUpdate = ToEntity(model).Id != Guid.Empty;
+                    isUpdates.Add(isUpdate);
+                    PreSave(model, isUpdate);
                 }
 
                 var entities = ToEntity(list).ToList();
                 var saved = _repository.SaveAll(entities).ToList();
 
-                // Audit as update/create per-entity after save
-                foreach (var e in saved)
+                for (var i = 0; i < list.Count; i++)
                 {
-                    // “create vs update” detection for bulk can vary; simplest is “Id existed before”
-                    // override in derived service if you need precision
-                    _typedAudit?.LogUpdate(e);
+                    PostSave(list[i], isUpdates[i]);
+                }
+
+                for (var i = 0; i < saved.Count && i < isUpdates.Count; i++)
+                {
+                    if (isUpdates[i]) _typedAudit?.LogUpdate(saved[i]);
+                    else _typedAudit?.LogCreate(saved[i]);
                 }
 
                 return ToModel(saved).ToList();
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(SaveAll), _serviceName); }
         }
 
@@ -194,6 +209,7 @@ namespace IBeam.Services.Core
                 PostArchive(id);
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(Archive), _serviceName); }
         }
 
@@ -205,8 +221,24 @@ namespace IBeam.Services.Core
 
         public void ArchiveAll(IEnumerable<TModel> models)
         {
-            foreach (var id in ToEntity(models ?? Array.Empty<TModel>()).Select(e => e.Id))
-                Archive(id);
+            if (!AllowArchive) throw new MethodAccessException($"{nameof(ArchiveAll)} is not allowed.");
+
+            var ids = ToEntity(models ?? Array.Empty<TModel>())
+                .Select(e => e.Id)
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .ToList();
+            if (ids.Count == 0) return;
+
+            try
+            {
+                foreach (var id in ids) PreArchive(id);
+                _repository.ArchiveAll(ids);
+                foreach (var id in ids) PostArchive(id);
+            }
+            catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
+            catch (Exception ex) { throw new ServiceException(ex, nameof(ArchiveAll), _serviceName); }
         }
 
         public virtual void Unarchive(Guid id)
@@ -219,6 +251,7 @@ namespace IBeam.Services.Core
                 PostUnarchive(id);
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(Unarchive), _serviceName); }
         }
 
@@ -230,8 +263,24 @@ namespace IBeam.Services.Core
 
         public void UnarchiveAll(IEnumerable<TModel> models)
         {
-            foreach (var id in ToEntity(models ?? Array.Empty<TModel>()).Select(e => e.Id))
-                Unarchive(id);
+            if (!AllowUnarchive) throw new MethodAccessException($"{nameof(UnarchiveAll)} is not allowed.");
+
+            var ids = ToEntity(models ?? Array.Empty<TModel>())
+                .Select(e => e.Id)
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .ToList();
+            if (ids.Count == 0) return;
+
+            try
+            {
+                foreach (var id in ids) PreUnarchive(id);
+                _repository.UnarchiveAll(ids);
+                foreach (var id in ids) PostUnarchive(id);
+            }
+            catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
+            catch (Exception ex) { throw new ServiceException(ex, nameof(UnarchiveAll), _serviceName); }
         }
 
         public virtual void Delete(Guid id)
@@ -249,7 +298,11 @@ namespace IBeam.Services.Core
                 PostDelete(id);
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(Delete), _serviceName); }
         }
     }
 }
+
+
+
