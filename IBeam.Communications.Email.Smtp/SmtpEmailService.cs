@@ -1,4 +1,6 @@
 using IBeam.Communications.Abstractions;
+using IBeam.Communications.Abstractions.Policies;
+using IBeam.Communications.Abstractions.Validation;
 using Microsoft.Extensions.Options;
 using System.Net;
 using System.Net.Mail;
@@ -8,17 +10,22 @@ namespace IBeam.Communications.Email.Smtp;
 public sealed class SmtpEmailService : IEmailService
 {
     private readonly SmtpEmailOptions _options;
+    private readonly EmailOptions _defaults;
 
-    public SmtpEmailService(IOptions<SmtpEmailOptions> options)
-        => _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-
-    public async Task SendAsync(EmailMessage message, EmailSendOptions? options = null, CancellationToken ct = default)
+    public SmtpEmailService(IOptions<SmtpEmailOptions> options, IOptions<EmailOptions> defaults)
     {
-        const string provider = nameof(SmtpEmailService);
+        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _defaults = defaults?.Value ?? throw new ArgumentNullException(nameof(defaults));
+    }
 
-        EmailDefaults.ValidateMessageForSend(provider, message);
+    public async Task SendAsync(EmailMessage message, EmailOptions? options = null, CancellationToken ct = default)
+    {
+        const string providerName = nameof(SmtpEmailService);
 
-        var from = ResolveFrom(provider, message, options);
+        EmailMessageValidator.Validate(message);
+
+        var (fromAddress, fromName) = SenderResolution.ResolveEmailFrom(options, message, _defaults);
+        var from = new EmailAddress(fromAddress, fromName);
 
         using var mail = new MailMessage
         {
@@ -27,7 +34,7 @@ public sealed class SmtpEmailService : IEmailService
         };
 
         foreach (var to in message.To)
-            mail.To.Add(ToMailAddress(provider, to));
+            mail.To.Add(ToMailAddress(to));
 
 
         // If both provided, add alternate views
@@ -73,27 +80,12 @@ public sealed class SmtpEmailService : IEmailService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new EmailServiceException(provider, "SMTP email send failed.", ex);
+            throw new EmailProviderException(
+                provider: providerName,
+                message: "SMTP email send failed.",
+                isTransient: true,
+                inner: ex);
         }
-    }
-
-    private EmailAddress ResolveFrom(string provider, EmailMessage message, EmailSendOptions? options)
-    {
-        if (options?.FromOverride is not null)
-            return options.FromOverride;
-
-        if (!string.IsNullOrWhiteSpace(message.FromAddress))
-            return new EmailAddress(message.FromAddress, message.FromName);
-
-        if (options?.UseDefaultFromIfMissing ?? true)
-        {
-            if (string.IsNullOrWhiteSpace(_options.DefaultFromAddress))
-                throw new EmailValidationException(provider, "DefaultFromAddress is not configured.");
-
-            return new EmailAddress(_options.DefaultFromAddress, _options.DefaultFromDisplayName);
-        }
-
-        throw new EmailValidationException(provider, "From is required (no sender provided and default sender disabled).");
     }
 
     private static MailAddress ToMailAddress(EmailAddress addr)
@@ -101,14 +93,14 @@ public sealed class SmtpEmailService : IEmailService
             ? new MailAddress(addr.Address)
             : new MailAddress(addr.Address, addr.DisplayName);
 
-    private static MailAddress ToMailAddress(string provider, string addr)
+    private static MailAddress ToMailAddress(string addr)
     {
         if (string.IsNullOrWhiteSpace(addr))
-            throw new EmailValidationException(provider, "Recipient email address is required.");
+            throw new EmailValidationException("Recipient email address is required.");
 
         try { return new MailAddress(addr.Trim()); }
         catch (FormatException)
-        { throw new EmailValidationException(provider, $"Invalid recipient email address: '{addr}'."); }
+        { throw new EmailValidationException($"Invalid recipient email address: '{addr}'."); }
     }
 
 }

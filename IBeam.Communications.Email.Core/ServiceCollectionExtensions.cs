@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace IBeam.Communications.Email.Templating.Files;
+namespace IBeam.Communications.Email.Templating;
 
 public static class ServiceCollectionExtensions
 {
