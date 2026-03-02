@@ -18,6 +18,12 @@ public static class ServiceCollectionExtensions
         //TODO: Sms or Email is optional - we should allow for one or the other to be configured, but not require both.
         //This will require some custom validation logic.
         services
+        .AddOptions<EmailTemplateOptions>()
+          .Configure(o => configuration
+            .GetSection(EmailTemplateOptions.SectionName)
+            .Bind(o));
+
+        services
         .AddOptions<EmailOptions>()
           .Configure(o => configuration
             .GetSection(EmailOptions.SectionName)
@@ -32,6 +38,9 @@ public static class ServiceCollectionExtensions
                 .Bind(o))
               .Validate(o => o.Validate(), "Invalid SMS options")
               .ValidateOnStart();
+
+        services.AddScoped<IEmailTemplateRenderer, FileSystemEmailTemplateRenderer>();
+        services.AddScoped<ITemplatedEmailService, TemplatedEmailService>();
 
         return services;
     }
