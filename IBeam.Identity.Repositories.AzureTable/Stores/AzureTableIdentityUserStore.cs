@@ -12,6 +12,7 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
 {
     //private readonly UserManager<ApplicationUser> _userManager;
     private readonly UserStore<ApplicationUser, ApplicationRole, IdentityCloudContext> _store;
+    private readonly PasswordHasher<ApplicationUser> _passwordHasher = new();
 
     public AzureTableIdentityUserStore(UserStore<ApplicationUser, ApplicationRole, IdentityCloudContext> store)
         => _store = store;
@@ -70,7 +71,10 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
                 DisplayName = request.DisplayName ?? string.Empty
             };
 
-            var result = await _store.CreateAsync(appUser); //, request.Password);
+            if (!string.IsNullOrWhiteSpace(request.Password))
+                appUser.PasswordHash = _passwordHasher.HashPassword(appUser, request.Password);
+
+            var result = await _store.CreateAsync(appUser);
 
             if (result.Succeeded)
                 return CreateUserResult.Success(MapOrThrow(appUser));
@@ -95,8 +99,54 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
             var user = await _store.FindByEmailAsync(normalized);
             if (user is null) return false;
 
-            // Consider user lockout checks here if your abstraction expects that.
-            return true; // await _store.Check(user, password);
+            if (string.IsNullOrWhiteSpace(user.PasswordHash))
+                return false;
+
+            var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
+            return result is PasswordVerificationResult.Success or PasswordVerificationResult.SuccessRehashNeeded;
+        }
+        catch (Exception ex) when (!IsCancellation(ex))
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
+    public async Task SetPasswordAsync(Guid userId, string newPassword, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var user = await _store.FindByIdAsync(userId.ToString("D"));
+            if (user is null) throw new InvalidOperationException("User not found.");
+
+            user.PasswordHash = _passwordHasher.HashPassword(user, newPassword);
+            user.SecurityStamp = Guid.NewGuid().ToString("N");
+
+            var result = await _store.UpdateAsync(user);
+            if (!result.Succeeded)
+                throw new InvalidOperationException("Failed to set password: " + string.Join(", ", result.Errors.Select(e => e.Description)));
+        }
+        catch (Exception ex) when (!IsCancellation(ex))
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
+    public async Task SetEmailConfirmedAsync(Guid userId, bool confirmed, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var user = await _store.FindByIdAsync(userId.ToString("D"));
+            if (user is null) throw new InvalidOperationException("User not found.");
+
+            user.EmailConfirmed = confirmed;
+
+            var result = await _store.UpdateAsync(user);
+            if (!result.Succeeded)
+                throw new InvalidOperationException("Failed to update email confirmation: " + string.Join(", ", result.Errors.Select(e => e.Description)));
         }
         catch (Exception ex) when (!IsCancellation(ex))
         {
