@@ -1,10 +1,10 @@
 # IBeam.Identity.Api
 
-`IBeam.Identity.Api` is the HTTP host for Identity authentication and account APIs.
+`IBeam.Identity.Api` is a reusable API module for Identity authentication and account endpoints.
 
 ## What this project does
 
-- Hosts REST endpoints for:
+- Exposes REST endpoints for:
   - OTP start/complete
   - Email/password registration and login
   - 2FA setup/complete/disable/method change
@@ -14,19 +14,30 @@
   - Session listing and session revoke
 - Applies feature flags to enable/disable endpoint groups at runtime.
 - Uses JWT bearer auth for protected endpoints.
-- Uses Swagger for API testing.
+- Is intended to be consumed by another ASP.NET Core API host.
 
-## Startup wiring
+## Consumer wiring
 
-`Program.cs` currently registers:
+In the consuming API:
 
-- Communications providers (email/sms)
-- Azure Table repository stores
-- Identity services (`AddIBeamIdentityServices`)
-- OTP auth service
-- Password auth service
-- OAuth auth service
-- Memory cache and HttpClient (OAuth)
+```csharp
+using IBeam.Identity.Api.DependencyInjection;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddIBeamIdentityApi(builder.Configuration);
+builder.Services.AddIBeamIdentityApiControllers();
+```
+
+Then in the pipeline:
+
+```csharp
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
+```
 
 ## Required configuration
 
@@ -77,14 +88,9 @@ OAuth provider definitions and endpoints for Google/Microsoft (or additional pro
 
 These are used by OTP and verification emails/sms.
 
-## Running locally
+## Building
 
 ```bash
 dotnet restore
 dotnet build
-dotnet run --project IBeam.Identity.Api
 ```
-
-Swagger UI:
-
-- `/swagger`
