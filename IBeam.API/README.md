@@ -1,165 +1,83 @@
-# IBeam API
+# IBeam.Api
 
-IBeam API is the core backend service for the **IBeam** ecosystem, built on **ASP.NET Core (.NET 10)**. It provides foundational identity, authentication, and platform services (including OTP-based authentication) used across IBeam applications.
+`IBeam.Api` is now a lightweight ASP.NET Core helper class library for API hosts.
 
----
+It provides:
+- `ApiControllerBase` for consistent response shapes
+- global request/host exception handling
+- configuration + DI composition helpers to keep `Program.cs` small
 
-## ✨ Features
+## Included building blocks
 
-* ASP.NET Core Web API
-* Multi-environment configuration (Development, Test, Local, Prod)
-* Identity & authentication services
-* OTP (One-Time Password) challenge and delivery framework
-* Designed for extensibility across the IBeam platform
+- `IBeam.Api.Controllers.ApiControllerBase`
+- `IBeam.Api.Middleware.ApiExceptionMiddleware`
+- `IBeam.Api.Infrastructure.GlobalErrorHandler`
+- `IBeam.Api.Infrastructure.*DependencyInjection` helpers
+- `IBeam.Api.Models.ApiResponse<T>`, `ApiPagedResponse<T>`, `ApiError`
 
----
+## Typical usage from a host API
 
-## 🧱 Tech Stack
+```csharp
+using IBeam.Api.Infrastructure;
 
-* **.NET:** 10.0
-* **Framework:** ASP.NET Core Web API
-* **Configuration:** appsettings per environment
-* **DI & Options Pattern:** Microsoft.Extensions.*
+var builder = WebApplication.CreateBuilder(args);
 
----
+builder.Services.AddIBeamApi(builder.Configuration, api =>
+{
+    api.ConfigureOptions(cfg =>
+    {
+        cfg.BindOptions<JwtSettings>("JwtSettings");
+        cfg.BindOptions<MyFeatureOptions>("MyFeature");
+    });
 
-## 📁 Project Structure
+    api.AddServices(
+        services => services.AddScoped<IOrderService, OrderService>()
+    );
 
-```
-IBeam.API/
-├── appsettings.json
-├── appsettings.Development.json
-├── appsettings.Test.json
-├── appsettings.Prod.json
-├── Program.cs
-├── Startup.cs
-├── Controllers/
-├── Services/
-│   └── Otp/
-├── Core/
-│   └── Identity, Options, Entities
-└── Infrastructure/
-```
+    api.AddRepositories(
+        (services, config) => services.AddScoped<IOrderRepository, OrderRepository>()
+    );
 
-> Note: `bin/` and build artifacts are included in the repo zip but are not required for source control.
+    api.AddExternalClients(
+        services => services.AddHttpClient<IMyClient, MyClient>()
+    );
+});
 
----
+var app = builder.Build();
 
-## ⚙️ Configuration
+app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
 
-The API uses environment-specific configuration files:
+app.UseIBeamApi();
+app.MapControllers();
 
-* `appsettings.json` – base configuration
-* `appsettings.Development.json`
-* `appsettings.Test.json`
-* `appsettings.Prod.json`
-* `appsettings.local.json` (developer overrides, not for source control)
-
-Typical configuration sections include:
-
-* Connection strings
-* Identity & authentication settings
-* OTP options (code length, expiration, retry limits)
-* Logging
-
----
-
-## ▶️ Running the API
-
-### Prerequisites
-
-* .NET SDK 10.0+
-* Visual Studio 2022+ or VS Code
-
-### Run locally
-
-```bash
-dotnet restore
-dotnet build
-dotnet run --project IBeam.API
+app.Run();
 ```
 
-Or via Visual Studio:
+## Base controller example
 
-1. Open `IBeam.API.csproj`
-2. Set **IBeam.API** as startup project
-3. Run using the desired environment profile
+```csharp
+using IBeam.Api.Controllers;
 
-### Environment Selection
-
-```bash
-set ASPNETCORE_ENVIRONMENT=Development
+[Route("api/[controller]")]
+public sealed class OrdersController : ApiControllerBase
+{
+    [HttpGet("{id:guid}")]
+    public IActionResult Get(Guid id)
+    {
+        var dto = new { Id = id, Name = "Sample" };
+        return OkResponse(dto);
+    }
+}
 ```
 
-or
+## Optional persistent error logging
 
-```bash
-$env:ASPNETCORE_ENVIRONMENT="Development"
+Implement `IApiErrorSink` in your host API and register it in DI:
+
+```csharp
+services.AddScoped<IApiErrorSink, MyApiErrorSink>();
 ```
 
----
-
-## 🔐 OTP Services
-
-IBeam includes a pluggable OTP framework:
-
-* `IOtpService` – challenge creation and validation
-* `IOtpSender` – SMS, Email, or custom delivery
-* `IOtpChallengeStore` – persistence abstraction
-* `OtpOptions` – configurable OTP behavior
-
-This design allows:
-
-* Multiple OTP channels
-* Configurable code length & expiration
-* Secure hashing and validation
-
----
-
-## 🧪 Testing
-
-* Unit tests can be added using xUnit or NUnit
-* Environment-specific config allows isolated test setups
-
----
-
-## 🚀 Deployment
-
-* Supports containerization (Docker-ready)
-* Designed for cloud hosting (Azure App Service, Containers, AKS)
-* Use `appsettings.Prod.json` or environment variables for secrets
-
----
-
-## 📦 Package Metadata
-
-* **Package ID:** IBeam.API
-* **Version:** 1.0.0
-* **Company:** MedPAC Technologies
-* **Repository:** [https://github.com/MedPACTech/IBeam](https://github.com/MedPACTech/IBeam)
-
----
-
-## 🛡️ Security Notes
-
-* Do **not** commit secrets or production keys
-* Use environment variables or secure vaults
-* OTP codes are never stored in plaintext
-
----
-
-## 🤝 Contributing
-
-1. Create a feature branch
-2. Commit with clear messages
-3. Submit a pull request
-
----
-
-## 📄 License
-
-Proprietary © MedPAC Technologies. All rights reserved.
-
----
-
-If you want, I can tailor this README for **open-source**, **internal dev teams**, or **compliance / audit reviewers**, or generate a `README.md` file ready to drop into the repo.
+The middleware and global handler will call it when available.
