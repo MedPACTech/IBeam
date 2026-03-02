@@ -1,6 +1,6 @@
 ﻿using IBeam.Repositories.Abstractions;
 using IBeam.Services.Abstractions;
-using IBeam.Utilities.Exceptions;
+using IBeam.Repositories.Core;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -76,6 +76,7 @@ namespace IBeam.Services.Core
                 return PostGetAll(ToModel(entities).ToList());
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(GetAllAsync), _serviceName); }
         }
 
@@ -89,6 +90,7 @@ namespace IBeam.Services.Core
                 return PostGetAll(ToModel(entities).ToList());
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(GetAllWithArchivedAsync), _serviceName); }
         }
 
@@ -99,9 +101,14 @@ namespace IBeam.Services.Core
             try
             {
                 var entity = await _repository.GetByIdAsync(id, ct: ct).ConfigureAwait(false);
+                if (entity is null)
+                    throw new KeyNotFoundException($"{typeof(TEntity).Name} with id '{id}' was not found.");
+
                 return PostGetById(ToModel(entity));
             }
+            catch (KeyNotFoundException) { throw; }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(GetByIdAsync), _serviceName); }
         }
 
@@ -118,6 +125,7 @@ namespace IBeam.Services.Core
                 return PostGetByIds(ToModel(entities).ToList());
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(GetByIdsAsync), _serviceName); }
         }
 
@@ -146,6 +154,7 @@ namespace IBeam.Services.Core
                 return ToModel(saved);
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(SaveAsync), _serviceName); }
         }
 
@@ -158,18 +167,35 @@ namespace IBeam.Services.Core
 
             try
             {
-                foreach (var m in list)
+                var isUpdates = new List<bool>(list.Count);
+                foreach (var model in list)
                 {
-                    var isUpdate = ToEntity(m).Id != Guid.Empty;
-                    await PreSaveAsync(m, isUpdate, ct).ConfigureAwait(false);
+                    var isUpdate = ToEntity(model).Id != Guid.Empty;
+                    isUpdates.Add(isUpdate);
+                    await PreSaveAsync(model, isUpdate, ct).ConfigureAwait(false);
                 }
 
                 var entities = ToEntity(list).ToList();
                 var saved = (await _repository.SaveAllAsync(entities, ct).ConfigureAwait(false)).ToList();
 
+                for (var i = 0; i < list.Count; i++)
+                {
+                    await PostSaveAsync(list[i], isUpdates[i], ct).ConfigureAwait(false);
+                }
+
+                if (_typedAudit is not null)
+                {
+                    for (var i = 0; i < saved.Count && i < isUpdates.Count; i++)
+                    {
+                        if (isUpdates[i]) await _typedAudit.LogUpdateAsync(saved[i], ct).ConfigureAwait(false);
+                        else await _typedAudit.LogCreateAsync(saved[i], ct).ConfigureAwait(false);
+                    }
+                }
+
                 return ToModel(saved).ToList();
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(SaveAllAsync), _serviceName); }
         }
 
@@ -184,6 +210,7 @@ namespace IBeam.Services.Core
                 await PostArchiveAsync(id, ct).ConfigureAwait(false);
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(ArchiveAsync), _serviceName); }
         }
 
@@ -192,8 +219,28 @@ namespace IBeam.Services.Core
 
         public async Task ArchiveAllAsync(IEnumerable<TModel> models, CancellationToken ct = default)
         {
-            foreach (var id in ToEntity(models ?? Array.Empty<TModel>()).Select(e => e.Id))
-                await ArchiveAsync(id, ct).ConfigureAwait(false);
+            if (!AllowArchive) throw new MethodAccessException($"{nameof(ArchiveAllAsync)} is not allowed.");
+
+            var ids = ToEntity(models ?? Array.Empty<TModel>())
+                .Select(e => e.Id)
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .ToList();
+            if (ids.Count == 0) return;
+
+            try
+            {
+                foreach (var id in ids)
+                    await PreArchiveAsync(id, ct).ConfigureAwait(false);
+
+                await _repository.ArchiveAllAsync(ids, ct).ConfigureAwait(false);
+
+                foreach (var id in ids)
+                    await PostArchiveAsync(id, ct).ConfigureAwait(false);
+            }
+            catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
+            catch (Exception ex) { throw new ServiceException(ex, nameof(ArchiveAllAsync), _serviceName); }
         }
 
         public virtual async Task UnarchiveAsync(Guid id, CancellationToken ct = default)
@@ -207,6 +254,7 @@ namespace IBeam.Services.Core
                 await PostUnarchiveAsync(id, ct).ConfigureAwait(false);
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(UnarchiveAsync), _serviceName); }
         }
 
@@ -215,8 +263,28 @@ namespace IBeam.Services.Core
 
         public async Task UnarchiveAllAsync(IEnumerable<TModel> models, CancellationToken ct = default)
         {
-            foreach (var id in ToEntity(models ?? Array.Empty<TModel>()).Select(e => e.Id))
-                await UnarchiveAsync(id, ct).ConfigureAwait(false);
+            if (!AllowUnarchive) throw new MethodAccessException($"{nameof(UnarchiveAllAsync)} is not allowed.");
+
+            var ids = ToEntity(models ?? Array.Empty<TModel>())
+                .Select(e => e.Id)
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .ToList();
+            if (ids.Count == 0) return;
+
+            try
+            {
+                foreach (var id in ids)
+                    await PreUnarchiveAsync(id, ct).ConfigureAwait(false);
+
+                await _repository.UnarchiveAllAsync(ids, ct).ConfigureAwait(false);
+
+                foreach (var id in ids)
+                    await PostUnarchiveAsync(id, ct).ConfigureAwait(false);
+            }
+            catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
+            catch (Exception ex) { throw new ServiceException(ex, nameof(UnarchiveAllAsync), _serviceName); }
         }
 
         public virtual async Task DeleteAsync(Guid id, CancellationToken ct = default)
@@ -230,7 +298,11 @@ namespace IBeam.Services.Core
                 await PostDeleteAsync(id, ct).ConfigureAwait(false);
             }
             catch (RepositoryException) { throw; }
+            catch (RepositoryStoreException) { throw; }
             catch (Exception ex) { throw new ServiceException(ex, nameof(DeleteAsync), _serviceName); }
         }
     }
 }
+
+
+
