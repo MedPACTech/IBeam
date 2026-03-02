@@ -116,6 +116,7 @@ internal sealed class AzureTableIdentitySchemaManager : IIdentitySchemaManager
         yield return $"{_opts.TablePrefix}{_opts.UserTenantsTableName}";
         yield return $"{_opts.TablePrefix}{_opts.OtpChallengesTableName}";
         yield return $"{_opts.TablePrefix}{_opts.ExternalLoginsTableName}";
+        yield return $"{_opts.TablePrefix}{_opts.AuthSessionsTableName}";
     }
 
     private string SchemaTableName()

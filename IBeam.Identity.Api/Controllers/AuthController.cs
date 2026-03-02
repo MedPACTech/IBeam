@@ -16,18 +16,21 @@ public class AuthController : ControllerBase
     private readonly IIdentityOtpAuthService _otpAuth;
     private readonly IIdentityAuthService _passwordAuth;
     private readonly IIdentityOAuthAuthService _oauthAuth;
+    private readonly ITokenService _tokens;
     private readonly FeatureOptions _features;
 
     public AuthController(
         IIdentityOtpAuthService otpAuth,
         IIdentityAuthService passwordAuth,
         IIdentityOAuthAuthService oauthAuth,
+        ITokenService tokens,
         IOptionsSnapshot<FeatureOptions> features)
     {
 
         _otpAuth = otpAuth;
         _passwordAuth = passwordAuth;
         _oauthAuth = oauthAuth;
+        _tokens = tokens;
         _features = features.Value;
     }
 
@@ -404,6 +407,65 @@ public class AuthController : ControllerBase
         {
             var result = await _oauthAuth.GetLinkedProvidersAsync(userId, ct);
             return Ok(result);
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
+    [HttpPost("refresh")]
+    public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.RefreshToken))
+            return BadRequest(new { message = "RefreshToken is required." });
+
+        try
+        {
+            var token = await _tokens.RefreshAccessTokenAsync(req.RefreshToken, ct);
+            return Ok(token);
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+        catch (IdentityUnauthorizedException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+    }
+
+    [Authorize]
+    [HttpGet("sessions")]
+    public async Task<IActionResult> GetSessions(CancellationToken ct)
+    {
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+
+        try
+        {
+            var sessions = await _tokens.GetUserSessionsAsync(userId, ct);
+            return Ok(sessions);
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
+    [Authorize]
+    [HttpPost("sessions/revoke")]
+    public async Task<IActionResult> RevokeSession([FromBody] RevokeSessionRequest req, CancellationToken ct)
+    {
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+        if (string.IsNullOrWhiteSpace(req.SessionId))
+            return BadRequest(new { message = "SessionId is required." });
+
+        try
+        {
+            var revoked = await _tokens.RevokeSessionAsync(userId, req.SessionId, ct);
+            return Ok(new { revoked, sessionId = req.SessionId });
         }
         catch (IdentityValidationException ex)
         {

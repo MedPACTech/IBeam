@@ -24,6 +24,7 @@ public sealed class AzureTableIdentityOptions
     public string UserTenantsTableName { get; set; } = "UserTenants";
     public string OtpChallengesTableName { get; set; } = "OtpChallenges";
     public string ExternalLoginsTableName { get; set; } = "ExternalLogins";
+    public string AuthSessionsTableName { get; set; } = "AuthSessions";
 
     // (Optional, only if you implement later)
     public string? OtpAttemptsTableName { get; set; } = null;
@@ -89,6 +90,7 @@ public sealed class AzureTableIdentityOptions
         UserTenantsTableName = NormalizeOrDefault(UserTenantsTableName, "UserTenants");
         OtpChallengesTableName = NormalizeOrDefault(OtpChallengesTableName, "OtpChallenges");
         ExternalLoginsTableName = NormalizeOrDefault(ExternalLoginsTableName, "ExternalLogins");
+        AuthSessionsTableName = NormalizeOrDefault(AuthSessionsTableName, "AuthSessions");
 
         // Validate base table names (prefix is not validated here; it becomes part of final name)
         ValidateTableName(IndexTableName, nameof(IndexTableName));
@@ -100,6 +102,7 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(UserTenantsTableName, nameof(UserTenantsTableName));
         ValidateTableName(OtpChallengesTableName, nameof(OtpChallengesTableName));
         ValidateTableName(ExternalLoginsTableName, nameof(ExternalLoginsTableName));
+        ValidateTableName(AuthSessionsTableName, nameof(AuthSessionsTableName));
 
         if (!string.IsNullOrWhiteSpace(OtpAttemptsTableName))
             ValidateTableName(OtpAttemptsTableName!, nameof(OtpAttemptsTableName));
@@ -114,6 +117,7 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(FullTableName(UserTenantsTableName), nameof(TablePrefix) + "+" + nameof(UserTenantsTableName));
         ValidateTableName(FullTableName(OtpChallengesTableName), nameof(TablePrefix) + "+" + nameof(OtpChallengesTableName));
         ValidateTableName(FullTableName(ExternalLoginsTableName), nameof(TablePrefix) + "+" + nameof(ExternalLoginsTableName));
+        ValidateTableName(FullTableName(AuthSessionsTableName), nameof(TablePrefix) + "+" + nameof(AuthSessionsTableName));
     }
 
     private static string NormalizeOrDefault(string value, string @default)
