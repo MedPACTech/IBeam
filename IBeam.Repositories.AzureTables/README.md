@@ -62,6 +62,8 @@ services.AddIBeamAzureTablesRepositories();
 
 - `IRepositoryStore<T>` -> `AzureTablesRepositoryStore<T>`
 - `IAzureTablesRepositoryStore<T>` -> `AzureTablesRepositoryStore<T>`
+- `IAzureTablesRepositoryAsync<T>` -> `AzureTablesRepositoryAsync<T>`
+- `IBaseRepositoryAsync<T>` -> `AzureTablesRepositoryAsync<T>`
 - `IBaseRepository<T>` -> `AzureTablesRepositoryAsync<T>`
 
 ## Storage Models
@@ -73,10 +75,33 @@ services.AddIBeamAzureTablesRepositories();
 
 `IAzureTablesRepositoryStore<T>` adds:
 
+- `GetByKeysAsync(partitionKey, rowKey)`
+- `DeleteByKeysAsync(partitionKey, rowKey)`
 - `AddAsync(...)` for insert-only
 - `UpdateAsync(...)` for update-only (supports `ETag` and `TableUpdateMode`)
 - `GetByPartitionPagedAsync(...)`
 - `QueryAsync(...)`
+
+## Entity Mapping + Locator (opt-in)
+
+`AddAzureEntityMapping<T>(...)` enables per-entity table and key mapping.
+
+```csharp
+services.AddAzureEntityMapping<PatientClinicalNote>(o =>
+{
+    o.TableName = "PatientClinicalNotes";
+    o.WriteKey = (tenantId, e) => new AzureEntityKey
+    {
+        PartitionKey = $"TENANT={tenantId:D}|PATIENT={e.PatientId:D}",
+        RowKey = e.Id.ToString("N")
+    };
+    o.CandidatePartitionsForId = (tenantId, id) => null; // optional
+    o.EnableIdLocator = true;
+});
+```
+
+If `EnableIdLocator` is true, register an `IEntityLocator` implementation.
+For local/dev, `AddInMemoryEntityLocator()` is available.
 
 ## Partition Key Strategy
 

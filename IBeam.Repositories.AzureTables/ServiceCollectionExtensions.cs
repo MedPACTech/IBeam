@@ -1,6 +1,7 @@
 using IBeam.Repositories.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IBeam.Repositories.AzureTables;
 
@@ -10,7 +11,10 @@ public static class ServiceCollectionExtensions
     {
         services.AddScoped(typeof(IRepositoryStore<>), typeof(AzureTablesRepositoryStore<>));
         services.AddScoped(typeof(IAzureTablesRepositoryStore<>), typeof(AzureTablesRepositoryStore<>));
+        services.AddScoped(typeof(IAzureTablesRepositoryAsync<>), typeof(AzureTablesRepositoryAsync<>));
+        services.AddScoped(typeof(IBaseRepositoryAsync<>), typeof(AzureTablesRepositoryAsync<>));
         services.AddScoped(typeof(IBaseRepository<>), typeof(AzureTablesRepositoryAsync<>));
+        services.TryAddSingleton<IEntityLocator, NullEntityLocator>();
         return services;
     }
 
@@ -73,4 +77,38 @@ public static class ServiceCollectionExtensions
         int bucketCount = 16)
         where T : class, IEntity
         => services.AddAzureTablePartitionKeyStrategy<T>(AzureTablePartitionKeyStrategies.TenantHashBucket<T>(bucketCount));
+
+    public static IServiceCollection AddAzureEntityMapping<T>(
+        this IServiceCollection services,
+        Action<AzureEntityMappingOptions<T>> configure)
+        where T : class, IEntity
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var options = new AzureEntityMappingOptions<T>
+        {
+            TableName = typeof(T).Name,
+            WriteKey = (_, entity) => new AzureEntityKey
+            {
+                PartitionKey = "global",
+                RowKey = entity.Id.ToString("N")
+            }
+        };
+
+        configure(options);
+
+        if (string.IsNullOrWhiteSpace(options.TableName))
+            throw new InvalidOperationException($"{typeof(T).Name} mapping requires a non-empty TableName.");
+        if (options.WriteKey is null)
+            throw new InvalidOperationException($"{typeof(T).Name} mapping requires WriteKey.");
+
+        services.AddSingleton(options);
+        return services;
+    }
+
+    public static IServiceCollection AddInMemoryEntityLocator(this IServiceCollection services)
+    {
+        services.Replace(ServiceDescriptor.Singleton<IEntityLocator, InMemoryEntityLocator>());
+        return services;
+    }
 }
