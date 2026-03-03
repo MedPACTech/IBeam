@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <PackageId>IBeam.Communications</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>MedPAC Technologies</Authors>
+    <Company>MedPAC Technologies</Company>
+    <PackageDescription>
+      Root communications package that aggregates communications contracts and common wiring.
+    </PackageDescription>
+    <RepositoryUrl>https://github.com/MedPACTech/IBeam</RepositoryUrl>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IBeam.Communications.Abstractions\IBeam.Communications.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
+

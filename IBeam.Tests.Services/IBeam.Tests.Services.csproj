@@ -17,8 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\IBeam.Services\IBeam.Services.Core.csproj" />
-    <ProjectReference Include="..\IBeam.Services.Abstractions\IBeam.Services.Abstractions.csproj" />
+    <ProjectReference Include="..\IBeam.Services\IBeam.Services.csproj" />
     <ProjectReference Include="..\IBeam.Repositories.Core\IBeam.Repositories.Core.csproj" />
   </ItemGroup>
 
