@@ -7,7 +7,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\IBeam.Identity.Abstractions\IBeam.Identity.Abstractions.csproj" />
+    <ProjectReference Include="..\..\IBeam.Identity\IBeam.Identity.csproj" />
     <ProjectReference Include="..\..\IBeam.Identity.Services\IBeam.Identity.Services.csproj" />
     <ProjectReference Include="..\..\IBeam.Identity.Repositories.AzureTable\IBeam.Identity.Repositories.AzureTable.csproj" />
     <ProjectReference Include="..\..\IBeam.Communications\IBeam.Communications.csproj" />

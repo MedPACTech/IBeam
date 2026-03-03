@@ -1,11 +1,11 @@
-using IBeam.Identity.Abstractions.Interfaces;
+using IBeam.Identity.Interfaces;
 using IBeam.Identity.Services.Otp;
 using IBeam.Identity.Services.Auth;
 using IBeam.Identity.Services.Tenants;
 using IBeam.Identity.Services.Tokens;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using IBeam.Identity.Abstractions.Options;
+using IBeam.Identity.Options;
 
 namespace IBeam.Identity.Services;
 

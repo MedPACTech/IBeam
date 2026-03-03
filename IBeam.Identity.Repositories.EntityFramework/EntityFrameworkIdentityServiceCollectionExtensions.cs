@@ -1,4 +1,4 @@
-using IBeam.Identity.Abstractions.Interfaces;
+using IBeam.Identity.Interfaces;
 using IBeam.Identity.Repositories.EntityFramework.Data;
 using IBeam.Identity.Repositories.EntityFramework.Options;
 using IBeam.Identity.Repositories.EntityFramework.Tenants;

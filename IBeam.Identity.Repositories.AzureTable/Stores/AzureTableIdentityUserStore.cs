@@ -1,9 +1,9 @@
-﻿using IBeam.Identity.Abstractions.Interfaces;
-using IBeam.Identity.Abstractions.Models;
+using IBeam.Identity.Interfaces;
+using IBeam.Identity.Models;
 using IBeam.Identity.Repositories.AzureTable.Types;
 using Microsoft.AspNetCore.Identity;
 using ElCamino.AspNetCore.Identity.AzureTable.Model;
-using AbstractionIdentityUser = IBeam.Identity.Abstractions.Models.IdentityUser;
+using AbstractionIdentityUser = IBeam.Identity.Models.IdentityUser;
 using ElCamino.AspNetCore.Identity.AzureTable;
 
 namespace IBeam.Identity.Repositories.AzureTable.Stores;

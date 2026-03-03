@@ -1,8 +1,8 @@
 using Azure.Data.Tables;
 using ElCamino.AspNetCore.Identity.AzureTable;
 using ElCamino.AspNetCore.Identity.AzureTable.Model;
-using IBeam.Identity.Abstractions.Interfaces;
-using IBeam.Identity.Abstractions.Schema;
+using IBeam.Identity.Interfaces;
+using IBeam.Identity.Schema;
 using IBeam.Identity.Repositories.AzureTable.Options;
 using IBeam.Identity.Repositories.AzureTable.Schema;
 using IBeam.Identity.Repositories.AzureTable.Stores;
