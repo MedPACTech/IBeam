@@ -4,9 +4,9 @@
 
 ### Active projects
 
-- `IBeam.Identity.Abstractions`
+- `IBeam.Identity`
   - Contracts, models, options, and exceptions for identity/auth flows.
-  - README: `IBeam.Identity.Abstractions/README.md`
+  - README: `IBeam.Identity/README.md`
 
 - `IBeam.Identity.Services`
   - Core auth orchestration (OTP, password, OAuth), token/refresh/session logic.

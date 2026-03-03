@@ -1,7 +1,7 @@
-﻿using Azure.Data.Tables;
+using Azure.Data.Tables;
 using ElCamino.AspNetCore.Identity.AzureTable;
 using ElCamino.AspNetCore.Identity.AzureTable.Model;
-using IBeam.Identity.Abstractions.Schema;
+using IBeam.Identity.Schema;
 using IBeam.Identity.Repositories.AzureTable.Options;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

@@ -1,6 +1,6 @@
-using IBeam.Identity.Abstractions.Exceptions;
-using IBeam.Identity.Abstractions.Interfaces;
-using IBeam.Identity.Abstractions.Models;
+using IBeam.Identity.Exceptions;
+using IBeam.Identity.Interfaces;
+using IBeam.Identity.Models;
 using IBeam.Identity.Services.Utils;
 using System.Security.Cryptography;
 using System.Text;

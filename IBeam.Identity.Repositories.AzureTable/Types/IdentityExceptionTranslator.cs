@@ -1,5 +1,5 @@
-﻿using Azure;
-using IBeam.Identity.Abstractions.Exceptions;
+using Azure;
+using IBeam.Identity.Exceptions;
 using Microsoft.AspNetCore.Identity;
 using System;
 using System.Linq;

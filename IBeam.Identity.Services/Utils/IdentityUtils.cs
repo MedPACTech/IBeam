@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
-using IBeam.Identity.Abstractions.Exceptions;
-using IBeam.Identity.Abstractions.Models;
+using IBeam.Identity.Exceptions;
+using IBeam.Identity.Models;
 
 namespace IBeam.Identity.Services.Utils;
 

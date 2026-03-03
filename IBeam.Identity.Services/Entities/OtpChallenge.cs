@@ -1,4 +1,4 @@
-using IBeam.Identity.Abstractions.Models;
+using IBeam.Identity.Models;
 
 namespace IBeam.Identity.Services.Entities;
 

@@ -1,5 +1,5 @@
 using Azure.Data.Tables;
-using IBeam.Identity.Abstractions.Interfaces;
+using IBeam.Identity.Interfaces;
 using IBeam.Identity.Repositories.AzureTable.Entities;
 using IBeam.Identity.Repositories.AzureTable.Options;
 using Microsoft.Extensions.Options;
