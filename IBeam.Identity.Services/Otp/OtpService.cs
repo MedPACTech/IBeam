@@ -1,9 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
-using IBeam.Identity.Abstractions.Exceptions;
-using IBeam.Identity.Abstractions.Interfaces;
-using IBeam.Identity.Abstractions.Models;
-using IBeam.Identity.Abstractions.Options;
+using IBeam.Identity.Exceptions;
+using IBeam.Identity.Interfaces;
+using IBeam.Identity.Models;
+using IBeam.Identity.Options;
 using Microsoft.Extensions.Options;
 
 namespace IBeam.Identity.Services.Otp;

@@ -1,5 +1,5 @@
-using IBeam.Identity.Abstractions.Interfaces;
-using IBeam.Identity.Abstractions.Models;
+using IBeam.Identity.Interfaces;
+using IBeam.Identity.Models;
 
 namespace IBeam.Identity.Repositories.EntityFramework.Tenants;
 

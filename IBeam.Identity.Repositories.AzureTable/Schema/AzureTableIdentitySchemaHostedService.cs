@@ -1,4 +1,4 @@
-﻿using IBeam.Identity.Abstractions.Schema;
+using IBeam.Identity.Schema;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

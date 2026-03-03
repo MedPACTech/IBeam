@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -42,7 +42,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\IBeam.Repositories.Core\IBeam.Repositories.Core.csproj" />
+    <ProjectReference Include="..\IBeam.Repositories\IBeam.Repositories.csproj" />
   </ItemGroup>
 
 </Project>
+

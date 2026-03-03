@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -12,7 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IBeam.Identity.Services\IBeam.Identity.Services.csproj" />
-    <ProjectReference Include="..\IBeam.Identity.Abstractions\IBeam.Identity.Abstractions.csproj" />
+    <ProjectReference Include="..\IBeam.Identity\IBeam.Identity.csproj" />
   </ItemGroup>
 
   <ItemGroup>
