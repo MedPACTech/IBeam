@@ -1,8 +1,12 @@
 using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
+using IBeam.Identity.Options;
 using IBeam.Identity.Services.Auth;
+using IBeam.Identity.Services.Tokens;
+using Microsoft.Extensions.Options;
 using Moq;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace IBeam.Tests.Identity.Services;
 
@@ -116,6 +120,74 @@ public sealed class OtpAuthServiceTests
         Assert.IsFalse(result.IsNewUser);
     }
 
+    [TestMethod]
+    public async Task CompleteOtpAsync_WithJwtTokenService_DoesNotDuplicateReservedClaims()
+    {
+        var userId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var tenants = new Mock<ITenantMembershipStore>(MockBehavior.Strict);
+        var tenantProvisioning = new Mock<ITenantProvisioningService>(MockBehavior.Strict);
+        var otpService = new Mock<IOtpService>(MockBehavior.Strict);
+        var otpChallenges = new Mock<IOtpChallengeStore>(MockBehavior.Strict);
+
+        otpService.Setup(x => x.VerifyAsync(
+                It.IsAny<OtpVerifyRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpVerifyResult(true, "vt", DateTimeOffset.UtcNow.AddMinutes(10)));
+
+        otpChallenges.Setup(x => x.GetAsync("challenge-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpChallengeRecord(
+                ChallengeId: "challenge-1",
+                Destination: "abram.cookson@outlook.com",
+                Purpose: SenderPurpose.LoginMfa,
+                CodeHash: "hash",
+                ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10),
+                AttemptCount: 0,
+                TenantId: null,
+                IsConsumed: true,
+                VerificationToken: "vt",
+                VerificationTokenExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10)));
+
+        users.Setup(x => x.FindByEmailAsync("ABRAM.COOKSON@OUTLOOK.COM", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(userId, "abram.cookson@outlook.com", true));
+
+        tenants.Setup(x => x.GetTenantsForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TenantInfo> { new(tenantId, "Tenant A", new List<string> { "Owner", "Admin" }, true) });
+
+        var jwt = new JwtTokenService(
+            Options.Create(new JwtOptions
+            {
+                Issuer = "ibeam.test",
+                Audience = "ibeam.clients",
+                SigningKey = "test-signing-key-with-enough-length-1234567890",
+                AccessTokenMinutes = 60,
+                PreTenantTokenMinutes = 10,
+                RefreshTokenDays = 30
+            }),
+            new InMemoryAuthSessionStore());
+
+        var sut = new OtpAuthService(
+            users.Object,
+            tenants.Object,
+            tenantProvisioning.Object,
+            jwt,
+            otpService.Object,
+            otpChallenges.Object);
+
+        var result = await sut.CompleteOtpAsync("challenge-1", "123456", "abram.cookson@outlook.com");
+
+        Assert.IsNotNull(result.Token);
+        var parsed = new JwtSecurityTokenHandler().ReadJwtToken(result.Token!.AccessToken);
+
+        Assert.AreEqual(1, parsed.Claims.Count(c => c.Type == "sub"));
+        Assert.AreEqual(1, parsed.Claims.Count(c => c.Type == "uid"));
+        Assert.AreEqual(1, parsed.Claims.Count(c => c.Type == "tid"));
+        Assert.AreEqual(1, parsed.Claims.Count(c => c.Type == "sid"));
+        Assert.AreEqual(2, parsed.Claims.Count(c => c.Type == "role"));
+    }
+
     private static async Task<TException> AssertThrowsAsync<TException>(Func<Task> action)
         where TException : Exception
     {
@@ -128,6 +200,47 @@ public sealed class OtpAuthServiceTests
         catch (TException ex)
         {
             return ex;
+        }
+    }
+
+    private sealed class InMemoryAuthSessionStore : IAuthSessionStore
+    {
+        private readonly Dictionary<string, AuthSessionRecord> _byHash = new(StringComparer.OrdinalIgnoreCase);
+
+        public Task SaveAsync(AuthSessionRecord record, CancellationToken ct = default)
+        {
+            _byHash[record.RefreshTokenHash] = record;
+            return Task.CompletedTask;
+        }
+
+        public Task<AuthSessionRecord?> GetByRefreshTokenHashAsync(string refreshTokenHash, CancellationToken ct = default)
+        {
+            _byHash.TryGetValue(refreshTokenHash, out var record);
+            return Task.FromResult(record);
+        }
+
+        public Task DeleteByRefreshTokenHashAsync(string refreshTokenHash, CancellationToken ct = default)
+        {
+            _byHash.Remove(refreshTokenHash);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<AuthSessionRecord>> GetByUserAsync(Guid userId, CancellationToken ct = default)
+        {
+            IReadOnlyList<AuthSessionRecord> sessions = _byHash.Values
+                .Where(x => x.UserId == userId)
+                .ToList();
+            return Task.FromResult(sessions);
+        }
+
+        public Task<bool> RevokeBySessionIdAsync(Guid userId, string sessionId, CancellationToken ct = default)
+        {
+            var hit = _byHash.Values.FirstOrDefault(x => x.UserId == userId && x.SessionId == sessionId);
+            if (hit is null)
+                return Task.FromResult(false);
+
+            _byHash[hit.RefreshTokenHash] = hit with { RevokedAt = DateTimeOffset.UtcNow };
+            return Task.FromResult(true);
         }
     }
 }
