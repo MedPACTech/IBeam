@@ -25,7 +25,8 @@ public sealed class AzureTableAuthSessionStore : IAuthSessionStore
         {
             var table = GetTable();
             await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
-            await table.UpsertEntityAsync(ToEntity(record), TableUpdateMode.Replace, ct).ConfigureAwait(false);
+            await table.UpsertEntityAsync(ToRefreshHashEntity(record), TableUpdateMode.Replace, ct).ConfigureAwait(false);
+            await table.UpsertEntityAsync(ToUserSessionEntity(record), TableUpdateMode.Replace, ct).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -39,8 +40,8 @@ public sealed class AzureTableAuthSessionStore : IAuthSessionStore
         {
             var table = GetTable();
             var response = await table.GetEntityIfExistsAsync<AuthSessionEntity>(
-                PartitionForHash(refreshTokenHash),
-                RowForHash(refreshTokenHash),
+                PartitionForRefreshHash(refreshTokenHash),
+                RowForRefreshHash(refreshTokenHash),
                 cancellationToken: ct).ConfigureAwait(false);
 
             return response.HasValue ? ToModel(response.Value) : null;
@@ -56,10 +57,34 @@ public sealed class AzureTableAuthSessionStore : IAuthSessionStore
         try
         {
             var table = GetTable();
-            await table.DeleteEntityAsync(
-                PartitionForHash(refreshTokenHash),
-                RowForHash(refreshTokenHash),
+            var hashPk = PartitionForRefreshHash(refreshTokenHash);
+            var hashRk = RowForRefreshHash(refreshTokenHash);
+
+            var existing = await table.GetEntityIfExistsAsync<AuthSessionEntity>(
+                hashPk,
+                hashRk,
                 cancellationToken: ct).ConfigureAwait(false);
+
+            if (!existing.HasValue)
+                return;
+
+            await table.DeleteEntityAsync(hashPk, hashRk, cancellationToken: ct).ConfigureAwait(false);
+
+            var e = existing.Value;
+            if (!string.IsNullOrWhiteSpace(e.UserId) && !string.IsNullOrWhiteSpace(e.SessionId))
+            {
+                try
+                {
+                    await table.DeleteEntityAsync(
+                        PartitionForUser(e.UserId),
+                        RowForSessionId(e.SessionId),
+                        cancellationToken: ct).ConfigureAwait(false);
+                }
+                catch (Azure.RequestFailedException ex) when (ex.Status == 404)
+                {
+                    // no-op (index may be absent for legacy rows)
+                }
+            }
         }
         catch (Azure.RequestFailedException ex) when (ex.Status == 404)
         {
@@ -76,10 +101,10 @@ public sealed class AzureTableAuthSessionStore : IAuthSessionStore
         try
         {
             var table = GetTable();
-            var userIdString = userId.ToString("D");
             var results = new List<AuthSessionRecord>();
+            var filter = $"PartitionKey eq '{PartitionForUser(userId)}'";
 
-            await foreach (var e in table.QueryAsync<AuthSessionEntity>(x => x.UserId == userIdString, cancellationToken: ct).ConfigureAwait(false))
+            await foreach (var e in table.QueryAsync<AuthSessionEntity>(filter: filter, cancellationToken: ct).ConfigureAwait(false))
                 results.Add(ToModel(e));
 
             return results;
@@ -95,16 +120,47 @@ public sealed class AzureTableAuthSessionStore : IAuthSessionStore
         try
         {
             var table = GetTable();
-            var userIdString = userId.ToString("D");
+            var userPk = PartitionForUser(userId);
+            var userRk = RowForSessionId(sessionId);
+            var now = DateTimeOffset.UtcNow;
 
-            await foreach (var e in table.QueryAsync<AuthSessionEntity>(x => x.UserId == userIdString && x.SessionId == sessionId, cancellationToken: ct).ConfigureAwait(false))
+            var indexed = await table.GetEntityIfExistsAsync<AuthSessionEntity>(
+                userPk,
+                userRk,
+                cancellationToken: ct).ConfigureAwait(false);
+
+            if (!indexed.HasValue)
+                return false;
+
+            var userEntity = indexed.Value;
+            userEntity.RevokedAt = now;
+            await table.UpdateEntityAsync(userEntity, userEntity.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+
+            if (!string.IsNullOrWhiteSpace(userEntity.RefreshTokenHash))
             {
-                e.RevokedAt = DateTimeOffset.UtcNow;
-                await table.UpdateEntityAsync(e, e.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
-                return true;
+                try
+                {
+                    var hashPk = PartitionForRefreshHash(userEntity.RefreshTokenHash);
+                    var hashRk = RowForRefreshHash(userEntity.RefreshTokenHash);
+                    var hashEntityResponse = await table.GetEntityIfExistsAsync<AuthSessionEntity>(
+                        hashPk,
+                        hashRk,
+                        cancellationToken: ct).ConfigureAwait(false);
+
+                    if (hashEntityResponse.HasValue)
+                    {
+                        var hashEntity = hashEntityResponse.Value;
+                        hashEntity.RevokedAt = now;
+                        await table.UpdateEntityAsync(hashEntity, hashEntity.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+                    }
+                }
+                catch (Azure.RequestFailedException ex) when (ex.Status == 404)
+                {
+                    // no-op
+                }
             }
 
-            return false;
+            return true;
         }
         catch (Exception ex)
         {
@@ -115,7 +171,7 @@ public sealed class AzureTableAuthSessionStore : IAuthSessionStore
     private TableClient GetTable()
         => _serviceClient.GetTableClient(_opts.FullTableName(_opts.AuthSessionsTableName));
 
-    private static string PartitionForHash(string hash)
+    private static string PartitionForRefreshHash(string hash)
     {
         var h = (hash ?? string.Empty).Trim().ToLowerInvariant();
         var a = h.Length > 0 ? h[0] : '0';
@@ -123,14 +179,38 @@ public sealed class AzureTableAuthSessionStore : IAuthSessionStore
         return $"RTH|{a}{b}";
     }
 
-    private static string RowForHash(string hash) => (hash ?? string.Empty).Trim().ToLowerInvariant();
+    private static string RowForRefreshHash(string hash) => (hash ?? string.Empty).Trim().ToLowerInvariant();
 
-    private static AuthSessionEntity ToEntity(AuthSessionRecord r)
+    private static string PartitionForUser(Guid userId) => $"USR|{userId:D}";
+    private static string PartitionForUser(string userId) => $"USR|{(userId ?? string.Empty).Trim().ToLowerInvariant()}";
+
+    private static string RowForSessionId(string sessionId)
+        => $"SID|{(sessionId ?? string.Empty).Trim().ToLowerInvariant()}";
+
+    private static AuthSessionEntity ToRefreshHashEntity(AuthSessionRecord r)
         => new()
         {
-            PartitionKey = PartitionForHash(r.RefreshTokenHash),
-            RowKey = RowForHash(r.RefreshTokenHash),
+            PartitionKey = PartitionForRefreshHash(r.RefreshTokenHash),
+            RowKey = RowForRefreshHash(r.RefreshTokenHash),
             SessionId = r.SessionId,
+            RefreshTokenHash = r.RefreshTokenHash,
+            UserId = r.UserId.ToString("D"),
+            TenantId = r.TenantId.ToString("D"),
+            ClaimsJson = r.ClaimsJson,
+            CreatedAt = r.CreatedAt,
+            LastSeenAt = r.LastSeenAt,
+            RefreshTokenExpiresAt = r.RefreshTokenExpiresAt,
+            RevokedAt = r.RevokedAt,
+            DeviceInfo = r.DeviceInfo
+        };
+
+    private static AuthSessionEntity ToUserSessionEntity(AuthSessionRecord r)
+        => new()
+        {
+            PartitionKey = PartitionForUser(r.UserId),
+            RowKey = RowForSessionId(r.SessionId),
+            SessionId = r.SessionId,
+            RefreshTokenHash = r.RefreshTokenHash,
             UserId = r.UserId.ToString("D"),
             TenantId = r.TenantId.ToString("D"),
             ClaimsJson = r.ClaimsJson,
@@ -143,7 +223,7 @@ public sealed class AzureTableAuthSessionStore : IAuthSessionStore
 
     private static AuthSessionRecord ToModel(AuthSessionEntity e)
         => new(
-            RefreshTokenHash: e.RowKey,
+            RefreshTokenHash: ResolveRefreshTokenHash(e),
             SessionId: e.SessionId,
             UserId: Guid.Parse(e.UserId),
             TenantId: Guid.Parse(e.TenantId),
@@ -153,4 +233,9 @@ public sealed class AzureTableAuthSessionStore : IAuthSessionStore
             RefreshTokenExpiresAt: e.RefreshTokenExpiresAt,
             RevokedAt: e.RevokedAt,
             DeviceInfo: e.DeviceInfo);
+
+    private static string ResolveRefreshTokenHash(AuthSessionEntity e)
+        => string.IsNullOrWhiteSpace(e.RefreshTokenHash)
+            ? e.RowKey
+            : e.RefreshTokenHash;
 }

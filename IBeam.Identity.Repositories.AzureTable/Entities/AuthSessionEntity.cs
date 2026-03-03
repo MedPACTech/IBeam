@@ -11,6 +11,7 @@ internal sealed class AuthSessionEntity : ITableEntity
     public ETag ETag { get; set; }
 
     public string SessionId { get; set; } = default!;
+    public string? RefreshTokenHash { get; set; }
     public string UserId { get; set; } = default!;
     public string TenantId { get; set; } = default!;
     public string ClaimsJson { get; set; } = default!;
