@@ -10,10 +10,10 @@ trigger:
     - v*
   paths:
     include:
-    - IBeam.Identity.Repositories.AzureTables/**
+    - IBeam.Identity.Repositories.AzureTable/**
     - .azure-pipelines/templates/**
     - IBeam.sln
-    - .azure-pipelines/pipelines.IBeam.Identity.Repositories.AzureTables.nupkg.yml
+    - .azure-pipelines/pipelines.IBeam.Identity.Repositories.AzureTable.nupkg.yml
 
 pool:
   vmImage: 'ubuntu-22.04'
@@ -28,7 +28,7 @@ variables:
 - name: solution
   value: '**/IBeam.sln'
 - name: project
-  value: '**/IBeam.Identity.Repositories.AzureTables.csproj'
+  value: '**/IBeam.Identity.Repositories.AzureTable.csproj'
 - name: packageLocation
   value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
 - name: apiKey
