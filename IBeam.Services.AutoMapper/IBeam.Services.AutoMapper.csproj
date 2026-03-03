@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\IBeam.Services\IBeam.Services.Core.csproj" />
+    <ProjectReference Include="..\IBeam.Services\IBeam.Services.csproj" />
   </ItemGroup>
 
 </Project>

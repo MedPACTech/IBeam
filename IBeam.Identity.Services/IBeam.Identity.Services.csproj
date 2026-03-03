@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\IBeam.Communications.Abstractions\IBeam.Communications.Abstractions.csproj" />
+    <ProjectReference Include="..\IBeam.Communications\IBeam.Communications.csproj" />
     <ProjectReference Include="..\IBeam.Identity.Abstractions\IBeam.Identity.Abstractions.csproj" />
   </ItemGroup>
 
@@ -26,3 +26,4 @@
   </ItemGroup>
 
 </Project>
+
