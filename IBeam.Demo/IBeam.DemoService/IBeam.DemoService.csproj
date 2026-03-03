@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.3" />
@@ -10,7 +10,7 @@
     <ProjectReference Include="..\..\IBeam.Identity.Abstractions\IBeam.Identity.Abstractions.csproj" />
     <ProjectReference Include="..\..\IBeam.Identity.Services\IBeam.Identity.Services.csproj" />
     <ProjectReference Include="..\..\IBeam.Identity.Repositories.AzureTable\IBeam.Identity.Repositories.AzureTable.csproj" />
-    <ProjectReference Include="..\..\IBeam.Communications.Abstractions\IBeam.Communications.Abstractions.csproj" />
+    <ProjectReference Include="..\..\IBeam.Communications\IBeam.Communications.csproj" />
     <ProjectReference Include="..\..\IBeam.Communications.Email.AzureCommunications\IBeam.Communications.Email.AzureCommunications.csproj" />
   </ItemGroup>
 
@@ -21,3 +21,4 @@
   </PropertyGroup>
 
 </Project>
+

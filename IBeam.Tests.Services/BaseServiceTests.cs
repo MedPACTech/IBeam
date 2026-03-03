@@ -1,10 +1,10 @@
-﻿using IBeam.Repositories.Abstractions;
+using IBeam.Repositories.Abstractions;
 using IBeam.Repositories.Core;
 using IBeam.Services.Abstractions;
 using IBeam.Services.Core;
 using Moq;
 
-namespace IBeam.Tests.Services.Core;
+namespace IBeam.Tests.Services;
 
 [TestClass]
 public sealed class BaseServiceTests
@@ -237,6 +237,7 @@ public sealed class BaseServiceTests
         public string Name { get; set; } = string.Empty;
     }
 }
+
 
 
 

@@ -28,7 +28,7 @@ variables:
 - name: solution
   value: '**/IBeam.sln'
 - name: project
-  value: '**/IBeam.Api.csproj'
+  value: '**/IBeam.API.csproj'
 - name: packageLocation
   value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
 - name: apiKey
@@ -52,3 +52,5 @@ stages:
         packageLocation: $(packageLocation)
         apiKey: $(apiKey)
         buildConfiguration: $(buildConfiguration)
+
+

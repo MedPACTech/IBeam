@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\IBeam.Communications.Abstractions\IBeam.Communications.Abstractions.csproj" />
+    <ProjectReference Include="..\IBeam.Communications\IBeam.Communications.csproj" />
     <ProjectReference Include="..\IBeam.Communications.Email.AzureCommunications\IBeam.Communications.Email.AzureCommunications.csproj" />
     <ProjectReference Include="..\IBeam.Communications.Sms.AzureCommunications\IBeam.Communications.Sms.AzureCommunications.csproj" />
     <ProjectReference Include="..\IBeam.Identity.Repositories.AzureTable\IBeam.Identity.Repositories.AzureTable.csproj" />
@@ -30,3 +30,4 @@
   </ItemGroup>
 
 </Project>
+
