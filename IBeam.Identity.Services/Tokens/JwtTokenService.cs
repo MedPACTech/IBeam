@@ -39,16 +39,7 @@ public sealed class JwtTokenService : ITokenService
 
         var sessionId = Guid.NewGuid().ToString("D");
 
-        var effective = new List<ClaimItem>(capacity: (claims?.Count ?? 0) + 4)
-        {
-            new("sub", userId.ToString("D")),
-            new("uid", userId.ToString("D")),
-            new("tid", tenantId.ToString("D")),
-            new("sid", sessionId),
-        };
-
-        if (claims is not null && claims.Count > 0)
-            effective.AddRange(claims);
+        var effective = NormalizeAccessClaims(userId, tenantId, claims, sessionId);
 
         var jwtClaims = CreateJwtClaimsFromClaimItems(effective);
         var jwt = SignJwt(jwtClaims, now, expiresAt);
@@ -88,9 +79,8 @@ public sealed class JwtTokenService : ITokenService
         if (existing.RevokedAt.HasValue || existing.RefreshTokenExpiresAt <= now)
             throw new IdentityUnauthorizedException("Refresh token is expired or revoked.");
 
-        var claims = JsonSerializer.Deserialize<List<ClaimItem>>(existing.ClaimsJson) ?? new List<ClaimItem>();
-        claims.RemoveAll(c => string.Equals(c.Type, "sid", StringComparison.OrdinalIgnoreCase));
-        claims.Add(new ClaimItem("sid", existing.SessionId));
+        var existingClaims = JsonSerializer.Deserialize<List<ClaimItem>>(existing.ClaimsJson) ?? new List<ClaimItem>();
+        var claims = NormalizeAccessClaims(existing.UserId, existing.TenantId, existingClaims, existing.SessionId);
 
         var expiresAt = now.AddMinutes(_options.AccessTokenMinutes);
         var jwtClaims = CreateJwtClaimsFromClaimItems(claims);
@@ -155,15 +145,7 @@ public sealed class JwtTokenService : ITokenService
         var now = DateTimeOffset.UtcNow;
         var expiresAt = now.AddMinutes(minutes);
 
-        var effective = new List<ClaimItem>(capacity: (claims?.Count ?? 0) + 3)
-        {
-            new("sub", userId.ToString("D")),
-            new("uid", userId.ToString("D")),
-            new("pt", "1"),
-        };
-
-        if (claims is not null && claims.Count > 0)
-            effective.AddRange(claims);
+        var effective = NormalizePreTenantClaims(userId, claims);
 
         var jwtClaims = CreateJwtClaimsFromClaimItems(effective);
         var jwt = SignJwt(jwtClaims, now, expiresAt);
@@ -184,6 +166,45 @@ public sealed class JwtTokenService : ITokenService
         }
 
         return list;
+    }
+
+    private static List<ClaimItem> NormalizeAccessClaims(
+        Guid userId,
+        Guid tenantId,
+        IReadOnlyList<ClaimItem>? claims,
+        string sessionId)
+    {
+        var effective = claims is null || claims.Count == 0
+            ? new List<ClaimItem>(4)
+            : new List<ClaimItem>(claims);
+
+        EnsureSingleClaim(effective, "sub", userId.ToString("D"));
+        EnsureSingleClaim(effective, "uid", userId.ToString("D"));
+        EnsureSingleClaim(effective, "tid", tenantId.ToString("D"));
+        EnsureSingleClaim(effective, "sid", sessionId);
+
+        return effective;
+    }
+
+    private static List<ClaimItem> NormalizePreTenantClaims(
+        Guid userId,
+        IReadOnlyList<ClaimItem>? claims)
+    {
+        var effective = claims is null || claims.Count == 0
+            ? new List<ClaimItem>(3)
+            : new List<ClaimItem>(claims);
+
+        EnsureSingleClaim(effective, "sub", userId.ToString("D"));
+        EnsureSingleClaim(effective, "uid", userId.ToString("D"));
+        EnsureSingleClaim(effective, "pt", "1");
+
+        return effective;
+    }
+
+    private static void EnsureSingleClaim(List<ClaimItem> claims, string claimType, string claimValue)
+    {
+        claims.RemoveAll(c => string.Equals(c.Type, claimType, StringComparison.OrdinalIgnoreCase));
+        claims.Add(new ClaimItem(claimType, claimValue));
     }
 
     private string SignJwt(List<Claim> claims, DateTimeOffset now, DateTimeOffset expiresAt)
