@@ -75,11 +75,28 @@ Note: store interfaces (`IIdentityUserStore`, `IOtpChallengeStore`, `IAuthSessio
 
 ## Auth lifecycle events
 
-`OtpAuthService` emits post-persistence lifecycle events for new-user provisioning:
+Identity lifecycle events are emitted from OTP, password, OAuth, and token/session flows.
+
+Provisioning events:
 
 - `AuthUserCreatedEvent`
 - `TenantCreatedEvent`
 - `TenantUserLinkedEvent`
+
+Additional lifecycle events:
+
+- `AuthUserCreateRequestedEvent`
+- `TenantCreateRequestedEvent`
+- `TenantUserLinkRequestedEvent`
+- `LoginAttemptedEvent`
+- `LoginSucceededEvent`
+- `LoginFailedEvent`
+- `OtpChallengeCreatedEvent`
+- `OtpVerifiedEvent`
+- `OtpVerificationFailedEvent`
+- `TokenIssuedEvent`
+- `RefreshTokenRotatedEvent`
+- `SessionRevokedEvent`
 
 Common event fields:
 

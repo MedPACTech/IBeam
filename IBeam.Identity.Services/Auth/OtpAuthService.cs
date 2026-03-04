@@ -74,7 +74,24 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
 
         var (channel, normalized) = IdentityUtils.NormalizeDestination(destination);
         var request = new OtpChallengeRequest(channel, normalized, SenderPurpose.LoginMfa, tenantId);
-        return await _otpService.CreateChallengeAsync(request, ct);
+        var challenge = await _otpService.CreateChallengeAsync(request, ct);
+
+        var challengeCreated = new OtpChallengeCreatedEvent
+        {
+            ChallengeId = challenge.ChallengeId,
+            Destination = normalized,
+            Purpose = SenderPurpose.LoginMfa.ToString(),
+            CorrelationId = challenge.ChallengeId,
+            CausationId = challenge.ChallengeId,
+            TraceId = ResolveTraceId()
+        };
+        challengeCreated.Metadata["idempotencyKey"] = $"{OtpChallengeCreatedEvent.TypeName}:{challenge.ChallengeId}";
+        await InvokeLifecycleAndPublishAsync(
+            challengeCreated,
+            (hook, evt, token) => hook.OnOtpChallengeCreatedAsync(evt, token),
+            ct);
+
+        return challenge;
     }
 
     public async Task<AuthResultResponse> CompleteOtpAsync(
@@ -106,10 +123,69 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         IdentityUtils.ThrowIfNullOrWhiteSpace(destination, nameof(destination));
 
         var (channel, normalizedDestination) = IdentityUtils.NormalizeDestination(destination);
+        var traceId = ResolveTraceId();
+
+        var loginAttempt = new LoginAttemptedEvent
+        {
+            Method = "otp",
+            Identifier = normalizedDestination,
+            CorrelationId = challengeId,
+            CausationId = challengeId,
+            TraceId = traceId
+        };
+        loginAttempt.Metadata["idempotencyKey"] = $"{LoginAttemptedEvent.TypeName}:otp:{challengeId}";
+        await InvokeLifecycleAndPublishAsync(
+            loginAttempt,
+            (hook, evt, token) => hook.OnBeforeLoginAsync(evt, token),
+            ct);
 
         var verifyResult = await _otpService.VerifyAsync(new OtpVerifyRequest(challengeId, code), ct);
         if (!verifyResult.Success)
+        {
+            var failed = new OtpVerificationFailedEvent
+            {
+                ChallengeId = challengeId,
+                Reason = "OTP verification failed.",
+                CorrelationId = challengeId,
+                CausationId = challengeId,
+                TraceId = traceId
+            };
+            failed.Metadata["idempotencyKey"] = $"{OtpVerificationFailedEvent.TypeName}:{challengeId}";
+            await InvokeLifecycleAndPublishAsync(
+                failed,
+                (hook, evt, token) => hook.OnOtpVerificationFailedAsync(evt, token),
+                ct);
+
+            var loginFailed = new LoginFailedEvent
+            {
+                Method = "otp",
+                Identifier = normalizedDestination,
+                Reason = "OTP verification failed.",
+                CorrelationId = challengeId,
+                CausationId = challengeId,
+                TraceId = traceId
+            };
+            loginFailed.Metadata["idempotencyKey"] = $"{LoginFailedEvent.TypeName}:otp:{challengeId}";
+            await InvokeLifecycleAndPublishAsync(
+                loginFailed,
+                (hook, evt, token) => hook.OnLoginFailedAsync(evt, token),
+                ct);
+
             throw new IdentityValidationException("OTP verification failed.");
+        }
+
+        var verified = new OtpVerifiedEvent
+        {
+            ChallengeId = challengeId,
+            CorrelationId = challengeId,
+            CausationId = challengeId,
+            TraceId = traceId
+        };
+        verified.Metadata["idempotencyKey"] = $"{OtpVerifiedEvent.TypeName}:{challengeId}";
+        await InvokeLifecycleAndPublishAsync(
+            verified,
+            (hook, evt, token) => hook.OnOtpVerifiedAsync(evt, token),
+            ct);
 
         var challenge = await _otpChallengeStore.GetAsync(challengeId, ct);
         if (challenge is null)
@@ -149,6 +225,21 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
                 ? new RegisterUserRequest(normalizedDestination, null, string.Empty, displayName)
                 : new RegisterUserRequest(null, normalizedDestination, string.Empty, displayName);
 
+            var userCreateRequested = new AuthUserCreateRequestedEvent
+            {
+                NormalizedEmail = channel == SenderChannel.Email ? normalizedDestination.Trim().ToLowerInvariant() : null,
+                NormalizedPhone = channel == SenderChannel.Sms ? normalizedDestination.Trim() : null,
+                CorrelationId = challengeId,
+                CausationId = challengeId,
+                TraceId = traceId
+            };
+            userCreateRequested.Metadata["idempotencyKey"] =
+                $"{AuthUserCreateRequestedEvent.TypeName}:{(userCreateRequested.NormalizedEmail ?? userCreateRequested.NormalizedPhone ?? challengeId)}";
+            await InvokeLifecycleAndPublishAsync(
+                userCreateRequested,
+                (hook, evt, token) => hook.OnBeforeAuthUserCreateAsync(evt, token),
+                ct);
+
             var createResult = await _users.CreateAsync(createRequest, ct);
             if (!createResult.Succeeded || createResult.User is null)
                 throw new IdentityValidationException("User creation failed.", createResult.Errors);
@@ -163,13 +254,13 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
                 NormalizedPhone = string.IsNullOrWhiteSpace(user.PhoneNumber) ? null : user.PhoneNumber.Trim(),
                 CorrelationId = challengeId,
                 CausationId = challengeId,
-                TraceId = ResolveTraceId()
+                TraceId = traceId
             };
             userCreatedEvent.Metadata["idempotencyKey"] = $"{AuthUserCreatedEvent.TypeName}:{user.UserId:D}";
 
             await InvokeLifecycleAndPublishAsync(
                 userCreatedEvent,
-                evt => _lifecycleHook.OnAuthUserCreatedAsync(evt, ct),
+                (hook, evt, token) => hook.OnAuthUserCreatedAsync(evt, token),
                 ct);
         }
 
@@ -180,6 +271,21 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         if (createdNewUser || activeTenants.Count == 0)
         {
             var email = channel == SenderChannel.Email ? normalizedDestination : user.Email;
+            var tenantCreateRequested = new TenantCreateRequestedEvent
+            {
+                AuthUserId = user.UserId.ToString("D"),
+                SuggestedTenantName = string.IsNullOrWhiteSpace(email) ? null : $"{email.Split('@')[0]}'s Workspace",
+                CorrelationId = challengeId,
+                CausationId = challengeId,
+                TraceId = traceId
+            };
+            tenantCreateRequested.Metadata["idempotencyKey"] =
+                $"{TenantCreateRequestedEvent.TypeName}:{user.UserId:D}";
+            await InvokeLifecycleAndPublishAsync(
+                tenantCreateRequested,
+                (hook, evt, token) => hook.OnBeforeTenantCreateAsync(evt, token),
+                ct);
+
             var createdTenantId = await _tenantProvisioning.CreateTenantForNewUserAsync(user.UserId, email, ct);
             activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
                 .Where(t => t.IsActive)
@@ -195,16 +301,30 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
                 TenantName = createdTenant?.Name,
                 CorrelationId = challengeId,
                 CausationId = challengeId,
-                TraceId = ResolveTraceId()
+                TraceId = traceId
             };
             tenantCreatedEvent.Metadata["idempotencyKey"] = $"{TenantCreatedEvent.TypeName}:{createdTenantId:D}";
 
             await InvokeLifecycleAndPublishAsync(
                 tenantCreatedEvent,
-                evt => _lifecycleHook.OnTenantCreatedAsync(evt, ct),
+                (hook, evt, token) => hook.OnTenantCreatedAsync(evt, token),
                 ct);
 
             var linkedRole = createdTenant?.Roles?.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r));
+            var linkRequested = new TenantUserLinkRequestedEvent
+            {
+                TenantId = createdTenantId,
+                AuthUserId = user.UserId.ToString("D"),
+                CorrelationId = challengeId,
+                CausationId = challengeId,
+                TraceId = traceId
+            };
+            linkRequested.Metadata["idempotencyKey"] = $"{TenantUserLinkRequestedEvent.TypeName}:{createdTenantId:D}:{user.UserId:D}";
+            await InvokeLifecycleAndPublishAsync(
+                linkRequested,
+                (hook, evt, token) => hook.OnBeforeTenantUserLinkAsync(evt, token),
+                ct);
+
             var tenantUserLinkedEvent = new TenantUserLinkedEvent
             {
                 TenantId = createdTenantId,
@@ -213,14 +333,14 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
                 UserTenantId = $"{createdTenantId:D}|{user.UserId:D}",
                 CorrelationId = challengeId,
                 CausationId = challengeId,
-                TraceId = ResolveTraceId()
+                TraceId = traceId
             };
             tenantUserLinkedEvent.Metadata["idempotencyKey"] =
                 $"{TenantUserLinkedEvent.TypeName}:{createdTenantId:D}:{user.UserId:D}";
 
             await InvokeLifecycleAndPublishAsync(
                 tenantUserLinkedEvent,
-                evt => _lifecycleHook.OnTenantUserLinkedAsync(evt, ct),
+                (hook, evt, token) => hook.OnTenantUserLinkedAsync(evt, token),
                 ct);
         }
 
@@ -231,6 +351,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             AddTenantClaims(claims, tenant.TenantId);
             AddRoleClaims(claims, tenant.Roles);
             var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
+            await EmitLoginSucceededAsync("otp", user.UserId, tenant.TenantId, false, challengeId, traceId, ct);
             return AuthResultResponse.WithToken(token, createdNewUser);
         }
 
@@ -244,6 +365,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
                 AddTenantClaims(claims, defaultTenant.TenantId);
                 AddRoleClaims(claims, defaultTenant.Roles);
                 var token = await _tokens.CreateAccessTokenAsync(user.UserId, defaultTenant.TenantId, claims, ct);
+                await EmitLoginSucceededAsync("otp", user.UserId, defaultTenant.TenantId, false, challengeId, traceId, ct);
                 return AuthResultResponse.WithToken(token, createdNewUser);
             }
         }
@@ -251,6 +373,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         var preClaims = BuildBaseClaims(user);
         preClaims.Add(new ClaimItem("pt", "1"));
         var preToken = await _tokens.CreatePreTenantTokenAsync(user.UserId, preClaims, ct);
+        await EmitLoginSucceededAsync("otp", user.UserId, null, true, challengeId, traceId, ct);
         return AuthResultResponse.RequiresSelection(preToken.AccessToken, activeTenants, createdNewUser);
     }
 
@@ -286,13 +409,13 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
 
     private async Task InvokeLifecycleAndPublishAsync<TEvent>(
         TEvent evt,
-        Func<TEvent, Task> hookInvoker,
+        Func<IAuthLifecycleHook, TEvent, CancellationToken, Task> hookInvoker,
         CancellationToken ct)
         where TEvent : AuthLifecycleEventBase
     {
         try
         {
-            await hookInvoker(evt);
+            await hookInvoker(_lifecycleHook, evt, ct);
             await _eventPublisher.PublishAsync(evt, ct);
         }
         catch (Exception ex)
@@ -307,6 +430,30 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             if (_eventOptions.Value.StrictPublishFailures)
                 throw;
         }
+    }
+
+    private Task EmitLoginSucceededAsync(
+        string method,
+        Guid userId,
+        Guid? tenantId,
+        bool requiresTenantSelection,
+        string correlationId,
+        string? traceId,
+        CancellationToken ct)
+    {
+        var evt = new LoginSucceededEvent
+        {
+            Method = method,
+            AuthUserId = userId.ToString("D"),
+            TenantId = tenantId,
+            RequiresTenantSelection = requiresTenantSelection,
+            CorrelationId = correlationId,
+            CausationId = correlationId,
+            TraceId = traceId
+        };
+        evt.Metadata["idempotencyKey"] =
+            $"{LoginSucceededEvent.TypeName}:{method}:{tenantId?.ToString("D") ?? "pretenant"}:{userId:D}";
+        return InvokeLifecycleAndPublishAsync(evt, (hook, e, token) => hook.OnLoginSucceededAsync(e, token), ct);
     }
 
     private static string? ResolveTraceId()
