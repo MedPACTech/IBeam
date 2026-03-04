@@ -31,11 +31,15 @@ public class AzureTablesRepositoryBase<T> : BaseRepositoryAsync<T>, IAzureTables
         ValidateTenantId();
 
         var entity = await _azureStore.GetByKeysAsync(partitionKey, rowKey, ct);
+        entity = NormalizeEntityIdentity(entity, partitionKey, rowKey);
         entity = ApplyTenantVisibility(entity);
         entity = ApplyDeletedVisibility(entity, includeDeleted);
         entity = ApplyArchivedVisibility(entity, includeArchived);
         return entity;
     }
+
+    protected virtual T? NormalizeEntityIdentity(T? entity, string partitionKey, string rowKey)
+        => entity;
 
     public virtual Task<T> AddAsync(T entity, CancellationToken ct = default)
         => AddByKeysAsync(entity, ct);
@@ -49,6 +53,19 @@ public class AzureTablesRepositoryBase<T> : BaseRepositoryAsync<T>, IAzureTables
 
     public virtual Task DeleteAsync(string partitionKey, string rowKey, CancellationToken ct = default)
         => DeleteByKeysAsync(partitionKey, rowKey, ct);
+
+    protected Task SubmitBatchAsync(
+        string partitionKey,
+        IReadOnlyList<BatchAction<T>> actions,
+        CancellationToken ct = default)
+        => _azureStore.SubmitBatchAsync(partitionKey, actions, ct);
+
+    protected Task SubmitBatchesAsync(
+        string partitionKey,
+        IReadOnlyList<BatchAction<T>> actions,
+        int chunkSize = 100,
+        CancellationToken ct = default)
+        => _azureStore.SubmitBatchesAsync(partitionKey, actions, chunkSize, ct);
 
     public async Task<T> AddByKeysAsync(T entity, CancellationToken ct = default)
     {

@@ -1,10 +1,12 @@
 using IBeam.Identity.Interfaces;
+using IBeam.Identity.Events;
 using IBeam.Identity.Services.Otp;
 using IBeam.Identity.Services.Auth;
 using IBeam.Identity.Services.Tenants;
 using IBeam.Identity.Services.Tokens;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using IBeam.Identity.Options;
 
 namespace IBeam.Identity.Services;
@@ -47,6 +49,8 @@ public static class ServiceCollectionExtensions
         services.AddOptions<IdentityEmailTemplateOptions>()
         .Bind(configuration.GetSection(IdentityEmailTemplateOptions.SectionName));
 
+        services.AddIBeamAuthEvents(configuration);
+
         // Core services
         services.AddScoped<IOtpService, OtpService>();
         services.AddScoped<ITenantSelectionService, TenantSelectionService>();
@@ -55,6 +59,29 @@ public static class ServiceCollectionExtensions
 
         // Note: IOtpChallengeStore, ISender, and other dependencies must be registered by the consumer or by repository/communications packages.
 
+        return services;
+    }
+
+    public static IServiceCollection AddIBeamAuthEvents(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<AuthEventOptions>()
+            .Bind(configuration.GetSection(AuthEventOptions.SectionName));
+
+        services.TryAddScoped<IAuthEventPublisher, NoOpAuthEventPublisher>();
+        services.TryAddScoped<IAuthLifecycleHook, NoOpAuthLifecycleHook>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddIBeamAuthEvents(
+        this IServiceCollection services,
+        Action<AuthEventOptions> configure)
+    {
+        services.Configure(configure);
+        services.TryAddScoped<IAuthEventPublisher, NoOpAuthEventPublisher>();
+        services.TryAddScoped<IAuthLifecycleHook, NoOpAuthLifecycleHook>();
         return services;
     }
 

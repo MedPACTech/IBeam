@@ -382,6 +382,158 @@ public sealed class AzureTablesRepositoryStoreTests
             store.GetByPartitionPagedAsync("global", pageSize: 0));
     }
 
+    [TestMethod]
+    public async Task SubmitBatchAsync_WhenPartitionMismatch_ThrowsValidation()
+    {
+        await EnsureAzuriteAvailableAsync();
+
+        var store = CreateStore<TestDocEntity>(
+            AzureTableStorageModel.Envelope,
+            AzureTablePartitionKeyStrategies.Global<TestDocEntity>("global"));
+
+        var actions = new List<BatchAction<TestDocEntity>>
+        {
+            new(BatchActionType.Add, new TestDocEntity { Id = Guid.NewGuid(), Name = "a", Category = "n", IsDeleted = false }, PartitionKey: "other")
+        };
+
+        await AssertThrowsAsync<RepositoryValidationException>(() =>
+            store.SubmitBatchAsync("global", actions));
+    }
+
+    [TestMethod]
+    public async Task SubmitBatchAsync_WhenOver100Actions_ThrowsValidation()
+    {
+        await EnsureAzuriteAvailableAsync();
+
+        var store = CreateStore<TestDocEntity>(
+            AzureTableStorageModel.Envelope,
+            AzureTablePartitionKeyStrategies.Global<TestDocEntity>("global"));
+
+        var actions = Enumerable.Range(0, 101)
+            .Select(i => new BatchAction<TestDocEntity>(
+                BatchActionType.Delete,
+                PartitionKey: "global",
+                RowKey: Guid.NewGuid().ToString("N")))
+            .ToList();
+
+        await AssertThrowsAsync<RepositoryValidationException>(() =>
+            store.SubmitBatchAsync("global", actions));
+    }
+
+    [TestMethod]
+    public async Task SubmitBatchAsync_FullSuccess_CommitsAll()
+    {
+        await EnsureAzuriteAvailableAsync();
+
+        var store = CreateStore<TestDocEntity>(
+            AzureTableStorageModel.EntityColumns,
+            AzureTablePartitionKeyStrategies.Global<TestDocEntity>("global"));
+
+        var e1 = new TestDocEntity { Id = Guid.NewGuid(), Name = "a", Category = "n", IsDeleted = false };
+        var e2 = new TestDocEntity { Id = Guid.NewGuid(), Name = "b", Category = "n", IsDeleted = false };
+
+        var actions = new List<BatchAction<TestDocEntity>>
+        {
+            new(BatchActionType.Add, e1),
+            new(BatchActionType.Add, e2)
+        };
+
+        await store.SubmitBatchAsync("global", actions);
+
+        var loaded1 = await store.GetByKeysAsync("global", e1.Id.ToString("N"));
+        var loaded2 = await store.GetByKeysAsync("global", e2.Id.ToString("N"));
+
+        Assert.IsNotNull(loaded1);
+        Assert.IsNotNull(loaded2);
+    }
+
+    [TestMethod]
+    public async Task SubmitBatchAsync_WhenOneActionInvalid_RollsBackAll()
+    {
+        await EnsureAzuriteAvailableAsync();
+
+        var store = CreateStore<TestDocEntity>(
+            AzureTableStorageModel.EntityColumns,
+            AzureTablePartitionKeyStrategies.Global<TestDocEntity>("global"));
+
+        var rowKey = Guid.NewGuid().ToString("N");
+        var e1 = new TestDocEntity { Id = Guid.NewGuid(), Name = "a", Category = "n", IsDeleted = false };
+        var e2 = new TestDocEntity { Id = Guid.NewGuid(), Name = "b", Category = "n", IsDeleted = false };
+
+        var actions = new List<BatchAction<TestDocEntity>>
+        {
+            new(BatchActionType.Add, e1, RowKey: rowKey),
+            new(BatchActionType.Add, e2, RowKey: rowKey)
+        };
+
+        await AssertThrowsAsync<RepositoryBatchException>(() =>
+            store.SubmitBatchAsync("global", actions));
+
+        var loaded = await store.GetByKeysAsync("global", rowKey);
+        Assert.IsNull(loaded);
+    }
+
+    [TestMethod]
+    public async Task GetByKeysAsync_DefaultKeyBinder_HydratesEmptyIdFromGuidRowKey()
+    {
+        await EnsureAzuriteAvailableAsync();
+
+        var store = CreateStore<TestDocEntity>(
+            AzureTableStorageModel.EntityColumns,
+            AzureTablePartitionKeyStrategies.Global<TestDocEntity>("global"));
+
+        var rowKey = Guid.NewGuid().ToString("N");
+        var entity = new TestDocEntity
+        {
+            Id = Guid.Empty,
+            Name = "hydrate",
+            Category = "test",
+            IsDeleted = false
+        };
+
+        await store.SubmitBatchAsync("global", new[]
+        {
+            new BatchAction<TestDocEntity>(BatchActionType.Add, entity, RowKey: rowKey)
+        });
+
+        var loaded = await store.GetByKeysAsync("global", rowKey);
+        Assert.IsNotNull(loaded);
+        Assert.AreEqual(Guid.Parse(rowKey), loaded!.Id);
+    }
+
+    [TestMethod]
+    public async Task GetByKeysAsync_CustomKeyBinder_CanOverrideIdentityHydration()
+    {
+        await EnsureAzuriteAvailableAsync();
+
+        var partitionGuid = Guid.NewGuid();
+        var partitionKey = $"TENANT={partitionGuid:D}";
+        var strategy = AzureTablePartitionKeyStrategies.Create<TestDocEntity>(
+            writePartition: (_, _) => partitionKey,
+            idCandidates: (_, _) => new[] { partitionKey },
+            getAllPartitions: _ => new[] { partitionKey });
+
+        var store = CreateStore(
+            AzureTableStorageModel.EntityColumns,
+            strategy,
+            entityKeyBinder: new PartitionGuidKeyBinder<TestDocEntity>());
+
+        var entity = new TestDocEntity
+        {
+            Id = Guid.Empty,
+            Name = "custom",
+            Category = "test",
+            IsDeleted = false
+        };
+
+        await store.AddAsync(null, entity);
+
+        var rowKey = Guid.Empty.ToString("N");
+        var loaded = await store.GetByKeysAsync(partitionKey, rowKey);
+        Assert.IsNotNull(loaded);
+        Assert.AreEqual(partitionGuid, loaded!.Id);
+    }
+
     private static IAzureTablesRepositoryStore<T> CreateStore<T>(
         AzureTableStorageModel storageModel,
         IAzureTablePartitionKeyStrategy<T> strategy)
@@ -396,6 +548,23 @@ public sealed class AzureTablesRepositoryStoreTests
         });
 
         return new AzureTablesRepositoryStore<T>(options, strategy);
+    }
+
+    private static IAzureTablesRepositoryStore<T> CreateStore<T>(
+        AzureTableStorageModel storageModel,
+        IAzureTablePartitionKeyStrategy<T> strategy,
+        IEntityKeyBinder<T> entityKeyBinder)
+        where T : class, IEntity
+    {
+        var options = Options.Create(new AzureTablesOptions
+        {
+            ConnectionString = AzuriteConnectionString,
+            CreateTablesIfNotExists = true,
+            StorageModel = storageModel,
+            TableNamePrefix = $"t{Guid.NewGuid():N}".Substring(0, 18)
+        });
+
+        return new AzureTablesRepositoryStore<T>(options, strategy, entityKeyBinder: entityKeyBinder);
     }
 
     private static IAzureTablesRepositoryStore<T> CreateStore<T>(
@@ -516,5 +685,22 @@ public sealed class AzureTablesRepositoryStoreTests
     {
         New = 0,
         Done = 1
+    }
+
+    private sealed class PartitionGuidKeyBinder<T> : IEntityKeyBinder<T>
+        where T : class, IEntity
+    {
+        public void BindFromKeys(T entity, string partitionKey, string rowKey)
+        {
+            if (entity.Id != Guid.Empty)
+                return;
+
+            const string prefix = "TENANT=";
+            if (partitionKey.StartsWith(prefix, StringComparison.Ordinal) &&
+                Guid.TryParse(partitionKey[prefix.Length..], out var id))
+            {
+                entity.Id = id;
+            }
+        }
     }
 }

@@ -1,7 +1,12 @@
 using IBeam.Identity.Exceptions;
+using IBeam.Identity.Events;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
+using IBeam.Identity.Options;
 using IBeam.Identity.Services.Utils;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System.Diagnostics;
 
 namespace IBeam.Identity.Services.Auth;
 
@@ -13,6 +18,34 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
     private readonly ITokenService _tokens;
     private readonly IOtpService _otpService;
     private readonly IOtpChallengeStore _otpChallengeStore;
+    private readonly IAuthEventPublisher _eventPublisher;
+    private readonly IAuthLifecycleHook _lifecycleHook;
+    private readonly IOptions<AuthEventOptions> _eventOptions;
+    private readonly ILogger<OtpAuthService> _logger;
+
+    public OtpAuthService(
+        IIdentityUserStore users,
+        ITenantMembershipStore tenants,
+        ITenantProvisioningService tenantProvisioning,
+        ITokenService tokens,
+        IOtpService otpService,
+        IOtpChallengeStore otpChallengeStore,
+        IAuthEventPublisher eventPublisher,
+        IAuthLifecycleHook lifecycleHook,
+        IOptions<AuthEventOptions> eventOptions,
+        ILogger<OtpAuthService> logger)
+    {
+        _users = users ?? throw new ArgumentNullException(nameof(users));
+        _tenants = tenants ?? throw new ArgumentNullException(nameof(tenants));
+        _tenantProvisioning = tenantProvisioning ?? throw new ArgumentNullException(nameof(tenantProvisioning));
+        _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
+        _otpService = otpService ?? throw new ArgumentNullException(nameof(otpService));
+        _otpChallengeStore = otpChallengeStore ?? throw new ArgumentNullException(nameof(otpChallengeStore));
+        _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
+        _lifecycleHook = lifecycleHook ?? throw new ArgumentNullException(nameof(lifecycleHook));
+        _eventOptions = eventOptions ?? throw new ArgumentNullException(nameof(eventOptions));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
 
     public OtpAuthService(
         IIdentityUserStore users,
@@ -21,13 +54,18 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         ITokenService tokens,
         IOtpService otpService,
         IOtpChallengeStore otpChallengeStore)
+        : this(
+            users,
+            tenants,
+            tenantProvisioning,
+            tokens,
+            otpService,
+            otpChallengeStore,
+            new NoOpAuthEventPublisher(),
+            new NoOpAuthLifecycleHook(),
+            Microsoft.Extensions.Options.Options.Create(new AuthEventOptions()),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<OtpAuthService>.Instance)
     {
-        _users = users ?? throw new ArgumentNullException(nameof(users));
-        _tenants = tenants ?? throw new ArgumentNullException(nameof(tenants));
-        _tenantProvisioning = tenantProvisioning ?? throw new ArgumentNullException(nameof(tenantProvisioning));
-        _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
-        _otpService = otpService ?? throw new ArgumentNullException(nameof(otpService));
-        _otpChallengeStore = otpChallengeStore ?? throw new ArgumentNullException(nameof(otpChallengeStore));
     }
 
     public async Task<OtpChallengeResult> StartOtpAsync(string destination, Guid? tenantId = null, CancellationToken ct = default)
@@ -117,6 +155,22 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
 
             user = createResult.User;
             createdNewUser = true;
+
+            var userCreatedEvent = new AuthUserCreatedEvent
+            {
+                AuthUserId = user.UserId.ToString("D"),
+                NormalizedEmail = string.IsNullOrWhiteSpace(user.Email) ? null : user.Email.Trim().ToLowerInvariant(),
+                NormalizedPhone = string.IsNullOrWhiteSpace(user.PhoneNumber) ? null : user.PhoneNumber.Trim(),
+                CorrelationId = challengeId,
+                CausationId = challengeId,
+                TraceId = ResolveTraceId()
+            };
+            userCreatedEvent.Metadata["idempotencyKey"] = $"{AuthUserCreatedEvent.TypeName}:{user.UserId:D}";
+
+            await InvokeLifecycleAndPublishAsync(
+                userCreatedEvent,
+                evt => _lifecycleHook.OnAuthUserCreatedAsync(evt, ct),
+                ct);
         }
 
         var activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
@@ -133,6 +187,41 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
 
             if (!activeTenants.Any(t => t.TenantId == createdTenantId))
                 throw new IdentityProviderException("Tenant provisioning completed but membership could not be resolved.");
+
+            var createdTenant = activeTenants.FirstOrDefault(t => t.TenantId == createdTenantId);
+            var tenantCreatedEvent = new TenantCreatedEvent
+            {
+                TenantId = createdTenantId,
+                TenantName = createdTenant?.Name,
+                CorrelationId = challengeId,
+                CausationId = challengeId,
+                TraceId = ResolveTraceId()
+            };
+            tenantCreatedEvent.Metadata["idempotencyKey"] = $"{TenantCreatedEvent.TypeName}:{createdTenantId:D}";
+
+            await InvokeLifecycleAndPublishAsync(
+                tenantCreatedEvent,
+                evt => _lifecycleHook.OnTenantCreatedAsync(evt, ct),
+                ct);
+
+            var linkedRole = createdTenant?.Roles?.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r));
+            var tenantUserLinkedEvent = new TenantUserLinkedEvent
+            {
+                TenantId = createdTenantId,
+                AuthUserId = user.UserId.ToString("D"),
+                Role = linkedRole,
+                UserTenantId = $"{createdTenantId:D}|{user.UserId:D}",
+                CorrelationId = challengeId,
+                CausationId = challengeId,
+                TraceId = ResolveTraceId()
+            };
+            tenantUserLinkedEvent.Metadata["idempotencyKey"] =
+                $"{TenantUserLinkedEvent.TypeName}:{createdTenantId:D}:{user.UserId:D}";
+
+            await InvokeLifecycleAndPublishAsync(
+                tenantUserLinkedEvent,
+                evt => _lifecycleHook.OnTenantUserLinkedAsync(evt, ct),
+                ct);
         }
 
         if (activeTenants.Count == 1)
@@ -193,5 +282,41 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
 
         foreach (var role in roles.Where(r => !string.IsNullOrWhiteSpace(r)))
             claims.Add(new ClaimItem("role", role));
+    }
+
+    private async Task InvokeLifecycleAndPublishAsync<TEvent>(
+        TEvent evt,
+        Func<TEvent, Task> hookInvoker,
+        CancellationToken ct)
+        where TEvent : AuthLifecycleEventBase
+    {
+        try
+        {
+            await hookInvoker(evt);
+            await _eventPublisher.PublishAsync(evt, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to emit auth lifecycle event {EventType}. CorrelationId={CorrelationId}, EventId={EventId}",
+                evt.EventType,
+                evt.CorrelationId ?? "n/a",
+                evt.EventId);
+
+            if (_eventOptions.Value.StrictPublishFailures)
+                throw;
+        }
+    }
+
+    private static string? ResolveTraceId()
+    {
+        var current = Activity.Current;
+        if (current is null)
+            return null;
+
+        return current.TraceId != default
+            ? current.TraceId.ToString()
+            : current.Id;
     }
 }

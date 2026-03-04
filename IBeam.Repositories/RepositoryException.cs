@@ -31,3 +31,19 @@ public sealed class RepositoryStoreException : Exception
         Operation = operation;
     }
 }
+
+public sealed class RepositoryBatchException : RepositoryException
+{
+    public int? FailedActionIndex { get; }
+
+    public RepositoryBatchException(
+        string repository,
+        string operation,
+        string message,
+        int? failedActionIndex = null,
+        Exception? inner = null)
+        : base(repository, operation, message, inner)
+    {
+        FailedActionIndex = failedActionIndex;
+    }
+}
