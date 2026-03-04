@@ -366,6 +366,12 @@ public sealed class OtpAuthServiceTests
         users.Setup(x => x.CreateAsync(It.IsAny<RegisterUserRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateUserResult.Success(new IdentityUser(userId, "abram.cookson@outlook.com", true)));
 
+        publisher.Setup(x => x.PublishAsync(It.IsAny<LoginAttemptedEvent>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        publisher.Setup(x => x.PublishAsync(It.IsAny<OtpVerifiedEvent>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        publisher.Setup(x => x.PublishAsync(It.IsAny<AuthUserCreateRequestedEvent>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         publisher.Setup(x => x.PublishAsync(It.IsAny<AuthUserCreatedEvent>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("publish failed"));
 
