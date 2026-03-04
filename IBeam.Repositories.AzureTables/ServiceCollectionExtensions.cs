@@ -14,6 +14,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped(typeof(IAzureTablesRepositoryAsync<>), typeof(AzureTablesRepositoryAsync<>));
         services.AddScoped(typeof(IBaseRepositoryAsync<>), typeof(AzureTablesRepositoryAsync<>));
         services.AddScoped(typeof(IBaseRepository<>), typeof(AzureTablesRepositoryAsync<>));
+        services.TryAddSingleton(typeof(IEntityKeyBinder<>), typeof(GuidRowKeyEntityKeyBinder<>));
         services.TryAddSingleton<IEntityLocator, NullEntityLocator>();
         return services;
     }

@@ -77,10 +77,44 @@ services.AddIBeamAzureTablesRepositories();
 
 - `GetByKeysAsync(partitionKey, rowKey)`
 - `DeleteByKeysAsync(partitionKey, rowKey)`
+- `SubmitBatchAsync(partitionKey, actions)` (atomic, single-partition, max 100 actions)
+- `SubmitBatchesAsync(partitionKey, actions, chunkSize)` (non-atomic multi-batch helper)
 - `AddAsync(...)` for insert-only
 - `UpdateAsync(...)` for update-only (supports `ETag` and `TableUpdateMode`)
 - `GetByPartitionPagedAsync(...)`
 - `QueryAsync(...)`
+
+## Identity Normalization (read path)
+
+Azure Tables now applies key-based identity normalization after reads to reduce per-repository boilerplate.
+
+- Default binder: `GuidRowKeyEntityKeyBinder<T>`
+- Default behavior: if `entity.Id == Guid.Empty` and `RowKey` parses as `Guid`, hydrate `Id` from `RowKey`.
+
+Override per entity by registering:
+
+```csharp
+services.AddSingleton<IEntityKeyBinder<MyEntity>, MyEntityKeyBinder>();
+```
+
+`AzureTablesRepositoryBase<T>` also exposes:
+- `protected virtual T? NormalizeEntityIdentity(T? entity, string partitionKey, string rowKey)`
+
+Use this hook when a repository needs additional normalization on key-based reads.
+
+### Batch action model
+
+```csharp
+new BatchAction<MyEntity>(BatchActionType.Add, entity)
+new BatchAction<MyEntity>(BatchActionType.UpsertReplace, entity)
+new BatchAction<MyEntity>(BatchActionType.UpdateReplace, entity)
+new BatchAction<MyEntity>(BatchActionType.Delete, PartitionKey: "global", RowKey: "row-key")
+```
+
+Batch contract:
+- All actions must target the provided `partitionKey`
+- Max 100 actions per `SubmitBatchAsync` call
+- Azure Table transaction is atomic: all commit or all rollback
 
 ## Entity Mapping + Locator (opt-in)
 

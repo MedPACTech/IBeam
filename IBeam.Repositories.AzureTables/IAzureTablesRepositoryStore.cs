@@ -5,7 +5,7 @@ using System.Linq.Expressions;
 
 namespace IBeam.Repositories.AzureTables;
 
-public interface IAzureTablesRepositoryStore<T> : IRepositoryStore<T>
+public interface IAzureTablesRepositoryStore<T> : IRepositoryStore<T>, IAzureTablesBatchStore<T>
     where T : class, IEntity
 {
     Task<T?> GetByKeysAsync(string partitionKey, string rowKey, CancellationToken ct = default);
