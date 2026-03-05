@@ -66,6 +66,20 @@ public sealed class JwtTokenService : ITokenService
         var expiresAt = now.AddMinutes(_options.AccessTokenMinutes);
 
         var sessionId = Guid.NewGuid().ToString("D");
+        var issueRequested = new TokenIssueRequestedEvent
+        {
+            TokenKind = "access",
+            AuthUserId = userId.ToString("D"),
+            TenantId = tenantId,
+            SessionId = sessionId,
+            TraceId = ResolveTraceId()
+        };
+        issueRequested.Metadata["idempotencyKey"] =
+            $"{TokenIssueRequestedEvent.TypeName}:access:{tenantId:D}:{userId:D}:{sessionId}";
+        await InvokeLifecycleAndPublishAsync(
+            issueRequested,
+            (hook, evt, token) => hook.OnBeforeTokenIssueAsync(evt, token),
+            ct);
 
         var effective = NormalizeAccessClaims(userId, tenantId, claims, sessionId);
 
@@ -108,6 +122,20 @@ public sealed class JwtTokenService : ITokenService
         var now = DateTimeOffset.UtcNow;
         if (existing.RevokedAt.HasValue || existing.RefreshTokenExpiresAt <= now)
             throw new IdentityUnauthorizedException("Refresh token is expired or revoked.");
+
+        var rotateRequested = new RefreshTokenRotateRequestedEvent
+        {
+            SessionId = existing.SessionId,
+            CorrelationId = existing.SessionId,
+            CausationId = existing.SessionId,
+            TraceId = ResolveTraceId()
+        };
+        rotateRequested.Metadata["idempotencyKey"] =
+            $"{RefreshTokenRotateRequestedEvent.TypeName}:{existing.UserId:D}:{existing.SessionId}";
+        await InvokeLifecycleAndPublishAsync(
+            rotateRequested,
+            (hook, evt, token) => hook.OnBeforeRefreshTokenRotateAsync(evt, token),
+            ct);
 
         var existingClaims = JsonSerializer.Deserialize<List<ClaimItem>>(existing.ClaimsJson) ?? new List<ClaimItem>();
         var claims = NormalizeAccessClaims(existing.UserId, existing.TenantId, existingClaims, existing.SessionId);
@@ -188,6 +216,20 @@ public sealed class JwtTokenService : ITokenService
 
         var now = DateTimeOffset.UtcNow;
         var expiresAt = now.AddMinutes(minutes);
+        var issueRequested = new TokenIssueRequestedEvent
+        {
+            TokenKind = "pretenant",
+            AuthUserId = userId.ToString("D"),
+            TenantId = null,
+            SessionId = null,
+            TraceId = ResolveTraceId()
+        };
+        issueRequested.Metadata["idempotencyKey"] =
+            $"{TokenIssueRequestedEvent.TypeName}:pretenant:none:{userId:D}:none";
+        await InvokeLifecycleAndPublishAsync(
+            issueRequested,
+            (hook, evt, token) => hook.OnBeforeTokenIssueAsync(evt, token),
+            ct);
 
         var effective = NormalizePreTenantClaims(userId, claims);
 
@@ -201,6 +243,21 @@ public sealed class JwtTokenService : ITokenService
 
     private async Task<bool> RevokeWithEventAsync(Guid userId, string sessionId, CancellationToken ct)
     {
+        var revokeRequested = new SessionRevokeRequestedEvent
+        {
+            AuthUserId = userId.ToString("D"),
+            SessionId = sessionId,
+            CorrelationId = sessionId,
+            CausationId = sessionId,
+            TraceId = ResolveTraceId()
+        };
+        revokeRequested.Metadata["idempotencyKey"] =
+            $"{SessionRevokeRequestedEvent.TypeName}:{userId:D}:{sessionId}";
+        await InvokeLifecycleAndPublishAsync(
+            revokeRequested,
+            (hook, evt, token) => hook.OnBeforeSessionRevokeAsync(evt, token),
+            ct);
+
         var revoked = await _sessions.RevokeBySessionIdAsync(userId, sessionId, ct);
         if (!revoked)
             return false;

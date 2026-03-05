@@ -73,6 +73,21 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         IdentityUtils.ThrowIfNullOrWhiteSpace(destination, nameof(destination));
 
         var (channel, normalized) = IdentityUtils.NormalizeDestination(destination);
+        var traceId = ResolveTraceId();
+        var requested = new OtpChallengeRequestedEvent
+        {
+            Destination = normalized,
+            Purpose = SenderPurpose.LoginMfa.ToString(),
+            TenantId = tenantId,
+            TraceId = traceId
+        };
+        requested.Metadata["idempotencyKey"] =
+            $"{OtpChallengeRequestedEvent.TypeName}:{SenderPurpose.LoginMfa}:{normalized}";
+        await InvokeLifecycleAndPublishAsync(
+            requested,
+            (hook, evt, token) => hook.OnBeforeOtpChallengeCreateAsync(evt, token),
+            ct);
+
         var request = new OtpChallengeRequest(channel, normalized, SenderPurpose.LoginMfa, tenantId);
         var challenge = await _otpService.CreateChallengeAsync(request, ct);
 
@@ -83,7 +98,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             Purpose = SenderPurpose.LoginMfa.ToString(),
             CorrelationId = challenge.ChallengeId,
             CausationId = challenge.ChallengeId,
-            TraceId = ResolveTraceId()
+            TraceId = traceId
         };
         challengeCreated.Metadata["idempotencyKey"] = $"{OtpChallengeCreatedEvent.TypeName}:{challenge.ChallengeId}";
         await InvokeLifecycleAndPublishAsync(
@@ -137,6 +152,20 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         await InvokeLifecycleAndPublishAsync(
             loginAttempt,
             (hook, evt, token) => hook.OnBeforeLoginAsync(evt, token),
+            ct);
+
+        var verifyRequested = new OtpVerifyRequestedEvent
+        {
+            ChallengeId = challengeId,
+            Destination = normalizedDestination,
+            CorrelationId = challengeId,
+            CausationId = challengeId,
+            TraceId = traceId
+        };
+        verifyRequested.Metadata["idempotencyKey"] = $"{OtpVerifyRequestedEvent.TypeName}:{challengeId}";
+        await InvokeLifecycleAndPublishAsync(
+            verifyRequested,
+            (hook, evt, token) => hook.OnBeforeOtpVerifyAsync(evt, token),
             ct);
 
         var verifyResult = await _otpService.VerifyAsync(new OtpVerifyRequest(challengeId, code), ct);

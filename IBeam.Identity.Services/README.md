@@ -24,6 +24,15 @@ Use:
 
 Note: store interfaces (`IIdentityUserStore`, `IOtpChallengeStore`, `IAuthSessionStore`, etc.) must be provided by a repository project.
 
+Typical host wiring (when not using `IBeam.Identity.Api` package):
+
+```csharp
+builder.Services.AddIBeamIdentityServices(builder.Configuration);
+builder.Services.AddIBeamIdentityAuthOtpService();
+builder.Services.AddIBeamIdentityAuthPasswordService();
+builder.Services.AddIBeamIdentityAuthOAuthService();
+```
+
 ## Required configuration
 
 ### `IBeam:Identity:Jwt`
@@ -88,14 +97,21 @@ Additional lifecycle events:
 - `AuthUserCreateRequestedEvent`
 - `TenantCreateRequestedEvent`
 - `TenantUserLinkRequestedEvent`
+- `TenantSelectionRequestedEvent`
+- `TenantSelectedEvent`
 - `LoginAttemptedEvent`
 - `LoginSucceededEvent`
 - `LoginFailedEvent`
+- `OtpChallengeRequestedEvent`
 - `OtpChallengeCreatedEvent`
+- `OtpVerifyRequestedEvent`
 - `OtpVerifiedEvent`
 - `OtpVerificationFailedEvent`
+- `TokenIssueRequestedEvent`
 - `TokenIssuedEvent`
+- `RefreshTokenRotateRequestedEvent`
 - `RefreshTokenRotatedEvent`
+- `SessionRevokeRequestedEvent`
 - `SessionRevokedEvent`
 
 Common event fields:

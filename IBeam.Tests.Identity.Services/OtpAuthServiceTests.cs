@@ -368,6 +368,8 @@ public sealed class OtpAuthServiceTests
 
         publisher.Setup(x => x.PublishAsync(It.IsAny<LoginAttemptedEvent>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        publisher.Setup(x => x.PublishAsync(It.IsAny<OtpVerifyRequestedEvent>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         publisher.Setup(x => x.PublishAsync(It.IsAny<OtpVerifiedEvent>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         publisher.Setup(x => x.PublishAsync(It.IsAny<AuthUserCreateRequestedEvent>(), It.IsAny<CancellationToken>()))

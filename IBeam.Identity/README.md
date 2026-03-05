@@ -16,6 +16,10 @@
   - External login store (`IExternalLoginStore`)
   - Auth session store (`IAuthSessionStore`)
 - Defines shared request/response models and option classes.
+- Defines lifecycle event contracts:
+  - `IAuthLifecycleHook`
+  - `IAuthEventPublisher`
+  - auth lifecycle event records in `IBeam.Identity.Events`
 
 This project has no runtime implementation. It is referenced by API, Services, and Repositories.
 
