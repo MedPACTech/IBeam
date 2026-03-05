@@ -534,6 +534,76 @@ public sealed class AzureTablesRepositoryStoreTests
         Assert.AreEqual(partitionGuid, loaded!.Id);
     }
 
+    [TestMethod]
+    public async Task StorageModelAttribute_OverridesGlobalStorageModel_ForEntityType()
+    {
+        await EnsureAzuriteAvailableAsync();
+
+        var prefix = $"t{Guid.NewGuid():N}".Substring(0, 18);
+        var options = Options.Create(new AzureTablesOptions
+        {
+            ConnectionString = AzuriteConnectionString,
+            CreateTablesIfNotExists = true,
+            StorageModel = AzureTableStorageModel.Envelope,
+            TableNamePrefix = prefix
+        });
+
+        var strategy = AzureTablePartitionKeyStrategies.Global<TestAttrColumnsEntity>("global");
+        var store = new AzureTablesRepositoryStore<TestAttrColumnsEntity>(options, strategy);
+
+        var entity = new TestAttrColumnsEntity
+        {
+            Id = Guid.NewGuid(),
+            Name = "attr-columns",
+            IsDeleted = false
+        };
+
+        await store.AddAsync(null, entity);
+
+        var tableName = BuildExpectedTableName(typeof(TestAttrColumnsEntity).Name, prefix);
+        var tableClient = new TableServiceClient(AzuriteConnectionString).GetTableClient(tableName);
+        var raw = await tableClient.GetEntityAsync<TableEntity>("global", entity.Id.ToString("N"));
+
+        Assert.IsTrue(raw.Value.ContainsKey(nameof(TestAttrColumnsEntity.Name)));
+        Assert.IsFalse(raw.Value.ContainsKey("Data"));
+    }
+
+    [TestMethod]
+    public async Task EnvelopeModel_WithProjectedColumn_WritesDataAndProjectedField()
+    {
+        await EnsureAzuriteAvailableAsync();
+
+        var prefix = $"t{Guid.NewGuid():N}".Substring(0, 18);
+        var options = Options.Create(new AzureTablesOptions
+        {
+            ConnectionString = AzuriteConnectionString,
+            CreateTablesIfNotExists = true,
+            StorageModel = AzureTableStorageModel.Envelope,
+            TableNamePrefix = prefix
+        });
+
+        var strategy = AzureTablePartitionKeyStrategies.Global<TestProjectedEnvelopeEntity>("global");
+        var store = new AzureTablesRepositoryStore<TestProjectedEnvelopeEntity>(options, strategy);
+
+        var entity = new TestProjectedEnvelopeEntity
+        {
+            Id = Guid.NewGuid(),
+            Name = "projected-name",
+            Description = "envelope-data",
+            IsDeleted = false
+        };
+
+        await store.AddAsync(null, entity);
+
+        var tableName = BuildExpectedTableName(typeof(TestProjectedEnvelopeEntity).Name, prefix);
+        var tableClient = new TableServiceClient(AzuriteConnectionString).GetTableClient(tableName);
+        var raw = await tableClient.GetEntityAsync<TableEntity>("global", entity.Id.ToString("N"));
+
+        Assert.IsTrue(raw.Value.ContainsKey("Data"));
+        Assert.IsTrue(raw.Value.ContainsKey("ProjectedName"));
+        Assert.AreEqual("projected-name", raw.Value["ProjectedName"]?.ToString());
+    }
+
     private static IAzureTablesRepositoryStore<T> CreateStore<T>(
         AzureTableStorageModel storageModel,
         IAzureTablePartitionKeyStrategy<T> strategy)
@@ -687,6 +757,25 @@ public sealed class AzureTablesRepositoryStoreTests
         Done = 1
     }
 
+    [AzureTableStorageModel(AzureTableStorageModel.EntityColumns)]
+    private sealed class TestAttrColumnsEntity : IEntity
+    {
+        public Guid Id { get; set; }
+        public bool IsDeleted { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class TestProjectedEnvelopeEntity : IEntity
+    {
+        public Guid Id { get; set; }
+        public bool IsDeleted { get; set; }
+
+        [AzureTableProjectedColumn("ProjectedName")]
+        public string Name { get; set; } = string.Empty;
+
+        public string Description { get; set; } = string.Empty;
+    }
+
     private sealed class PartitionGuidKeyBinder<T> : IEntityKeyBinder<T>
         where T : class, IEntity
     {
@@ -702,5 +791,16 @@ public sealed class AzureTablesRepositoryStoreTests
                 entity.Id = id;
             }
         }
+    }
+
+    private static string BuildExpectedTableName(string typeName, string? prefix)
+    {
+        var raw = (prefix ?? string.Empty) + typeName;
+        var alnum = new string(raw.Where(char.IsLetterOrDigit).ToArray());
+        if (string.IsNullOrWhiteSpace(alnum)) alnum = "IBeam";
+        if (!char.IsLetter(alnum[0])) alnum = "T" + alnum;
+        if (alnum.Length < 3) alnum = alnum.PadRight(3, '0');
+        if (alnum.Length > 63) alnum = alnum[..63];
+        return alnum;
     }
 }
