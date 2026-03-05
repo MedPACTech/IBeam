@@ -32,8 +32,44 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         services.Configure<AzureTablesOptions>(configuration.GetSection(AzureTablesOptions.SectionName));
+        services.PostConfigure<AzureTablesOptions>(options =>
+        {
+            options.ConnectionString = ResolveConnectionString(configuration, options.ConnectionString);
+        });
         return services;
     }
+
+    private static string ResolveConnectionString(IConfiguration configuration, string? scopedConnectionString)
+    {
+        // Precedence:
+        // 1) IBeam:Repositories:AzureTables:ConnectionString (bound into options)
+        // 2) IBeam:AzureTables
+        // 3) IBeam:ConnectionString
+        // 4) ConnectionStrings:AzureTables
+        // 5) ConnectionStrings:AzureStorage
+        // 6) ConnectionStrings:IBeam
+        // 7) ConnectionStrings:DefaultConnection
+        var resolved =
+            FirstNonEmpty(
+                scopedConnectionString,
+                configuration["IBeam:AzureTables"],
+                configuration["IBeam:ConnectionString"],
+                configuration.GetConnectionString("AzureTables"),
+                configuration.GetConnectionString("AzureTable"),
+                configuration.GetConnectionString("AzureStorage"),
+                configuration.GetConnectionString("IBeam"),
+                configuration.GetConnectionString("DefaultConnection"));
+
+        if (string.IsNullOrWhiteSpace(resolved))
+            throw new InvalidOperationException(
+                "AzureTables connection string is required. Set IBeam:Repositories:AzureTables:ConnectionString, " +
+                "or IBeam:AzureTables, or IBeam:ConnectionString, or ConnectionStrings:AzureTables/AzureStorage/IBeam/DefaultConnection.");
+
+        return resolved!;
+    }
+
+    private static string? FirstNonEmpty(params string?[] values)
+        => values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
 
     public static IServiceCollection AddAzureTablePartitionKeyStrategy<T>(
         this IServiceCollection services,
