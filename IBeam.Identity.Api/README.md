@@ -1,24 +1,8 @@
 # IBeam.Identity.Api
 
-`IBeam.Identity.Api` is a reusable API module for Identity authentication and account endpoints.
+Reusable Identity API module for OTP, password, OAuth, token, and session endpoints.
 
-## What this project does
-
-- Exposes REST endpoints for:
-  - OTP start/complete
-  - Email/password registration and login
-  - 2FA setup/complete/disable/method change
-  - OAuth start/complete
-  - OAuth account link/unlink/list
-  - Refresh token rotation
-  - Session listing and session revoke
-- Applies feature flags to enable/disable endpoint groups at runtime.
-- Uses JWT bearer auth for protected endpoints.
-- Is intended to be consumed by another ASP.NET Core API host.
-
-## Consumer wiring
-
-In the consuming API:
+## Startup Registration
 
 ```csharp
 using IBeam.Identity.Api.DependencyInjection;
@@ -29,68 +13,51 @@ builder.Services.AddIBeamIdentityApi(builder.Configuration);
 builder.Services.AddIBeamIdentityApiControllers();
 ```
 
-Then in the pipeline:
+Pipeline:
 
 ```csharp
 var app = builder.Build();
-
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 ```
 
-## Required configuration
+Notes:
+- `AddIBeamIdentityApi(...)` already calls `AddIBeamIdentityServices(...)`.
+- Do not call `AddIBeamIdentityServices(...)` again unless you intentionally override registrations.
+- `AddIBeamIdentityApiControllers()` only adds MVC controller parts; it does not wire services/auth.
 
-### `IBeam:Identity:AzureTable`
+## Lifecycle Hooks (Consumer App)
 
-Storage and table names for identity persistence (required when using Azure Table repository).
+Register hooks from your own app/services assembly:
 
-### `IBeam:Identity:Jwt`
-
-- `Issuer`
-- `Audience`
-- `SigningKey`
-- `AccessTokenMinutes`
-- `PreTenantTokenMinutes`
-- `RefreshTokenDays`
-- `ClockSkewSeconds`
-
-### `IBeam:Identity:Otp`
-
-OTP generation/verification settings:
-
-- `CodeLength`
-- `ExpirationMinutes`
-- `MaxAttempts`
-- `HashSalt`
-- `VerificationTokenSecret`
-- `VerificationTokenMinutes`
-
-### `IBeam:Identity:Features`
-
-Runtime endpoint switches:
-
-- `Otp`
-- `PasswordAuth`
-- `TwoFactor`
-- `OAuth`
-- `TenantSelection`
-- `ClaimsEnrichment`
-
-### `IBeam:Identity:OAuth`
-
-OAuth provider definitions and endpoints for Google/Microsoft (or additional providers).
-
-### Communications settings
-
-- `IBeam:Communications:Email:*`
-- `IBeam:Communications:Sms:*`
-
-These are used by OTP and verification emails/sms.
-
-## Building
-
-```bash
-dotnet restore
-dotnet build
+```csharp
+builder.Services.AddScoped<IAuthLifecycleHook, UserProfileHook>();
 ```
+
+Make sure the containing project is referenced by the API host.
+
+## Required Configuration
+
+### Identity core
+- `IBeam:Identity:Jwt`
+- `IBeam:Identity:Otp`
+- `IBeam:Identity:Features`
+- `IBeam:Identity:OAuth` (if OAuth enabled)
+- `IBeam:Identity:Events` (optional strict event failure mode)
+
+### Identity persistence
+- `IBeam:Identity:AzureTable` (or your selected identity repository provider)
+
+### Communications
+- `IBeam:Communications:Email:Providers:AzureCommunications:*`
+- `IBeam:Communications:Sms:Providers:AzureCommunications:*`
+
+## Endpoints Included
+
+- OTP: start/complete
+- Password: registration/login
+- 2FA: setup/start/complete/disable/method
+- OAuth: start/complete/link/unlink/list
+- Tokens: refresh
+- Sessions: list/revoke

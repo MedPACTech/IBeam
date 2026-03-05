@@ -18,6 +18,10 @@ public interface IAuthLifecycleHook
         => Task.CompletedTask;
     Task OnTenantUserLinkedAsync(TenantUserLinkedEvent evt, CancellationToken ct = default)
         => Task.CompletedTask;
+    Task OnBeforeTenantSelectionAsync(TenantSelectionRequestedEvent evt, CancellationToken ct = default)
+        => Task.CompletedTask;
+    Task OnTenantSelectedAsync(TenantSelectedEvent evt, CancellationToken ct = default)
+        => Task.CompletedTask;
 
     Task OnBeforeLoginAsync(LoginAttemptedEvent evt, CancellationToken ct = default)
         => Task.CompletedTask;
@@ -28,14 +32,24 @@ public interface IAuthLifecycleHook
 
     Task OnOtpChallengeCreatedAsync(OtpChallengeCreatedEvent evt, CancellationToken ct = default)
         => Task.CompletedTask;
+    Task OnBeforeOtpChallengeCreateAsync(OtpChallengeRequestedEvent evt, CancellationToken ct = default)
+        => Task.CompletedTask;
+    Task OnBeforeOtpVerifyAsync(OtpVerifyRequestedEvent evt, CancellationToken ct = default)
+        => Task.CompletedTask;
     Task OnOtpVerifiedAsync(OtpVerifiedEvent evt, CancellationToken ct = default)
         => Task.CompletedTask;
     Task OnOtpVerificationFailedAsync(OtpVerificationFailedEvent evt, CancellationToken ct = default)
         => Task.CompletedTask;
 
+    Task OnBeforeTokenIssueAsync(TokenIssueRequestedEvent evt, CancellationToken ct = default)
+        => Task.CompletedTask;
     Task OnTokenIssuedAsync(TokenIssuedEvent evt, CancellationToken ct = default)
         => Task.CompletedTask;
+    Task OnBeforeRefreshTokenRotateAsync(RefreshTokenRotateRequestedEvent evt, CancellationToken ct = default)
+        => Task.CompletedTask;
     Task OnRefreshTokenRotatedAsync(RefreshTokenRotatedEvent evt, CancellationToken ct = default)
+        => Task.CompletedTask;
+    Task OnBeforeSessionRevokeAsync(SessionRevokeRequestedEvent evt, CancellationToken ct = default)
         => Task.CompletedTask;
     Task OnSessionRevokedAsync(SessionRevokedEvent evt, CancellationToken ct = default)
         => Task.CompletedTask;
