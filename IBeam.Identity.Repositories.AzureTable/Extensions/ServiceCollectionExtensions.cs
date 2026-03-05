@@ -27,6 +27,10 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
             // Options (bind + validate)
             services.AddOptions<AzureTableIdentityOptions>()
                 .Bind(configuration.GetSection(AzureTableIdentityOptions.SectionName))
+                .PostConfigure(o =>
+                {
+                    o.StorageConnectionString = ResolveConnectionString(configuration, o.StorageConnectionString);
+                })
                 .Validate(o =>
                 {
                     o.Validate();
@@ -38,6 +42,7 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
             var opts = configuration
                 .GetSection(AzureTableIdentityOptions.SectionName)
                 .Get<AzureTableIdentityOptions>() ?? new AzureTableIdentityOptions();
+            opts.StorageConnectionString = ResolveConnectionString(configuration, opts.StorageConnectionString);
             opts.Validate();
 
             var tableClient = new TableServiceClient(opts.StorageConnectionString);
@@ -90,5 +95,38 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
 
             return services;
         }
+
+        private static string ResolveConnectionString(IConfiguration configuration, string? scopedConnectionString)
+        {
+            // Precedence:
+            // 1) IBeam:Identity:AzureTable:StorageConnectionString (bound into options)
+            // 2) IBeam:AzureTables
+            // 3) IBeam:ConnectionString
+            // 4) ConnectionStrings:AzureTables
+            // 5) ConnectionStrings:AzureStorage
+            // 6) ConnectionStrings:IBeam
+            // 7) ConnectionStrings:DefaultConnection
+            var resolved =
+                FirstNonEmpty(
+                    scopedConnectionString,
+                    configuration["IBeam:AzureTables"],
+                    configuration["IBeam:ConnectionString"],
+                    configuration.GetConnectionString("AzureTables"),
+                    configuration.GetConnectionString("AzureTable"),
+                    configuration.GetConnectionString("AzureStorage"),
+                    configuration.GetConnectionString("IBeam"),
+                    configuration.GetConnectionString("DefaultConnection"),
+                    configuration.GetConnectionString("IdentityAzureTable"));
+
+            if (string.IsNullOrWhiteSpace(resolved))
+                throw new InvalidOperationException(
+                    "AzureTable Identity connection string is required. Set IBeam:Identity:AzureTable:StorageConnectionString, " +
+                    "or IBeam:AzureTables, or IBeam:ConnectionString, or ConnectionStrings:AzureTables/AzureStorage/IBeam/DefaultConnection.");
+
+            return resolved!;
+        }
+
+        private static string? FirstNonEmpty(params string?[] values)
+            => values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
     }
 }
