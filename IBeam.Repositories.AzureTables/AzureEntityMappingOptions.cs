@@ -13,7 +13,7 @@ public sealed class AzureEntityMappingOptions<T>
 {
     public required string TableName { get; set; }
 
-    public required Func<Guid?, T, AzureEntityKey> WriteKey { get; set; }
+    public Func<Guid?, T, AzureEntityKey>? WriteKey { get; set; }
 
     public Func<Guid?, Guid, IReadOnlyList<string>?>? CandidatePartitionsForId { get; set; }
         = null;

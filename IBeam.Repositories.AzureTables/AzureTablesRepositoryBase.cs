@@ -41,6 +41,9 @@ public class AzureTablesRepositoryBase<T> : BaseRepositoryAsync<T>, IAzureTables
     protected virtual T? NormalizeEntityIdentity(T? entity, string partitionKey, string rowKey)
         => entity;
 
+    public Task<T?> GetByIdAsync(Guid id, CancellationToken ct = default)
+        => base.GetByIdAsync(id, includeArchived: false, includeDeleted: false, ct);
+
     public virtual Task<T> AddAsync(T entity, CancellationToken ct = default)
         => AddByKeysAsync(entity, ct);
 

@@ -7,6 +7,8 @@ namespace IBeam.Repositories.AzureTables;
 public interface IAzureTablesRepositoryAsync<T> : IBaseRepositoryAsync<T>
     where T : class, IEntity
 {
+    Task<T?> GetByIdAsync(Guid id, CancellationToken ct = default);
+
     Task<T> AddAsync(T entity, CancellationToken ct = default);
 
     Task<T> UpdateAsync(
