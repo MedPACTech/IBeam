@@ -44,6 +44,36 @@ Options class:
 - `Envelope`
 - `EntityColumns`
 
+You can override storage model per entity with an attribute:
+
+```csharp
+[AzureTableStorageModel(AzureTableStorageModel.EntityColumns)]
+public sealed class MyEntity : IEntity
+{
+    public Guid Id { get; set; }
+    public bool IsDeleted { get; set; }
+}
+```
+
+If the attribute is present, it overrides the configured global `StorageModel` for that entity type.
+
+Hybrid projection in `Envelope` mode is also supported via property attribute:
+
+```csharp
+public sealed class MyEntity : IEntity
+{
+    public Guid Id { get; set; }
+    public bool IsDeleted { get; set; }
+
+    [AzureTableProjectedColumn("SearchName")]
+    public string Name { get; set; } = string.Empty;
+}
+```
+
+In `Envelope` mode this stores:
+- full JSON payload in `Data`
+- projected property as a top-level Azure Table column (`SearchName`)
+
 ## DI Registration
 
 Bind from configuration:
