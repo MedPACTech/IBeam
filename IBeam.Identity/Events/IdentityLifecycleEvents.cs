@@ -24,6 +24,26 @@ public sealed record TenantUserLinkRequestedEvent : AuthLifecycleEventBase
     public string AuthUserId { get; init; } = string.Empty;
 }
 
+public sealed record TenantSelectionRequestedEvent : AuthLifecycleEventBase
+{
+    public const string TypeName = "TenantSelectionRequestedEvent";
+    public TenantSelectionRequestedEvent() => EventType = TypeName;
+    public string AuthUserId { get; init; } = string.Empty;
+    public Guid TenantId { get; init; }
+    public bool SetAsDefault { get; init; }
+    public string Operation { get; init; } = "select"; // select|switch
+}
+
+public sealed record TenantSelectedEvent : AuthLifecycleEventBase
+{
+    public const string TypeName = "TenantSelectedEvent";
+    public TenantSelectedEvent() => EventType = TypeName;
+    public string AuthUserId { get; init; } = string.Empty;
+    public Guid TenantId { get; init; }
+    public bool SetAsDefault { get; init; }
+    public string Operation { get; init; } = "select"; // select|switch
+}
+
 public sealed record LoginAttemptedEvent : AuthLifecycleEventBase
 {
     public const string TypeName = "LoginAttemptedEvent";
@@ -60,11 +80,29 @@ public sealed record OtpChallengeCreatedEvent : AuthLifecycleEventBase
     public string Purpose { get; init; } = string.Empty;
 }
 
+public sealed record OtpChallengeRequestedEvent : AuthLifecycleEventBase
+{
+    public const string TypeName = "OtpChallengeRequestedEvent";
+    public OtpChallengeRequestedEvent() => EventType = TypeName;
+    public string Destination { get; init; } = string.Empty;
+    public string Purpose { get; init; } = string.Empty;
+    public Guid? TenantId { get; init; }
+}
+
 public sealed record OtpVerifiedEvent : AuthLifecycleEventBase
 {
     public const string TypeName = "OtpVerifiedEvent";
     public OtpVerifiedEvent() => EventType = TypeName;
     public string ChallengeId { get; init; } = string.Empty;
+}
+
+public sealed record OtpVerifyRequestedEvent : AuthLifecycleEventBase
+{
+    public const string TypeName = "OtpVerifyRequestedEvent";
+    public OtpVerifyRequestedEvent() => EventType = TypeName;
+    public string ChallengeId { get; init; } = string.Empty;
+    public string Destination { get; init; } = string.Empty;
+    public string? Purpose { get; init; }
 }
 
 public sealed record OtpVerificationFailedEvent : AuthLifecycleEventBase
@@ -86,6 +124,16 @@ public sealed record TokenIssuedEvent : AuthLifecycleEventBase
     public DateTimeOffset ExpiresAtUtc { get; init; }
 }
 
+public sealed record TokenIssueRequestedEvent : AuthLifecycleEventBase
+{
+    public const string TypeName = "TokenIssueRequestedEvent";
+    public TokenIssueRequestedEvent() => EventType = TypeName;
+    public string TokenKind { get; init; } = string.Empty; // access|pretenant|refresh-rotated
+    public string AuthUserId { get; init; } = string.Empty;
+    public Guid? TenantId { get; init; }
+    public string? SessionId { get; init; }
+}
+
 public sealed record RefreshTokenRotatedEvent : AuthLifecycleEventBase
 {
     public const string TypeName = "RefreshTokenRotatedEvent";
@@ -96,6 +144,13 @@ public sealed record RefreshTokenRotatedEvent : AuthLifecycleEventBase
     public DateTimeOffset RefreshTokenExpiresAtUtc { get; init; }
 }
 
+public sealed record RefreshTokenRotateRequestedEvent : AuthLifecycleEventBase
+{
+    public const string TypeName = "RefreshTokenRotateRequestedEvent";
+    public RefreshTokenRotateRequestedEvent() => EventType = TypeName;
+    public string? SessionId { get; init; }
+}
+
 public sealed record SessionRevokedEvent : AuthLifecycleEventBase
 {
     public const string TypeName = "SessionRevokedEvent";
@@ -104,3 +159,10 @@ public sealed record SessionRevokedEvent : AuthLifecycleEventBase
     public string SessionId { get; init; } = string.Empty;
 }
 
+public sealed record SessionRevokeRequestedEvent : AuthLifecycleEventBase
+{
+    public const string TypeName = "SessionRevokeRequestedEvent";
+    public SessionRevokeRequestedEvent() => EventType = TypeName;
+    public string AuthUserId { get; init; } = string.Empty;
+    public string SessionId { get; init; } = string.Empty;
+}

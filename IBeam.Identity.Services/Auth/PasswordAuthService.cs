@@ -142,6 +142,19 @@ public sealed class PasswordAuthService : IIdentityAuthService
         if (user.TwoFactorEnabled)
         {
             var (method, channel, destination) = ResolveTwoFactorTarget(user, user.PreferredTwoFactorMethod);
+            var challengeRequested = new OtpChallengeRequestedEvent
+            {
+                Destination = destination,
+                Purpose = SenderPurpose.LoginMfa.ToString(),
+                TraceId = traceId
+            };
+            challengeRequested.Metadata["idempotencyKey"] =
+                $"{OtpChallengeRequestedEvent.TypeName}:{SenderPurpose.LoginMfa}:{destination}";
+            await InvokeLifecycleAndPublishAsync(
+                challengeRequested,
+                (hook, evt, token) => hook.OnBeforeOtpChallengeCreateAsync(evt, token),
+                ct);
+
             var challenge = await _otpService.CreateChallengeAsync(
                 new OtpChallengeRequest(channel, destination, SenderPurpose.LoginMfa, null),
                 ct);
@@ -206,6 +219,18 @@ public sealed class PasswordAuthService : IIdentityAuthService
 
         var (_, channel, destination) = ResolveTwoFactorTarget(user, method);
         var purpose = channel == SenderChannel.Email ? SenderPurpose.EmailVerification : SenderPurpose.PhoneVerification;
+        var traceId = ResolveTraceId();
+        var requested = new OtpChallengeRequestedEvent
+        {
+            Destination = destination,
+            Purpose = purpose.ToString(),
+            TraceId = traceId
+        };
+        requested.Metadata["idempotencyKey"] = $"{OtpChallengeRequestedEvent.TypeName}:{purpose}:{destination}";
+        await InvokeLifecycleAndPublishAsync(
+            requested,
+            (hook, evt, token) => hook.OnBeforeOtpChallengeCreateAsync(evt, token),
+            ct);
 
         return await _otpService.CreateChallengeAsync(
             new OtpChallengeRequest(channel, destination, purpose, null),
@@ -400,9 +425,38 @@ public sealed class PasswordAuthService : IIdentityAuthService
     }
 
     public async Task<AuthTokenResponse> SelectTenantAsync(string userId, SelectTenantRequest request, CancellationToken ct = default)
+        => await SelectTenantInternalAsync(userId, request, "select", ct);
+
+    public async Task<AuthTokenResponse> SwitchTenantAsync(string userId, SelectTenantRequest request, CancellationToken ct = default)
+        => await SelectTenantInternalAsync(userId, request, "switch", ct);
+
+    private async Task<AuthTokenResponse> SelectTenantInternalAsync(
+        string userId,
+        SelectTenantRequest request,
+        string operation,
+        CancellationToken ct)
     {
         var userGuid = ParseUserId(userId);
         if (request is null) throw new ArgumentNullException(nameof(request));
+        var traceId = ResolveTraceId();
+
+        var pre = new TenantSelectionRequestedEvent
+        {
+            AuthUserId = userGuid.ToString("D"),
+            TenantId = request.TenantId,
+            SetAsDefault = request.SetAsDefault,
+            Operation = operation,
+            CorrelationId = request.TenantId.ToString("D"),
+            CausationId = request.TenantId.ToString("D"),
+            TraceId = traceId
+        };
+        pre.Metadata["idempotencyKey"] =
+            $"{TenantSelectionRequestedEvent.TypeName}:{operation}:{request.TenantId:D}:{userGuid:D}";
+        await InvokeLifecycleAndPublishAsync(
+            pre,
+            (hook, evt, token) => hook.OnBeforeTenantSelectionAsync(evt, token),
+            ct);
+
         var tenant = await _tenants.GetTenantForUserAsync(userGuid, request.TenantId, ct);
         if (tenant is null || !tenant.IsActive)
             throw new IdentityUnauthorizedException("No active tenant membership.");
@@ -412,11 +466,26 @@ public sealed class PasswordAuthService : IIdentityAuthService
         AddTenantClaims(claims, tenant.TenantId);
         AddRoleClaims(claims, tenant.Roles);
         var token = await _tokens.CreateAccessTokenAsync(userGuid, tenant.TenantId, claims, ct);
+
+        var selected = new TenantSelectedEvent
+        {
+            AuthUserId = userGuid.ToString("D"),
+            TenantId = tenant.TenantId,
+            SetAsDefault = request.SetAsDefault,
+            Operation = operation,
+            CorrelationId = request.TenantId.ToString("D"),
+            CausationId = request.TenantId.ToString("D"),
+            TraceId = traceId
+        };
+        selected.Metadata["idempotencyKey"] =
+            $"{TenantSelectedEvent.TypeName}:{operation}:{tenant.TenantId:D}:{userGuid:D}";
+        await InvokeLifecycleAndPublishAsync(
+            selected,
+            (hook, evt, token) => hook.OnTenantSelectedAsync(evt, token),
+            ct);
+
         return ToAuthTokenResponse(token);
     }
-
-    public Task<AuthTokenResponse> SwitchTenantAsync(string userId, SelectTenantRequest request, CancellationToken ct = default)
-        => SelectTenantAsync(userId, request, ct);
 
     private async Task<AuthResultResponse> BuildAuthResultAsync(IdentityUser user, bool createdNewUser, CancellationToken ct)
     {
@@ -537,6 +606,21 @@ public sealed class PasswordAuthService : IIdentityAuthService
         SenderPurpose expectedPurpose,
         CancellationToken ct)
     {
+        var verifyRequested = new OtpVerifyRequestedEvent
+        {
+            ChallengeId = challengeId,
+            Destination = expectedDestination,
+            Purpose = expectedPurpose.ToString(),
+            CorrelationId = challengeId,
+            CausationId = challengeId,
+            TraceId = ResolveTraceId()
+        };
+        verifyRequested.Metadata["idempotencyKey"] = $"{OtpVerifyRequestedEvent.TypeName}:{challengeId}";
+        await InvokeLifecycleAndPublishAsync(
+            verifyRequested,
+            (hook, evt, token) => hook.OnBeforeOtpVerifyAsync(evt, token),
+            ct);
+
         var verify = await _otpService.VerifyAsync(new OtpVerifyRequest(challengeId, code), ct);
         if (!verify.Success)
             throw new IdentityValidationException("OTP verification failed.");
