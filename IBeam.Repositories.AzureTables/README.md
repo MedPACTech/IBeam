@@ -18,6 +18,8 @@ builder.Services.ConfigureIBeamAzureTables(options =>
     options.TableNamePrefix = string.Empty;
     options.CreateTablesIfNotExists = true;
     options.StorageModel = AzureTableStorageModel.Envelope;
+    options.GuidKeyFormat = "N"; // "N" or "D"
+    options.EnableLegacyGuidKeyFallbackReads = false;
 });
 ```
 
@@ -33,7 +35,9 @@ Section: `IBeam:Repositories:AzureTables`
         "ConnectionString": "UseDevelopmentStorage=true",
         "TableNamePrefix": "",
         "CreateTablesIfNotExists": true,
-        "StorageModel": "Envelope"
+        "StorageModel": "Envelope",
+        "GuidKeyFormat": "N",
+        "EnableLegacyGuidKeyFallbackReads": false
       }
     }
   }
@@ -43,6 +47,10 @@ Section: `IBeam:Repositories:AzureTables`
 `StorageModel` values:
 - `Envelope`
 - `EntityColumns`
+
+`GuidKeyFormat` values:
+- `N` (default)
+- `D`
 
 ## Connection String Resolution
 
@@ -56,6 +64,16 @@ Section: `IBeam:Repositories:AzureTables`
 6. `ConnectionStrings:AzureStorage`
 7. `ConnectionStrings:IBeam`
 8. `ConnectionStrings:DefaultConnection`
+
+## Global GUID Key Format
+
+`GuidKeyFormat` controls IBeam-generated GUID key strings across:
+- default row-key generation
+- id-locator identifiers
+- fallback read key candidates
+
+Set `EnableLegacyGuidKeyFallbackReads = true` during migration if existing data uses the other format.
+Example: switch to `N`, enable fallback reads, backfill/write-forward, then disable fallback once old records are migrated.
 
 ## Storage Model Overrides
 
@@ -110,6 +128,25 @@ builder.Services.AddAzureEntityMapping<PatientClinicalNote>(o =>
 
 If `EnableIdLocator = true`, register an `IEntityLocator` (or use `AddInMemoryEntityLocator()` for dev/test).
 
+## Key Resolver for App Services
+
+Use `IAzureEntityKeyResolver<T>` to compute keys with the same mapping logic used by repository writes:
+
+```csharp
+public sealed class NoteService
+{
+    private readonly IAzureEntityKeyResolver<PatientClinicalNote> _keys;
+
+    public NoteService(IAzureEntityKeyResolver<PatientClinicalNote> keys)
+    {
+        _keys = keys;
+    }
+
+    public AzureEntityKey Resolve(Guid tenantId, PatientClinicalNote note)
+        => _keys.ResolveWriteKey(tenantId, note);
+}
+```
+
 ## What DI Registers
 
 - `IRepositoryStore<T>` -> `AzureTablesRepositoryStore<T>`
@@ -132,3 +169,5 @@ Batch constraints:
 - single partition per transaction
 - max 100 actions
 - atomic commit/rollback
+
+`IAzureTablesRepositoryAsync<T>` also exposes `GetByIdAsync(Guid id, CancellationToken ct = default)` for common locator-backed flows.

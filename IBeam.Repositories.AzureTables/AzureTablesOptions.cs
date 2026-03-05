@@ -8,6 +8,8 @@ public sealed class AzureTablesOptions
     public string? TableNamePrefix { get; set; }
     public bool CreateTablesIfNotExists { get; set; } = true;
     public AzureTableStorageModel StorageModel { get; set; } = AzureTableStorageModel.Envelope;
+    public string GuidKeyFormat { get; set; } = "N";
+    public bool EnableLegacyGuidKeyFallbackReads { get; set; } = false;
 }
 
 public enum AzureTableStorageModel

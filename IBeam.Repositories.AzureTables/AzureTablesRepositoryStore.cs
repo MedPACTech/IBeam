@@ -29,6 +29,7 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
     private readonly AzureEntityMappingOptions<T>? _mapping;
     private readonly IEntityLocator _locator;
     private readonly IEntityKeyBinder<T> _entityKeyBinder;
+    private readonly IAzureEntityKeyFormatter _keyFormatter;
     private readonly AzureTableStorageModel _effectiveStorageModel;
     private TableClient? _table;
 
@@ -39,13 +40,15 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
         IAzureTablePartitionKeyStrategy<T>? partitionKeyStrategy = null,
         AzureEntityMappingOptions<T>? mapping = null,
         IEntityLocator? locator = null,
-        IEntityKeyBinder<T>? entityKeyBinder = null)
+        IEntityKeyBinder<T>? entityKeyBinder = null,
+        IAzureEntityKeyFormatter? keyFormatter = null)
     {
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _partitionKeyStrategy = partitionKeyStrategy ?? AzureTablePartitionKeyStrategies.Default<T>();
         _mapping = mapping;
         _locator = locator ?? new NullEntityLocator();
         _entityKeyBinder = entityKeyBinder ?? new GuidRowKeyEntityKeyBinder<T>();
+        _keyFormatter = keyFormatter ?? new AzureEntityKeyFormatter(_options.GuidKeyFormat, _options.EnableLegacyGuidKeyFallbackReads);
         _effectiveStorageModel = ResolveStorageModel(_options.StorageModel);
 
         if (string.IsNullOrWhiteSpace(_options.ConnectionString))
@@ -90,7 +93,11 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
         return alnum;
     }
 
-    private static string ToRowKey(Guid id) => id.ToString("N");
+    private string ToRowKey(Guid id) => _keyFormatter.Format(id);
+
+    private string ToLocatorId(Guid id) => _keyFormatter.Format(id);
+
+    private IReadOnlyList<string> GetLookupKeyCandidates(Guid id) => _keyFormatter.GetLookupCandidates(id);
 
     private AzureEntityKey ResolveWriteKey(Guid? tenantId, T entity)
     {
@@ -124,7 +131,7 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
         return _partitionKeyStrategy.GetCandidatePartitionsForId(tenantId, id);
     }
 
-    private static TableEntity WrapEnvelope(T entity, string partitionKey, string? rowKey = null)
+    private TableEntity WrapEnvelope(T entity, string partitionKey, string? rowKey = null)
     {
         var tableEntity = new TableEntity(partitionKey, rowKey ?? ToRowKey(entity.Id))
         {
@@ -186,7 +193,7 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             .ToList();
     }
 
-    private static TableEntity WrapColumns(T entity, string partitionKey)
+    private TableEntity WrapColumns(T entity, string partitionKey)
     {
         var tableEntity = new TableEntity(partitionKey, ToRowKey(entity.Id))
         {
@@ -396,23 +403,27 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             if (id == Guid.Empty) return null;
 
             var table = await GetTableAsync(ct);
-            var rowKey = ToRowKey(id);
-            var partitionKey = await ResolvePartitionKeyForIdAsync(table, tenantId, id, rowKey, ct);
-            if (string.IsNullOrWhiteSpace(partitionKey))
-                return null;
-
-            if (UseEnvelopeModel)
+            foreach (var rowKey in GetLookupKeyCandidates(id))
             {
-                var response = await table.GetEntityIfExistsAsync<TableEntity>(partitionKey, rowKey, cancellationToken: ct);
-                return response.HasValue
-                    ? NormalizeEntityIdentity(UnwrapEnvelope(response.Value), partitionKey, rowKey)
-                    : null;
+                var partitionKey = await ResolvePartitionKeyForIdAsync(table, tenantId, id, rowKey, ct);
+                if (string.IsNullOrWhiteSpace(partitionKey))
+                    continue;
+
+                if (UseEnvelopeModel)
+                {
+                    var response = await table.GetEntityIfExistsAsync<TableEntity>(partitionKey, rowKey, cancellationToken: ct);
+                    if (response.HasValue)
+                        return NormalizeEntityIdentity(UnwrapEnvelope(response.Value), partitionKey, rowKey);
+                }
+                else
+                {
+                    var colResponse = await table.GetEntityIfExistsAsync<TableEntity>(partitionKey, rowKey, cancellationToken: ct);
+                    if (colResponse.HasValue)
+                        return NormalizeEntityIdentity(UnwrapColumns(colResponse.Value), partitionKey, rowKey);
+                }
             }
 
-            var colResponse = await table.GetEntityIfExistsAsync<TableEntity>(partitionKey, rowKey, cancellationToken: ct);
-            return colResponse.HasValue
-                ? NormalizeEntityIdentity(UnwrapColumns(colResponse.Value), partitionKey, rowKey)
-                : null;
+            return null;
         });
 
     public async Task<IReadOnlyList<T>> GetByIdsAsync(Guid? tenantId, IReadOnlyList<Guid> ids, CancellationToken ct = default)
@@ -510,7 +521,7 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
                 var envelope = WrapEnvelope(entity, key.PartitionKey, key.RowKey);
                 await table.AddEntityAsync(envelope, ct);
                 if (_mapping?.EnableIdLocator == true)
-                    await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, entity.Id.ToString("D"), key.PartitionKey, key.RowKey, ct);
+                    await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, ToLocatorId(entity.Id), key.PartitionKey, key.RowKey, ct);
                 return entity;
             }
 
@@ -518,7 +529,7 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             columns.RowKey = key.RowKey;
             await table.AddEntityAsync(columns, ct);
             if (_mapping?.EnableIdLocator == true)
-                await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, entity.Id.ToString("D"), key.PartitionKey, key.RowKey, ct);
+                await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, ToLocatorId(entity.Id), key.PartitionKey, key.RowKey, ct);
             return entity;
         });
 
@@ -542,7 +553,7 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
                 envelope.ETag = effectiveEtag;
                 await table.UpdateEntityAsync(envelope, envelope.ETag, mode, ct);
                 if (_mapping?.EnableIdLocator == true)
-                    await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, entity.Id.ToString("D"), key.PartitionKey, key.RowKey, ct);
+                    await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, ToLocatorId(entity.Id), key.PartitionKey, key.RowKey, ct);
                 return entity;
             }
 
@@ -551,7 +562,7 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             columns.ETag = effectiveEtag;
             await table.UpdateEntityAsync(columns, columns.ETag, mode, ct);
             if (_mapping?.EnableIdLocator == true)
-                await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, entity.Id.ToString("D"), key.PartitionKey, key.RowKey, ct);
+                await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, ToLocatorId(entity.Id), key.PartitionKey, key.RowKey, ct);
             return entity;
         });
 
@@ -568,7 +579,7 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
                 var envelope = WrapEnvelope(entity, key.PartitionKey, key.RowKey);
                 await table.UpsertEntityAsync(envelope, TableUpdateMode.Replace, ct);
                 if (_mapping?.EnableIdLocator == true)
-                    await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, entity.Id.ToString("D"), key.PartitionKey, key.RowKey, ct);
+                    await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, ToLocatorId(entity.Id), key.PartitionKey, key.RowKey, ct);
                 return entity;
             }
 
@@ -576,7 +587,7 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             columns.RowKey = key.RowKey;
             await table.UpsertEntityAsync(columns, TableUpdateMode.Replace, ct);
             if (_mapping?.EnableIdLocator == true)
-                await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, entity.Id.ToString("D"), key.PartitionKey, key.RowKey, ct);
+                await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, ToLocatorId(entity.Id), key.PartitionKey, key.RowKey, ct);
             return entity;
         });
 
@@ -627,7 +638,7 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
                     await _locator.UpsertAsync(
                         ScopeFromTenant(tenantId),
                         EntityTypeName,
-                        entity.Id.ToString("D"),
+                        ToLocatorId(entity.Id),
                         key.PartitionKey,
                         key.RowKey,
                         ct);
@@ -643,16 +654,23 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             if (id == Guid.Empty) return;
 
             var table = await GetTableAsync(ct);
-            var rowKey = ToRowKey(id);
-            var partitionKey = await ResolvePartitionKeyForIdAsync(table, tenantId, id, rowKey, ct);
-            if (string.IsNullOrWhiteSpace(partitionKey))
-                return;
+            foreach (var rowKey in GetLookupKeyCandidates(id))
+            {
+                var partitionKey = await ResolvePartitionKeyForIdAsync(table, tenantId, id, rowKey, ct);
+                if (string.IsNullOrWhiteSpace(partitionKey))
+                    continue;
 
-            try { await table.DeleteEntityAsync(partitionKey, rowKey, ETag.All, ct); }
-            catch (RequestFailedException ex) when (ex.Status == 404) { }
+                try { await table.DeleteEntityAsync(partitionKey, rowKey, ETag.All, ct); }
+                catch (RequestFailedException ex) when (ex.Status == 404) { }
+
+                break;
+            }
 
             if (_mapping?.EnableIdLocator == true)
-                await _locator.DeleteAsync(ScopeFromTenant(tenantId), EntityTypeName, id.ToString("D"), ct);
+            {
+                foreach (var locatorId in GetLookupKeyCandidates(id))
+                    await _locator.DeleteAsync(ScopeFromTenant(tenantId), EntityTypeName, locatorId, ct);
+            }
         });
 
     public Task HardDeleteAllAsync(Guid? tenantId, IReadOnlyList<Guid> ids, CancellationToken ct = default)
@@ -679,14 +697,17 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
                 var batch = new List<TableTransactionAction>(100);
                 foreach (var id in group.Distinct())
                 {
-                    batch.Add(new TableTransactionAction(
-                        TableTransactionActionType.Delete,
-                        new TableEntity(group.Key, ToRowKey(id)) { ETag = ETag.All }));
-
-                    if (batch.Count == 100)
+                    foreach (var rowKey in GetLookupKeyCandidates(id))
                     {
-                        await SubmitDeleteBatchSafely(table, batch, group.Key, ct);
-                        batch.Clear();
+                        batch.Add(new TableTransactionAction(
+                            TableTransactionActionType.Delete,
+                            new TableEntity(group.Key, rowKey) { ETag = ETag.All }));
+
+                        if (batch.Count == 100)
+                        {
+                            await SubmitDeleteBatchSafely(table, batch, group.Key, ct);
+                            batch.Clear();
+                        }
                     }
                 }
 
@@ -706,7 +727,10 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             if (_mapping?.EnableIdLocator == true)
             {
                 foreach (var id in idList)
-                    await _locator.DeleteAsync(ScopeFromTenant(tenantId), EntityTypeName, id.ToString("D"), ct);
+                {
+                    foreach (var locatorId in GetLookupKeyCandidates(id))
+                        await _locator.DeleteAsync(ScopeFromTenant(tenantId), EntityTypeName, locatorId, ct);
+                }
             }
         });
 
@@ -814,11 +838,15 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
     {
         if (_mapping?.EnableIdLocator == true)
         {
-            var located = await _locator.FindAsync(ScopeFromTenant(tenantId), EntityTypeName, id.ToString("D"), ct);
-            if (located.HasValue)
+            foreach (var locatorId in GetLookupKeyCandidates(id))
             {
+                var located = await _locator.FindAsync(ScopeFromTenant(tenantId), EntityTypeName, locatorId, ct);
+                if (!located.HasValue)
+                    continue;
+
                 if (!string.Equals(located.Value.RowKey, rowKey, StringComparison.OrdinalIgnoreCase))
-                    return null;
+                    continue;
+
                 return located.Value.PartitionKey;
             }
         }

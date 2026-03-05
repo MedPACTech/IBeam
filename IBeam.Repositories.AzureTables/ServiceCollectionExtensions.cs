@@ -9,6 +9,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddIBeamAzureTablesRepositories(this IServiceCollection services)
     {
+        services.TryAddSingleton<IAzureEntityKeyFormatter, AzureEntityKeyFormatter>();
+        services.TryAddSingleton(typeof(IAzureEntityKeyResolver<>), typeof(AzureEntityKeyResolver<>));
         services.AddScoped(typeof(IRepositoryStore<>), typeof(AzureTablesRepositoryStore<>));
         services.AddScoped(typeof(IAzureTablesRepositoryStore<>), typeof(AzureTablesRepositoryStore<>));
         services.AddScoped(typeof(IAzureTablesRepositoryAsync<>), typeof(AzureTablesRepositoryAsync<>));
@@ -24,6 +26,10 @@ public static class ServiceCollectionExtensions
         Action<AzureTablesOptions> configure)
     {
         services.Configure(configure);
+        services.PostConfigure<AzureTablesOptions>(options =>
+        {
+            options.GuidKeyFormat = AzureEntityKeyFormatter.NormalizeGuidFormat(options.GuidKeyFormat);
+        });
         return services;
     }
 
@@ -35,6 +41,7 @@ public static class ServiceCollectionExtensions
         services.PostConfigure<AzureTablesOptions>(options =>
         {
             options.ConnectionString = ResolveConnectionString(configuration, options.ConnectionString);
+            options.GuidKeyFormat = AzureEntityKeyFormatter.NormalizeGuidFormat(options.GuidKeyFormat);
         });
         return services;
     }
@@ -124,21 +131,13 @@ public static class ServiceCollectionExtensions
 
         var options = new AzureEntityMappingOptions<T>
         {
-            TableName = typeof(T).Name,
-            WriteKey = (_, entity) => new AzureEntityKey
-            {
-                PartitionKey = "global",
-                RowKey = entity.Id.ToString("N")
-            }
+            TableName = typeof(T).Name
         };
 
         configure(options);
 
         if (string.IsNullOrWhiteSpace(options.TableName))
             throw new InvalidOperationException($"{typeof(T).Name} mapping requires a non-empty TableName.");
-        if (options.WriteKey is null)
-            throw new InvalidOperationException($"{typeof(T).Name} mapping requires WriteKey.");
-
         services.AddSingleton(options);
         return services;
     }
