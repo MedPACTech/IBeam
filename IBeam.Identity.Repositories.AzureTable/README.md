@@ -28,6 +28,16 @@ This binds options, registers stores, and enables automatic table creation at st
 
 Section: `IBeam:Identity:AzureTable`
 
+Storage connection string precedence:
+
+1. `IBeam:Identity:AzureTable:StorageConnectionString`
+2. `IBeam:ConnectionString`
+3. `ConnectionStrings:IBeam`
+4. `ConnectionStrings:IdentityAzureTable`
+5. `ConnectionStrings:AzureTables`
+6. `ConnectionStrings:AzureTable`
+7. `ConnectionStrings:AzureStorage`
+
 - `StorageConnectionString`
 - `TablePrefix`
 - `IndexTableName`

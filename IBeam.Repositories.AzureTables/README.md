@@ -10,6 +10,15 @@ Canonical section:
 
 `IBeam:Repositories:AzureTables`
 
+Connection string precedence:
+
+1. `IBeam:Repositories:AzureTables:ConnectionString`
+2. `IBeam:ConnectionString`
+3. `ConnectionStrings:IBeam`
+4. `ConnectionStrings:AzureTables`
+5. `ConnectionStrings:AzureTable`
+6. `ConnectionStrings:AzureStorage`
+
 Options class:
 
 - `AzureTablesOptions.SectionName = "IBeam:Repositories:AzureTables"`
