@@ -35,7 +35,7 @@ This library does not include an implementation. In your application, reference 
 Example (pseudo-code):
 
 ```csharp
-// builder.Services.AddAzureCommunicationsEmail(builder.Configuration);
+// builder.Services.AddIBeamAzureCommunicationsEmail(builder.Configuration);
 // builder.Services.AddSingleton<IEmailService, AzureCommunicationsEmailService>();
 ```
 
@@ -78,7 +78,9 @@ await _email.SendAsync(
 
 ## Configuration
 
-Provider packages typically bind configuration from the `IBeam:Communications:Email` section.
+Provider packages typically bind configuration from provider-specific sections, for example:
+- `IBeam:Communications:Email:Providers:AzureCommunications`
+- `IBeam:Communications:Sms:Providers:AzureCommunications`
 
 See `application.json` (included in this repo) for an example configuration based on **Azure Communication Services Email**.
 

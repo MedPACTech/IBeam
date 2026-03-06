@@ -3,11 +3,14 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using IBeam.Identity.Exceptions;
+using IBeam.Identity.Events;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using System.Diagnostics;
 
 namespace IBeam.Identity.Services.Auth;
 
@@ -21,6 +24,38 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
     private readonly ITenantMembershipStore _tenants;
     private readonly ITenantProvisioningService _tenantProvisioning;
     private readonly ITokenService _tokens;
+    private readonly IAuthEventPublisher _eventPublisher;
+    private readonly IAuthLifecycleHook _lifecycleHook;
+    private readonly IOptions<AuthEventOptions> _eventOptions;
+    private readonly ILogger<OAuthAuthService> _logger;
+
+    public OAuthAuthService(
+        IMemoryCache cache,
+        IHttpClientFactory httpClientFactory,
+        IOptionsMonitor<OAuthOptions> oauthOptions,
+        IIdentityUserStore users,
+        IExternalLoginStore externalLogins,
+        ITenantMembershipStore tenants,
+        ITenantProvisioningService tenantProvisioning,
+        ITokenService tokens,
+        IAuthEventPublisher eventPublisher,
+        IAuthLifecycleHook lifecycleHook,
+        IOptions<AuthEventOptions> eventOptions,
+        ILogger<OAuthAuthService> logger)
+    {
+        _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+        _oauthOptions = oauthOptions ?? throw new ArgumentNullException(nameof(oauthOptions));
+        _users = users ?? throw new ArgumentNullException(nameof(users));
+        _externalLogins = externalLogins ?? throw new ArgumentNullException(nameof(externalLogins));
+        _tenants = tenants ?? throw new ArgumentNullException(nameof(tenants));
+        _tenantProvisioning = tenantProvisioning ?? throw new ArgumentNullException(nameof(tenantProvisioning));
+        _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
+        _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
+        _lifecycleHook = lifecycleHook ?? throw new ArgumentNullException(nameof(lifecycleHook));
+        _eventOptions = eventOptions ?? throw new ArgumentNullException(nameof(eventOptions));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
 
     public OAuthAuthService(
         IMemoryCache cache,
@@ -31,15 +66,20 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         ITenantMembershipStore tenants,
         ITenantProvisioningService tenantProvisioning,
         ITokenService tokens)
+        : this(
+            cache,
+            httpClientFactory,
+            oauthOptions,
+            users,
+            externalLogins,
+            tenants,
+            tenantProvisioning,
+            tokens,
+            new NoOpAuthEventPublisher(),
+            new NoOpAuthLifecycleHook(),
+            Microsoft.Extensions.Options.Options.Create(new AuthEventOptions()),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<OAuthAuthService>.Instance)
     {
-        _cache = cache ?? throw new ArgumentNullException(nameof(cache));
-        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
-        _oauthOptions = oauthOptions ?? throw new ArgumentNullException(nameof(oauthOptions));
-        _users = users ?? throw new ArgumentNullException(nameof(users));
-        _externalLogins = externalLogins ?? throw new ArgumentNullException(nameof(externalLogins));
-        _tenants = tenants ?? throw new ArgumentNullException(nameof(tenants));
-        _tenantProvisioning = tenantProvisioning ?? throw new ArgumentNullException(nameof(tenantProvisioning));
-        _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
     }
 
     public Task<OAuthStartResponse> StartOAuthAsync(string provider, string redirectUri, CancellationToken ct = default)
@@ -119,6 +159,18 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
 
     public async Task<AuthResultResponse> CompleteOAuthAsync(OAuthCallbackRequest request, CancellationToken ct = default)
     {
+        var traceId = ResolveTraceId();
+        var loginAttempt = new LoginAttemptedEvent
+        {
+            Method = "oauth",
+            Identifier = $"{request.Provider?.Trim().ToLowerInvariant()}:{request.State?.Trim()}",
+            TraceId = traceId,
+            CorrelationId = request.State?.Trim(),
+            CausationId = request.State?.Trim()
+        };
+        loginAttempt.Metadata["idempotencyKey"] = $"{LoginAttemptedEvent.TypeName}:oauth:{request.Provider}:{request.State}";
+        await InvokeLifecycleAndPublishAsync(loginAttempt, (hook, evt, token) => hook.OnBeforeLoginAsync(evt, token), ct);
+
         if (request is null)
             throw new ArgumentNullException(nameof(request));
         if (string.IsNullOrWhiteSpace(request.Provider))
@@ -155,6 +207,16 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
 
         if (user is null)
         {
+            var preCreate = new AuthUserCreateRequestedEvent
+            {
+                NormalizedEmail = normalizedEmail,
+                CorrelationId = request.State?.Trim(),
+                CausationId = request.State?.Trim(),
+                TraceId = traceId
+            };
+            preCreate.Metadata["idempotencyKey"] = $"{AuthUserCreateRequestedEvent.TypeName}:{normalizedEmail}";
+            await InvokeLifecycleAndPublishAsync(preCreate, (hook, evt, token) => hook.OnBeforeAuthUserCreateAsync(evt, token), ct);
+
             var createResult = await _users.CreateAsync(new RegisterUserRequest(
                 Email: normalizedEmail,
                 PhoneNumber: null,
@@ -166,11 +228,24 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
 
             user = createResult.User;
             createdNewUser = true;
+
+            var created = new AuthUserCreatedEvent
+            {
+                AuthUserId = user.UserId.ToString("D"),
+                NormalizedEmail = normalizedEmail,
+                CorrelationId = request.State?.Trim(),
+                CausationId = request.State?.Trim(),
+                TraceId = traceId
+            };
+            created.Metadata["idempotencyKey"] = $"{AuthUserCreatedEvent.TypeName}:{user.UserId:D}";
+            await InvokeLifecycleAndPublishAsync(created, (hook, evt, token) => hook.OnAuthUserCreatedAsync(evt, token), ct);
         }
 
         await _externalLogins.LinkAsync(user.UserId, normalizedProvider, externalUser.ProviderUserId, normalizedEmail, ct);
         await _users.SetEmailConfirmedAsync(user.UserId, true, ct);
-        return await BuildAuthResultAsync(user, createdNewUser, normalizedProvider, ct);
+        var result = await BuildAuthResultAsync(user, createdNewUser, normalizedProvider, ct);
+        await EmitLoginSucceededAsync("oauth", user.UserId, result.Token is null ? null : GetTenantIdFromTokenClaims(result), result.RequiresTenantSelection, request.State?.Trim(), traceId, ct);
+        return result;
     }
 
     private OAuthStateRecord GetAndValidateState(OAuthCallbackRequest request, string normalizedProvider, bool requireLink)
@@ -302,12 +377,22 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         string provider,
         CancellationToken ct)
     {
+        var traceId = ResolveTraceId();
         var activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
             .Where(t => t.IsActive)
             .ToList();
 
         if (createdNewUser || activeTenants.Count == 0)
         {
+            var preTenant = new TenantCreateRequestedEvent
+            {
+                AuthUserId = user.UserId.ToString("D"),
+                SuggestedTenantName = string.IsNullOrWhiteSpace(user.Email) ? null : $"{user.Email.Split('@')[0]}'s Workspace",
+                TraceId = traceId
+            };
+            preTenant.Metadata["idempotencyKey"] = $"{TenantCreateRequestedEvent.TypeName}:{user.UserId:D}";
+            await InvokeLifecycleAndPublishAsync(preTenant, (hook, evt, token) => hook.OnBeforeTenantCreateAsync(evt, token), ct);
+
             var createdTenantId = await _tenantProvisioning.CreateTenantForNewUserAsync(user.UserId, user.Email, ct);
             activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
                 .Where(t => t.IsActive)
@@ -315,6 +400,36 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
 
             if (!activeTenants.Any(t => t.TenantId == createdTenantId))
                 throw new IdentityProviderException("Tenant provisioning completed but membership could not be resolved.");
+
+            var createdTenant = activeTenants.FirstOrDefault(t => t.TenantId == createdTenantId);
+            var tenantCreated = new TenantCreatedEvent
+            {
+                TenantId = createdTenantId,
+                TenantName = createdTenant?.Name,
+                TraceId = traceId
+            };
+            tenantCreated.Metadata["idempotencyKey"] = $"{TenantCreatedEvent.TypeName}:{createdTenantId:D}";
+            await InvokeLifecycleAndPublishAsync(tenantCreated, (hook, evt, token) => hook.OnTenantCreatedAsync(evt, token), ct);
+
+            var preLink = new TenantUserLinkRequestedEvent
+            {
+                TenantId = createdTenantId,
+                AuthUserId = user.UserId.ToString("D"),
+                TraceId = traceId
+            };
+            preLink.Metadata["idempotencyKey"] = $"{TenantUserLinkRequestedEvent.TypeName}:{createdTenantId:D}:{user.UserId:D}";
+            await InvokeLifecycleAndPublishAsync(preLink, (hook, evt, token) => hook.OnBeforeTenantUserLinkAsync(evt, token), ct);
+
+            var linked = new TenantUserLinkedEvent
+            {
+                TenantId = createdTenantId,
+                AuthUserId = user.UserId.ToString("D"),
+                Role = createdTenant?.Roles?.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r)),
+                UserTenantId = $"{createdTenantId:D}|{user.UserId:D}",
+                TraceId = traceId
+            };
+            linked.Metadata["idempotencyKey"] = $"{TenantUserLinkedEvent.TypeName}:{createdTenantId:D}:{user.UserId:D}";
+            await InvokeLifecycleAndPublishAsync(linked, (hook, evt, token) => hook.OnTenantUserLinkedAsync(evt, token), ct);
         }
 
         if (activeTenants.Count == 1)
@@ -361,6 +476,63 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         if (!string.IsNullOrWhiteSpace(user.Email))
             claims.Add(new ClaimItem("email", user.Email));
         return claims;
+    }
+
+    private async Task InvokeLifecycleAndPublishAsync<TEvent>(
+        TEvent evt,
+        Func<IAuthLifecycleHook, TEvent, CancellationToken, Task> hookInvoker,
+        CancellationToken ct)
+        where TEvent : AuthLifecycleEventBase
+    {
+        try
+        {
+            await hookInvoker(_lifecycleHook, evt, ct);
+            await _eventPublisher.PublishAsync(evt, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to emit auth lifecycle event {EventType}. EventId={EventId}", evt.EventType, evt.EventId);
+            if (_eventOptions.Value.StrictPublishFailures)
+                throw;
+        }
+    }
+
+    private Task EmitLoginSucceededAsync(
+        string method,
+        Guid userId,
+        Guid? tenantId,
+        bool requiresTenantSelection,
+        string? correlationId,
+        string? traceId,
+        CancellationToken ct)
+    {
+        var evt = new LoginSucceededEvent
+        {
+            Method = method,
+            AuthUserId = userId.ToString("D"),
+            TenantId = tenantId,
+            RequiresTenantSelection = requiresTenantSelection,
+            CorrelationId = correlationId,
+            CausationId = correlationId,
+            TraceId = traceId
+        };
+        evt.Metadata["idempotencyKey"] =
+            $"{LoginSucceededEvent.TypeName}:{method}:{tenantId?.ToString("D") ?? "pretenant"}:{userId:D}";
+        return InvokeLifecycleAndPublishAsync(evt, (hook, e, token) => hook.OnLoginSucceededAsync(e, token), ct);
+    }
+
+    private static Guid? GetTenantIdFromTokenClaims(AuthResultResponse response)
+    {
+        var tid = response.Token?.Claims?.FirstOrDefault(c => string.Equals(c.Type, "tid", StringComparison.OrdinalIgnoreCase))?.Value;
+        return Guid.TryParse(tid, out var parsed) ? parsed : null;
+    }
+
+    private static string? ResolveTraceId()
+    {
+        var current = Activity.Current;
+        if (current is null)
+            return null;
+        return current.TraceId != default ? current.TraceId.ToString() : current.Id;
     }
 
     private static string CacheKey(string state) => $"oauth_state:{state}";

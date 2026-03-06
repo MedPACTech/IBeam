@@ -4,11 +4,14 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using IBeam.Identity.Exceptions;
+using IBeam.Identity.Events;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using System.Diagnostics;
 
 namespace IBeam.Identity.Services.Tokens;
 
@@ -17,12 +20,37 @@ public sealed class JwtTokenService : ITokenService
     private readonly JwtOptions _options;
     private readonly IAuthSessionStore _sessions;
     private readonly JwtSecurityTokenHandler _handler = new();
+    private readonly IAuthEventPublisher _eventPublisher;
+    private readonly IAuthLifecycleHook _lifecycleHook;
+    private readonly IOptions<AuthEventOptions> _eventOptions;
+    private readonly ILogger<JwtTokenService> _logger;
 
-    public JwtTokenService(IOptions<JwtOptions> options, IAuthSessionStore sessions)
+    public JwtTokenService(
+        IOptions<JwtOptions> options,
+        IAuthSessionStore sessions,
+        IAuthEventPublisher eventPublisher,
+        IAuthLifecycleHook lifecycleHook,
+        IOptions<AuthEventOptions> eventOptions,
+        ILogger<JwtTokenService> logger)
     {
         _options = options.Value ?? throw new ArgumentNullException(nameof(options));
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
+        _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
+        _lifecycleHook = lifecycleHook ?? throw new ArgumentNullException(nameof(lifecycleHook));
+        _eventOptions = eventOptions ?? throw new ArgumentNullException(nameof(eventOptions));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         Validate(_options);
+    }
+
+    public JwtTokenService(IOptions<JwtOptions> options, IAuthSessionStore sessions)
+        : this(
+            options,
+            sessions,
+            new NoOpAuthEventPublisher(),
+            new NoOpAuthLifecycleHook(),
+            Microsoft.Extensions.Options.Options.Create(new AuthEventOptions()),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<JwtTokenService>.Instance)
+    {
     }
 
     public async Task<TokenResult> CreateAccessTokenAsync(
@@ -38,17 +66,22 @@ public sealed class JwtTokenService : ITokenService
         var expiresAt = now.AddMinutes(_options.AccessTokenMinutes);
 
         var sessionId = Guid.NewGuid().ToString("D");
-
-        var effective = new List<ClaimItem>(capacity: (claims?.Count ?? 0) + 4)
+        var issueRequested = new TokenIssueRequestedEvent
         {
-            new("sub", userId.ToString("D")),
-            new("uid", userId.ToString("D")),
-            new("tid", tenantId.ToString("D")),
-            new("sid", sessionId),
+            TokenKind = "access",
+            AuthUserId = userId.ToString("D"),
+            TenantId = tenantId,
+            SessionId = sessionId,
+            TraceId = ResolveTraceId()
         };
+        issueRequested.Metadata["idempotencyKey"] =
+            $"{TokenIssueRequestedEvent.TypeName}:access:{tenantId:D}:{userId:D}:{sessionId}";
+        await InvokeLifecycleAndPublishAsync(
+            issueRequested,
+            (hook, evt, token) => hook.OnBeforeTokenIssueAsync(evt, token),
+            ct);
 
-        if (claims is not null && claims.Count > 0)
-            effective.AddRange(claims);
+        var effective = NormalizeAccessClaims(userId, tenantId, claims, sessionId);
 
         var jwtClaims = CreateJwtClaimsFromClaimItems(effective);
         var jwt = SignJwt(jwtClaims, now, expiresAt);
@@ -71,7 +104,9 @@ public sealed class JwtTokenService : ITokenService
 
         await _sessions.SaveAsync(session, ct);
 
-        return new TokenResult(jwt, expiresAt, effective, refreshToken, refreshExpiresAt, sessionId);
+        var result = new TokenResult(jwt, expiresAt, effective, refreshToken, refreshExpiresAt, sessionId);
+        await EmitTokenIssuedAsync("access", userId, tenantId, sessionId, expiresAt, ct);
+        return result;
     }
 
     public async Task<TokenResult> RefreshAccessTokenAsync(string refreshToken, CancellationToken ct = default)
@@ -88,9 +123,22 @@ public sealed class JwtTokenService : ITokenService
         if (existing.RevokedAt.HasValue || existing.RefreshTokenExpiresAt <= now)
             throw new IdentityUnauthorizedException("Refresh token is expired or revoked.");
 
-        var claims = JsonSerializer.Deserialize<List<ClaimItem>>(existing.ClaimsJson) ?? new List<ClaimItem>();
-        claims.RemoveAll(c => string.Equals(c.Type, "sid", StringComparison.OrdinalIgnoreCase));
-        claims.Add(new ClaimItem("sid", existing.SessionId));
+        var rotateRequested = new RefreshTokenRotateRequestedEvent
+        {
+            SessionId = existing.SessionId,
+            CorrelationId = existing.SessionId,
+            CausationId = existing.SessionId,
+            TraceId = ResolveTraceId()
+        };
+        rotateRequested.Metadata["idempotencyKey"] =
+            $"{RefreshTokenRotateRequestedEvent.TypeName}:{existing.UserId:D}:{existing.SessionId}";
+        await InvokeLifecycleAndPublishAsync(
+            rotateRequested,
+            (hook, evt, token) => hook.OnBeforeRefreshTokenRotateAsync(evt, token),
+            ct);
+
+        var existingClaims = JsonSerializer.Deserialize<List<ClaimItem>>(existing.ClaimsJson) ?? new List<ClaimItem>();
+        var claims = NormalizeAccessClaims(existing.UserId, existing.TenantId, existingClaims, existing.SessionId);
 
         var expiresAt = now.AddMinutes(_options.AccessTokenMinutes);
         var jwtClaims = CreateJwtClaimsFromClaimItems(claims);
@@ -111,7 +159,21 @@ public sealed class JwtTokenService : ITokenService
         await _sessions.DeleteByRefreshTokenHashAsync(oldHash, ct);
         await _sessions.SaveAsync(rotated, ct);
 
-        return new TokenResult(jwt, expiresAt, claims, newRefreshToken, newRefreshExpiresAt, existing.SessionId);
+        var rotatedEvent = new RefreshTokenRotatedEvent
+        {
+            AuthUserId = existing.UserId.ToString("D"),
+            TenantId = existing.TenantId,
+            SessionId = existing.SessionId,
+            RefreshTokenExpiresAtUtc = newRefreshExpiresAt,
+            TraceId = ResolveTraceId()
+        };
+        rotatedEvent.Metadata["idempotencyKey"] =
+            $"{RefreshTokenRotatedEvent.TypeName}:{existing.UserId:D}:{existing.SessionId}";
+        await InvokeLifecycleAndPublishAsync(rotatedEvent, (hook, evt, token) => hook.OnRefreshTokenRotatedAsync(evt, token), ct);
+
+        var result = new TokenResult(jwt, expiresAt, claims, newRefreshToken, newRefreshExpiresAt, existing.SessionId);
+        await EmitTokenIssuedAsync("refresh-rotated", existing.UserId, existing.TenantId, existing.SessionId, expiresAt, ct);
+        return result;
     }
 
     public async Task<IReadOnlyList<AuthSessionInfo>> GetUserSessionsAsync(Guid userId, CancellationToken ct = default)
@@ -140,10 +202,10 @@ public sealed class JwtTokenService : ITokenService
         if (string.IsNullOrWhiteSpace(sessionId))
             throw new IdentityValidationException("SessionId is required.");
 
-        return _sessions.RevokeBySessionIdAsync(userId, sessionId.Trim(), ct);
+        return RevokeWithEventAsync(userId, sessionId.Trim(), ct);
     }
 
-    public Task<TokenResult> CreatePreTenantTokenAsync(
+    public async Task<TokenResult> CreatePreTenantTokenAsync(
         Guid userId,
         IReadOnlyList<ClaimItem> claims,
         CancellationToken ct = default)
@@ -154,21 +216,61 @@ public sealed class JwtTokenService : ITokenService
 
         var now = DateTimeOffset.UtcNow;
         var expiresAt = now.AddMinutes(minutes);
-
-        var effective = new List<ClaimItem>(capacity: (claims?.Count ?? 0) + 3)
+        var issueRequested = new TokenIssueRequestedEvent
         {
-            new("sub", userId.ToString("D")),
-            new("uid", userId.ToString("D")),
-            new("pt", "1"),
+            TokenKind = "pretenant",
+            AuthUserId = userId.ToString("D"),
+            TenantId = null,
+            SessionId = null,
+            TraceId = ResolveTraceId()
         };
+        issueRequested.Metadata["idempotencyKey"] =
+            $"{TokenIssueRequestedEvent.TypeName}:pretenant:none:{userId:D}:none";
+        await InvokeLifecycleAndPublishAsync(
+            issueRequested,
+            (hook, evt, token) => hook.OnBeforeTokenIssueAsync(evt, token),
+            ct);
 
-        if (claims is not null && claims.Count > 0)
-            effective.AddRange(claims);
+        var effective = NormalizePreTenantClaims(userId, claims);
 
         var jwtClaims = CreateJwtClaimsFromClaimItems(effective);
         var jwt = SignJwt(jwtClaims, now, expiresAt);
 
-        return Task.FromResult(new TokenResult(jwt, expiresAt, effective));
+        var result = new TokenResult(jwt, expiresAt, effective);
+        await EmitTokenIssuedAsync("pretenant", userId, null, null, expiresAt, ct);
+        return result;
+    }
+
+    private async Task<bool> RevokeWithEventAsync(Guid userId, string sessionId, CancellationToken ct)
+    {
+        var revokeRequested = new SessionRevokeRequestedEvent
+        {
+            AuthUserId = userId.ToString("D"),
+            SessionId = sessionId,
+            CorrelationId = sessionId,
+            CausationId = sessionId,
+            TraceId = ResolveTraceId()
+        };
+        revokeRequested.Metadata["idempotencyKey"] =
+            $"{SessionRevokeRequestedEvent.TypeName}:{userId:D}:{sessionId}";
+        await InvokeLifecycleAndPublishAsync(
+            revokeRequested,
+            (hook, evt, token) => hook.OnBeforeSessionRevokeAsync(evt, token),
+            ct);
+
+        var revoked = await _sessions.RevokeBySessionIdAsync(userId, sessionId, ct);
+        if (!revoked)
+            return false;
+
+        var evt = new SessionRevokedEvent
+        {
+            AuthUserId = userId.ToString("D"),
+            SessionId = sessionId,
+            TraceId = ResolveTraceId()
+        };
+        evt.Metadata["idempotencyKey"] = $"{SessionRevokedEvent.TypeName}:{userId:D}:{sessionId}";
+        await InvokeLifecycleAndPublishAsync(evt, (hook, e, token) => hook.OnSessionRevokedAsync(e, token), ct);
+        return true;
     }
 
     private static List<Claim> CreateJwtClaimsFromClaimItems(IReadOnlyList<ClaimItem> items)
@@ -184,6 +286,45 @@ public sealed class JwtTokenService : ITokenService
         }
 
         return list;
+    }
+
+    private static List<ClaimItem> NormalizeAccessClaims(
+        Guid userId,
+        Guid tenantId,
+        IReadOnlyList<ClaimItem>? claims,
+        string sessionId)
+    {
+        var effective = claims is null || claims.Count == 0
+            ? new List<ClaimItem>(4)
+            : new List<ClaimItem>(claims);
+
+        EnsureSingleClaim(effective, "sub", userId.ToString("D"));
+        EnsureSingleClaim(effective, "uid", userId.ToString("D"));
+        EnsureSingleClaim(effective, "tid", tenantId.ToString("D"));
+        EnsureSingleClaim(effective, "sid", sessionId);
+
+        return effective;
+    }
+
+    private static List<ClaimItem> NormalizePreTenantClaims(
+        Guid userId,
+        IReadOnlyList<ClaimItem>? claims)
+    {
+        var effective = claims is null || claims.Count == 0
+            ? new List<ClaimItem>(3)
+            : new List<ClaimItem>(claims);
+
+        EnsureSingleClaim(effective, "sub", userId.ToString("D"));
+        EnsureSingleClaim(effective, "uid", userId.ToString("D"));
+        EnsureSingleClaim(effective, "pt", "1");
+
+        return effective;
+    }
+
+    private static void EnsureSingleClaim(List<ClaimItem> claims, string claimType, string claimValue)
+    {
+        claims.RemoveAll(c => string.Equals(c.Type, claimType, StringComparison.OrdinalIgnoreCase));
+        claims.Add(new ClaimItem(claimType, claimValue));
     }
 
     private string SignJwt(List<Claim> claims, DateTimeOffset now, DateTimeOffset expiresAt)
@@ -234,5 +375,58 @@ public sealed class JwtTokenService : ITokenService
             throw new IdentityValidationException("TokenOptions.PreTenantTokenMinutes must be > 0.");
         if (o.RefreshTokenDays <= 0)
             throw new IdentityValidationException("TokenOptions.RefreshTokenDays must be > 0.");
+    }
+
+    private async Task EmitTokenIssuedAsync(
+        string tokenKind,
+        Guid userId,
+        Guid? tenantId,
+        string? sessionId,
+        DateTimeOffset expiresAtUtc,
+        CancellationToken ct)
+    {
+        var evt = new TokenIssuedEvent
+        {
+            TokenKind = tokenKind,
+            AuthUserId = userId.ToString("D"),
+            TenantId = tenantId,
+            SessionId = sessionId,
+            ExpiresAtUtc = expiresAtUtc,
+            TraceId = ResolveTraceId()
+        };
+        evt.Metadata["idempotencyKey"] =
+            $"{TokenIssuedEvent.TypeName}:{tokenKind}:{tenantId?.ToString("D") ?? "none"}:{userId:D}:{sessionId ?? "none"}";
+
+        await InvokeLifecycleAndPublishAsync(evt, (hook, e, token) => hook.OnTokenIssuedAsync(e, token), ct);
+    }
+
+    private async Task InvokeLifecycleAndPublishAsync<TEvent>(
+        TEvent evt,
+        Func<IAuthLifecycleHook, TEvent, CancellationToken, Task> hookInvoker,
+        CancellationToken ct)
+        where TEvent : AuthLifecycleEventBase
+    {
+        try
+        {
+            await hookInvoker(_lifecycleHook, evt, ct);
+            await _eventPublisher.PublishAsync(evt, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to emit auth lifecycle event {EventType}. EventId={EventId}", evt.EventType, evt.EventId);
+            if (_eventOptions.Value.StrictPublishFailures)
+                throw;
+        }
+    }
+
+    private static string? ResolveTraceId()
+    {
+        var current = Activity.Current;
+        if (current is null)
+            return null;
+
+        return current.TraceId != default
+            ? current.TraceId.ToString()
+            : current.Id;
     }
 }

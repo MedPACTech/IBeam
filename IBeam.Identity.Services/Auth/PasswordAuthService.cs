@@ -1,7 +1,12 @@
 using IBeam.Identity.Exceptions;
+using IBeam.Identity.Events;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
+using IBeam.Identity.Options;
 using IBeam.Identity.Services.Utils;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -16,6 +21,36 @@ public sealed class PasswordAuthService : IIdentityAuthService
     private readonly IOtpService _otpService;
     private readonly IOtpChallengeStore _otpChallenges;
     private readonly IIdentityCommunicationSender _sender;
+    private readonly IAuthEventPublisher _eventPublisher;
+    private readonly IAuthLifecycleHook _lifecycleHook;
+    private readonly IOptions<AuthEventOptions> _eventOptions;
+    private readonly ILogger<PasswordAuthService> _logger;
+
+    public PasswordAuthService(
+        IIdentityUserStore users,
+        ITenantMembershipStore tenants,
+        ITenantProvisioningService tenantProvisioning,
+        ITokenService tokens,
+        IOtpService otpService,
+        IOtpChallengeStore otpChallenges,
+        IIdentityCommunicationSender sender,
+        IAuthEventPublisher eventPublisher,
+        IAuthLifecycleHook lifecycleHook,
+        IOptions<AuthEventOptions> eventOptions,
+        ILogger<PasswordAuthService> logger)
+    {
+        _users = users ?? throw new ArgumentNullException(nameof(users));
+        _tenants = tenants ?? throw new ArgumentNullException(nameof(tenants));
+        _tenantProvisioning = tenantProvisioning ?? throw new ArgumentNullException(nameof(tenantProvisioning));
+        _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
+        _otpService = otpService ?? throw new ArgumentNullException(nameof(otpService));
+        _otpChallenges = otpChallenges ?? throw new ArgumentNullException(nameof(otpChallenges));
+        _sender = sender ?? throw new ArgumentNullException(nameof(sender));
+        _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
+        _lifecycleHook = lifecycleHook ?? throw new ArgumentNullException(nameof(lifecycleHook));
+        _eventOptions = eventOptions ?? throw new ArgumentNullException(nameof(eventOptions));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
 
     public PasswordAuthService(
         IIdentityUserStore users,
@@ -25,14 +60,19 @@ public sealed class PasswordAuthService : IIdentityAuthService
         IOtpService otpService,
         IOtpChallengeStore otpChallenges,
         IIdentityCommunicationSender sender)
+        : this(
+            users,
+            tenants,
+            tenantProvisioning,
+            tokens,
+            otpService,
+            otpChallenges,
+            sender,
+            new NoOpAuthEventPublisher(),
+            new NoOpAuthLifecycleHook(),
+            Microsoft.Extensions.Options.Options.Create(new AuthEventOptions()),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<PasswordAuthService>.Instance)
     {
-        _users = users ?? throw new ArgumentNullException(nameof(users));
-        _tenants = tenants ?? throw new ArgumentNullException(nameof(tenants));
-        _tenantProvisioning = tenantProvisioning ?? throw new ArgumentNullException(nameof(tenantProvisioning));
-        _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
-        _otpService = otpService ?? throw new ArgumentNullException(nameof(otpService));
-        _otpChallenges = otpChallenges ?? throw new ArgumentNullException(nameof(otpChallenges));
-        _sender = sender ?? throw new ArgumentNullException(nameof(sender));
     }
 
     public async Task RegisterAsync(RegisterUserRequest request, CancellationToken ct = default)
@@ -41,11 +81,32 @@ public sealed class PasswordAuthService : IIdentityAuthService
         if (string.IsNullOrWhiteSpace(request.Email)) throw new IdentityValidationException("Email is required.");
         if (string.IsNullOrWhiteSpace(request.Password)) throw new IdentityValidationException("Password is required.");
 
+        var traceId = ResolveTraceId();
+        var pre = new AuthUserCreateRequestedEvent
+        {
+            NormalizedEmail = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLowerInvariant(),
+            NormalizedPhone = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim(),
+            TraceId = traceId
+        };
+        pre.Metadata["idempotencyKey"] =
+            $"{AuthUserCreateRequestedEvent.TypeName}:{pre.NormalizedEmail ?? pre.NormalizedPhone ?? Guid.NewGuid().ToString("N")}";
+        await InvokeLifecycleAndPublishAsync(pre, (hook, evt, token) => hook.OnBeforeAuthUserCreateAsync(evt, token), ct);
+
         var result = await _users.CreateAsync(request, ct);
         if (!result.Succeeded)
             throw new IdentityValidationException("Registration failed.", result.Errors);
         if (result.User is null)
             throw new IdentityProviderException("UnknownProvider", "User store returned success but no user.");
+
+        var created = new AuthUserCreatedEvent
+        {
+            AuthUserId = result.User.UserId.ToString("D"),
+            NormalizedEmail = string.IsNullOrWhiteSpace(result.User.Email) ? null : result.User.Email.Trim().ToLowerInvariant(),
+            NormalizedPhone = string.IsNullOrWhiteSpace(result.User.PhoneNumber) ? null : result.User.PhoneNumber.Trim(),
+            TraceId = traceId
+        };
+        created.Metadata["idempotencyKey"] = $"{AuthUserCreatedEvent.TypeName}:{result.User.UserId:D}";
+        await InvokeLifecycleAndPublishAsync(created, (hook, evt, token) => hook.OnAuthUserCreatedAsync(evt, token), ct);
     }
 
     public async Task<AuthResultResponse> PasswordLoginAsync(PasswordLoginRequest request, CancellationToken ct = default)
@@ -54,20 +115,58 @@ public sealed class PasswordAuthService : IIdentityAuthService
         if (string.IsNullOrWhiteSpace(request.Email)) throw new IdentityValidationException("Email is required.");
         if (string.IsNullOrWhiteSpace(request.Password)) throw new IdentityValidationException("Password is required.");
 
+        var traceId = ResolveTraceId();
+        var loginAttempt = new LoginAttemptedEvent
+        {
+            Method = "password",
+            Identifier = request.Email.Trim().ToLowerInvariant(),
+            TraceId = traceId
+        };
+        loginAttempt.Metadata["idempotencyKey"] = $"{LoginAttemptedEvent.TypeName}:password:{loginAttempt.Identifier}";
+        await InvokeLifecycleAndPublishAsync(loginAttempt, (hook, evt, token) => hook.OnBeforeLoginAsync(evt, token), ct);
+
         var user = await _users.FindByEmailAsync(request.Email, ct);
         if (user is null)
+        {
+            await EmitLoginFailedAsync("password", request.Email, "User not found.", null, traceId, ct);
             throw new IdentityUnauthorizedException("Invalid credentials.");
+        }
 
         var ok = await _users.ValidatePasswordAsync(request.Email, request.Password, ct);
         if (!ok)
+        {
+            await EmitLoginFailedAsync("password", request.Email, "Password invalid.", null, traceId, ct);
             throw new IdentityUnauthorizedException("Invalid credentials.");
+        }
 
         if (user.TwoFactorEnabled)
         {
             var (method, channel, destination) = ResolveTwoFactorTarget(user, user.PreferredTwoFactorMethod);
+            var challengeRequested = new OtpChallengeRequestedEvent
+            {
+                Destination = destination,
+                Purpose = SenderPurpose.LoginMfa.ToString(),
+                TraceId = traceId
+            };
+            challengeRequested.Metadata["idempotencyKey"] =
+                $"{OtpChallengeRequestedEvent.TypeName}:{SenderPurpose.LoginMfa}:{destination}";
+            await InvokeLifecycleAndPublishAsync(
+                challengeRequested,
+                (hook, evt, token) => hook.OnBeforeOtpChallengeCreateAsync(evt, token),
+                ct);
+
             var challenge = await _otpService.CreateChallengeAsync(
                 new OtpChallengeRequest(channel, destination, SenderPurpose.LoginMfa, null),
                 ct);
+            var challengeEvent = new OtpChallengeCreatedEvent
+            {
+                ChallengeId = challenge.ChallengeId,
+                Destination = destination,
+                Purpose = SenderPurpose.LoginMfa.ToString(),
+                TraceId = traceId
+            };
+            challengeEvent.Metadata["idempotencyKey"] = $"{OtpChallengeCreatedEvent.TypeName}:{challenge.ChallengeId}";
+            await InvokeLifecycleAndPublishAsync(challengeEvent, (hook, evt, token) => hook.OnOtpChallengeCreatedAsync(evt, token), ct);
 
             return AuthResultResponse.RequiresTwoFactorChallenge(challenge.ChallengeId, method);
         }
@@ -84,6 +183,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
             AddTenantClaims(claims, t.TenantId);
             AddRoleClaims(claims, t.Roles);
             var token = await _tokens.CreateAccessTokenAsync(user.UserId, t.TenantId, claims, ct);
+            await EmitLoginSucceededAsync("password", user.UserId, t.TenantId, false, traceId, ct);
             return AuthResultResponse.WithToken(token);
         }
 
@@ -97,6 +197,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
                 AddTenantClaims(claims, def.TenantId);
                 AddRoleClaims(claims, def.Roles);
                 var token = await _tokens.CreateAccessTokenAsync(user.UserId, def.TenantId, claims, ct);
+                await EmitLoginSucceededAsync("password", user.UserId, def.TenantId, false, traceId, ct);
                 return AuthResultResponse.WithToken(token);
             }
         }
@@ -104,6 +205,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         var preClaims = BuildBaseClaims(user.UserId, user.Email);
         preClaims.Add(new ClaimItem("pt", "1"));
         var pre = await _tokens.CreatePreTenantTokenAsync(user.UserId, preClaims, ct);
+        await EmitLoginSucceededAsync("password", user.UserId, null, true, traceId, ct);
         return AuthResultResponse.RequiresSelection(pre.AccessToken, activeTenants);
     }
 
@@ -117,6 +219,18 @@ public sealed class PasswordAuthService : IIdentityAuthService
 
         var (_, channel, destination) = ResolveTwoFactorTarget(user, method);
         var purpose = channel == SenderChannel.Email ? SenderPurpose.EmailVerification : SenderPurpose.PhoneVerification;
+        var traceId = ResolveTraceId();
+        var requested = new OtpChallengeRequestedEvent
+        {
+            Destination = destination,
+            Purpose = purpose.ToString(),
+            TraceId = traceId
+        };
+        requested.Metadata["idempotencyKey"] = $"{OtpChallengeRequestedEvent.TypeName}:{purpose}:{destination}";
+        await InvokeLifecycleAndPublishAsync(
+            requested,
+            (hook, evt, token) => hook.OnBeforeOtpChallengeCreateAsync(evt, token),
+            ct);
 
         return await _otpService.CreateChallengeAsync(
             new OtpChallengeRequest(channel, destination, purpose, null),
@@ -271,6 +385,17 @@ public sealed class PasswordAuthService : IIdentityAuthService
         var createdNewUser = false;
         if (user is null)
         {
+            var traceId = ResolveTraceId();
+            var preCreate = new AuthUserCreateRequestedEvent
+            {
+                NormalizedEmail = normalizedEmail,
+                TraceId = traceId,
+                CorrelationId = challengeId,
+                CausationId = challengeId
+            };
+            preCreate.Metadata["idempotencyKey"] = $"{AuthUserCreateRequestedEvent.TypeName}:{normalizedEmail}";
+            await InvokeLifecycleAndPublishAsync(preCreate, (hook, evt, token) => hook.OnBeforeAuthUserCreateAsync(evt, token), ct);
+
             var createResult = await _users.CreateAsync(
                 new RegisterUserRequest(normalizedEmail, null, string.Empty, displayName),
                 ct);
@@ -280,6 +405,17 @@ public sealed class PasswordAuthService : IIdentityAuthService
 
             user = createResult.User;
             createdNewUser = true;
+
+            var created = new AuthUserCreatedEvent
+            {
+                AuthUserId = user.UserId.ToString("D"),
+                NormalizedEmail = normalizedEmail,
+                CorrelationId = challengeId,
+                CausationId = challengeId,
+                TraceId = traceId
+            };
+            created.Metadata["idempotencyKey"] = $"{AuthUserCreatedEvent.TypeName}:{user.UserId:D}";
+            await InvokeLifecycleAndPublishAsync(created, (hook, evt, token) => hook.OnAuthUserCreatedAsync(evt, token), ct);
         }
 
         await _users.SetPasswordAsync(user.UserId, newPassword, ct);
@@ -289,9 +425,38 @@ public sealed class PasswordAuthService : IIdentityAuthService
     }
 
     public async Task<AuthTokenResponse> SelectTenantAsync(string userId, SelectTenantRequest request, CancellationToken ct = default)
+        => await SelectTenantInternalAsync(userId, request, "select", ct);
+
+    public async Task<AuthTokenResponse> SwitchTenantAsync(string userId, SelectTenantRequest request, CancellationToken ct = default)
+        => await SelectTenantInternalAsync(userId, request, "switch", ct);
+
+    private async Task<AuthTokenResponse> SelectTenantInternalAsync(
+        string userId,
+        SelectTenantRequest request,
+        string operation,
+        CancellationToken ct)
     {
         var userGuid = ParseUserId(userId);
         if (request is null) throw new ArgumentNullException(nameof(request));
+        var traceId = ResolveTraceId();
+
+        var pre = new TenantSelectionRequestedEvent
+        {
+            AuthUserId = userGuid.ToString("D"),
+            TenantId = request.TenantId,
+            SetAsDefault = request.SetAsDefault,
+            Operation = operation,
+            CorrelationId = request.TenantId.ToString("D"),
+            CausationId = request.TenantId.ToString("D"),
+            TraceId = traceId
+        };
+        pre.Metadata["idempotencyKey"] =
+            $"{TenantSelectionRequestedEvent.TypeName}:{operation}:{request.TenantId:D}:{userGuid:D}";
+        await InvokeLifecycleAndPublishAsync(
+            pre,
+            (hook, evt, token) => hook.OnBeforeTenantSelectionAsync(evt, token),
+            ct);
+
         var tenant = await _tenants.GetTenantForUserAsync(userGuid, request.TenantId, ct);
         if (tenant is null || !tenant.IsActive)
             throw new IdentityUnauthorizedException("No active tenant membership.");
@@ -301,20 +466,45 @@ public sealed class PasswordAuthService : IIdentityAuthService
         AddTenantClaims(claims, tenant.TenantId);
         AddRoleClaims(claims, tenant.Roles);
         var token = await _tokens.CreateAccessTokenAsync(userGuid, tenant.TenantId, claims, ct);
+
+        var selected = new TenantSelectedEvent
+        {
+            AuthUserId = userGuid.ToString("D"),
+            TenantId = tenant.TenantId,
+            SetAsDefault = request.SetAsDefault,
+            Operation = operation,
+            CorrelationId = request.TenantId.ToString("D"),
+            CausationId = request.TenantId.ToString("D"),
+            TraceId = traceId
+        };
+        selected.Metadata["idempotencyKey"] =
+            $"{TenantSelectedEvent.TypeName}:{operation}:{tenant.TenantId:D}:{userGuid:D}";
+        await InvokeLifecycleAndPublishAsync(
+            selected,
+            (hook, evt, token) => hook.OnTenantSelectedAsync(evt, token),
+            ct);
+
         return ToAuthTokenResponse(token);
     }
 
-    public Task<AuthTokenResponse> SwitchTenantAsync(string userId, SelectTenantRequest request, CancellationToken ct = default)
-        => SelectTenantAsync(userId, request, ct);
-
     private async Task<AuthResultResponse> BuildAuthResultAsync(IdentityUser user, bool createdNewUser, CancellationToken ct)
     {
+        var traceId = ResolveTraceId();
         var activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
             .Where(t => t.IsActive)
             .ToList();
 
         if (createdNewUser || activeTenants.Count == 0)
         {
+            var preTenant = new TenantCreateRequestedEvent
+            {
+                AuthUserId = user.UserId.ToString("D"),
+                SuggestedTenantName = string.IsNullOrWhiteSpace(user.Email) ? null : $"{user.Email.Split('@')[0]}'s Workspace",
+                TraceId = traceId
+            };
+            preTenant.Metadata["idempotencyKey"] = $"{TenantCreateRequestedEvent.TypeName}:{user.UserId:D}";
+            await InvokeLifecycleAndPublishAsync(preTenant, (hook, evt, token) => hook.OnBeforeTenantCreateAsync(evt, token), ct);
+
             var createdTenantId = await _tenantProvisioning.CreateTenantForNewUserAsync(user.UserId, user.Email, ct);
             activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
                 .Where(t => t.IsActive)
@@ -322,6 +512,36 @@ public sealed class PasswordAuthService : IIdentityAuthService
 
             if (!activeTenants.Any(t => t.TenantId == createdTenantId))
                 throw new IdentityProviderException("Tenant provisioning completed but membership could not be resolved.");
+
+            var createdTenant = activeTenants.FirstOrDefault(t => t.TenantId == createdTenantId);
+            var tenantCreated = new TenantCreatedEvent
+            {
+                TenantId = createdTenantId,
+                TenantName = createdTenant?.Name,
+                TraceId = traceId
+            };
+            tenantCreated.Metadata["idempotencyKey"] = $"{TenantCreatedEvent.TypeName}:{createdTenantId:D}";
+            await InvokeLifecycleAndPublishAsync(tenantCreated, (hook, evt, token) => hook.OnTenantCreatedAsync(evt, token), ct);
+
+            var preLink = new TenantUserLinkRequestedEvent
+            {
+                TenantId = createdTenantId,
+                AuthUserId = user.UserId.ToString("D"),
+                TraceId = traceId
+            };
+            preLink.Metadata["idempotencyKey"] = $"{TenantUserLinkRequestedEvent.TypeName}:{createdTenantId:D}:{user.UserId:D}";
+            await InvokeLifecycleAndPublishAsync(preLink, (hook, evt, token) => hook.OnBeforeTenantUserLinkAsync(evt, token), ct);
+
+            var linked = new TenantUserLinkedEvent
+            {
+                TenantId = createdTenantId,
+                AuthUserId = user.UserId.ToString("D"),
+                Role = createdTenant?.Roles?.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r)),
+                UserTenantId = $"{createdTenantId:D}|{user.UserId:D}",
+                TraceId = traceId
+            };
+            linked.Metadata["idempotencyKey"] = $"{TenantUserLinkedEvent.TypeName}:{createdTenantId:D}:{user.UserId:D}";
+            await InvokeLifecycleAndPublishAsync(linked, (hook, evt, token) => hook.OnTenantUserLinkedAsync(evt, token), ct);
         }
 
         if (activeTenants.Count == 1)
@@ -331,6 +551,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
             AddTenantClaims(claims, tenant.TenantId);
             AddRoleClaims(claims, tenant.Roles);
             var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
+            await EmitLoginSucceededAsync("password", user.UserId, tenant.TenantId, false, traceId, ct);
             return AuthResultResponse.WithToken(token, createdNewUser);
         }
 
@@ -344,6 +565,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
                 AddTenantClaims(claims, def.TenantId);
                 AddRoleClaims(claims, def.Roles);
                 var token = await _tokens.CreateAccessTokenAsync(user.UserId, def.TenantId, claims, ct);
+                await EmitLoginSucceededAsync("password", user.UserId, def.TenantId, false, traceId, ct);
                 return AuthResultResponse.WithToken(token, createdNewUser);
             }
         }
@@ -351,6 +573,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         var preClaims = BuildBaseClaims(user.UserId, user.Email);
         preClaims.Add(new ClaimItem("pt", "1"));
         var pre = await _tokens.CreatePreTenantTokenAsync(user.UserId, preClaims, ct);
+        await EmitLoginSucceededAsync("password", user.UserId, null, true, traceId, ct);
         return AuthResultResponse.RequiresSelection(pre.AccessToken, activeTenants, createdNewUser);
     }
 
@@ -383,6 +606,21 @@ public sealed class PasswordAuthService : IIdentityAuthService
         SenderPurpose expectedPurpose,
         CancellationToken ct)
     {
+        var verifyRequested = new OtpVerifyRequestedEvent
+        {
+            ChallengeId = challengeId,
+            Destination = expectedDestination,
+            Purpose = expectedPurpose.ToString(),
+            CorrelationId = challengeId,
+            CausationId = challengeId,
+            TraceId = ResolveTraceId()
+        };
+        verifyRequested.Metadata["idempotencyKey"] = $"{OtpVerifyRequestedEvent.TypeName}:{challengeId}";
+        await InvokeLifecycleAndPublishAsync(
+            verifyRequested,
+            (hook, evt, token) => hook.OnBeforeOtpVerifyAsync(evt, token),
+            ct);
+
         var verify = await _otpService.VerifyAsync(new OtpVerifyRequest(challengeId, code), ct);
         if (!verify.Success)
             throw new IdentityValidationException("OTP verification failed.");
@@ -456,5 +694,62 @@ public sealed class PasswordAuthService : IIdentityAuthService
         if (roles is null) return;
         foreach (var r in roles.Where(x => !string.IsNullOrWhiteSpace(x)))
             claims.Add(new("role", r));
+    }
+
+    private async Task InvokeLifecycleAndPublishAsync<TEvent>(
+        TEvent evt,
+        Func<IAuthLifecycleHook, TEvent, CancellationToken, Task> hookInvoker,
+        CancellationToken ct)
+        where TEvent : AuthLifecycleEventBase
+    {
+        try
+        {
+            await hookInvoker(_lifecycleHook, evt, ct);
+            await _eventPublisher.PublishAsync(evt, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to emit auth lifecycle event {EventType}. EventId={EventId}", evt.EventType, evt.EventId);
+            if (_eventOptions.Value.StrictPublishFailures)
+                throw;
+        }
+    }
+
+    private Task EmitLoginSucceededAsync(string method, Guid userId, Guid? tenantId, bool requiresTenantSelection, string? traceId, CancellationToken ct)
+    {
+        var evt = new LoginSucceededEvent
+        {
+            Method = method,
+            AuthUserId = userId.ToString("D"),
+            TenantId = tenantId,
+            RequiresTenantSelection = requiresTenantSelection,
+            TraceId = traceId
+        };
+        evt.Metadata["idempotencyKey"] = $"{LoginSucceededEvent.TypeName}:{method}:{tenantId?.ToString("D") ?? "pretenant"}:{userId:D}";
+        return InvokeLifecycleAndPublishAsync(evt, (hook, e, token) => hook.OnLoginSucceededAsync(e, token), ct);
+    }
+
+    private Task EmitLoginFailedAsync(string method, string identifier, string reason, string? correlationId, string? traceId, CancellationToken ct)
+    {
+        var evt = new LoginFailedEvent
+        {
+            Method = method,
+            Identifier = identifier,
+            Reason = reason,
+            CorrelationId = correlationId,
+            CausationId = correlationId,
+            TraceId = traceId
+        };
+        evt.Metadata["idempotencyKey"] = $"{LoginFailedEvent.TypeName}:{method}:{identifier}:{reason}";
+        return InvokeLifecycleAndPublishAsync(evt, (hook, e, token) => hook.OnLoginFailedAsync(e, token), ct);
+    }
+
+    private static string? ResolveTraceId()
+    {
+        var current = Activity.Current;
+        if (current is null)
+            return null;
+
+        return current.TraceId != default ? current.TraceId.ToString() : current.Id;
     }
 }

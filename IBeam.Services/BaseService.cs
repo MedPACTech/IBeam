@@ -15,6 +15,7 @@ namespace IBeam.Services.Core
         protected readonly string _serviceName;
         protected readonly IBaseRepository<TEntity> _repository;
         protected readonly IModelMapper<TEntity, TModel> _mapper;
+        protected readonly IServiceOperationPolicyResolver? _policyResolver;
 
         protected readonly IAuditService? _audit; // optional
         protected readonly IEntityAuditService<TEntity>? _typedAudit; // optional overlay
@@ -34,14 +35,19 @@ namespace IBeam.Services.Core
         protected BaseService(
             IBaseRepository<TEntity> repository,
             IModelMapper<TEntity, TModel> mapper,
-            IAuditService? audit = null)
+            IAuditService? audit = null,
+            IServiceOperationPolicyResolver? policyResolver = null)
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _audit = audit;
             _typedAudit = audit as IEntityAuditService<TEntity>;
+            _policyResolver = policyResolver;
             _serviceName = GetType().Name;
         }
+
+        protected bool IsOperationAllowed(ServiceOperation operation, bool fallback)
+            => _policyResolver?.IsAllowed(GetType(), operation, fallback) ?? fallback;
 
         // ---- Mapping exposure ----
         public TEntity ToEntity(TModel model) => _mapper.ToEntity(model);
@@ -69,7 +75,8 @@ namespace IBeam.Services.Core
         // ---- Reads ----
         public virtual IEnumerable<TModel> GetAll()
         {
-            if (!AllowGetAll) throw new MethodAccessException($"{nameof(GetAll)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.GetAll, AllowGetAll))
+                throw new MethodAccessException($"{nameof(GetAll)} is not allowed.");
 
             try
             {
@@ -84,7 +91,8 @@ namespace IBeam.Services.Core
 
         public virtual IEnumerable<TModel> GetAllWithArchived(bool includeArchived = true)
         {
-            if (!AllowGetAllWithArchived) throw new MethodAccessException($"{nameof(GetAllWithArchived)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.GetAllWithArchived, AllowGetAllWithArchived))
+                throw new MethodAccessException($"{nameof(GetAllWithArchived)} is not allowed.");
 
             try
             {
@@ -100,7 +108,8 @@ namespace IBeam.Services.Core
 
         public virtual TModel GetById(Guid id)
         {
-            if (!AllowGetById) throw new MethodAccessException($"{nameof(GetById)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.GetById, AllowGetById))
+                throw new MethodAccessException($"{nameof(GetById)} is not allowed.");
 
             try
             {
@@ -118,7 +127,8 @@ namespace IBeam.Services.Core
 
         public virtual IEnumerable<TModel> GetByIds(IEnumerable<Guid> ids)
         {
-            if (!AllowGetByIds) throw new MethodAccessException($"{nameof(GetByIds)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.GetByIds, AllowGetByIds))
+                throw new MethodAccessException($"{nameof(GetByIds)} is not allowed.");
 
             var list = ids?.ToList() ?? new List<Guid>();
             if (list.Count == 0) return Enumerable.Empty<TModel>();
@@ -136,7 +146,8 @@ namespace IBeam.Services.Core
         // ---- Writes ----
         public virtual TModel Save(TModel model)
         {
-            if (!AllowSave) throw new MethodAccessException($"{nameof(Save)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.Save, AllowSave))
+                throw new MethodAccessException($"{nameof(Save)} is not allowed.");
 
             try
             {
@@ -162,7 +173,8 @@ namespace IBeam.Services.Core
 
         public virtual IEnumerable<TModel> SaveAll(IEnumerable<TModel> models)
         {
-            if (!AllowSaveAll) throw new MethodAccessException($"{nameof(SaveAll)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.SaveAll, AllowSaveAll))
+                throw new MethodAccessException($"{nameof(SaveAll)} is not allowed.");
 
             var list = models?.ToList() ?? new List<TModel>();
             if (list.Count == 0) return Enumerable.Empty<TModel>();
@@ -201,7 +213,8 @@ namespace IBeam.Services.Core
         // ---- Archive / delete ----
         public virtual void Archive(Guid id)
         {
-            if (!AllowArchive) throw new MethodAccessException($"{nameof(Archive)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.Archive, AllowArchive))
+                throw new MethodAccessException($"{nameof(Archive)} is not allowed.");
             try
             {
                 PreArchive(id);
@@ -221,7 +234,8 @@ namespace IBeam.Services.Core
 
         public void ArchiveAll(IEnumerable<TModel> models)
         {
-            if (!AllowArchive) throw new MethodAccessException($"{nameof(ArchiveAll)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.Archive, AllowArchive))
+                throw new MethodAccessException($"{nameof(ArchiveAll)} is not allowed.");
 
             var ids = ToEntity(models ?? Array.Empty<TModel>())
                 .Select(e => e.Id)
@@ -243,7 +257,8 @@ namespace IBeam.Services.Core
 
         public virtual void Unarchive(Guid id)
         {
-            if (!AllowUnarchive) throw new MethodAccessException($"{nameof(Unarchive)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.Unarchive, AllowUnarchive))
+                throw new MethodAccessException($"{nameof(Unarchive)} is not allowed.");
             try
             {
                 PreUnarchive(id);
@@ -263,7 +278,8 @@ namespace IBeam.Services.Core
 
         public void UnarchiveAll(IEnumerable<TModel> models)
         {
-            if (!AllowUnarchive) throw new MethodAccessException($"{nameof(UnarchiveAll)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.Unarchive, AllowUnarchive))
+                throw new MethodAccessException($"{nameof(UnarchiveAll)} is not allowed.");
 
             var ids = ToEntity(models ?? Array.Empty<TModel>())
                 .Select(e => e.Id)
@@ -285,7 +301,8 @@ namespace IBeam.Services.Core
 
         public virtual void Delete(Guid id)
         {
-            if (!AllowDelete) throw new MethodAccessException($"{nameof(Delete)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.Delete, AllowDelete))
+                throw new MethodAccessException($"{nameof(Delete)} is not allowed.");
             try
             {
                 PreDelete(id);

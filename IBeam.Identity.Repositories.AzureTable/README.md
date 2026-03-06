@@ -1,46 +1,18 @@
 # IBeam.Identity.Repositories.AzureTable
 
-`IBeam.Identity.Repositories.AzureTable` provides Azure Table Storage implementations for Identity store contracts.
+Azure Table Storage implementation for IBeam Identity store contracts.
 
-## What this project does
-
-- Wires ElCamino ASP.NET Identity Azure Table stores.
-- Implements custom stores for:
-  - `IIdentityUserStore`
-  - `ITenantMembershipStore`
-  - `ITenantProvisioningService`
-  - `IOtpChallengeStore`
-  - `IExternalLoginStore`
-  - `IAuthSessionStore`
-- Ensures schema/tables on startup via hosted service.
-
-## Service registration
-
-In host/API:
+## Startup Registration
 
 ```csharp
 builder.Services.AddIBeamIdentityAzureTable(builder.Configuration);
 ```
 
-This binds options, registers stores, and enables automatic table creation at startup.
+This binds options, validates configuration, registers stores, and enables schema/table initialization.
 
-## Required configuration
+## Configuration
 
 Section: `IBeam:Identity:AzureTable`
-
-- `StorageConnectionString`
-- `TablePrefix`
-- `IndexTableName`
-- `UserTableName`
-- `RoleTableName`
-- `TenantsTableName`
-- `TenantUsersTableName`
-- `UserTenantsTableName`
-- `OtpChallengesTableName`
-- `ExternalLoginsTableName`
-- `AuthSessionsTableName`
-
-Example:
 
 ```json
 {
@@ -64,13 +36,29 @@ Example:
 }
 ```
 
-## Runtime behavior
+## Connection String Resolution
 
-On startup, schema manager creates missing tables (including custom tables above) and writes schema version row in `{TablePrefix}Schema`.
+`AddIBeamIdentityAzureTable(configuration)` resolves storage connection string in this order:
 
-## Build
+1. `IBeam:Identity:AzureTable:StorageConnectionString`
+2. `IBeam:AzureTables`
+3. `IBeam:ConnectionString`
+4. `ConnectionStrings:AzureTables`
+5. `ConnectionStrings:AzureTable`
+6. `ConnectionStrings:AzureStorage`
+7. `ConnectionStrings:IBeam`
+8. `ConnectionStrings:DefaultConnection`
+9. `ConnectionStrings:IdentityAzureTable`
 
-```bash
-dotnet restore
-dotnet build
-```
+## Registered Store Contracts
+
+- `IIdentityUserStore`
+- `ITenantMembershipStore`
+- `ITenantProvisioningService`
+- `IOtpChallengeStore`
+- `IExternalLoginStore`
+- `IAuthSessionStore`
+
+## Runtime Behavior
+
+At startup, hosted schema initialization ensures missing tables exist and schema version metadata is maintained in the schema table (`{TablePrefix}Schema`).
