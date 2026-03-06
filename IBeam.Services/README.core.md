@@ -1,71 +1,85 @@
-# IBeam Services
+# IBeam.Services
 
-IBeam Services is a core backend service within the **IBeam** ecosystem, built on **ASP.NET Core (.NET 10)**.  
-It provides foundational platform capabilities such as identity, authentication, OTP challenges, and communications services.
+Core base-service framework over `IBeam.Repositories` with model/entity mapping, auditing hooks, and operation policy controls.
 
----
+## What This Package Provides
 
-## ✨ Features
+- `BaseService<TEntity, TModel>` (sync)
+- `BaseServiceAsync<TEntity, TModel>` (async)
+- `IModelMapper<TEntity, TModel>` abstraction
+- Audit abstractions (`IAuditService*`, `IEntityAuditService*`)
+- Service operation policy controls via:
+  - configuration options
+  - attributes
+  - legacy `Allow*` flags fallback
 
-- ASP.NET Core Web API (.NET 10)
-- Modular, service-oriented architecture
-- OTP (One-Time Password) challenge framework
-- Pluggable communication providers (Email, SMS, etc.)
-- Multi-environment configuration support
-- Designed for extensibility across the IBeam platform
+## Service Policies
 
----
+Service operation permissions can be controlled in three layers:
 
-## 🧱 Tech Stack
+1. Attribute override on service class (`ServiceOperationPolicyAttribute`)
+2. Configuration options (`IBeam:Services:Policies`)
+3. Legacy `Allow*` booleans in the service/base class (fallback)
 
-- **.NET:** 10.0
-- **Framework:** ASP.NET Core Web API
-- **Configuration:** application.json + environment overrides
-- **Dependency Injection:** Microsoft.Extensions.DependencyInjection
-- **Options Pattern:** Microsoft.Extensions.Options
+Effective rank:
 
----
+`Attribute > Config/Options > Allow* fallback`
 
-## 📁 Project Structure
+## appsettings Example
 
-IBeam.Services/
-├── application.json
-├── application.Development.json
-├── application.Test.json
-├── application.Prod.json
-├── Program.cs
-├── Services/
-│ ├── Identity/
-│ ├── Otp/
-│ └── Communications/
-├── Controllers/
-├── Core/
-│ ├── Entities/
-│ ├── Options/
-│ └── Contracts/
-└── Infrastructure/
+```json
+{
+  "IBeam": {
+    "Services": {
+      "Policies": {
+        "Services": {
+          "PatientService": {
+            "GetById": true,
+            "GetByIds": false,
+            "GetAll": true,
+            "GetAllWithArchived": false,
+            "Save": true,
+            "SaveAll": true,
+            "Archive": true,
+            "Unarchive": true,
+            "Delete": false
+          }
+        }
+      }
+    }
+  }
+}
+```
 
+Only set properties you want to override. Unset operations use service defaults.
 
----
+## Startup Registration
 
-## 🔐 OTP Services
+```csharp
+builder.Services.AddIBeamServicePolicies(options =>
+{
+    options.Services["PatientService"] = new ServiceOperationAccessOptions
+    {
+        GetAll = true,
+        Delete = false
+    };
+});
+```
 
-The OTP subsystem supports:
-- Configurable code length and expiration
-- Pluggable storage providers
-- Multiple delivery mechanisms (Email, SMS, etc.)
+You can also bind from `IConfiguration` manually and pass into `AddIBeamServicePolicies(...)`.
 
----
+## Attribute Example
 
-## 🚀 Running the Service
+```csharp
+[ServiceOperationPolicy(ServiceOperation.Delete, false)]
+[ServiceOperationPolicy(ServiceOperation.GetAll, true)]
+public sealed class PatientService : BaseServiceAsync<PatientEntity, PatientModel>
+{
+    // ...
+}
+```
 
-```bash
-dotnet restore
-dotnet build
-dotnet run
+## Mapping
 
-The API will start using the configuration defined in application.json and the active environment.
-
-📌 Notes
-- Secrets should be stored securely (Key Vault, User Secrets, etc.)
-- application.json should be treated as a template, not a secrets store
+`IModelMapper<TEntity, TModel>` is provider-agnostic.  
+Use `IBeam.Services.AutoMapper` or a custom mapper implementation.
