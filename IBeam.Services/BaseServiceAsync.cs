@@ -17,6 +17,7 @@ namespace IBeam.Services.Core
         protected readonly string _serviceName;
         protected readonly IBaseRepositoryAsync<TEntity> _repository;
         protected readonly IModelMapper<TEntity, TModel> _mapper;
+        protected readonly IServiceOperationPolicyResolver? _policyResolver;
 
         protected readonly IAuditServiceAsync? _audit;
         protected readonly IEntityAuditServiceAsync<TEntity>? _typedAudit;
@@ -36,14 +37,19 @@ namespace IBeam.Services.Core
         protected BaseServiceAsync(
             IBaseRepositoryAsync<TEntity> repository,
             IModelMapper<TEntity, TModel> mapper,
-            IAuditServiceAsync? audit = null)
+            IAuditServiceAsync? audit = null,
+            IServiceOperationPolicyResolver? policyResolver = null)
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _audit = audit;
             _typedAudit = audit as IEntityAuditServiceAsync<TEntity>;
+            _policyResolver = policyResolver;
             _serviceName = GetType().Name;
         }
+
+        protected bool IsOperationAllowed(ServiceOperation operation, bool fallback)
+            => _policyResolver?.IsAllowed(GetType(), operation, fallback) ?? fallback;
 
         public TEntity ToEntity(TModel model) => _mapper.ToEntity(model);
         public TModel ToModel(TEntity entity) => _mapper.ToModel(entity);
@@ -68,7 +74,8 @@ namespace IBeam.Services.Core
 
         public virtual async Task<IEnumerable<TModel>> GetAllAsync(CancellationToken ct = default)
         {
-            if (!AllowGetAll) throw new MethodAccessException($"{nameof(GetAllAsync)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.GetAll, AllowGetAll))
+                throw new MethodAccessException($"{nameof(GetAllAsync)} is not allowed.");
 
             try
             {
@@ -82,7 +89,8 @@ namespace IBeam.Services.Core
 
         public virtual async Task<IEnumerable<TModel>> GetAllWithArchivedAsync(bool includeArchived = true, CancellationToken ct = default)
         {
-            if (!AllowGetAllWithArchived) throw new MethodAccessException($"{nameof(GetAllWithArchivedAsync)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.GetAllWithArchived, AllowGetAllWithArchived))
+                throw new MethodAccessException($"{nameof(GetAllWithArchivedAsync)} is not allowed.");
 
             try
             {
@@ -96,7 +104,8 @@ namespace IBeam.Services.Core
 
         public virtual async Task<TModel> GetByIdAsync(Guid id, CancellationToken ct = default)
         {
-            if (!AllowGetById) throw new MethodAccessException($"{nameof(GetByIdAsync)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.GetById, AllowGetById))
+                throw new MethodAccessException($"{nameof(GetByIdAsync)} is not allowed.");
 
             try
             {
@@ -114,7 +123,8 @@ namespace IBeam.Services.Core
 
         public virtual async Task<IEnumerable<TModel>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
         {
-            if (!AllowGetByIds) throw new MethodAccessException($"{nameof(GetByIdsAsync)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.GetByIds, AllowGetByIds))
+                throw new MethodAccessException($"{nameof(GetByIdsAsync)} is not allowed.");
 
             var list = ids?.ToList() ?? new List<Guid>();
             if (list.Count == 0) return Enumerable.Empty<TModel>();
@@ -131,7 +141,8 @@ namespace IBeam.Services.Core
 
         public virtual async Task<TModel> SaveAsync(TModel model, CancellationToken ct = default)
         {
-            if (!AllowSave) throw new MethodAccessException($"{nameof(SaveAsync)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.Save, AllowSave))
+                throw new MethodAccessException($"{nameof(SaveAsync)} is not allowed.");
 
             try
             {
@@ -160,7 +171,8 @@ namespace IBeam.Services.Core
 
         public virtual async Task<IEnumerable<TModel>> SaveAllAsync(IEnumerable<TModel> models, CancellationToken ct = default)
         {
-            if (!AllowSaveAll) throw new MethodAccessException($"{nameof(SaveAllAsync)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.SaveAll, AllowSaveAll))
+                throw new MethodAccessException($"{nameof(SaveAllAsync)} is not allowed.");
 
             var list = models?.ToList() ?? new List<TModel>();
             if (list.Count == 0) return Enumerable.Empty<TModel>();
@@ -201,7 +213,8 @@ namespace IBeam.Services.Core
 
         public virtual async Task ArchiveAsync(Guid id, CancellationToken ct = default)
         {
-            if (!AllowArchive) throw new MethodAccessException($"{nameof(ArchiveAsync)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.Archive, AllowArchive))
+                throw new MethodAccessException($"{nameof(ArchiveAsync)} is not allowed.");
 
             try
             {
@@ -219,7 +232,8 @@ namespace IBeam.Services.Core
 
         public async Task ArchiveAllAsync(IEnumerable<TModel> models, CancellationToken ct = default)
         {
-            if (!AllowArchive) throw new MethodAccessException($"{nameof(ArchiveAllAsync)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.Archive, AllowArchive))
+                throw new MethodAccessException($"{nameof(ArchiveAllAsync)} is not allowed.");
 
             var ids = ToEntity(models ?? Array.Empty<TModel>())
                 .Select(e => e.Id)
@@ -245,7 +259,8 @@ namespace IBeam.Services.Core
 
         public virtual async Task UnarchiveAsync(Guid id, CancellationToken ct = default)
         {
-            if (!AllowUnarchive) throw new MethodAccessException($"{nameof(UnarchiveAsync)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.Unarchive, AllowUnarchive))
+                throw new MethodAccessException($"{nameof(UnarchiveAsync)} is not allowed.");
 
             try
             {
@@ -263,7 +278,8 @@ namespace IBeam.Services.Core
 
         public async Task UnarchiveAllAsync(IEnumerable<TModel> models, CancellationToken ct = default)
         {
-            if (!AllowUnarchive) throw new MethodAccessException($"{nameof(UnarchiveAllAsync)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.Unarchive, AllowUnarchive))
+                throw new MethodAccessException($"{nameof(UnarchiveAllAsync)} is not allowed.");
 
             var ids = ToEntity(models ?? Array.Empty<TModel>())
                 .Select(e => e.Id)
@@ -289,7 +305,8 @@ namespace IBeam.Services.Core
 
         public virtual async Task DeleteAsync(Guid id, CancellationToken ct = default)
         {
-            if (!AllowDelete) throw new MethodAccessException($"{nameof(DeleteAsync)} is not allowed.");
+            if (!IsOperationAllowed(ServiceOperation.Delete, AllowDelete))
+                throw new MethodAccessException($"{nameof(DeleteAsync)} is not allowed.");
 
             try
             {
