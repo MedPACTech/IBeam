@@ -1,7 +1,6 @@
 using Azure;
 using Azure.Data.Tables;
 using IBeam.Repositories.Abstractions;
-using IBeam.Repositories.AzureTables.Internal;
 using IBeam.Repositories.Core;
 using Microsoft.Extensions.Options;
 using System.Linq.Expressions;
@@ -13,6 +12,7 @@ namespace IBeam.Repositories.AzureTables;
 public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<T>
     where T : class, IEntity
 {
+    private const int MaxBatchActions = 100;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
@@ -26,28 +26,53 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
     private readonly TableServiceClient _serviceClient;
     private readonly AzureTablesOptions _options;
     private readonly IAzureTablePartitionKeyStrategy<T> _partitionKeyStrategy;
+    private readonly AzureEntityMappingOptions<T>? _mapping;
+    private readonly IEntityLocator _locator;
+    private readonly IEntityKeyBinder<T> _entityKeyBinder;
+    private readonly IAzureEntityKeyFormatter _keyFormatter;
+    private readonly AzureTableStorageModel _effectiveStorageModel;
     private TableClient? _table;
 
-    private bool UseEnvelopeModel => _options.StorageModel == AzureTableStorageModel.Envelope;
+    private bool UseEnvelopeModel => _effectiveStorageModel == AzureTableStorageModel.Envelope;
 
     public AzureTablesRepositoryStore(
         IOptions<AzureTablesOptions> options,
-        IAzureTablePartitionKeyStrategy<T>? partitionKeyStrategy = null)
+        IAzureTablePartitionKeyStrategy<T>? partitionKeyStrategy = null,
+        AzureEntityMappingOptions<T>? mapping = null,
+        IEntityLocator? locator = null,
+        IEntityKeyBinder<T>? entityKeyBinder = null,
+        IAzureEntityKeyFormatter? keyFormatter = null)
     {
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _partitionKeyStrategy = partitionKeyStrategy ?? AzureTablePartitionKeyStrategies.Default<T>();
+        _mapping = mapping;
+        _locator = locator ?? new NullEntityLocator();
+        _entityKeyBinder = entityKeyBinder ?? new GuidRowKeyEntityKeyBinder<T>();
+        _keyFormatter = keyFormatter ?? new AzureEntityKeyFormatter(_options.GuidKeyFormat, _options.EnableLegacyGuidKeyFallbackReads);
+        _effectiveStorageModel = ResolveStorageModel(_options.StorageModel);
 
         if (string.IsNullOrWhiteSpace(_options.ConnectionString))
             throw new InvalidOperationException("AzureTablesOptions.ConnectionString must be configured.");
+        if (_mapping?.EnableIdLocator == true && locator is null)
+            throw new InvalidOperationException(
+                $"{typeof(T).Name} mapping enabled id locator but no {nameof(IEntityLocator)} is registered.");
 
         _serviceClient = new TableServiceClient(_options.ConnectionString);
+    }
+
+    private static AzureTableStorageModel ResolveStorageModel(AzureTableStorageModel configuredModel)
+    {
+        var attr = typeof(T).GetCustomAttribute<AzureTableStorageModelAttribute>(inherit: true);
+        return attr?.StorageModel ?? configuredModel;
     }
 
     private async Task<TableClient> GetTableAsync(CancellationToken ct)
     {
         if (_table != null) return _table;
 
-        var tableName = BuildTableName(typeof(T).Name, _options.TableNamePrefix);
+        var mappedName = _mapping?.TableName;
+        var baseName = string.IsNullOrWhiteSpace(mappedName) ? typeof(T).Name : mappedName.Trim();
+        var tableName = BuildTableName(baseName, _options.TableNamePrefix);
         var table = _serviceClient.GetTableClient(tableName);
 
         if (_options.CreateTablesIfNotExists)
@@ -68,22 +93,107 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
         return alnum;
     }
 
-    private static string ToRowKey(Guid id) => id.ToString("N");
+    private string ToRowKey(Guid id) => _keyFormatter.Format(id);
 
-    private static AzureTableEnvelope WrapEnvelope(T entity, string partitionKey) => new()
+    private string ToLocatorId(Guid id) => _keyFormatter.Format(id);
+
+    private IReadOnlyList<string> GetLookupKeyCandidates(Guid id) => _keyFormatter.GetLookupCandidates(id);
+
+    private AzureEntityKey ResolveWriteKey(Guid? tenantId, T entity)
     {
-        PartitionKey = partitionKey,
-        RowKey = ToRowKey(entity.Id),
-        Type = typeof(T).FullName,
-        Data = JsonSerializer.Serialize(entity, JsonOptions)
-    };
+        if (_mapping?.WriteKey is not null)
+            return _mapping.WriteKey(tenantId, entity);
 
-    private static T? UnwrapEnvelope(AzureTableEnvelope? envelope)
-        => envelope == null || string.IsNullOrWhiteSpace(envelope.Data)
-            ? null
-            : JsonSerializer.Deserialize<T>(envelope.Data, JsonOptions);
+        return new AzureEntityKey
+        {
+            PartitionKey = _partitionKeyStrategy.GetPartitionKeyForWrite(tenantId, entity),
+            RowKey = ToRowKey(entity.Id)
+        };
+    }
 
-    private static TableEntity WrapColumns(T entity, string partitionKey)
+    private string EntityTypeName => typeof(T).FullName ?? typeof(T).Name;
+
+    private static string ScopeFromTenant(Guid? tenantId)
+        => tenantId.HasValue && tenantId.Value != Guid.Empty
+            ? $"TENANT|{tenantId.Value:D}"
+            : "GLOBAL";
+
+    private string EffectiveSoftDeleteProperty(string requested)
+        => string.Equals(requested, "IsDeleted", StringComparison.Ordinal)
+            ? (_mapping?.SoftDeleteProperty ?? requested)
+            : requested;
+
+    private IReadOnlyList<string>? ResolveCandidatePartitionsForId(Guid? tenantId, Guid id)
+    {
+        if (_mapping?.CandidatePartitionsForId is not null)
+            return _mapping.CandidatePartitionsForId(tenantId, id);
+
+        return _partitionKeyStrategy.GetCandidatePartitionsForId(tenantId, id);
+    }
+
+    private TableEntity WrapEnvelope(T entity, string partitionKey, string? rowKey = null)
+    {
+        var tableEntity = new TableEntity(partitionKey, rowKey ?? ToRowKey(entity.Id))
+        {
+            ["Type"] = typeof(T).FullName ?? typeof(T).Name,
+            ["Data"] = JsonSerializer.Serialize(entity, JsonOptions)
+        };
+
+        // Hybrid projection: keep envelope Data, plus selected top-level columns for querying.
+        foreach (var prop in GetProjectedColumns())
+        {
+            var value = prop.Property.GetValue(entity);
+            if (value is null)
+                continue;
+
+            tableEntity[prop.ColumnName] = ConvertToTableValue(value);
+        }
+
+        return tableEntity;
+    }
+
+    private static T? UnwrapEnvelope(TableEntity? envelope)
+    {
+        if (envelope == null)
+            return null;
+
+        if (!envelope.TryGetValue("Data", out var raw) || raw is not string json || string.IsNullOrWhiteSpace(json))
+            return null;
+
+        return JsonSerializer.Deserialize<T>(json, JsonOptions);
+    }
+
+    private static IReadOnlyList<(PropertyInfo Property, string ColumnName)> GetProjectedColumns()
+    {
+        return typeof(T)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.CanRead && p.GetIndexParameters().Length == 0)
+            .Select(p => new
+            {
+                Property = p,
+                Attribute = p.GetCustomAttribute<AzureTableProjectedColumnAttribute>(inherit: true)
+            })
+            .Where(x => x.Attribute is not null)
+            .Select(x =>
+            {
+                var columnName = string.IsNullOrWhiteSpace(x.Attribute!.ColumnName)
+                    ? x.Property.Name
+                    : x.Attribute.ColumnName!.Trim();
+
+                if (ReservedColumns.Contains(columnName, StringComparer.OrdinalIgnoreCase) ||
+                    string.Equals(columnName, "Data", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(columnName, "Type", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        $"{typeof(T).Name}.{x.Property.Name} projected column '{columnName}' is reserved.");
+                }
+
+                return (x.Property, columnName);
+            })
+            .ToList();
+    }
+
+    private TableEntity WrapColumns(T entity, string partitionKey)
     {
         var tableEntity = new TableEntity(partitionKey, ToRowKey(entity.Id))
         {
@@ -153,12 +263,139 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             data[kvp.Key] = kvp.Value;
         }
 
-        if (!data.ContainsKey(nameof(IEntity.Id)) && Guid.TryParse(tableEntity.RowKey, out var id))
-            data[nameof(IEntity.Id)] = id;
-
         var json = JsonSerializer.Serialize(data, JsonOptions);
         return JsonSerializer.Deserialize<T>(json, JsonOptions);
     }
+
+    private T? NormalizeEntityIdentity(T? entity, string partitionKey, string rowKey)
+    {
+        if (entity is null)
+            return null;
+
+        _entityKeyBinder.BindFromKeys(entity, partitionKey, rowKey);
+        return entity;
+    }
+
+    public Task<T?> GetByKeysAsync(string partitionKey, string rowKey, CancellationToken ct = default)
+        => Execute("GetByKeysAsync", async () =>
+        {
+            if (string.IsNullOrWhiteSpace(partitionKey) || string.IsNullOrWhiteSpace(rowKey))
+                return null;
+
+            var table = await GetTableAsync(ct);
+
+            if (UseEnvelopeModel)
+            {
+                var response = await table.GetEntityIfExistsAsync<TableEntity>(partitionKey, rowKey, cancellationToken: ct);
+                return response.HasValue
+                    ? NormalizeEntityIdentity(UnwrapEnvelope(response.Value), partitionKey, rowKey)
+                    : null;
+            }
+
+            var colResponse = await table.GetEntityIfExistsAsync<TableEntity>(partitionKey, rowKey, cancellationToken: ct);
+            return colResponse.HasValue
+                ? NormalizeEntityIdentity(UnwrapColumns(colResponse.Value), partitionKey, rowKey)
+                : null;
+        });
+
+    public Task SubmitBatchAsync(
+        string partitionKey,
+        IReadOnlyList<BatchAction<T>> actions,
+        CancellationToken ct = default)
+        => Execute("SubmitBatchAsync", async () =>
+        {
+            ValidateBatch(partitionKey, actions);
+
+            if (actions.Count == 0)
+                return;
+
+            var table = await GetTableAsync(ct);
+            var tx = new List<TableTransactionAction>(actions.Count);
+
+            for (var i = 0; i < actions.Count; i++)
+            {
+                var action = actions[i] ?? throw new RepositoryValidationException(
+                    typeof(T).Name, "SubmitBatchAsync", $"Batch action at index {i} is null.");
+
+                try
+                {
+                    tx.Add(MapBatchAction(partitionKey, action));
+                }
+                catch (RepositoryValidationException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    throw new RepositoryValidationException(
+                        typeof(T).Name,
+                        "SubmitBatchAsync",
+                        $"Invalid batch action at index {i}: {ex.Message}",
+                        ex);
+                }
+            }
+
+            try
+            {
+                await table.SubmitTransactionAsync(tx, ct);
+            }
+            catch (TableTransactionFailedException ex)
+            {
+                var failedIndex = ex.FailedTransactionActionIndex;
+                var reason = string.IsNullOrWhiteSpace(ex.Message) ? "Unknown table transaction failure." : ex.Message;
+                throw new RepositoryBatchException(
+                    typeof(T).Name,
+                    "SubmitBatchAsync",
+                    $"Azure Table batch failed at action index {failedIndex}: {reason}",
+                    failedIndex,
+                    ex);
+            }
+        });
+
+    public Task SubmitBatchesAsync(
+        string partitionKey,
+        IReadOnlyList<BatchAction<T>> actions,
+        int chunkSize = MaxBatchActions,
+        CancellationToken ct = default)
+        => Execute("SubmitBatchesAsync", async () =>
+        {
+            if (string.IsNullOrWhiteSpace(partitionKey))
+                throw new RepositoryValidationException(typeof(T).Name, "SubmitBatchesAsync", "PartitionKey is required.");
+            if (actions is null)
+                throw new RepositoryValidationException(typeof(T).Name, "SubmitBatchesAsync", "Actions are required.");
+            if (chunkSize <= 0 || chunkSize > MaxBatchActions)
+                throw new RepositoryValidationException(
+                    typeof(T).Name,
+                    "SubmitBatchesAsync",
+                    $"Chunk size must be between 1 and {MaxBatchActions}.");
+
+            if (actions.Count == 0)
+                return;
+
+            for (var i = 0; i < actions.Count; i += chunkSize)
+            {
+                var size = Math.Min(chunkSize, actions.Count - i);
+                var chunk = actions.Skip(i).Take(size).ToList();
+                await SubmitBatchAsync(partitionKey, chunk, ct);
+            }
+        });
+
+    public async Task DeleteByKeysAsync(string partitionKey, string rowKey, CancellationToken ct = default)
+        => await Execute("DeleteByKeysAsync", async () =>
+        {
+            if (string.IsNullOrWhiteSpace(partitionKey) || string.IsNullOrWhiteSpace(rowKey))
+                return;
+
+            var table = await GetTableAsync(ct);
+            try
+            {
+                await table.DeleteEntityAsync(partitionKey, rowKey, ETag.All, ct);
+            }
+            catch (RequestFailedException ex) when (ex.Status == 404)
+            {
+                // no-op
+            }
+        });
 
     public Task<T?> GetByIdAsync(Guid? tenantId, Guid id, CancellationToken ct = default)
         => Execute("GetByIdAsync", async () =>
@@ -166,19 +403,27 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             if (id == Guid.Empty) return null;
 
             var table = await GetTableAsync(ct);
-            var rowKey = ToRowKey(id);
-            var partitionKey = await ResolvePartitionKeyForIdAsync(table, tenantId, id, rowKey, ct);
-            if (string.IsNullOrWhiteSpace(partitionKey))
-                return null;
-
-            if (UseEnvelopeModel)
+            foreach (var rowKey in GetLookupKeyCandidates(id))
             {
-                var response = await table.GetEntityIfExistsAsync<AzureTableEnvelope>(partitionKey, rowKey, cancellationToken: ct);
-                return response.HasValue ? UnwrapEnvelope(response.Value) : null;
+                var partitionKey = await ResolvePartitionKeyForIdAsync(table, tenantId, id, rowKey, ct);
+                if (string.IsNullOrWhiteSpace(partitionKey))
+                    continue;
+
+                if (UseEnvelopeModel)
+                {
+                    var response = await table.GetEntityIfExistsAsync<TableEntity>(partitionKey, rowKey, cancellationToken: ct);
+                    if (response.HasValue)
+                        return NormalizeEntityIdentity(UnwrapEnvelope(response.Value), partitionKey, rowKey);
+                }
+                else
+                {
+                    var colResponse = await table.GetEntityIfExistsAsync<TableEntity>(partitionKey, rowKey, cancellationToken: ct);
+                    if (colResponse.HasValue)
+                        return NormalizeEntityIdentity(UnwrapColumns(colResponse.Value), partitionKey, rowKey);
+                }
             }
 
-            var colResponse = await table.GetEntityIfExistsAsync<TableEntity>(partitionKey, rowKey, cancellationToken: ct);
-            return colResponse.HasValue ? UnwrapColumns(colResponse.Value) : null;
+            return null;
         });
 
     public async Task<IReadOnlyList<T>> GetByIdsAsync(Guid? tenantId, IReadOnlyList<Guid> ids, CancellationToken ct = default)
@@ -218,10 +463,10 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
 
                 if (UseEnvelopeModel)
                 {
-                    var filter = TableClient.CreateQueryFilter<AzureTableEnvelope>(x => x.PartitionKey == partitionKey);
-                    await foreach (var entity in table.QueryAsync<AzureTableEnvelope>(filter: filter, cancellationToken: ct))
+                    var filter = TableClient.CreateQueryFilter<TableEntity>(x => x.PartitionKey == partitionKey);
+                    await foreach (var entity in table.QueryAsync<TableEntity>(filter: filter, cancellationToken: ct))
                     {
-                        var model = UnwrapEnvelope(entity);
+                        var model = NormalizeEntityIdentity(UnwrapEnvelope(entity), entity.PartitionKey, entity.RowKey);
                         if (model != null) list.Add(model);
                     }
                     return;
@@ -230,7 +475,7 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
                 var colFilter = TableClient.CreateQueryFilter<TableEntity>(x => x.PartitionKey == partitionKey);
                 await foreach (var entity in table.QueryAsync<TableEntity>(filter: colFilter, cancellationToken: ct))
                 {
-                    var model = UnwrapColumns(entity);
+                    var model = NormalizeEntityIdentity(UnwrapColumns(entity), entity.PartitionKey, entity.RowKey);
                     if (model != null) list.Add(model);
                 }
             }
@@ -239,9 +484,9 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             {
                 if (UseEnvelopeModel)
                 {
-                    await foreach (var entity in table.QueryAsync<AzureTableEnvelope>(cancellationToken: ct))
+                    await foreach (var entity in table.QueryAsync<TableEntity>(cancellationToken: ct))
                     {
-                        var model = UnwrapEnvelope(entity);
+                        var model = NormalizeEntityIdentity(UnwrapEnvelope(entity), entity.PartitionKey, entity.RowKey);
                         if (model != null) list.Add(model);
                     }
                 }
@@ -249,7 +494,7 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
                 {
                     await foreach (var entity in table.QueryAsync<TableEntity>(cancellationToken: ct))
                     {
-                        var model = UnwrapColumns(entity);
+                        var model = NormalizeEntityIdentity(UnwrapColumns(entity), entity.PartitionKey, entity.RowKey);
                         if (model != null) list.Add(model);
                     }
                 }
@@ -269,15 +514,22 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             ArgumentNullException.ThrowIfNull(entity);
 
             var table = await GetTableAsync(ct);
-            var partitionKey = _partitionKeyStrategy.GetPartitionKeyForWrite(tenantId, entity);
+            var key = ResolveWriteKey(tenantId, entity);
 
             if (UseEnvelopeModel)
             {
-                await table.AddEntityAsync(WrapEnvelope(entity, partitionKey), ct);
+                var envelope = WrapEnvelope(entity, key.PartitionKey, key.RowKey);
+                await table.AddEntityAsync(envelope, ct);
+                if (_mapping?.EnableIdLocator == true)
+                    await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, ToLocatorId(entity.Id), key.PartitionKey, key.RowKey, ct);
                 return entity;
             }
 
-            await table.AddEntityAsync(WrapColumns(entity, partitionKey), ct);
+            var columns = WrapColumns(entity, key.PartitionKey);
+            columns.RowKey = key.RowKey;
+            await table.AddEntityAsync(columns, ct);
+            if (_mapping?.EnableIdLocator == true)
+                await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, ToLocatorId(entity.Id), key.PartitionKey, key.RowKey, ct);
             return entity;
         });
 
@@ -292,20 +544,25 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             ArgumentNullException.ThrowIfNull(entity);
 
             var table = await GetTableAsync(ct);
-            var partitionKey = _partitionKeyStrategy.GetPartitionKeyForWrite(tenantId, entity);
+            var key = ResolveWriteKey(tenantId, entity);
             var effectiveEtag = eTag ?? ETag.All;
 
             if (UseEnvelopeModel)
             {
-                var envelope = WrapEnvelope(entity, partitionKey);
+                var envelope = WrapEnvelope(entity, key.PartitionKey, key.RowKey);
                 envelope.ETag = effectiveEtag;
                 await table.UpdateEntityAsync(envelope, envelope.ETag, mode, ct);
+                if (_mapping?.EnableIdLocator == true)
+                    await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, ToLocatorId(entity.Id), key.PartitionKey, key.RowKey, ct);
                 return entity;
             }
 
-            var columns = WrapColumns(entity, partitionKey);
+            var columns = WrapColumns(entity, key.PartitionKey);
+            columns.RowKey = key.RowKey;
             columns.ETag = effectiveEtag;
             await table.UpdateEntityAsync(columns, columns.ETag, mode, ct);
+            if (_mapping?.EnableIdLocator == true)
+                await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, ToLocatorId(entity.Id), key.PartitionKey, key.RowKey, ct);
             return entity;
         });
 
@@ -315,15 +572,22 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             ArgumentNullException.ThrowIfNull(entity);
 
             var table = await GetTableAsync(ct);
-            var partitionKey = _partitionKeyStrategy.GetPartitionKeyForWrite(tenantId, entity);
+            var key = ResolveWriteKey(tenantId, entity);
 
             if (UseEnvelopeModel)
             {
-                await table.UpsertEntityAsync(WrapEnvelope(entity, partitionKey), TableUpdateMode.Replace, ct);
+                var envelope = WrapEnvelope(entity, key.PartitionKey, key.RowKey);
+                await table.UpsertEntityAsync(envelope, TableUpdateMode.Replace, ct);
+                if (_mapping?.EnableIdLocator == true)
+                    await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, ToLocatorId(entity.Id), key.PartitionKey, key.RowKey, ct);
                 return entity;
             }
 
-            await table.UpsertEntityAsync(WrapColumns(entity, partitionKey), TableUpdateMode.Replace, ct);
+            var columns = WrapColumns(entity, key.PartitionKey);
+            columns.RowKey = key.RowKey;
+            await table.UpsertEntityAsync(columns, TableUpdateMode.Replace, ct);
+            if (_mapping?.EnableIdLocator == true)
+                await _locator.UpsertAsync(ScopeFromTenant(tenantId), EntityTypeName, ToLocatorId(entity.Id), key.PartitionKey, key.RowKey, ct);
             return entity;
         });
 
@@ -334,15 +598,24 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             var list = entities?.Where(x => x != null).ToList() ?? new();
             if (list.Count == 0) return (IReadOnlyList<T>)Array.Empty<T>();
 
-            var groups = list.GroupBy(e => _partitionKeyStrategy.GetPartitionKeyForWrite(tenantId, e));
+            var groups = list.GroupBy(e => ResolveWriteKey(tenantId, e).PartitionKey);
             foreach (var group in groups)
             {
                 var batch = new List<TableTransactionAction>(100);
                 foreach (var entity in group)
                 {
-                    ITableEntity payload = UseEnvelopeModel
-                        ? WrapEnvelope(entity, group.Key)
-                        : WrapColumns(entity, group.Key);
+                    var key = ResolveWriteKey(tenantId, entity);
+                    ITableEntity payload;
+                    if (UseEnvelopeModel)
+                    {
+                        payload = WrapEnvelope(entity, key.PartitionKey, key.RowKey);
+                    }
+                    else
+                    {
+                        var columns = WrapColumns(entity, key.PartitionKey);
+                        columns.RowKey = key.RowKey;
+                        payload = columns;
+                    }
 
                     batch.Add(new TableTransactionAction(TableTransactionActionType.UpsertReplace, payload));
 
@@ -357,6 +630,21 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
                     await table.SubmitTransactionAsync(batch, ct);
             }
 
+            if (_mapping?.EnableIdLocator == true)
+            {
+                foreach (var entity in list)
+                {
+                    var key = ResolveWriteKey(tenantId, entity);
+                    await _locator.UpsertAsync(
+                        ScopeFromTenant(tenantId),
+                        EntityTypeName,
+                        ToLocatorId(entity.Id),
+                        key.PartitionKey,
+                        key.RowKey,
+                        ct);
+                }
+            }
+
             return (IReadOnlyList<T>)list;
         });
 
@@ -366,13 +654,23 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             if (id == Guid.Empty) return;
 
             var table = await GetTableAsync(ct);
-            var rowKey = ToRowKey(id);
-            var partitionKey = await ResolvePartitionKeyForIdAsync(table, tenantId, id, rowKey, ct);
-            if (string.IsNullOrWhiteSpace(partitionKey))
-                return;
+            foreach (var rowKey in GetLookupKeyCandidates(id))
+            {
+                var partitionKey = await ResolvePartitionKeyForIdAsync(table, tenantId, id, rowKey, ct);
+                if (string.IsNullOrWhiteSpace(partitionKey))
+                    continue;
 
-            try { await table.DeleteEntityAsync(partitionKey, rowKey, ETag.All, ct); }
-            catch (RequestFailedException ex) when (ex.Status == 404) { }
+                try { await table.DeleteEntityAsync(partitionKey, rowKey, ETag.All, ct); }
+                catch (RequestFailedException ex) when (ex.Status == 404) { }
+
+                break;
+            }
+
+            if (_mapping?.EnableIdLocator == true)
+            {
+                foreach (var locatorId in GetLookupKeyCandidates(id))
+                    await _locator.DeleteAsync(ScopeFromTenant(tenantId), EntityTypeName, locatorId, ct);
+            }
         });
 
     public Task HardDeleteAllAsync(Guid? tenantId, IReadOnlyList<Guid> ids, CancellationToken ct = default)
@@ -386,7 +684,7 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
                 .Select(id => new
                 {
                     Id = id,
-                    Candidates = _partitionKeyStrategy.GetCandidatePartitionsForId(tenantId, id)
+                    Candidates = ResolveCandidatePartitionsForId(tenantId, id)
                 })
                 .Where(x => x.Candidates is { Count: > 0 })
                 .SelectMany(x => x.Candidates!
@@ -399,14 +697,17 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
                 var batch = new List<TableTransactionAction>(100);
                 foreach (var id in group.Distinct())
                 {
-                    batch.Add(new TableTransactionAction(
-                        TableTransactionActionType.Delete,
-                        new TableEntity(group.Key, ToRowKey(id)) { ETag = ETag.All }));
-
-                    if (batch.Count == 100)
+                    foreach (var rowKey in GetLookupKeyCandidates(id))
                     {
-                        await SubmitDeleteBatchSafely(table, batch, group.Key, ct);
-                        batch.Clear();
+                        batch.Add(new TableTransactionAction(
+                            TableTransactionActionType.Delete,
+                            new TableEntity(group.Key, rowKey) { ETag = ETag.All }));
+
+                        if (batch.Count == 100)
+                        {
+                            await SubmitDeleteBatchSafely(table, batch, group.Key, ct);
+                            batch.Clear();
+                        }
                     }
                 }
 
@@ -416,12 +717,21 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
 
             var unknownIds = idList.Where(id =>
             {
-                var candidates = _partitionKeyStrategy.GetCandidatePartitionsForId(tenantId, id);
+                var candidates = ResolveCandidatePartitionsForId(tenantId, id);
                 return candidates is null || candidates.Count == 0;
             });
 
             foreach (var id in unknownIds)
                 await HardDeleteAsync(tenantId, id, ct);
+
+            if (_mapping?.EnableIdLocator == true)
+            {
+                foreach (var id in idList)
+                {
+                    foreach (var locatorId in GetLookupKeyCandidates(id))
+                        await _locator.DeleteAsync(ScopeFromTenant(tenantId), EntityTypeName, locatorId, ct);
+                }
+            }
         });
 
     public Task<(IEnumerable<T> Results, string? ContinuationToken)> GetByPartitionPagedAsync(
@@ -440,11 +750,12 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
             var table = await GetTableAsync(ct);
             var results = new List<T>();
             string? nextToken = null;
+            var softDeleteProp = EffectiveSoftDeleteProperty(softDeleteProperty);
 
             if (UseEnvelopeModel)
             {
-                var filter = TableClient.CreateQueryFilter<AzureTableEnvelope>(x => x.PartitionKey == partitionKey);
-                var pages = table.QueryAsync<AzureTableEnvelope>(filter: filter, maxPerPage: pageSize, cancellationToken: ct)
+                var filter = TableClient.CreateQueryFilter<TableEntity>(x => x.PartitionKey == partitionKey);
+                var pages = table.QueryAsync<TableEntity>(filter: filter, maxPerPage: pageSize, cancellationToken: ct)
                     .AsPages(continuationToken, pageSize);
                 await using var enumerator = pages.GetAsyncEnumerator(ct);
                 if (!await enumerator.MoveNextAsync())
@@ -454,8 +765,8 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
                 nextToken = page.ContinuationToken;
                 foreach (var env in page.Values)
                 {
-                    var entity = UnwrapEnvelope(env);
-                    if (entity is not null && !IsSoftDeleted(entity, softDeleteProperty))
+                    var entity = NormalizeEntityIdentity(UnwrapEnvelope(env), env.PartitionKey, env.RowKey);
+                    if (entity is not null && !IsSoftDeleted(entity, softDeleteProp))
                         results.Add(entity);
                 }
 
@@ -474,8 +785,8 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
                 nextToken = page.ContinuationToken;
                 foreach (var row in page.Values)
                 {
-                    var entity = UnwrapColumns(row);
-                    if (entity is not null && !IsSoftDeleted(entity, softDeleteProperty))
+                    var entity = NormalizeEntityIdentity(UnwrapColumns(row), row.PartitionKey, row.RowKey);
+                    if (entity is not null && !IsSoftDeleted(entity, softDeleteProp))
                         results.Add(entity);
                 }
             }
@@ -490,13 +801,14 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
     {
         var table = await GetTableAsync(ct);
         var compiled = predicate?.Compile();
+        var softDeleteProp = EffectiveSoftDeleteProperty(softDeleteProperty);
 
         if (UseEnvelopeModel)
         {
-            await foreach (var env in table.QueryAsync<AzureTableEnvelope>(cancellationToken: ct))
+            await foreach (var env in table.QueryAsync<TableEntity>(cancellationToken: ct))
             {
-                var entity = UnwrapEnvelope(env);
-                if (entity is null || IsSoftDeleted(entity, softDeleteProperty))
+                var entity = NormalizeEntityIdentity(UnwrapEnvelope(env), env.PartitionKey, env.RowKey);
+                if (entity is null || IsSoftDeleted(entity, softDeleteProp))
                     continue;
 
                 if (compiled is null || compiled(entity))
@@ -508,8 +820,8 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
 
         await foreach (var row in table.QueryAsync<TableEntity>(cancellationToken: ct))
         {
-            var entity = UnwrapColumns(row);
-            if (entity is null || IsSoftDeleted(entity, softDeleteProperty))
+            var entity = NormalizeEntityIdentity(UnwrapColumns(row), row.PartitionKey, row.RowKey);
+            if (entity is null || IsSoftDeleted(entity, softDeleteProp))
                 continue;
 
             if (compiled is null || compiled(entity))
@@ -524,14 +836,30 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
         string rowKey,
         CancellationToken ct)
     {
-        var candidates = _partitionKeyStrategy.GetCandidatePartitionsForId(tenantId, id);
+        if (_mapping?.EnableIdLocator == true)
+        {
+            foreach (var locatorId in GetLookupKeyCandidates(id))
+            {
+                var located = await _locator.FindAsync(ScopeFromTenant(tenantId), EntityTypeName, locatorId, ct);
+                if (!located.HasValue)
+                    continue;
+
+                if (!string.Equals(located.Value.RowKey, rowKey, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                return located.Value.PartitionKey;
+            }
+        }
+
+        var candidates = ResolveCandidatePartitionsForId(tenantId, id);
+
         if (candidates is { Count: > 0 })
         {
             foreach (var partition in candidates.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct())
             {
                 if (UseEnvelopeModel)
                 {
-                    var check = await table.GetEntityIfExistsAsync<AzureTableEnvelope>(partition, rowKey, cancellationToken: ct);
+                    var check = await table.GetEntityIfExistsAsync<TableEntity>(partition, rowKey, cancellationToken: ct);
                     if (check.HasValue)
                         return partition;
                 }
@@ -548,8 +876,8 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
 
         if (UseEnvelopeModel)
         {
-            var envFilter = TableClient.CreateQueryFilter<AzureTableEnvelope>(x => x.RowKey == rowKey);
-            await foreach (var entity in table.QueryAsync<AzureTableEnvelope>(filter: envFilter, maxPerPage: 1, cancellationToken: ct))
+            var envFilter = TableClient.CreateQueryFilter<TableEntity>(x => x.RowKey == rowKey);
+            await foreach (var entity in table.QueryAsync<TableEntity>(filter: envFilter, maxPerPage: 1, cancellationToken: ct))
                 return entity.PartitionKey;
         }
         else
@@ -560,6 +888,124 @@ public sealed class AzureTablesRepositoryStore<T> : IAzureTablesRepositoryStore<
         }
 
         return null;
+    }
+
+    private void ValidateBatch(string partitionKey, IReadOnlyList<BatchAction<T>> actions)
+    {
+        if (string.IsNullOrWhiteSpace(partitionKey))
+            throw new RepositoryValidationException(typeof(T).Name, "SubmitBatchAsync", "PartitionKey is required.");
+        if (actions is null)
+            throw new RepositoryValidationException(typeof(T).Name, "SubmitBatchAsync", "Actions are required.");
+        if (actions.Count > MaxBatchActions)
+            throw new RepositoryValidationException(
+                typeof(T).Name,
+                "SubmitBatchAsync",
+                $"Azure Table transactional batch supports at most {MaxBatchActions} actions. Received {actions.Count}.");
+
+        for (var i = 0; i < actions.Count; i++)
+        {
+            var action = actions[i] ?? throw new RepositoryValidationException(
+                typeof(T).Name, "SubmitBatchAsync", $"Batch action at index {i} is null.");
+
+            if (!string.IsNullOrWhiteSpace(action.PartitionKey) &&
+                !string.Equals(action.PartitionKey, partitionKey, StringComparison.Ordinal))
+            {
+                throw new RepositoryValidationException(
+                    typeof(T).Name,
+                    "SubmitBatchAsync",
+                    $"Batch action index {i} has mismatched partition '{action.PartitionKey}'. Expected '{partitionKey}'.");
+            }
+        }
+    }
+
+    private TableTransactionAction MapBatchAction(string partitionKey, BatchAction<T> action)
+    {
+        switch (action.ActionType)
+        {
+            case BatchActionType.Add:
+            {
+                var entity = action.Entity ?? throw new RepositoryValidationException(
+                    typeof(T).Name, "SubmitBatchAsync", "Add action requires Entity.");
+                var key = ResolveWriteKey(null, entity);
+                if (!string.Equals(key.PartitionKey, partitionKey, StringComparison.Ordinal))
+                    throw new RepositoryValidationException(
+                        typeof(T).Name,
+                        "SubmitBatchAsync",
+                        $"Add action resolved partition '{key.PartitionKey}', expected '{partitionKey}'.");
+
+                return new TableTransactionAction(TableTransactionActionType.Add, BuildPayload(partitionKey, action.RowKey ?? key.RowKey, entity));
+            }
+
+            case BatchActionType.UpsertReplace:
+            {
+                var entity = action.Entity ?? throw new RepositoryValidationException(
+                    typeof(T).Name, "SubmitBatchAsync", "UpsertReplace action requires Entity.");
+                var key = ResolveWriteKey(null, entity);
+                if (!string.Equals(key.PartitionKey, partitionKey, StringComparison.Ordinal))
+                    throw new RepositoryValidationException(
+                        typeof(T).Name,
+                        "SubmitBatchAsync",
+                        $"UpsertReplace action resolved partition '{key.PartitionKey}', expected '{partitionKey}'.");
+
+                return new TableTransactionAction(
+                    TableTransactionActionType.UpsertReplace,
+                    BuildPayload(partitionKey, action.RowKey ?? key.RowKey, entity));
+            }
+
+            case BatchActionType.UpdateReplace:
+            {
+                var entity = action.Entity ?? throw new RepositoryValidationException(
+                    typeof(T).Name, "SubmitBatchAsync", "UpdateReplace action requires Entity.");
+                var key = ResolveWriteKey(null, entity);
+                if (!string.Equals(key.PartitionKey, partitionKey, StringComparison.Ordinal))
+                    throw new RepositoryValidationException(
+                        typeof(T).Name,
+                        "SubmitBatchAsync",
+                        $"UpdateReplace action resolved partition '{key.PartitionKey}', expected '{partitionKey}'.");
+
+                var payload = BuildPayload(partitionKey, action.RowKey ?? key.RowKey, entity);
+                payload.ETag = ETag.All;
+                return new TableTransactionAction(TableTransactionActionType.UpdateReplace, payload, ETag.All);
+            }
+
+            case BatchActionType.Delete:
+            {
+                var rowKey = action.RowKey;
+                if (string.IsNullOrWhiteSpace(rowKey))
+                {
+                    var entity = action.Entity ?? throw new RepositoryValidationException(
+                        typeof(T).Name, "SubmitBatchAsync", "Delete action requires RowKey or Entity.");
+                    var key = ResolveWriteKey(null, entity);
+                    if (!string.Equals(key.PartitionKey, partitionKey, StringComparison.Ordinal))
+                        throw new RepositoryValidationException(
+                            typeof(T).Name,
+                            "SubmitBatchAsync",
+                            $"Delete action resolved partition '{key.PartitionKey}', expected '{partitionKey}'.");
+                    rowKey = key.RowKey;
+                }
+
+                return new TableTransactionAction(
+                    TableTransactionActionType.Delete,
+                    new TableEntity(partitionKey, rowKey) { ETag = ETag.All },
+                    ETag.All);
+            }
+
+            default:
+                throw new RepositoryValidationException(
+                    typeof(T).Name,
+                    "SubmitBatchAsync",
+                    $"Unsupported batch action type '{action.ActionType}'.");
+        }
+    }
+
+    private ITableEntity BuildPayload(string partitionKey, string rowKey, T entity)
+    {
+        if (UseEnvelopeModel)
+            return WrapEnvelope(entity, partitionKey, rowKey);
+
+        var columns = WrapColumns(entity, partitionKey);
+        columns.RowKey = rowKey;
+        return columns;
     }
 
     private static bool IsSoftDeleted(T entity, string softDeleteProperty)

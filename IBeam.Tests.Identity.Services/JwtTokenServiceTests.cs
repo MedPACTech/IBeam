@@ -41,6 +41,42 @@ public sealed class JwtTokenServiceTests
     }
 
     [TestMethod]
+    public async Task CreateAccessTokenAsync_NormalizesReservedClaimsWithoutRemovingMultiValueRoles()
+    {
+        var userId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+
+        var sessions = new Mock<IAuthSessionStore>(MockBehavior.Strict);
+        sessions.Setup(x => x.SaveAsync(It.IsAny<AuthSessionRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var sut = CreateSut(sessions.Object);
+        var claims = new List<ClaimItem>
+        {
+            new("sub", "stale-sub"),
+            new("uid", "stale-uid"),
+            new("tid", Guid.NewGuid().ToString("D")),
+            new("sid", "stale-session"),
+            new("role", "Owner"),
+            new("role", "Admin"),
+            new("email", "abram.cookson@outlook.com")
+        };
+
+        var token = await sut.CreateAccessTokenAsync(userId, tenantId, claims);
+
+        Assert.AreEqual(1, token.Claims.Count(c => string.Equals(c.Type, "sub", StringComparison.OrdinalIgnoreCase)));
+        Assert.AreEqual(1, token.Claims.Count(c => string.Equals(c.Type, "uid", StringComparison.OrdinalIgnoreCase)));
+        Assert.AreEqual(1, token.Claims.Count(c => string.Equals(c.Type, "tid", StringComparison.OrdinalIgnoreCase)));
+        Assert.AreEqual(1, token.Claims.Count(c => string.Equals(c.Type, "sid", StringComparison.OrdinalIgnoreCase)));
+        Assert.AreEqual(2, token.Claims.Count(c => string.Equals(c.Type, "role", StringComparison.OrdinalIgnoreCase)));
+
+        Assert.AreEqual(userId.ToString("D"), token.Claims.Single(c => c.Type == "sub").Value);
+        Assert.AreEqual(userId.ToString("D"), token.Claims.Single(c => c.Type == "uid").Value);
+        Assert.AreEqual(tenantId.ToString("D"), token.Claims.Single(c => c.Type == "tid").Value);
+        Assert.AreEqual(token.SessionId, token.Claims.Single(c => c.Type == "sid").Value);
+    }
+
+    [TestMethod]
     public async Task RefreshAccessTokenAsync_RotatesRefreshTokenAndPreservesSessionId()
     {
         var userId = Guid.NewGuid();

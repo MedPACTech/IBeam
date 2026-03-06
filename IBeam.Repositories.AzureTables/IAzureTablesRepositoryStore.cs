@@ -5,10 +5,15 @@ using System.Linq.Expressions;
 
 namespace IBeam.Repositories.AzureTables;
 
-public interface IAzureTablesRepositoryStore<T> : IRepositoryStore<T>
+public interface IAzureTablesRepositoryStore<T> : IRepositoryStore<T>, IAzureTablesBatchStore<T>
     where T : class, IEntity
 {
+    Task<T?> GetByKeysAsync(string partitionKey, string rowKey, CancellationToken ct = default);
+
+    Task DeleteByKeysAsync(string partitionKey, string rowKey, CancellationToken ct = default);
+
     Task<T> AddAsync(Guid? tenantId, T entity, CancellationToken ct = default);
+
     Task<T> UpdateAsync(
         Guid? tenantId,
         T entity,

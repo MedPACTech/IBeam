@@ -4,11 +4,11 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace IBeam.Repositories.AzureTables;
 
-public sealed class AzureTablesRepositoryAsync<T> : BaseRepositoryAsync<T>
+public sealed class AzureTablesRepositoryAsync<T> : AzureTablesRepositoryBase<T>
     where T : class, IEntity
 {
     public AzureTablesRepositoryAsync(
-        IRepositoryStore<T> store,
+        IAzureTablesRepositoryStore<T> store,
         IMemoryCache cache,
         ITenantContext tenantContext,
         RepositoryOptions options)
