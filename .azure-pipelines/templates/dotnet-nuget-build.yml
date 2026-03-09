@@ -46,6 +46,16 @@ steps:
     echo "##vso[task.setvariable variable=PackageVersion]$PACKAGE_VERSION"
   displayName: 'Set package version for branch'
 
+- script: |
+    set -e
+    EFFECTIVE_VERSION='$(PackageVersion)'
+    if [[ "$EFFECTIVE_VERSION" == *'$('* ]]; then
+      echo "PackageVersion did not resolve: $EFFECTIVE_VERSION"
+      exit 1
+    fi
+    echo "Resolved PackageVersion=$EFFECTIVE_VERSION"
+  displayName: 'Validate resolved package version'
+
 # Build
 - task: DotNetCoreCLI@2
   displayName: 'Build Project'
@@ -68,6 +78,7 @@ steps:
     arguments: >
       --configuration ${{ parameters.buildConfiguration }}
       --no-build
+      /p:Version=$(PackageVersion)
       /p:PackageVersion=$(PackageVersion)
 
 - script: |
