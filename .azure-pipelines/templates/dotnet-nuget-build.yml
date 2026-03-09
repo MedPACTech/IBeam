@@ -31,6 +31,21 @@ steps:
     ./nbgv cloud
   displayName: 'NBGV: set version variables'
 
+- script: |
+    set -e
+    BASE_VERSION="$(GitBuildVersionSimple)"
+    BASE_VERSION="${BASE_VERSION%-dev}"
+    SOURCE_BRANCH="$(Build.SourceBranch)"
+    PACKAGE_VERSION="$BASE_VERSION"
+
+    if [ "$SOURCE_BRANCH" != "refs/heads/main" ] && [[ ! "$SOURCE_BRANCH" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      PACKAGE_VERSION="${BASE_VERSION}-dev"
+    fi
+
+    echo "Using PackageVersion=$PACKAGE_VERSION for SourceBranch=$SOURCE_BRANCH"
+    echo "##vso[task.setvariable variable=PackageVersion]$PACKAGE_VERSION"
+  displayName: 'Set package version for branch'
+
 # Build
 - task: DotNetCoreCLI@2
   displayName: 'Build Project'
@@ -53,6 +68,7 @@ steps:
     arguments: >
       --configuration ${{ parameters.buildConfiguration }}
       --no-build
+      /p:PackageVersion=$(PackageVersion)
 
 - script: |
     dotnet nuget push "$(Build.ArtifactStagingDirectory)/**/*.nupkg" \
