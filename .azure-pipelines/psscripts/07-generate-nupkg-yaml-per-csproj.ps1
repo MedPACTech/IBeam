@@ -36,7 +36,7 @@ trigger:
   branches:
     include:
     - main
-    - develop
+    - development
     - feature/*
     - bugfix/*
   paths:
