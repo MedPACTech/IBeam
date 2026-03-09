@@ -33,9 +33,9 @@ steps:
 
 - script: |
     set -e
-    BASE_VERSION="$(GitBuildVersionSimple)"
+    BASE_VERSION='$(GitBuildVersionSimple)'
     BASE_VERSION="${BASE_VERSION%-dev}"
-    SOURCE_BRANCH="$(Build.SourceBranch)"
+    SOURCE_BRANCH='$(Build.SourceBranch)'
     PACKAGE_VERSION="$BASE_VERSION"
 
     if [ "$SOURCE_BRANCH" != "refs/heads/main" ] && [[ ! "$SOURCE_BRANCH" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
