@@ -53,3 +53,4 @@ __azurite_db_queue_extent__.json
 __azurite_db_table__.json
 /_tmp_build
 /__blobstorage__
+/.store
