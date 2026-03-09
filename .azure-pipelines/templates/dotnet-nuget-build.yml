@@ -33,8 +33,7 @@ steps:
 
 - script: |
     set -e
-    BASE_VERSION='$(GitBuildVersionSimple)'
-    BASE_VERSION="${BASE_VERSION%-dev}"
+    BASE_VERSION="$(./nbgv get-version -v SimpleVersion)"
     SOURCE_BRANCH='$(Build.SourceBranch)'
     PACKAGE_VERSION="$BASE_VERSION"
 
@@ -62,7 +61,7 @@ steps:
   inputs:
     command: 'build'
     projects: ${{ parameters.project }}
-    arguments: '--configuration ${{ parameters.buildConfiguration }}'
+    arguments: '--configuration ${{ parameters.buildConfiguration }} /p:Version=$(PackageVersion) /p:PackageVersion=$(PackageVersion)'
 
 # Clean artifact folder (prevents stale nupkg issues)
 - script: rm -rf $(Build.ArtifactStagingDirectory)/*
