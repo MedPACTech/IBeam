@@ -1,11 +1,6 @@
 ﻿using IBeam.Repositories.Abstractions;
 using IBeam.Services.Abstractions;
 using IBeam.Repositories.Core;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using ServiceException = IBeam.Services.Abstractions.ServiceException;
 
 namespace IBeam.Services.Core
