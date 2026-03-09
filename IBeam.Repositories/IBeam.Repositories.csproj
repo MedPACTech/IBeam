@@ -6,7 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>IBeam.Repositories</PackageId>
-    <Version>2.0.4</Version>
     <Authors>MedPAC Technologies</Authors>
     <Company>MedPAC Technologies</Company>
     <PackageDescription>
