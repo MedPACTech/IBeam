@@ -283,6 +283,32 @@ public sealed class AzureTablesRepositoryStoreTests
     }
 
     [TestMethod]
+    public async Task QueryAsync_PartitionKeyPredicate_HydratesKeysBeforePredicate()
+    {
+        await EnsureAzuriteAvailableAsync();
+
+        var partition = "tenant-abc";
+        var store = CreateStore<TestPartitionAwareEntity>(
+            AzureTableStorageModel.EntityColumns,
+            AzureTablePartitionKeyStrategies.Global<TestPartitionAwareEntity>(partition));
+
+        await store.AddAsync(null, new TestPartitionAwareEntity
+        {
+            Id = Guid.NewGuid(),
+            IsDeleted = false,
+            Name = "active"
+        });
+
+        var results = new List<TestPartitionAwareEntity>();
+        await foreach (var item in store.QueryAsync(x => x.PartitionKey == partition))
+            results.Add(item);
+
+        Assert.AreEqual(1, results.Count);
+        Assert.AreEqual(partition, results[0].PartitionKey);
+        Assert.AreEqual("active", results[0].Name);
+    }
+
+    [TestMethod]
     public async Task GetByKeysAsync_WithCompositeMapping_RoundTripsAndDeletes()
     {
         await EnsureAzuriteAvailableAsync();
@@ -740,6 +766,15 @@ public sealed class AzureTablesRepositoryStoreTests
         public TestState State { get; set; }
         public int? OptionalNumber { get; set; }
         public string Note { get; set; } = string.Empty;
+    }
+
+    private sealed class TestPartitionAwareEntity : IEntity
+    {
+        public Guid Id { get; set; }
+        public bool IsDeleted { get; set; }
+        public string PartitionKey { get; set; } = string.Empty;
+        public string RowKey { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
     }
 
     private sealed class TestCompositeEntity : IEntity, ITenantEntity
