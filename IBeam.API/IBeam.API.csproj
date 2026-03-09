@@ -3,7 +3,6 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <PackageId>IBeam.Api</PackageId>
-    <Version>1.0.0</Version>
     <Authors>MedPAC Technologies</Authors>
     <Company>MedPAC Technologies</Company>
     <PackageDescription>Lightweight API helper library with base controllers, error handling, and DI/config wiring.</PackageDescription>
