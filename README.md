@@ -1,35 +1,50 @@
-# IBeam
+﻿# IBeam
 
-## Identity Project Map
+IBeam is a modular .NET framework for building identity, communications, repository, and service-layer capabilities as composable packages.
 
-### Active projects
+## Open Source Readiness Goals
 
-- `IBeam.Identity`
-  - Contracts, models, options, and exceptions for identity/auth flows.
-  - README: `IBeam.Identity/README.md`
+This repository is being prepared for open source distribution. Each package README now focuses on:
+- what the package is responsible for
+- the main features and components it exposes
+- dependency expectations (IBeam packages + external packages)
+- minimum startup wiring and configuration paths
 
-- `IBeam.Identity.Services`
-  - Core auth orchestration (OTP, password, OAuth), token/refresh/session logic.
-  - README: `IBeam.Identity.Services/README.md`
+## Package Map
 
-- `IBeam.Identity.Repositories.AzureTable`
-  - Azure Table persistence for identity users, OTP, tenants, external logins, sessions.
-  - README: `IBeam.Identity.Repositories.AzureTable/README.md`
+### API
+- `IBeam.Api`: reusable API composition helpers (response envelopes, exception middleware, DI/config builder)
+- `IBeam.Identity.Api`: identity endpoint module that composes identity services + providers
 
-- `IBeam.Identity.Repositories.EntityFramework`
-  - Entity Framework repository/wiring for identity persistence.
-  - README: `IBeam.Identity.Repositories.EntityFramework/README.md`
+### Communications
+- `IBeam.Communications`: provider-agnostic email/SMS contracts, options, validation, templating orchestration
+- `IBeam.Communications.Email.Templating`: file-based email template renderer and templated send orchestration
+- `IBeam.Communications.Email.AzureCommunications`: Azure Communication Services email provider
+- `IBeam.Communications.Email.SendGrid`: SendGrid email provider
+- `IBeam.Communications.Email.Smtp`: SMTP email provider
+- `IBeam.Communications.Email.PickupDirectory`: local filesystem email pickup provider
+- `IBeam.Communications.Sms.AzureCommunications`: Azure Communication Services SMS provider
+- `IBeam.Communications.Sms.Twilio`: reserved package for Twilio SMS provider (currently scaffold state)
 
-- `IBeam.Identity.Api`
-  - HTTP API host exposing auth endpoints and feature-gated flows.
-  - README: `IBeam.Identity.Api/README.md`
+### Identity
+- `IBeam.Identity`: identity contracts, models, options, events, and schema abstractions
+- `IBeam.Identity.Services`: identity orchestration (OTP, password, OAuth, tokens, tenant selection)
+- `IBeam.Identity.Repositories.AzureTable`: Azure Table-backed identity stores and schema bootstrap
+- `IBeam.Identity.Repositories.EntityFramework`: EF-backed identity store wiring (Sqlite currently active)
 
-### Placeholder/inactive folders
+### Data and Services
+- `IBeam.Repositories`: repository abstractions and base implementations
+- `IBeam.Repositories.AzureTables`: Azure Table repository implementation
+- `IBeam.Repositories.OrmLite`: ServiceStack OrmLite repository implementation
+- `IBeam.Services`: service abstractions + base service implementations and operation policy resolver
+- `IBeam.Services.AutoMapper`: `IModelMapper<TEntity,TModel>` bridge powered by AutoMapper
 
-- `IBeam.Identity.Storage.AzureTable`
-  - No active source currently (folder contains artifacts only).
-  - README: `IBeam.Identity.Storage.AzureTable/README.md`
+### Utilities
+- `IBeam.Utilities`: shared utility primitives (auditing, exception middleware, cache and token helpers)
 
-- `IBeam.Identity.Storage.EntityFramework`
-  - No active source currently (folder contains artifacts only).
-  - README: `IBeam.Identity.Storage.EntityFramework/README.md`
+## Build
+
+```bash
+dotnet restore
+dotnet build IBeam.sln
+```

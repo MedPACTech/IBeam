@@ -1,64 +1,38 @@
-# IBeam.Identity.Repositories.AzureTable
+﻿# IBeam.Identity.Repositories.AzureTable
 
-Azure Table Storage implementation for IBeam Identity store contracts.
+Azure Table Storage provider for IBeam identity store contracts.
 
-## Startup Registration
+## Narrative Introduction
 
-```csharp
-builder.Services.AddIBeamIdentityAzureTable(builder.Configuration);
-```
+This package connects identity orchestration to Azure Table persistence. It wires ASP.NET Core Identity + ElCamino Azure Table stores, registers IBeam store abstractions, and includes schema initialization so hosts can start with minimal persistence setup.
 
-This binds options, validates configuration, registers stores, and enables schema/table initialization.
+## Features and Components
+
+- DI extension:
+  - `AddIBeamIdentityAzureTable(IConfiguration)`
+- Azure Table option binding and validation (`AzureTableIdentityOptions`)
+- Identity store registrations for:
+  - users
+  - tenants and memberships
+  - OTP challenges
+  - external logins
+  - auth sessions
+- schema management services:
+  - `IIdentitySchemaManager`
+  - hosted schema bootstrap
+
+## Dependencies
+
+- Internal packages:
+  - `IBeam.Identity.Services`
+- External packages:
+  - `ElCamino.AspNetCore.Identity.AzureTable`
+  - `System.IdentityModel.Tokens.Jwt`
+  - `Microsoft.AspNetCore.App` framework reference
 
 ## Configuration
 
-Section: `IBeam:Identity:AzureTable`
+Primary section:
+- `IBeam:Identity:AzureTable`
 
-```json
-{
-  "IBeam": {
-    "Identity": {
-      "AzureTable": {
-        "StorageConnectionString": "UseDevelopmentStorage=true",
-        "TablePrefix": "",
-        "IndexTableName": "AspNetIndex",
-        "UserTableName": "AspNetUsers",
-        "RoleTableName": "AspNetRoles",
-        "TenantsTableName": "Tenants",
-        "TenantUsersTableName": "TenantUsers",
-        "UserTenantsTableName": "UserTenants",
-        "OtpChallengesTableName": "OtpChallenges",
-        "ExternalLoginsTableName": "ExternalLogins",
-        "AuthSessionsTableName": "AuthSessions"
-      }
-    }
-  }
-}
-```
-
-## Connection String Resolution
-
-`AddIBeamIdentityAzureTable(configuration)` resolves storage connection string in this order:
-
-1. `IBeam:Identity:AzureTable:StorageConnectionString`
-2. `IBeam:AzureTables`
-3. `IBeam:ConnectionString`
-4. `ConnectionStrings:AzureTables`
-5. `ConnectionStrings:AzureTable`
-6. `ConnectionStrings:AzureStorage`
-7. `ConnectionStrings:IBeam`
-8. `ConnectionStrings:DefaultConnection`
-9. `ConnectionStrings:IdentityAzureTable`
-
-## Registered Store Contracts
-
-- `IIdentityUserStore`
-- `ITenantMembershipStore`
-- `ITenantProvisioningService`
-- `IOtpChallengeStore`
-- `IExternalLoginStore`
-- `IAuthSessionStore`
-
-## Runtime Behavior
-
-At startup, hosted schema initialization ensures missing tables exist and schema version metadata is maintained in the schema table (`{TablePrefix}Schema`).
+Includes connection-string fallback resolution across `IBeam:*` and `ConnectionStrings:*` keys.
