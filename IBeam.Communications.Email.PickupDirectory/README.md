@@ -1,78 +1,37 @@
-# IBeam Communications – Email Pickup Directory
+﻿# IBeam.Communications.Email.PickupDirectory
 
-This project provides an **email delivery implementation using a Pickup Directory** for the IBeam platform.  
-It is intended for **local development, testing, and non-production environments**, where emails are written to disk instead of being sent externally.
+Filesystem pickup-directory email provider for `IBeam.Communications`.
 
----
+## Narrative Introduction
 
-## ✨ Features
+This package is a non-production transport for local development and testing. Instead of delivering emails over a network provider, it writes `.eml` messages to disk so developers and test suites can inspect exact output safely.
 
-- Email delivery via filesystem pickup directory
-- Ideal for local development and testing
-- No external SMTP or email provider required
-- Integrates with the IBeam communications abstraction
-- Simple configuration via `application.json`
+## Features and Components
 
----
+- `PickupDirectoryEmailService : IEmailService`
+- `PickupDirectoryEmailOptions`
+- DI registration via `AddIBeamPickupDirectoryEmail(IConfiguration)`
+- startup validation for directory path and default sender
 
-## 🧱 Tech Stack
+## Dependencies
 
-- **.NET:** 10.0
-- **Framework:** ASP.NET Core
-- **Email Strategy:** Pickup Directory
-- **Configuration:** JSON (Options Pattern)
+- Internal packages:
+  - `IBeam.Communications`
+- External packages:
+  - `Microsoft.Extensions.Configuration.Abstractions`
+  - `Microsoft.Extensions.Options`
+  - `Microsoft.Extensions.Options.ConfigurationExtensions`
 
----
+## Quick Start
 
-## 📁 Project Structure
+```csharp
+builder.Services.AddIBeamPickupDirectoryEmail(builder.Configuration);
+```
 
-IBeam.Communications.Email.PickupDirectory/
-├── Application/
-│ ├── EmailPickupDirectoryService.cs
-│ └── Interfaces/
-├── Configuration/
-│ └── EmailPickupDirectoryOptions.cs
-├── Extensions/
-│ └── ServiceCollectionExtensions.cs
-├── application.json
-└── README.md
+Configuration section:
+- `IBeam:Communications:Email:PickupDirectory`
 
-
----
-
-## ⚙️ Configuration
-
-All email behavior is configured through `application.json`.
-
-Key settings include:
-- Pickup directory path
-- Default sender email address
-- Default sender display name
-
----
-
-## 🚀 Usage
-
-1. Set the pickup directory path in `application.json`
-2. Ensure the directory exists and is writable
-3. Register the pickup directory provider via DI
-4. Run the application
-5. Emails will be written as `.eml` files to the pickup directory
-
----
-
-## 🧪 Recommended Use Cases
-
-- Local development
-- Automated tests
-- QA and staging environments
-- Debugging email templates and workflows
-
-> ⚠️ This provider is not intended for production use.
-
----
-
-## 🧩 IBeam Ecosystem
-
-This module is one of several interchangeable email providers within the IBeam platform  
-(e.g., Pickup Directory, SMTP, Azure Communications).
+Recommended use:
+- local development
+- integration tests
+- QA verification of template output
