@@ -1,41 +1,35 @@
-# IBeam.Identity
+﻿# IBeam.Identity
 
-`IBeam.Identity` contains contracts and shared models for the Identity platform.
+`IBeam.Identity` is the contract package for the IBeam identity domain.
 
-## What this project does
+## Narrative Introduction
 
-- Defines service interfaces for auth flows:
-  - Password auth (`IIdentityAuthService`)
-  - OTP auth (`IIdentityOtpAuthService`)
-  - OAuth auth (`IIdentityOAuthAuthService`)
-  - Token/session management (`ITokenService`)
-- Defines storage contracts:
-  - User store (`IIdentityUserStore`)
-  - OTP challenge store (`IOtpChallengeStore`)
-  - Tenant membership/provisioning stores
-  - External login store (`IExternalLoginStore`)
-  - Auth session store (`IAuthSessionStore`)
-- Defines shared request/response models and option classes.
-- Defines lifecycle event contracts:
-  - `IAuthLifecycleHook`
-  - `IAuthEventPublisher`
-  - auth lifecycle event records in `IBeam.Identity.Events`
+This package provides the shared language for identity workflows across API, services, and repository implementations. It contains interfaces, request/response models, options, and event contracts so all higher-level packages can evolve independently behind stable abstractions.
 
-This project has no runtime implementation. It is referenced by API, Services, and Repositories.
+## Features and Components
 
-## Key configuration models
+- auth service contracts:
+  - `IIdentityAuthService`
+  - `IIdentityOtpAuthService`
+  - `IIdentityOAuthAuthService`
+  - `ITokenService`
+- store contracts:
+  - `IIdentityUserStore`, `IOtpChallengeStore`, `IExternalLoginStore`
+  - `ITenantMembershipStore`, `ITenantProvisioningService`, `IAuthSessionStore`
+- identity models and transport records
+- options models (`JwtOptions`, `OtpOptions`, `OAuthOptions`, `FeatureOptions`, etc.)
+- lifecycle event contracts and default no-op implementations
 
-These options classes are consumed by implementation projects:
+## Dependencies
 
-- `JwtOptions` (`IBeam:Identity:Jwt`)
-- `OtpOptions` (`IBeam:Identity:Otp`)
-- `OAuthOptions` (`IBeam:Identity:OAuth`)
-- `FeatureOptions` (`IBeam:Identity:Features`)
-- `IdentityOptions` (`IBeam:Identity`) wrapper
+- External packages: none
+- Internal packages: none
 
-## Build
+## Configuration Models Exposed
 
-```bash
-dotnet restore
-dotnet build
-```
+- `IBeam:Identity:Jwt`
+- `IBeam:Identity:Otp`
+- `IBeam:Identity:OAuth`
+- `IBeam:Identity:Features`
+- `IBeam:Identity:Events`
+- `IBeam:Identity:EmailTemplates`

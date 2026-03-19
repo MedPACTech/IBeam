@@ -1,73 +1,25 @@
-# IBeam Communications – SMS (Twilio)
+﻿# IBeam.Communications.Sms.Twilio
 
-The **IBeam.Communications.Sms.Twilio** project provides SMS messaging capabilities for the IBeam platform using **Twilio** as the delivery provider. It is designed to plug into the broader IBeam communications framework and supports environment-based configuration.
+Twilio SMS package placeholder for the IBeam communications stack.
 
----
+## Narrative Introduction
 
-## ✨ Features
+This package name is reserved for Twilio-backed `ISmsService` integration, but the current codebase is still in scaffold state. The project currently contains placeholder implementation only and should not be treated as production-ready yet.
 
-- Twilio-based SMS delivery
-- Clean abstraction for messaging providers
-- Environment-specific configuration support
-- Designed for extensibility within the IBeam ecosystem
+## Current Components
 
----
+- `Class1` placeholder class
+- project references for configuration/options abstractions
 
-## 🧱 Tech Stack
+## Dependencies
 
-- **.NET:** 10.0
-- **Framework:** ASP.NET Core / Class Library
-- **SMS Provider:** Twilio
-- **Configuration:** application.json + environment overrides
-- **Dependency Injection:** Microsoft.Extensions.*
+- External packages:
+  - `Microsoft.Extensions.Configuration.Abstractions`
+  - `Microsoft.Extensions.Options`
+- Internal packages:
+  - none (at current scaffold stage)
 
----
+## Status
 
-## 📁 Project Structure
-
-IBeam.Communications.Sms.Twilio/
-├── Configuration/
-│ └── TwilioOptions.cs
-├── Services/
-│ └── TwilioSmsService.cs
-├── Interfaces/
-│ └── ISmsSender.cs
-├── application.json
-├── IBeam.Communications.Sms.Twilio.csproj
-
-
----
-
-## ⚙️ Configuration
-
-This project uses an `application.json` file to configure Twilio credentials and defaults.
-
-### Required Settings
-
-- **AccountSid** – Twilio account SID
-- **AuthToken** – Twilio auth token
-- **FromPhoneNumber** – Default sender phone number
-
-> ⚠️ Secrets should be stored securely using environment variables, Azure Key Vault, or another secure secret provider in production.
-
----
-
-## 🚀 Usage
-
-1. Register the Twilio SMS service with dependency injection.
-2. Configure Twilio credentials in `application.json` or environment-specific overrides.
-3. Inject `ISmsSender` wherever SMS delivery is required.
-
----
-
-## 🔒 Security Notes
-
-- Never commit real Twilio credentials to source control.
-- Use secret managers for production deployments.
-- Rotate tokens regularly.
-
----
-
-## 🧩 Part of the IBeam Platform
-
-This project is a modular communications component within the broader **IBeam** ecosystem and is intended to be consumed by APIs, background services, and future messaging workflows.
+- Implementation status: not complete
+- Recommended action before publishing: add real `ISmsService` implementation, options model, and DI extension
