@@ -1,47 +1,30 @@
-# IBeam.Communications.Sms.AzureCommunications
+﻿# IBeam.Communications.Sms.AzureCommunications
 
 Azure Communication Services SMS provider for `IBeam.Communications`.
 
-## Startup Registration
+## Narrative Introduction
+
+This package implements `ISmsService` using Azure Communication Services SMS. It keeps SMS delivery behind IBeam abstractions while handling ACS option binding, validation, and connection fallback rules.
+
+## Features and Components
+
+- `AzureCommunicationsSmsService : ISmsService`
+- `AzureCommunicationsSmsOptions`
+- DI registration via `AddIBeamCommunicationsSmsAzure(IConfiguration)`
+- startup validation for required connection string
+
+## Dependencies
+
+- Internal packages:
+  - `IBeam.Communications`
+- External packages:
+  - `Azure.Communication.Sms`
+
+## Quick Start
 
 ```csharp
 builder.Services.AddIBeamCommunicationsSmsAzure(builder.Configuration);
 ```
 
-Registers:
-- `ISmsService` -> `AzureCommunicationsSmsService`
-
-## Configuration
-
-Section: `IBeam:Communications:Sms:Providers:AzureCommunications`
-
-```json
-{
-  "IBeam": {
-    "Communications": {
-      "Sms": {
-        "Providers": {
-          "AzureCommunications": {
-            "ConnectionString": "endpoint=https://...;accesskey=..."
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-## Connection String Resolution
-
-`AddIBeamCommunicationsSmsAzure(configuration)` resolves in this order:
-
-1. `IBeam:Communications:Sms:Providers:AzureCommunications:ConnectionString`
-2. `IBeam:AzureCommunications`
-3. `IBeam:ConnectionString`
-4. `ConnectionStrings:AzureCommunications`
-5. `ConnectionStrings:IBeam`
-6. `ConnectionStrings:DefaultConnection`
-
-## Options
-
-- `ConnectionString`
+Primary configuration section:
+- `IBeam:Communications:Sms:Providers:AzureCommunications`

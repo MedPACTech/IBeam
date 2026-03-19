@@ -1,48 +1,34 @@
-# IBeam.Identity.Repositories.EntityFramework
+﻿# IBeam.Identity.Repositories.EntityFramework
 
-`IBeam.Identity.Repositories.EntityFramework` is the Entity Framework-backed repository package for Identity.
+Entity Framework identity repository provider for IBeam.
 
-## What this project does
+## Narrative Introduction
 
-- Provides EF Core Identity store wiring and EF-based tenant membership store.
-- Registers `IBeamIdentityDbContext` and ASP.NET Identity EF stores.
-- Exposes extension method:
+This package offers EF-based Identity store wiring and tenant membership persistence for teams that prefer relational storage. It centralizes provider selection and DbContext setup behind one registration method so hosts can swap persistence approaches without changing auth orchestration code.
+
+## Features and Components
+
+- DI extension:
   - `AddIBeamIdentityEntityFrameworkStores(IServiceCollection, IConfiguration, string configSectionPath = "IdentityEf")`
+- `IBeamIdentityDbContext` registration
+- ASP.NET Core Identity EF store wiring
+- tenant membership store implementation
 
-## Current status
+## Dependencies
 
-- Implemented and usable with `Sqlite` provider.
-- `SqlServer` and `Postgres` enum values exist, but extension currently throws if selected.
+- Internal packages:
+  - `IBeam.Identity.Services`
+  - `IBeam.Identity`
+- External packages:
+  - `Microsoft.AspNetCore.Identity.EntityFrameworkCore`
+  - `Microsoft.EntityFrameworkCore`
+  - `Microsoft.EntityFrameworkCore.Sqlite`
+  - `Microsoft.EntityFrameworkCore.SqlServer`
+  - `Npgsql.EntityFrameworkCore.PostgreSQL`
+  - `System.IdentityModel.Tokens.Jwt`
+  - `Microsoft.AspNetCore.App` framework reference
 
-## Required configuration
+## Provider Status
 
-Section (default): `IdentityEf`
-
-- `Provider` (`Sqlite`, `SqlServer`, `Postgres`)
-- `ConnectionString`
-- `MigrationsAssembly` (optional)
-
-Example:
-
-```json
-{
-  "IdentityEf": {
-    "Provider": "Sqlite",
-    "ConnectionString": "Data Source=ibeam.identity.db",
-    "MigrationsAssembly": "IBeam.Identity.Repositories.EntityFramework"
-  }
-}
-```
-
-## Usage
-
-```csharp
-builder.Services.AddIBeamIdentityEntityFrameworkStores(builder.Configuration);
-```
-
-## Build
-
-```bash
-dotnet restore
-dotnet build
-```
+- Supported now: `Sqlite`
+- Not yet active in extension wiring: `SqlServer`, `Postgres`
