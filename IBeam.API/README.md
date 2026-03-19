@@ -1,83 +1,35 @@
-# IBeam.Api
+﻿# IBeam.Api
 
-`IBeam.Api` is now a lightweight ASP.NET Core helper class library for API hosts.
+`IBeam.Api` is a lightweight ASP.NET Core helper library for composing consistent API behavior.
 
-It provides:
-- `ApiControllerBase` for consistent response shapes
-- global request/host exception handling
-- configuration + DI composition helpers to keep `Program.cs` small
+## Narrative Introduction
 
-## Included building blocks
+This package is designed for teams that want predictable API response envelopes and centralized exception handling without forcing a full framework. It keeps `Program.cs` focused by providing extension-based wiring for configuration, DI registration groups, and middleware setup.
 
-- `IBeam.Api.Controllers.ApiControllerBase`
-- `IBeam.Api.Middleware.ApiExceptionMiddleware`
-- `IBeam.Api.Infrastructure.GlobalErrorHandler`
-- `IBeam.Api.Infrastructure.*DependencyInjection` helpers
-- `IBeam.Api.Models.ApiResponse<T>`, `ApiPagedResponse<T>`, `ApiError`
+## Features and Components
 
-## Typical usage from a host API
+- `ApiControllerBase` with consistent response helpers
+- global exception handling middleware (`ApiExceptionMiddleware`)
+- background error sink bridge (`GlobalErrorHandler`)
+- API response models (`ApiResponse<T>`, `ApiPagedResponse<T>`, `ApiError`)
+- composition helpers:
+  - `AddIBeamApi(...)`
+  - `UseIBeamApi()`
+
+## Dependencies
+
+- Internal packages:
+  - `IBeam.Utilities`
+- External runtime dependency:
+  - `Microsoft.AspNetCore.App` framework reference
+
+## Quick Start
 
 ```csharp
-using IBeam.Api.Infrastructure;
-
-var builder = WebApplication.CreateBuilder(args);
-
 builder.Services.AddIBeamApi(builder.Configuration, api =>
 {
-    api.ConfigureOptions(cfg =>
-    {
-        cfg.BindOptions<JwtSettings>("JwtSettings");
-        cfg.BindOptions<MyFeatureOptions>("MyFeature");
-    });
-
-    api.AddServices(
-        services => services.AddScoped<IOrderService, OrderService>()
-    );
-
-    api.AddRepositories(
-        (services, config) => services.AddScoped<IOrderRepository, OrderRepository>()
-    );
-
-    api.AddExternalClients(
-        services => services.AddHttpClient<IMyClient, MyClient>()
-    );
+    // optional grouped registrations
 });
 
-var app = builder.Build();
-
-app.UseRouting();
-app.UseAuthentication();
-app.UseAuthorization();
-
 app.UseIBeamApi();
-app.MapControllers();
-
-app.Run();
 ```
-
-## Base controller example
-
-```csharp
-using IBeam.Api.Controllers;
-
-[Route("api/[controller]")]
-public sealed class OrdersController : ApiControllerBase
-{
-    [HttpGet("{id:guid}")]
-    public IActionResult Get(Guid id)
-    {
-        var dto = new { Id = id, Name = "Sample" };
-        return OkResponse(dto);
-    }
-}
-```
-
-## Optional persistent error logging
-
-Implement `IApiErrorSink` in your host API and register it in DI:
-
-```csharp
-services.AddScoped<IApiErrorSink, MyApiErrorSink>();
-```
-
-The middleware and global handler will call it when available.

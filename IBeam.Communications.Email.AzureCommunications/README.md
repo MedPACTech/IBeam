@@ -1,51 +1,34 @@
-# IBeam.Communications.Email.AzureCommunications
+﻿# IBeam.Communications.Email.AzureCommunications
 
-Azure Communication Services Email provider for `IBeam.Communications`.
+Azure Communication Services email provider for `IBeam.Communications`.
 
-## Startup Registration
+## Narrative Introduction
+
+This package is the production-ready ACS email transport for IBeam. It keeps your application on `IEmailService` while handling ACS-specific connection resolution, option validation, and sender defaults behind the provider boundary.
+
+## Features and Components
+
+- `AzureCommunicationsEmailService : IEmailService`
+- `AzureCommunicationsEmailOptions`
+- DI registration via `AddIBeamAzureCommunicationsEmail(IConfiguration)`
+- deterministic connection string resolution with fallback order
+- startup validation for required connection string
+
+## Dependencies
+
+- Internal packages:
+  - `IBeam.Communications`
+- External packages:
+  - `Azure.Communication.Email`
+  - `Microsoft.Extensions.Configuration.Abstractions`
+  - `Microsoft.Extensions.Options`
+  - `Microsoft.Extensions.Options.ConfigurationExtensions`
+
+## Quick Start
 
 ```csharp
 builder.Services.AddIBeamAzureCommunicationsEmail(builder.Configuration);
 ```
 
-Registers:
-- `IEmailService` -> `AzureCommunicationsEmailService`
-
-## Configuration
-
-Section: `IBeam:Communications:Email:Providers:AzureCommunications`
-
-```json
-{
-  "IBeam": {
-    "Communications": {
-      "Email": {
-        "Providers": {
-          "AzureCommunications": {
-            "ConnectionString": "endpoint=https://...;accesskey=...",
-            "DefaultFromAddress": "DoNotReply@yourdomain.com",
-            "DefaultFromDisplayName": "IBeam Notifications"
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-## Connection String Resolution
-
-`AddIBeamAzureCommunicationsEmail(configuration)` resolves in this order:
-
-1. `IBeam:Communications:Email:Providers:AzureCommunications:ConnectionString`
-2. `IBeam:AzureCommunications`
-3. `IBeam:ConnectionString`
-4. `ConnectionStrings:AzureCommunications`
-5. `ConnectionStrings:IBeam`
-6. `ConnectionStrings:DefaultConnection`
-
-## Options
-
-- `ConnectionString`
-- `DefaultFromAddress`
-- `DefaultFromDisplayName`
+Primary configuration section:
+- `IBeam:Communications:Email:Providers:AzureCommunications`

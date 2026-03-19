@@ -1,80 +1,32 @@
-# IBeam API
+﻿# IBeam.Communications.Email.Smtp
 
-IBeam API is the core backend service for the **IBeam** ecosystem, built on **ASP.NET Core (.NET 10)**.  
-It provides foundational identity, authentication, and platform services (including OTP-based authentication) used across IBeam applications.
+SMTP email provider for `IBeam.Communications`.
 
----
+## Narrative Introduction
 
-## ✨ Features
+This package gives IBeam a standards-based SMTP transport. It is useful when your environment already has an SMTP relay or when you need a provider-neutral path that still fits the `IEmailService` abstraction.
 
-- ASP.NET Core Web API
-- Multi-environment configuration (Development, Test, Local, Prod)
-- Identity & authentication services
-- OTP (One-Time Password) challenge and delivery framework
-- Extensible communications infrastructure (Email, SMS, etc.)
-- Designed for extensibility across the IBeam platform
+## Features and Components
 
----
+- `SmtpEmailService : IEmailService`
+- `SmtpEmailOptions`
+- DI registration via `AddIBeamSmtpEmail(IConfiguration)`
+- startup validation for host, port, and default sender
 
-## 🧱 Tech Stack
+## Dependencies
 
-- **.NET:** 10.0
-- **Framework:** ASP.NET Core Web API
-- **Configuration:** appsettings per environment
-- **Dependency Injection:** Microsoft.Extensions.DependencyInjection
-- **Configuration & Options:** Microsoft.Extensions.Configuration / Options Pattern
+- Internal packages:
+  - `IBeam.Communications`
+- External packages:
+  - `Microsoft.Extensions.Configuration.Abstractions`
+  - `Microsoft.Extensions.Options`
+  - `Microsoft.Extensions.Options.ConfigurationExtensions`
 
----
+## Quick Start
 
-## 📁 Project Structure
+```csharp
+builder.Services.AddIBeamSmtpEmail(builder.Configuration);
+```
 
-IBeam.API/
-├── appsettings.json
-├── appsettings.Development.json
-├── appsettings.Test.json
-├── appsettings.Prod.json
-├── Program.cs
-├── Startup.cs
-├── Controllers/
-├── Services/
-├── Models/
-├── Configuration/
-└── Infrastructure/
-
-
----
-
-## ⚙️ Configuration
-
-The application uses layered configuration via `appsettings.json` and environment-specific overrides.
-
-Core configuration sections include:
-
-- **IBeam**
-  - Communications
-    - Email (SMTP / Azure Communication Services)
-  - Authentication
-  - OTP
-
-Example configuration can be found in `appsettings.json`.
-
----
-
-## 🚀 Running the Application
-
-```bash
-dotnet restore
-dotnet build
-dotnet run
-
-🔐 Security Notes
-
-Secrets should never be committed to source control
-
-Use environment variables or secure secret stores (Azure Key Vault, etc.)
-
-OTP and authentication flows are designed to be stateless and auditable
-
-📌 Status
-
-This project is under active development and serves as the foundational API layer for the IBeam platform.
+Configuration section:
+- `IBeam:Communications:Email:Smtp`
