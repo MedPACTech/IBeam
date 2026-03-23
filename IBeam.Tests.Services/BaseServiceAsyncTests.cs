@@ -34,6 +34,12 @@ public sealed class BaseServiceAsyncTests
         var create = new TestModel { Id = Guid.Empty, Name = "create" };
         var updateId = Guid.NewGuid();
         var update = new TestModel { Id = updateId, Name = "update" };
+        repo.Setup(x => x.GetByIdsAsync(
+                It.Is<IReadOnlyList<Guid>>(ids => ids.Count == 1 && ids[0] == updateId),
+                true,
+                true,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TestEntity> { new() { Id = updateId, Name = "existing" } });
 
         repo.Setup(x => x.SaveAllAsync(It.IsAny<IReadOnlyList<TestEntity>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyList<TestEntity> entities, CancellationToken _) =>
@@ -130,12 +136,19 @@ public sealed class BaseServiceAsyncTests
     {
         var repo = new Mock<IBaseRepositoryAsync<TestEntity>>(MockBehavior.Strict);
         var service = new TestAsyncService(repo.Object, new TestMapper());
+        var id = Guid.NewGuid();
 
+        repo.Setup(x => x.GetByIdsAsync(
+                It.Is<IReadOnlyList<Guid>>(ids => ids.Count == 1 && ids[0] == id),
+                true,
+                true,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TestEntity>());
         repo.Setup(x => x.SaveAllAsync(It.IsAny<IReadOnlyList<TestEntity>>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new RepositoryException("TestRepo", "SaveAllAsync", "boom"));
 
         await AssertThrowsAsync<RepositoryException>(() =>
-            service.SaveAllAsync(new[] { new TestModel { Id = Guid.NewGuid(), Name = "x" } }));
+            service.SaveAllAsync(new[] { new TestModel { Id = id, Name = "x" } }));
     }
 
     [TestMethod]
@@ -146,6 +159,27 @@ public sealed class BaseServiceAsyncTests
 
         await service.ArchiveAllAsync(Array.Empty<TestModel>());
         repo.Verify(x => x.ArchiveAllAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task DeleteAsync_LogsTypedDeleteAudit_WhenEntityExists()
+    {
+        var id = Guid.NewGuid();
+        var entity = new TestEntity { Id = id, Name = "to-delete" };
+
+        var repo = new Mock<IBaseRepositoryAsync<TestEntity>>(MockBehavior.Strict);
+        var mapper = new TestMapper();
+        var audit = new Mock<IEntityAuditServiceAsync<TestEntity>>(MockBehavior.Strict);
+        var service = new DeleteEnabledAsyncService(repo.Object, mapper, audit.Object);
+
+        repo.Setup(x => x.GetByIdAsync(id, true, true, It.IsAny<CancellationToken>())).ReturnsAsync(entity);
+        repo.Setup(x => x.DeleteAsync(id, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        audit.Setup(x => x.LogDeleteAsync(It.Is<TestEntity>(e => e.Id == id), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await service.DeleteAsync(id);
+
+        audit.Verify(x => x.LogDeleteAsync(It.IsAny<TestEntity>(), It.IsAny<CancellationToken>()), Times.Once);
     }
     private static async Task<TException> AssertThrowsAsync<TException>(Func<Task> action)
         where TException : Exception
@@ -170,6 +204,19 @@ public sealed class BaseServiceAsyncTests
         {
         }
     }
+
+    private sealed class DeleteEnabledAsyncService : BaseServiceAsync<TestEntity, TestModel>
+    {
+        public DeleteEnabledAsyncService(
+            IBaseRepositoryAsync<TestEntity> repository,
+            IModelMapper<TestEntity, TestModel> mapper,
+            IAuditServiceAsync audit)
+            : base(repository, mapper, audit)
+        {
+            AllowDelete = true;
+        }
+    }
+
     private sealed class TestAsyncService : BaseServiceAsync<TestEntity, TestModel>
     {
         public int PreSaveCreateCalls { get; private set; }
