@@ -1,14 +1,53 @@
-﻿# IBeam
+# IBeam
 
-IBeam is a modular .NET framework for building identity, communications, repository, and service-layer capabilities as composable packages.
+IBeam is a modular .NET framework for teams that want to move from idea to working API quickly, without giving up architecture quality.
 
-## Open Source Readiness Goals
+The framework provides a strong base API and reusable application patterns so developers can stand up production-ready services with minimal implementation code. From there, teams can compose only the modules they need, extend where they want full control, and avoid rewriting the same plumbing in every new project.
 
-This repository is being prepared for open source distribution. Each package README now focuses on:
-- what the package is responsible for
-- the main features and components it exposes
-- dependency expectations (IBeam packages + external packages)
-- minimum startup wiring and configuration paths
+## Why IBeam Exists
+Most teams repeatedly solve the same cross-cutting concerns before they can deliver product value:
+- service orchestration,
+- data access patterns,
+- identity flows,
+- communication providers,
+- logging and auditing,
+- storage integration,
+- API consistency.
+
+IBeam packages these concerns into composable building blocks.
+
+Developers can use IBeam on its own, alongside existing libraries, or with AI-assisted workflows to rapidly scaffold and evolve APIs. The goal is not to lock teams into one way of building. The goal is to provide a stable foundation and extension points so teams can customize intelligently.
+
+## Design Goals
+- Fast startup: get a base API running with very little custom code.
+- Modular by default: add only the packages you need.
+- Extension-first: override behavior with your own services/providers.
+- Provider flexibility: choose storage, messaging, and identity integrations per project.
+- Production mindset: testing, configuration, and operational patterns are first-class.
+
+## Open-Core and Open Source Commitment
+IBeam uses an open-core model:
+- Core framework: Apache-2.0 open source
+- Enterprise add-ons: commercial terms for premium/enterprise modules
+
+This allows individuals and small teams to build freely while supporting long-term sustainability for enterprise-scale usage.
+
+See:
+- `LICENSE`
+- `LICENSE-COMMERCIAL.md`
+- `docs/licensing.md`
+
+## Forking and Community Contributions
+Forking is welcome for the Apache-2.0 core.
+
+Contributions are encouraged across:
+- bug fixes,
+- new extension packages,
+- documentation quality,
+- integration examples,
+- test coverage.
+
+See `CONTRIBUTING.md` for workflow and standards.
 
 ## Package Map
 
@@ -38,6 +77,13 @@ This repository is being prepared for open source distribution. Each package REA
 - `IBeam.Repositories.OrmLite`: ServiceStack OrmLite repository implementation
 - `IBeam.Services`: service abstractions + base service implementations and operation policy resolver
 - `IBeam.Services.AutoMapper`: `IModelMapper<TEntity,TModel>` bridge powered by AutoMapper
+- `IBeam.Services.Logging`: optional service auditing/logging sinks and actor providers
+
+### Storage
+- `IBeam.Storage.Abstractions`: common blob storage contracts
+- `IBeam.Storage.AzureBlobs`: Azure Blob Storage implementation
+- `IBeam.Storage.FileSystem`: local and mounted filesystem blob implementation
+- `IBeam.Storage.S3`: S3-compatible blob storage implementation
 
 ### Utilities
 - `IBeam.Utilities`: shared utility primitives (auditing, exception middleware, cache and token helpers)
@@ -47,4 +93,8 @@ This repository is being prepared for open source distribution. Each package REA
 ```bash
 dotnet restore
 dotnet build IBeam.sln
+dotnet test IBeam.sln
 ```
+
+## Roadmap Note
+A public landing page is planned. See `docs/landing-page-plan.md`.
