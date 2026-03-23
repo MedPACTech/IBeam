@@ -1,6 +1,10 @@
 ﻿using IBeam.Repositories.Abstractions;
-using IBeam.Services.Abstractions;
 using IBeam.Repositories.Core;
+using IBeam.Services.Abstractions;
+using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using ServiceException = IBeam.Services.Abstractions.ServiceException;
 
 namespace IBeam.Services.Core
@@ -16,6 +20,11 @@ namespace IBeam.Services.Core
 
         protected readonly IAuditService? _audit; // optional
         protected readonly IEntityAuditService<TEntity>? _typedAudit; // optional overlay
+
+        protected readonly IAuditTrailSink _auditTrailSink;
+        protected readonly IAuditActorProvider _auditActorProvider;
+        protected readonly IOptionsMonitor<ServiceAuditOptions>? _auditOptionsMonitor;
+        protected readonly ITenantContext? _tenantContext;
 
         protected virtual bool AllowGetById { get; set; } = true;
         protected virtual bool AllowGetByIds { get; set; } = false;
@@ -33,18 +42,111 @@ namespace IBeam.Services.Core
             IBaseRepository<TEntity> repository,
             IModelMapper<TEntity, TModel> mapper,
             IAuditService? audit = null,
-            IServiceOperationPolicyResolver? policyResolver = null)
+            IServiceOperationPolicyResolver? policyResolver = null,
+            IAuditTrailSink? auditTrailSink = null,
+            IAuditActorProvider? auditActorProvider = null,
+            IOptionsMonitor<ServiceAuditOptions>? auditOptionsMonitor = null,
+            ITenantContext? tenantContext = null)
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _audit = audit;
             _typedAudit = audit as IEntityAuditService<TEntity>;
             _policyResolver = policyResolver;
+            _auditTrailSink = auditTrailSink ?? new NoOpAuditTrailSink();
+            _auditActorProvider = auditActorProvider ?? new NoOpAuditActorProvider();
+            _auditOptionsMonitor = auditOptionsMonitor;
+            _tenantContext = tenantContext;
             _serviceName = GetType().Name;
         }
 
         protected bool IsOperationAllowed(ServiceOperation operation, bool fallback)
             => _policyResolver?.IsAllowed(GetType(), operation, fallback) ?? fallback;
+
+        protected ServiceAuditOptions CurrentAuditOptions
+            => _auditOptionsMonitor?.CurrentValue ?? new ServiceAuditOptions();
+
+        protected Guid? CurrentTenantId() => _tenantContext?.TenantId;
+
+        protected string SerializeEntity(TEntity entity)
+            => JsonSerializer.Serialize(entity);
+
+        protected string BuildQuerySignature(string name, params string[] values)
+        {
+            var raw = string.Join("|", values);
+            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
+            var hash = Convert.ToHexString(bytes);
+            return $"{name}:{hash}";
+        }
+
+        protected void TryWriteTransactionAudit(
+            ServiceAuditOperation operation,
+            Guid? entityId,
+            string? originalJson,
+            string? transformedJson)
+        {
+            var options = CurrentAuditOptions;
+            if (!options.Enabled)
+            {
+                return;
+            }
+
+            var txn = new ServiceAuditTransaction
+            {
+                ServiceName = _serviceName,
+                EntityName = typeof(TEntity).Name,
+                Operation = operation,
+                EntityId = entityId,
+                TenantId = CurrentTenantId(),
+                ActorId = _auditActorProvider.GetActorId(),
+                CorrelationId = null,
+                OriginalJson = originalJson,
+                TransformedJson = transformedJson,
+                OccurredUtc = DateTimeOffset.UtcNow
+            };
+
+            try
+            {
+                _auditTrailSink.WriteTransactionAsync(txn).GetAwaiter().GetResult();
+            }
+            catch when (!options.FailOnAuditError)
+            {
+                // Keep service flow resilient by default.
+            }
+        }
+
+        protected void TryWriteSelectAudit(ServiceAuditOperation operation, string querySignature)
+        {
+            var options = CurrentAuditOptions;
+            if (!options.Enabled || !options.EnableSelectAudits || options.SelectMode == SelectAuditMode.None)
+            {
+                return;
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var rollup = new ServiceSelectAuditRollup
+            {
+                DateUtc = DateOnly.FromDateTime(now.UtcDateTime),
+                ServiceName = _serviceName,
+                EntityName = typeof(TEntity).Name,
+                Operation = operation,
+                TenantId = CurrentTenantId(),
+                ActorId = _auditActorProvider.GetActorId(),
+                QuerySignature = querySignature,
+                FirstSeenUtc = now,
+                LastSeenUtc = now,
+                Count = 1
+            };
+
+            try
+            {
+                _auditTrailSink.UpsertSelectRollupAsync(rollup).GetAwaiter().GetResult();
+            }
+            catch when (!options.FailOnAuditError)
+            {
+                // Keep service flow resilient by default.
+            }
+        }
 
         // ---- Mapping exposure ----
         public TEntity ToEntity(TModel model) => _mapper.ToEntity(model);
@@ -77,9 +179,10 @@ namespace IBeam.Services.Core
 
             try
             {
-                // Assumes IRepository<TEntity>.GetAll() returns non-archived/non-deleted by default.
                 var entities = _repository.GetAll();
-                return PostGetAll(ToModel(entities).ToList());
+                var models = PostGetAll(ToModel(entities).ToList());
+                TryWriteSelectAudit(ServiceAuditOperation.GetAll, BuildQuerySignature("GetAll", "includeArchived=false", "includeDeleted=false"));
+                return models;
             }
             catch (RepositoryException) { throw; }
             catch (RepositoryStoreException) { throw; }
@@ -93,10 +196,10 @@ namespace IBeam.Services.Core
 
             try
             {
-                // Assumes IRepository<TEntity>.GetAll(includeArchived) exists (matches your prior pattern).
-                // If your IRepository uses options instead, we’ll adapt this call.
                 var entities = _repository.GetAll(includeArchived);
-                return PostGetAll(ToModel(entities).ToList());
+                var models = PostGetAll(ToModel(entities).ToList());
+                TryWriteSelectAudit(ServiceAuditOperation.GetAllWithArchived, BuildQuerySignature("GetAllWithArchived", $"includeArchived={includeArchived}", "includeDeleted=false"));
+                return models;
             }
             catch (RepositoryException) { throw; }
             catch (RepositoryStoreException) { throw; }
@@ -114,7 +217,9 @@ namespace IBeam.Services.Core
                 if (entity is null)
                     throw new KeyNotFoundException($"{typeof(TEntity).Name} with id '{id}' was not found.");
 
-                return PostGetById(ToModel(entity));
+                var model = PostGetById(ToModel(entity));
+                TryWriteSelectAudit(ServiceAuditOperation.GetById, BuildQuerySignature("GetById", id.ToString("D")));
+                return model;
             }
             catch (KeyNotFoundException) { throw; }
             catch (RepositoryException) { throw; }
@@ -133,7 +238,10 @@ namespace IBeam.Services.Core
             try
             {
                 var entities = _repository.GetByIds(list);
-                return PostGetByIds(ToModel(entities).ToList());
+                var models = PostGetByIds(ToModel(entities).ToList());
+                var idsSig = string.Join(",", list.OrderBy(x => x).Select(x => x.ToString("N")));
+                TryWriteSelectAudit(ServiceAuditOperation.GetByIds, BuildQuerySignature("GetByIds", idsSig));
+                return models;
             }
             catch (RepositoryException) { throw; }
             catch (RepositoryStoreException) { throw; }
@@ -150,6 +258,11 @@ namespace IBeam.Services.Core
             {
                 var entityCandidate = ToEntity(model);
                 var isUpdate = entityCandidate.Id != Guid.Empty;
+                var originalJson = isUpdate
+                    ? _repository.GetById(entityCandidate.Id, includeArchived: true, includeDeleted: true) is TEntity existing
+                        ? SerializeEntity(existing)
+                        : null
+                    : null;
 
                 PreSave(model, isUpdate);
 
@@ -160,6 +273,12 @@ namespace IBeam.Services.Core
 
                 if (isUpdate) _typedAudit?.LogUpdate(saved);
                 else _typedAudit?.LogCreate(saved);
+
+                TryWriteTransactionAudit(
+                    isUpdate ? ServiceAuditOperation.Update : ServiceAuditOperation.Create,
+                    saved.Id,
+                    originalJson,
+                    SerializeEntity(saved));
 
                 return ToModel(saved);
             }
@@ -179,10 +298,22 @@ namespace IBeam.Services.Core
             try
             {
                 var isUpdates = new List<bool>(list.Count);
+                var originalById = new Dictionary<Guid, string>();
                 foreach (var model in list)
                 {
-                    var isUpdate = ToEntity(model).Id != Guid.Empty;
+                    var candidate = ToEntity(model);
+                    var isUpdate = candidate.Id != Guid.Empty;
                     isUpdates.Add(isUpdate);
+
+                    if (isUpdate)
+                    {
+                        var existing = _repository.GetById(candidate.Id, includeArchived: true, includeDeleted: true);
+                        if (existing is not null)
+                        {
+                            originalById[candidate.Id] = SerializeEntity(existing);
+                        }
+                    }
+
                     PreSave(model, isUpdate);
                 }
 
@@ -196,8 +327,16 @@ namespace IBeam.Services.Core
 
                 for (var i = 0; i < saved.Count && i < isUpdates.Count; i++)
                 {
-                    if (isUpdates[i]) _typedAudit?.LogUpdate(saved[i]);
+                    var isUpdate = isUpdates[i];
+                    if (isUpdate) _typedAudit?.LogUpdate(saved[i]);
                     else _typedAudit?.LogCreate(saved[i]);
+
+                    var originalJson = isUpdate && originalById.TryGetValue(saved[i].Id, out var original) ? original : null;
+                    TryWriteTransactionAudit(
+                        isUpdate ? ServiceAuditOperation.Update : ServiceAuditOperation.Create,
+                        saved[i].Id,
+                        originalJson,
+                        SerializeEntity(saved[i]));
                 }
 
                 return ToModel(saved).ToList();
@@ -303,13 +442,18 @@ namespace IBeam.Services.Core
             try
             {
                 PreDelete(id);
+                var existing = _repository.GetById(id, includeArchived: true, includeDeleted: true);
+                var originalJson = existing is not null ? SerializeEntity(existing) : null;
 
-                // If you want “service-level audit on delete”, either:
-                // 1) fetch entity first, then delete, then LogDelete(entity)
-                // 2) let repositories/audit pipeline handle it
                 _repository.Delete(id);
 
                 PostDelete(id);
+                if (existing is not null)
+                {
+                    _typedAudit?.LogDelete(existing);
+                }
+
+                TryWriteTransactionAudit(ServiceAuditOperation.Delete, id, originalJson, null);
             }
             catch (RepositoryException) { throw; }
             catch (RepositoryStoreException) { throw; }
@@ -317,6 +461,3 @@ namespace IBeam.Services.Core
         }
     }
 }
-
-
-

@@ -33,6 +33,8 @@ public sealed class BaseServiceTests
         var createModel = new TestModel { Id = Guid.Empty, Name = "create" };
         var updateId = Guid.NewGuid();
         var updateModel = new TestModel { Id = updateId, Name = "update" };
+        repo.Setup(x => x.GetById(updateId, true, true))
+            .Returns(new TestEntity { Id = updateId, Name = "existing" });
 
         repo.Setup(x => x.SaveAll(It.IsAny<IReadOnlyList<TestEntity>>()))
             .Returns<IReadOnlyList<TestEntity>>(entities =>
@@ -128,12 +130,14 @@ public sealed class BaseServiceTests
     {
         var repo = new Mock<IBaseRepository<TestEntity>>(MockBehavior.Strict);
         var service = new TestSyncService(repo.Object, new TestMapper());
+        var id = Guid.NewGuid();
 
+        repo.Setup(x => x.GetById(id, true, true)).Returns((TestEntity?)null);
         repo.Setup(x => x.SaveAll(It.IsAny<IReadOnlyList<TestEntity>>()))
             .Throws(new RepositoryException("TestRepo", "SaveAll", "boom"));
 
         AssertThrows<RepositoryException>(() =>
-            service.SaveAll(new[] { new TestModel { Id = Guid.NewGuid(), Name = "x" } }));
+            service.SaveAll(new[] { new TestModel { Id = id, Name = "x" } }));
     }
 
     [TestMethod]
@@ -144,6 +148,26 @@ public sealed class BaseServiceTests
 
         service.ArchiveAll(Array.Empty<TestModel>());
         repo.Verify(x => x.ArchiveAll(It.IsAny<IReadOnlyList<Guid>>()), Times.Never);
+    }
+
+    [TestMethod]
+    public void Delete_LogsTypedDeleteAudit_WhenEntityExists()
+    {
+        var id = Guid.NewGuid();
+        var entity = new TestEntity { Id = id, Name = "to-delete" };
+
+        var repo = new Mock<IBaseRepository<TestEntity>>(MockBehavior.Strict);
+        var mapper = new TestMapper();
+        var audit = new Mock<IEntityAuditService<TestEntity>>(MockBehavior.Strict);
+        var service = new DeleteEnabledSyncService(repo.Object, mapper, audit.Object);
+
+        repo.Setup(x => x.GetById(id, true, true)).Returns(entity);
+        repo.Setup(x => x.Delete(id));
+        audit.Setup(x => x.LogDelete(It.Is<TestEntity>(e => e.Id == id)));
+
+        service.Delete(id);
+
+        audit.Verify(x => x.LogDelete(It.IsAny<TestEntity>()), Times.Once);
     }
     private sealed class TestSyncService : BaseService<TestEntity, TestModel>
     {
@@ -186,6 +210,18 @@ public sealed class BaseServiceTests
             IModelMapper<TestEntity, TestModel> mapper)
             : base(repository, mapper)
         {
+        }
+    }
+
+    private sealed class DeleteEnabledSyncService : BaseService<TestEntity, TestModel>
+    {
+        public DeleteEnabledSyncService(
+            IBaseRepository<TestEntity> repository,
+            IModelMapper<TestEntity, TestModel> mapper,
+            IAuditService audit)
+            : base(repository, mapper, audit)
+        {
+            AllowDelete = true;
         }
     }
     private static TException AssertThrows<TException>(Action action)
