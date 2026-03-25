@@ -1,0 +1,41 @@
+name: Publish Stable (NuGet.org)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish-stable:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore IBeam.sln
+
+      - name: Build
+        run: dotnet build IBeam.sln -c Release --no-restore
+
+      - name: Pack
+        run: dotnet pack IBeam.sln -c Release --no-build -o ./artifacts/packages
+
+      - name: Push stable packages to NuGet.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push "./artifacts/packages/*.nupkg" \
+            --source "https://api.nuget.org/v3/index.json" \
+            --api-key "$NUGET_API_KEY" \
+            --skip-duplicate

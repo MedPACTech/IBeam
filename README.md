@@ -1,4 +1,9 @@
 # IBeam
+[![CI](https://github.com/MedPACTech/IBeam/actions/workflows/ci.yml/badge.svg)](https://github.com/MedPACTech/IBeam/actions/workflows/ci.yml)
+[![NuGet](https://img.shields.io/nuget/v/IBeam.Services)](https://www.nuget.org/packages/IBeam.Services)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/IBeam.Services)](https://www.nuget.org/packages/IBeam.Services)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/MedPACTech/IBeam)](https://github.com/MedPACTech/IBeam/releases)
 
 IBeam is a modular .NET framework for teams that want to move from idea to working API quickly, without giving up architecture quality.
 
@@ -48,6 +53,10 @@ Contributions are encouraged across:
 - test coverage.
 
 See `CONTRIBUTING.md` for workflow and standards.
+
+## Community and Security
+- Code of Conduct: `CODE_OF_CONDUCT.md`
+- Security Policy: `SECURITY.md`
 
 ## Package Map
 

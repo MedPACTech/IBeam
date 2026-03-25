@@ -1,4 +1,23 @@
 <Project>
+  <PropertyGroup Condition="'$(IsPackable)' != 'false'">
+    <Authors Condition="'$(Authors)' == ''">MedPACTech</Authors>
+    <Company Condition="'$(Company)' == ''">MedPACTech</Company>
+    <Description Condition="'$(Description)' == ''">IBeam modular framework components for .NET APIs and services.</Description>
+    <PackageTags Condition="'$(PackageTags)' == ''">ibeam;dotnet;aspnetcore;modular;identity;repositories;communications;storage</PackageTags>
+    <RepositoryUrl Condition="'$(RepositoryUrl)' == ''">https://github.com/MedPACTech/IBeam</RepositoryUrl>
+    <RepositoryType Condition="'$(RepositoryType)' == ''">git</RepositoryType>
+    <PublishRepositoryUrl Condition="'$(PublishRepositoryUrl)' == ''">true</PublishRepositoryUrl>
+    <PackageProjectUrl Condition="'$(PackageProjectUrl)' == ''">https://github.com/MedPACTech/IBeam</PackageProjectUrl>
+    <PackageLicenseExpression Condition="'$(PackageLicenseExpression)' == ''">Apache-2.0</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance Condition="'$(PackageRequireLicenseAcceptance)' == ''">false</PackageRequireLicenseAcceptance>
+    <PackageReadmeFile Condition="'$(PackageReadmeFile)' == ''">README.md</PackageReadmeFile>
+    <PackageIcon Condition="'$(PackageIcon)' == ''">ibeam-icon.png</PackageIcon>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsPackable)' != 'false' and Exists('$(MSBuildThisFileDirectory)docs\assets\ibeam-icon.png')">
+    <None Include="$(MSBuildThisFileDirectory)docs\assets\ibeam-icon.png" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Nerdbank.GitVersioning" Version="3.9.50" PrivateAssets="all" />
   </ItemGroup>
