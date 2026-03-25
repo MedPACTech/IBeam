@@ -54,6 +54,7 @@ public static class ServiceCollectionExtensions
         // Core services
         services.AddScoped<IOtpService, OtpService>();
         services.AddScoped<ITenantSelectionService, TenantSelectionService>();
+        services.AddScoped<ITenantRoleService, TenantRoleService>();
         services.AddScoped<ITokenService, JwtTokenService>();
 
 

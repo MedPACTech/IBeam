@@ -17,6 +17,7 @@ This package is for API hosts that want to expose identity endpoints quickly wit
   - Azure Communications email and SMS providers
   - JWT authentication and authorization configuration
 - controller endpoints in `AuthController` covering OTP/password/OAuth/token/session flows
+  - `RolesController` for tenant role CRUD + user role grant/revoke
 
 ## Dependencies
 
@@ -37,3 +38,15 @@ This package is for API hosts that want to expose identity endpoints quickly wit
 builder.Services.AddIBeamIdentityApi(builder.Configuration);
 builder.Services.AddIBeamIdentityApiControllers();
 ```
+
+## Role Management Endpoints
+
+- `GET /api/tenants/{tenantId}/roles`
+- `POST /api/tenants/{tenantId}/roles`
+- `PUT /api/tenants/{tenantId}/roles/{roleId}`
+- `DELETE /api/tenants/{tenantId}/roles/{roleId}`
+- `POST /api/tenants/{tenantId}/roles/grant`
+- `POST /api/tenants/{tenantId}/roles/revoke`
+- `GET /api/tenants/{tenantId}/users/{userId}/roles`
+
+Role management endpoints require an authenticated tenant token (`tid`) with one of these role claims: `owner`, `administrator`, or `admin`.

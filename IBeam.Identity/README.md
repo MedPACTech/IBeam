@@ -16,6 +16,9 @@ This package provides the shared language for identity workflows across API, ser
 - store contracts:
   - `IIdentityUserStore`, `IOtpChallengeStore`, `IExternalLoginStore`
   - `ITenantMembershipStore`, `ITenantProvisioningService`, `IAuthSessionStore`
+  - `ITenantRoleStore` for tenant-scoped role CRUD and assignment
+- service contracts:
+  - `ITenantRoleService` for role orchestration in app/service layers
 - identity models and transport records
 - options models (`JwtOptions`, `OtpOptions`, `OAuthOptions`, `FeatureOptions`, etc.)
 - lifecycle event contracts and default no-op implementations
