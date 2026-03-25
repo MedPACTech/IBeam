@@ -10,13 +10,16 @@ internal sealed class AzureTableTenantProvisioningService : ITenantProvisioningS
 {
     private readonly TableServiceClient _svc;
     private readonly AzureTableIdentityOptions _opts;
+    private readonly ITenantRoleStore _tenantRoles;
 
     public AzureTableTenantProvisioningService(
         TableServiceClient svc,
-        IOptions<AzureTableIdentityOptions> opts)
+        IOptions<AzureTableIdentityOptions> opts,
+        ITenantRoleStore tenantRoles)
     {
         _svc = svc;
         _opts = opts.Value;
+        _tenantRoles = tenantRoles;
     }
 
     private TableClient TenantsTable()
@@ -51,7 +54,13 @@ internal sealed class AzureTableTenantProvisioningService : ITenantProvisioningS
             CreatedAt = now
         }, ct).ConfigureAwait(false);
 
-        // 2) Create tenant->user membership (Owner/Admin)
+        // 2) Seed tenant roles and assign creator to defaults.
+        await _tenantRoles.EnsureDefaultRolesAsync(tenantId, ct).ConfigureAwait(false);
+        var defaultRoles = await _tenantRoles.GetRolesAsync(tenantId, ct).ConfigureAwait(false);
+        var rolesCsv = string.Join(",", defaultRoles.Select(x => x.Name));
+        var roleIdsCsv = string.Join(",", defaultRoles.Select(x => x.RoleId.ToString("D")));
+
+        // 3) Create tenant->user membership (Owner/Administrator)
         await TenantUsersTable().UpsertEntityAsync(new TenantUserEntity
         {
             PartitionKey = _opts.TenantUsersPk(tenantId),   // "TEN#{tenantId}"
@@ -59,11 +68,12 @@ internal sealed class AzureTableTenantProvisioningService : ITenantProvisioningS
             TenantId = tenantId.ToString("D"),
             UserId = userIdStr,
             Status = "Active",
-            RolesCsv = "Owner,Admin",
+            RolesCsv = rolesCsv,
+            RoleIdsCsv = roleIdsCsv,
             CreatedAt = now
         }, TableUpdateMode.Replace, ct).ConfigureAwait(false);
 
-        // 3) Create user->tenant membership (also default)
+        // 4) Create user->tenant membership (also default)
         await UserTenantsTable().UpsertEntityAsync(new UserTenantEntity
         {
             PartitionKey = _opts.UserTenantsPk(userIdStr),  // "USR#{userId}"
@@ -73,7 +83,8 @@ internal sealed class AzureTableTenantProvisioningService : ITenantProvisioningS
             TenantId = tenantId.ToString("D"),
 
             Status = "Active",
-            RolesCsv = "Owner,Admin",
+            RolesCsv = rolesCsv,
+            RoleIdsCsv = roleIdsCsv,
 
             TenantDisplayName = tenantName,
             IsDefault = true,

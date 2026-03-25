@@ -379,6 +379,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             var claims = BuildBaseClaims(user);
             AddTenantClaims(claims, tenant.TenantId);
             AddRoleClaims(claims, tenant.Roles);
+            AddRoleIdClaims(claims, tenant.RoleIds);
             var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
             await EmitLoginSucceededAsync("otp", user.UserId, tenant.TenantId, false, challengeId, traceId, ct);
             return AuthResultResponse.WithToken(token, createdNewUser);
@@ -393,6 +394,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
                 var claims = BuildBaseClaims(user);
                 AddTenantClaims(claims, defaultTenant.TenantId);
                 AddRoleClaims(claims, defaultTenant.Roles);
+                AddRoleIdClaims(claims, defaultTenant.RoleIds);
                 var token = await _tokens.CreateAccessTokenAsync(user.UserId, defaultTenant.TenantId, claims, ct);
                 await EmitLoginSucceededAsync("otp", user.UserId, defaultTenant.TenantId, false, challengeId, traceId, ct);
                 return AuthResultResponse.WithToken(token, createdNewUser);
@@ -434,6 +436,14 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
 
         foreach (var role in roles.Where(r => !string.IsNullOrWhiteSpace(r)))
             claims.Add(new ClaimItem("role", role));
+    }
+
+    private static void AddRoleIdClaims(List<ClaimItem> claims, IEnumerable<Guid>? roleIds)
+    {
+        if (roleIds is null) return;
+
+        foreach (var roleId in roleIds.Where(x => x != Guid.Empty).Distinct())
+            claims.Add(new ClaimItem("rid", roleId.ToString("D")));
     }
 
     private async Task InvokeLifecycleAndPublishAsync<TEvent>(

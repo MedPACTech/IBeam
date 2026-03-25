@@ -27,6 +27,7 @@ internal sealed class UserTenantEntity : ITableEntity
 
     // Authorization
     public string RolesCsv { get; set; } = "";                 // keep for now; migrate later to JSON or separate table
+    public string RoleIdsCsv { get; set; } = "";
     public string? PermissionsJson { get; set; }               // optional (future-proofing)
 
     // Default tenant selection (per-user)

@@ -2,6 +2,7 @@ using IBeam.Identity.Interfaces;
 using IBeam.Identity.Events;
 using IBeam.Identity.Services.Otp;
 using IBeam.Identity.Services.Auth;
+using IBeam.Identity.Services.Authorization;
 using IBeam.Identity.Services.Tenants;
 using IBeam.Identity.Services.Tokens;
 using Microsoft.Extensions.Configuration;
@@ -49,15 +50,40 @@ public static class ServiceCollectionExtensions
         services.AddOptions<IdentityEmailTemplateOptions>()
         .Bind(configuration.GetSection(IdentityEmailTemplateOptions.SectionName));
 
+        services.AddOptions<PermissionAccessOptions>()
+        .Bind(configuration.GetSection(PermissionAccessOptions.SectionName));
+
         services.AddIBeamAuthEvents(configuration);
 
         // Core services
         services.AddScoped<IOtpService, OtpService>();
         services.AddScoped<ITenantSelectionService, TenantSelectionService>();
+        services.AddScoped<ITenantRoleService, TenantRoleService>();
+        services.AddScoped<IRoleAccessAuthorizer, RoleAccessAuthorizer>();
+        services.TryAddScoped<IPermissionAccessStore, NoOpPermissionAccessStore>();
+        services.AddScoped<IPermissionGrantResolver, PermissionGrantResolver>();
+        services.AddScoped<IPermissionAccessAuthorizer, PermissionAccessAuthorizer>();
         services.AddScoped<ITokenService, JwtTokenService>();
 
 
         // Note: IOtpChallengeStore, ISender, and other dependencies must be registered by the consumer or by repository/communications packages.
+
+        return services;
+    }
+
+    public static IServiceCollection AddIBeamIdentityPermissionMappings(
+        this IServiceCollection services,
+        Action<PermissionAccessMapBuilder> configure)
+    {
+        var builder = new PermissionAccessMapBuilder();
+        configure(builder);
+
+        var entries = builder.Build();
+        services.PostConfigure<PermissionAccessOptions>(opts =>
+        {
+            foreach (var entry in entries)
+                opts.Mappings.Add(entry);
+        });
 
         return services;
     }

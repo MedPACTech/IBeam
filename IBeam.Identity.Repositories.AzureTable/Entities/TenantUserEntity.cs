@@ -27,5 +27,6 @@ internal sealed class TenantUserEntity : ITableEntity
 
     // Authorization
     public string RolesCsv { get; set; } = "";
+    public string RoleIdsCsv { get; set; } = "";
     public string? PermissionsJson { get; set; }
 }

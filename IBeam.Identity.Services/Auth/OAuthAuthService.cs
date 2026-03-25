@@ -439,6 +439,11 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
             claims.Add(new ClaimItem("tid", tenant.TenantId.ToString("D")));
             foreach (var role in tenant.Roles.Where(r => !string.IsNullOrWhiteSpace(r)))
                 claims.Add(new ClaimItem("role", role));
+            if (tenant.RoleIds is not null)
+            {
+                foreach (var roleId in tenant.RoleIds.Where(x => x != Guid.Empty).Distinct())
+                    claims.Add(new ClaimItem("rid", roleId.ToString("D")));
+            }
             var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
             return AuthResultResponse.WithToken(token, createdNewUser);
         }
@@ -453,6 +458,11 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
                 claims.Add(new ClaimItem("tid", defaultTenant.TenantId.ToString("D")));
                 foreach (var role in defaultTenant.Roles.Where(r => !string.IsNullOrWhiteSpace(r)))
                     claims.Add(new ClaimItem("role", role));
+                if (defaultTenant.RoleIds is not null)
+                {
+                    foreach (var roleId in defaultTenant.RoleIds.Where(x => x != Guid.Empty).Distinct())
+                        claims.Add(new ClaimItem("rid", roleId.ToString("D")));
+                }
                 var token = await _tokens.CreateAccessTokenAsync(user.UserId, defaultTenant.TenantId, claims, ct);
                 return AuthResultResponse.WithToken(token, createdNewUser);
             }

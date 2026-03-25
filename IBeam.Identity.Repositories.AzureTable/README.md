@@ -14,6 +14,8 @@ This package connects identity orchestration to Azure Table persistence. It wire
 - Identity store registrations for:
   - users
   - tenants and memberships
+  - tenant roles and user-role assignments
+  - permission role-mapping store (`IPermissionAccessStore`)
   - OTP challenges
   - external logins
   - auth sessions

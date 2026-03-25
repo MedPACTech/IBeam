@@ -182,6 +182,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
             var claims = BuildBaseClaims(user.UserId, user.Email);
             AddTenantClaims(claims, t.TenantId);
             AddRoleClaims(claims, t.Roles);
+            AddRoleIdClaims(claims, t.RoleIds);
             var token = await _tokens.CreateAccessTokenAsync(user.UserId, t.TenantId, claims, ct);
             await EmitLoginSucceededAsync("password", user.UserId, t.TenantId, false, traceId, ct);
             return AuthResultResponse.WithToken(token);
@@ -196,6 +197,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
                 var claims = BuildBaseClaims(user.UserId, user.Email);
                 AddTenantClaims(claims, def.TenantId);
                 AddRoleClaims(claims, def.Roles);
+                AddRoleIdClaims(claims, def.RoleIds);
                 var token = await _tokens.CreateAccessTokenAsync(user.UserId, def.TenantId, claims, ct);
                 await EmitLoginSucceededAsync("password", user.UserId, def.TenantId, false, traceId, ct);
                 return AuthResultResponse.WithToken(token);
@@ -466,6 +468,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         var claims = BuildBaseClaims(userGuid, string.Empty);
         AddTenantClaims(claims, tenant.TenantId);
         AddRoleClaims(claims, tenant.Roles);
+        AddRoleIdClaims(claims, tenant.RoleIds);
         var token = await _tokens.CreateAccessTokenAsync(userGuid, tenant.TenantId, claims, ct);
 
         var selected = new TenantSelectedEvent
@@ -551,6 +554,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
             var claims = BuildBaseClaims(user.UserId, user.Email);
             AddTenantClaims(claims, tenant.TenantId);
             AddRoleClaims(claims, tenant.Roles);
+            AddRoleIdClaims(claims, tenant.RoleIds);
             var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
             await EmitLoginSucceededAsync("password", user.UserId, tenant.TenantId, false, traceId, ct);
             return AuthResultResponse.WithToken(token, createdNewUser);
@@ -565,6 +569,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
                 var claims = BuildBaseClaims(user.UserId, user.Email);
                 AddTenantClaims(claims, def.TenantId);
                 AddRoleClaims(claims, def.Roles);
+                AddRoleIdClaims(claims, def.RoleIds);
                 var token = await _tokens.CreateAccessTokenAsync(user.UserId, def.TenantId, claims, ct);
                 await EmitLoginSucceededAsync("password", user.UserId, def.TenantId, false, traceId, ct);
                 return AuthResultResponse.WithToken(token, createdNewUser);
@@ -695,6 +700,13 @@ public sealed class PasswordAuthService : IIdentityAuthService
         if (roles is null) return;
         foreach (var r in roles.Where(x => !string.IsNullOrWhiteSpace(x)))
             claims.Add(new("role", r));
+    }
+
+    private static void AddRoleIdClaims(List<ClaimItem> claims, IEnumerable<Guid>? roleIds)
+    {
+        if (roleIds is null) return;
+        foreach (var roleId in roleIds.Where(x => x != Guid.Empty).Distinct())
+            claims.Add(new("rid", roleId.ToString("D")));
     }
 
     private async Task InvokeLifecycleAndPublishAsync<TEvent>(

@@ -17,8 +17,10 @@ This package is where identity behavior is implemented. It consumes contracts fr
   - `JwtTokenService`
   - `TenantSelectionService`
   - `IdentityCommunicationAdapter`
+  - `PermissionAccessAuthorizer` (dynamic permission map authorization)
 - DI extension methods:
   - `AddIBeamIdentityServices(IConfiguration)`
+  - `AddIBeamIdentityPermissionMappings(...)`
   - `AddIBeamIdentityAuthPasswordService()`
   - `AddIBeamIdentityAuthOtpService()`
   - `AddIBeamIdentityAuthOAuthService()`
@@ -45,3 +47,4 @@ This package is where identity behavior is implemented. It consumes contracts fr
 - `IBeam:Identity:Features`
 - `IBeam:Identity:OAuth` (when OAuth is enabled)
 - `IBeam:Identity:Events` (optional)
+- `IBeam:Identity:PermissionAccess` (optional; JSON permission map source)

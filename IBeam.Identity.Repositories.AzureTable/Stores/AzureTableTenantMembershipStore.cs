@@ -71,7 +71,8 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
                     TenantId: tid,
                     Name: name,
                     Roles: SplitRoles(m.RolesCsv),
-                    IsActive: IsActiveStatus(m.Status)
+                    IsActive: IsActiveStatus(m.Status),
+                    RoleIds: SplitRoleIds(m.RoleIdsCsv)
                 );
             }).ToList();
         }
@@ -109,7 +110,8 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
                 TenantId: tenantId,
                 Name: name,
                 Roles: SplitRoles(m.RolesCsv),
-                IsActive: IsActiveStatus(m.Status)
+                IsActive: IsActiveStatus(m.Status),
+                RoleIds: SplitRoleIds(m.RoleIdsCsv)
             );
         }
         catch (Exception ex)
@@ -301,6 +303,14 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
     private static string[] SplitRoles(string? csv)
         => (csv ?? string.Empty)
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static List<Guid> SplitRoleIds(string? csv)
+        => (csv ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(x => Guid.TryParse(x, out _))
+            .Select(Guid.Parse)
+            .Distinct()
+            .ToList();
 
     private static IEnumerable<List<T>> Batch<T>(IEnumerable<T> items, int size)
     {
