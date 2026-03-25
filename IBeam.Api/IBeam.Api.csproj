@@ -9,7 +9,6 @@
     <RepositoryUrl>https://github.com/MedPACTech/IBeam</RepositoryUrl>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
@@ -19,10 +18,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IBeam.Utilities\IBeam.Utilities.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="Api\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
