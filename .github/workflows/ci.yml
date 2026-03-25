@@ -7,6 +7,10 @@ on:
     branches: [ main, development ]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-test-pack:
     runs-on: ubuntu-latest
