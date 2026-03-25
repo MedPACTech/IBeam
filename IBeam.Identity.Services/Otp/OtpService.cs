@@ -49,7 +49,8 @@ public sealed class OtpService : IOtpService
             TenantId: request.TenantId,
             IsConsumed: false,
             VerificationToken: null,
-            VerificationTokenExpiresAt: null);
+            VerificationTokenExpiresAt: null,
+            Channel: request.Channel);
 
         await _store.SaveAsync(record, ct);
 

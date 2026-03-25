@@ -45,7 +45,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Tests.Identity.Servic
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Tests.Repositories.AzureTables", "IBeam.Tests.Repositories.AzureTables\IBeam.Tests.Repositories.AzureTables.csproj", "{1485C0E1-F273-4BD3-ADA5-BA6ABA819F22}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Api", "IBeam.Api\IBeam.Api.csproj", "{61AE2C98-1253-4AF1-A451-4E522047DC87}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Api", "IBeam.API\IBeam.API.csproj", "{61AE2C98-1253-4AF1-A451-4E522047DC87}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Services", "IBeam.Services\IBeam.Services.csproj", "{87A847F3-C84F-4249-BA9D-F7CCE8377891}"
 EndProject

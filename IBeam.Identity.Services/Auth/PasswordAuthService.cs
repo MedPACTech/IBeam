@@ -327,7 +327,8 @@ public sealed class PasswordAuthService : IIdentityAuthService
             TenantId: null,
             IsConsumed: true,
             VerificationToken: verificationToken,
-            VerificationTokenExpiresAt: expiresAt);
+            VerificationTokenExpiresAt: expiresAt,
+            Channel: SenderChannel.Email);
 
         await _otpChallenges.SaveAsync(challenge, ct);
 

@@ -14,5 +14,6 @@ public sealed record OtpChallengeRecord(
     Guid? TenantId,
     bool IsConsumed,
     string? VerificationToken,
-    DateTimeOffset? VerificationTokenExpiresAt);
+    DateTimeOffset? VerificationTokenExpiresAt,
+    SenderChannel Channel = SenderChannel.Email);
 

@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, development ]
+  pull_request:
+    branches: [ main, development ]
+  workflow_dispatch:
+
+jobs:
+  build-test-pack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore IBeam.sln
+
+      - name: Build (Release)
+        run: dotnet build IBeam.sln -c Release --no-restore
+
+      - name: Test (Release)
+        run: dotnet test IBeam.sln -c Release --no-build
+
+      - name: Pack (Release)
+        run: dotnet pack IBeam.sln -c Release --no-build -o ./artifacts/packages
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nupkgs
+          path: artifacts/packages/*.nupkg

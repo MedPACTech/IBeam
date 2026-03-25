@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\IBeam.Api\IBeam.API.csproj" />
+    <ProjectReference Include="..\IBeam.API\IBeam.API.csproj" />
   </ItemGroup>
 
 </Project>
