@@ -1,0 +1,42 @@
+name: Publish Prerelease (GitHub Packages)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish-prerelease:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore IBeam.sln
+
+      - name: Build
+        run: dotnet build IBeam.sln -c Release --no-restore
+
+      - name: Pack
+        run: dotnet pack IBeam.sln -c Release --no-build -o ./artifacts/packages
+
+      - name: Push prerelease packages to GitHub Packages
+        run: |
+          dotnet nuget push "./artifacts/packages/*.nupkg" \
+            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --api-key "${{ secrets.GITHUB_TOKEN }}" \
+            --skip-duplicate

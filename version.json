@@ -1,8 +1,8 @@
 {
   "version": "2.0",
   "cloudBuild": {
-    "setVersionVariables": true,
-    "setAllVariables": true
+    "setVersionVariables": false,
+    "setAllVariables": false
   },
   "publicReleaseRefSpec": [
     "^refs/heads/main$",

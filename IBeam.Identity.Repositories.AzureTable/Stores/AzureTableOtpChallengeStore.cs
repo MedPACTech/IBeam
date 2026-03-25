@@ -8,6 +8,8 @@ using IBeam.Identity.Repositories.AzureTable.Options;
 using IBeam.Identity.Repositories.AzureTable.Types;
 using Microsoft.Extensions.Options;
 using System;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -153,15 +155,19 @@ public sealed class AzureTableOtpChallengeStore : IOtpChallengeStore
         {
             PartitionKey = PartitionFor(r.ChallengeId),
             RowKey = r.ChallengeId,
+            ChallengeId = r.ChallengeId,
 
             Destination = r.Destination,
+            DestinationHash = HashDestination(r.Destination),
+            Channel = r.Channel.ToString().ToLowerInvariant(),
             Purpose = r.Purpose.ToString(),
             TenantId = r.TenantId?.ToString("D"),
 
             // IMPORTANT: the Abstractions record appears to store hash (not plaintext)
             CodeHash = r.CodeHash,
-            //CodeNonce = r.CodeNonce, // keep only if it exists on record/entity; otherwise remove
+            CodeNonce = string.Empty,
 
+            CreatedAt = DateTimeOffset.UtcNow,
             ExpiresAt = r.ExpiresAt,
             AttemptCount = r.AttemptCount,
             IsConsumed = r.IsConsumed,
@@ -171,6 +177,26 @@ public sealed class AzureTableOtpChallengeStore : IOtpChallengeStore
 
             // CreatedAt is provider-managed if abstraction doesn't include it
         };
+
+    private static string HashDestination(string destination)
+    {
+        var input = destination?.Trim() ?? string.Empty;
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+        return Convert.ToHexString(bytes);
+    }
+
+    private static SenderChannel ParseChannel(string? channel, string destination)
+    {
+        if (!string.IsNullOrWhiteSpace(channel) &&
+            Enum.TryParse<SenderChannel>(channel, ignoreCase: true, out var parsed))
+        {
+            return parsed;
+        }
+
+        return destination.Contains("@", StringComparison.Ordinal)
+            ? SenderChannel.Email
+            : SenderChannel.Sms;
+    }
 
     private static OtpChallengeRecord FromEntity(OtpChallengeEntity e)
         => new OtpChallengeRecord(
@@ -187,6 +213,7 @@ public sealed class AzureTableOtpChallengeStore : IOtpChallengeStore
             IsConsumed: e.IsConsumed,
 
             VerificationToken: e.VerificationToken,                 // only if exists
-            VerificationTokenExpiresAt: e.VerificationTokenExpiresAt // only if exists
+            VerificationTokenExpiresAt: e.VerificationTokenExpiresAt, // only if exists
+            Channel: ParseChannel(e.Channel, e.Destination)
         );
 }
