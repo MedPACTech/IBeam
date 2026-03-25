@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="Api\**\*.cs" />
+    <Compile Include="..\IBeam.Api\Api\**\*.cs" />
   </ItemGroup>
 
 
