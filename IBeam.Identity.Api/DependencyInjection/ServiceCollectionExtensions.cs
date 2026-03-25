@@ -4,11 +4,13 @@ using IBeam.Communications.Email.AzureCommunications;
 using IBeam.Communications.Sms.AzureCommunications;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Options;
+using IBeam.Identity.Api.Authorization;
 using IBeam.Identity.Api.Controllers;
 using IBeam.Identity.Repositories.AzureTable.Extensions;
 using IBeam.Identity.Services;
 using IBeam.Identity.Services.Otp;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.Extensions.Configuration;
@@ -101,11 +103,14 @@ public static class ServiceCollectionExtensions
                     ValidIssuer = jwt.Issuer,
                     ValidAudience = jwt.Audience,
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
+                    RoleClaimType = "role",
                     ClockSkew = TimeSpan.FromSeconds(jwt.ClockSkewSeconds)
                 };
             });
 
         services.AddAuthorization();
+        services.AddSingleton<IAuthorizationPolicyProvider, RoleIdsAuthorizationPolicyProvider>();
+        services.AddScoped<IAuthorizationHandler, RequireRoleIdsAuthorizationHandler>();
 
         return services;
     }

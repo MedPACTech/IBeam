@@ -156,7 +156,15 @@ public sealed class OtpAuthServiceTests
             .ReturnsAsync(new IdentityUser(userId, "abram.cookson@outlook.com", true));
 
         tenants.Setup(x => x.GetTenantsForUserAsync(userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<TenantInfo> { new(tenantId, "Tenant A", new List<string> { "Owner", "Admin" }, true) });
+            .ReturnsAsync(new List<TenantInfo>
+            {
+                new(
+                    tenantId,
+                    "Tenant A",
+                    new List<string> { "Owner", "Admin" },
+                    true,
+                    new List<Guid> { Guid.NewGuid(), Guid.NewGuid() })
+            });
 
         var jwt = new JwtTokenService(
             Options.Create(new JwtOptions
@@ -188,6 +196,7 @@ public sealed class OtpAuthServiceTests
         Assert.AreEqual(1, parsed.Claims.Count(c => c.Type == "tid"));
         Assert.AreEqual(1, parsed.Claims.Count(c => c.Type == "sid"));
         Assert.AreEqual(2, parsed.Claims.Count(c => c.Type == "role"));
+        Assert.AreEqual(2, parsed.Claims.Count(c => c.Type == "rid"));
     }
 
     [TestMethod]

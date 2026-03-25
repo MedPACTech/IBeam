@@ -4,6 +4,7 @@ public sealed record TenantInfo(
     Guid TenantId,
     string Name,
     IReadOnlyList<string> Roles,
-    bool IsActive
+    bool IsActive,
+    IReadOnlyList<Guid>? RoleIds = null
 );
 

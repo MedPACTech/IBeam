@@ -45,6 +45,12 @@ public sealed class TenantSelectionService : ITenantSelectionService
                 claims.Add(new ClaimItem("role", role));
         }
 
+        if (tenant.RoleIds is not null)
+        {
+            foreach (var roleId in tenant.RoleIds.Where(x => x != Guid.Empty).Distinct())
+                claims.Add(new ClaimItem("rid", roleId.ToString("D")));
+        }
+
         return await _tokenService.CreateAccessTokenAsync(
             userId: request.UserId,
             tenantId: tenant.TenantId,

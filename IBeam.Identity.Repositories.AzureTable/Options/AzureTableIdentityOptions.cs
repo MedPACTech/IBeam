@@ -26,6 +26,7 @@ public sealed class AzureTableIdentityOptions
     public string OtpChallengesTableName { get; set; } = "OtpChallenges";
     public string ExternalLoginsTableName { get; set; } = "ExternalLogins";
     public string AuthSessionsTableName { get; set; } = "AuthSessions";
+    public string PermissionRoleMapsTableName { get; set; } = "PermissionRoleMaps";
 
     // (Optional, only if you implement later)
     public string? OtpAttemptsTableName { get; set; } = null;
@@ -73,6 +74,9 @@ public sealed class AzureTableIdentityOptions
     public string TenantRolesPk(Guid tenantId) => $"TEN|{tenantId:D}";
     public string TenantRolesRk(Guid roleId) => $"ROL|{roleId:D}";
 
+    // PermissionRoleMaps: PK = "TEN|{tenantId}", RK = "NAM|{hash}" or "ID|{permissionId}"
+    public string PermissionRoleMapsPk(Guid tenantId) => $"TEN|{tenantId:D}";
+
     // Tenants: PK = "TEN", RK = tenantId
     public const string TenantsPk = "TEN";
     public string TenantsRk(Guid tenantId) => tenantId.ToString("D");
@@ -97,6 +101,7 @@ public sealed class AzureTableIdentityOptions
         OtpChallengesTableName = NormalizeOrDefault(OtpChallengesTableName, "OtpChallenges");
         ExternalLoginsTableName = NormalizeOrDefault(ExternalLoginsTableName, "ExternalLogins");
         AuthSessionsTableName = NormalizeOrDefault(AuthSessionsTableName, "AuthSessions");
+        PermissionRoleMapsTableName = NormalizeOrDefault(PermissionRoleMapsTableName, "PermissionRoleMaps");
 
         // Validate base table names (prefix is not validated here; it becomes part of final name)
         ValidateTableName(IndexTableName, nameof(IndexTableName));
@@ -110,6 +115,7 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(OtpChallengesTableName, nameof(OtpChallengesTableName));
         ValidateTableName(ExternalLoginsTableName, nameof(ExternalLoginsTableName));
         ValidateTableName(AuthSessionsTableName, nameof(AuthSessionsTableName));
+        ValidateTableName(PermissionRoleMapsTableName, nameof(PermissionRoleMapsTableName));
 
         if (!string.IsNullOrWhiteSpace(OtpAttemptsTableName))
             ValidateTableName(OtpAttemptsTableName!, nameof(OtpAttemptsTableName));
@@ -126,6 +132,7 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(FullTableName(OtpChallengesTableName), nameof(TablePrefix) + "+" + nameof(OtpChallengesTableName));
         ValidateTableName(FullTableName(ExternalLoginsTableName), nameof(TablePrefix) + "+" + nameof(ExternalLoginsTableName));
         ValidateTableName(FullTableName(AuthSessionsTableName), nameof(TablePrefix) + "+" + nameof(AuthSessionsTableName));
+        ValidateTableName(FullTableName(PermissionRoleMapsTableName), nameof(TablePrefix) + "+" + nameof(PermissionRoleMapsTableName));
     }
 
     private static string NormalizeOrDefault(string value, string @default)
