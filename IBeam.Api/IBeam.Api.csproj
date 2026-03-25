@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageId>IBeam.Api</PackageId>
+    <Authors>MedPAC Technologies</Authors>
+    <Company>MedPAC Technologies</Company>
+    <PackageDescription>Lightweight API helper library with base controllers, error handling, and DI/config wiring.</PackageDescription>
+    <RepositoryUrl>https://github.com/MedPACTech/IBeam</RepositoryUrl>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IBeam.Utilities\IBeam.Utilities.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Api\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>
