@@ -275,6 +275,7 @@ public sealed class OtpAuthServiceTests
             publisher.Object,
             hook.Object,
             Options.Create(new AuthEventOptions()),
+            Options.Create(new OtpOptions { AllowAutoProvisionForUnknownUser = true }),
             NullLogger<OtpAuthService>.Instance);
 
         var result = await sut.CompleteOtpAsync("challenge-1", "123456", "abram.cookson@outlook.com");
@@ -341,6 +342,7 @@ public sealed class OtpAuthServiceTests
             publisher.Object,
             new NoOpAuthLifecycleHook(),
             Options.Create(new AuthEventOptions { StrictPublishFailures = false }),
+            Options.Create(new OtpOptions { AllowAutoProvisionForUnknownUser = true }),
             NullLogger<OtpAuthService>.Instance);
 
         var result = await sut.CompleteOtpAsync("challenge-1", "123456", "abram.cookson@outlook.com");
@@ -396,10 +398,84 @@ public sealed class OtpAuthServiceTests
             publisher.Object,
             new NoOpAuthLifecycleHook(),
             Options.Create(new AuthEventOptions { StrictPublishFailures = true }),
+            Options.Create(new OtpOptions { AllowAutoProvisionForUnknownUser = true }),
             NullLogger<OtpAuthService>.Instance);
 
         await AssertThrowsAsync<InvalidOperationException>(() =>
             sut.CompleteOtpAsync("challenge-1", "123456", "abram.cookson@outlook.com"));
+    }
+
+    [TestMethod]
+    public async Task StartOtpAsync_UnknownUser_WhenAutoProvisionDisabled_ThrowsUnauthorized()
+    {
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var otpService = new Mock<IOtpService>(MockBehavior.Strict);
+
+        users.Setup(x => x.FindByEmailAsync("ABRAM.COOKSON@OUTLOOK.COM", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IdentityUser?)null);
+
+        var sut = new OtpAuthService(
+            users.Object,
+            Mock.Of<ITenantMembershipStore>(),
+            Mock.Of<ITenantProvisioningService>(),
+            Mock.Of<ITokenService>(),
+            otpService.Object,
+            Mock.Of<IOtpChallengeStore>(),
+            new NoOpAuthEventPublisher(),
+            new NoOpAuthLifecycleHook(),
+            Options.Create(new AuthEventOptions()),
+            Options.Create(new OtpOptions { AllowAutoProvisionForUnknownUser = false }),
+            NullLogger<OtpAuthService>.Instance);
+
+        await AssertThrowsAsync<IdentityUnauthorizedException>(() =>
+            sut.StartOtpAsync("abram.cookson@outlook.com"));
+
+        otpService.Verify(x => x.CreateChallengeAsync(It.IsAny<OtpChallengeRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task CompleteOtpAsync_UnknownUser_WhenAutoProvisionDisabled_ThrowsUnauthorized()
+    {
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var otpService = new Mock<IOtpService>(MockBehavior.Strict);
+        var otpChallenges = new Mock<IOtpChallengeStore>(MockBehavior.Strict);
+
+        otpService.Setup(x => x.VerifyAsync(It.IsAny<OtpVerifyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpVerifyResult(true, "vt", DateTimeOffset.UtcNow.AddMinutes(10)));
+
+        otpChallenges.Setup(x => x.GetAsync("challenge-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpChallengeRecord(
+                "challenge-1",
+                "abram.cookson@outlook.com",
+                SenderPurpose.LoginMfa,
+                "hash",
+                DateTimeOffset.UtcNow.AddMinutes(10),
+                0,
+                null,
+                true,
+                "vt",
+                DateTimeOffset.UtcNow.AddMinutes(10)));
+
+        users.Setup(x => x.FindByEmailAsync("ABRAM.COOKSON@OUTLOOK.COM", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IdentityUser?)null);
+
+        var sut = new OtpAuthService(
+            users.Object,
+            Mock.Of<ITenantMembershipStore>(),
+            Mock.Of<ITenantProvisioningService>(),
+            Mock.Of<ITokenService>(),
+            otpService.Object,
+            otpChallenges.Object,
+            new NoOpAuthEventPublisher(),
+            new NoOpAuthLifecycleHook(),
+            Options.Create(new AuthEventOptions()),
+            Options.Create(new OtpOptions { AllowAutoProvisionForUnknownUser = false }),
+            NullLogger<OtpAuthService>.Instance);
+
+        await AssertThrowsAsync<IdentityUnauthorizedException>(() =>
+            sut.CompleteOtpAsync("challenge-1", "123456", "abram.cookson@outlook.com"));
+
+        users.Verify(x => x.CreateAsync(It.IsAny<RegisterUserRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private static async Task<TException> AssertThrowsAsync<TException>(Func<Task> action)

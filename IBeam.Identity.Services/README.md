@@ -18,9 +18,11 @@ This package is where identity behavior is implemented. It consumes contracts fr
   - `TenantSelectionService`
   - `IdentityCommunicationAdapter`
   - `PermissionAccessAuthorizer` (dynamic permission map authorization)
+  - `PermissionCatalogProvider` (exposed permission catalog discovery)
 - DI extension methods:
   - `AddIBeamIdentityServices(IConfiguration)`
   - `AddIBeamIdentityPermissionMappings(...)`
+  - `AddIBeamIdentityPermissionCatalog(...)`
   - `AddIBeamIdentityAuthPasswordService()`
   - `AddIBeamIdentityAuthOtpService()`
   - `AddIBeamIdentityAuthOAuthService()`
@@ -48,3 +50,15 @@ This package is where identity behavior is implemented. It consumes contracts fr
 - `IBeam:Identity:OAuth` (when OAuth is enabled)
 - `IBeam:Identity:Events` (optional)
 - `IBeam:Identity:PermissionAccess` (optional; JSON permission map source)
+- `IBeam:Identity:RoleManagement` (optional; tenant/admin policy toggles)
+
+### OTP Auto-Provision Toggle
+
+- `IBeam:Identity:Otp:AllowAutoProvisionForUnknownUser`
+  - `true`: OTP sign-in may create users for unknown destinations
+  - `false`: unknown destinations are blocked in OTP start/complete flows
+- Default when omitted:
+  - `Development`: `true`
+  - `Test` / `Production`: `false`
+- Environment-variable override:
+  - `IBeam__Identity__Otp__AllowAutoProvisionForUnknownUser=true|false`
