@@ -1,9 +1,11 @@
 using System.Security.Claims;
 using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
+using IBeam.Identity.Options;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace IBeam.Identity.Api.Controllers;
 
@@ -15,10 +17,14 @@ public sealed class RolesController : ControllerBase
     private static readonly string[] ManageRoleClaims = ["owner", "administrator", "admin"];
 
     private readonly ITenantRoleService _roles;
+    private readonly IOptionsSnapshot<RoleManagementOptions> _roleManagementOptions;
 
-    public RolesController(ITenantRoleService roles)
+    public RolesController(
+        ITenantRoleService roles,
+        IOptionsSnapshot<RoleManagementOptions> roleManagementOptions)
     {
         _roles = roles;
+        _roleManagementOptions = roleManagementOptions;
     }
 
     [HttpGet]
@@ -48,6 +54,8 @@ public sealed class RolesController : ControllerBase
     {
         if (!TryAuthorizeTenantRoleAdmin(tenantId, out var forbidden))
             return forbidden;
+        if (!_roleManagementOptions.Value.AllowTenantRoleCreation)
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Tenant role creation is disabled." });
 
         try
         {
@@ -65,6 +73,8 @@ public sealed class RolesController : ControllerBase
     {
         if (!TryAuthorizeTenantRoleAdmin(tenantId, out var forbidden))
             return forbidden;
+        if (!_roleManagementOptions.Value.AllowTenantRoleMutation)
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Tenant role mutation is disabled." });
 
         try
         {
@@ -86,6 +96,8 @@ public sealed class RolesController : ControllerBase
     {
         if (!TryAuthorizeTenantRoleAdmin(tenantId, out var forbidden))
             return forbidden;
+        if (!_roleManagementOptions.Value.AllowTenantRoleMutation)
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Tenant role mutation is disabled." });
 
         try
         {

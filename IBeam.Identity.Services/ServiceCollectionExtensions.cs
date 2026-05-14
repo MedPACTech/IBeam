@@ -25,6 +25,23 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<OtpOptions>()
         .Bind(configuration.GetSection(OtpOptions.SectionName))
+        .PostConfigure(o =>
+        {
+            var settingPath = $"{OtpOptions.SectionName}:{nameof(OtpOptions.AllowAutoProvisionForUnknownUser)}";
+            var rawSetting = configuration[settingPath];
+            if (!string.IsNullOrWhiteSpace(rawSetting))
+                return;
+
+            var environmentName =
+                configuration["DOTNET_ENVIRONMENT"] ??
+                configuration["ASPNETCORE_ENVIRONMENT"] ??
+                "Production";
+
+            o.AllowAutoProvisionForUnknownUser = string.Equals(
+                environmentName,
+                "Development",
+                StringComparison.OrdinalIgnoreCase);
+        })
         .Validate(o =>
         {
             o.Validate();
@@ -43,6 +60,9 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<FeatureOptions>()
         .Bind(configuration.GetSection("IBeam:Identity:Features"));
+
+        services.AddOptions<RoleManagementOptions>()
+        .Bind(configuration.GetSection(RoleManagementOptions.SectionName));
 
         services.AddOptions<OAuthOptions>()
         .Bind(configuration.GetSection(OAuthOptions.SectionName));
@@ -63,6 +83,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IPermissionAccessStore, NoOpPermissionAccessStore>();
         services.AddScoped<IPermissionGrantResolver, PermissionGrantResolver>();
         services.AddScoped<IPermissionAccessAuthorizer, PermissionAccessAuthorizer>();
+        services.AddSingleton<IPermissionCatalogProvider, PermissionCatalogProvider>();
         services.AddScoped<ITokenService, JwtTokenService>();
 
 
@@ -83,6 +104,23 @@ public static class ServiceCollectionExtensions
         {
             foreach (var entry in entries)
                 opts.Mappings.Add(entry);
+        });
+
+        return services;
+    }
+
+    public static IServiceCollection AddIBeamIdentityPermissionCatalog(
+        this IServiceCollection services,
+        Action<PermissionCatalogBuilder> configure)
+    {
+        var builder = new PermissionCatalogBuilder();
+        configure(builder);
+
+        var entries = builder.Build();
+        services.PostConfigure<PermissionAccessOptions>(opts =>
+        {
+            foreach (var entry in entries)
+                opts.Catalog.Add(entry);
         });
 
         return services;

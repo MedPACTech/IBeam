@@ -21,6 +21,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
     private readonly IAuthEventPublisher _eventPublisher;
     private readonly IAuthLifecycleHook _lifecycleHook;
     private readonly IOptions<AuthEventOptions> _eventOptions;
+    private readonly IOptions<OtpOptions> _otpOptions;
     private readonly ILogger<OtpAuthService> _logger;
 
     public OtpAuthService(
@@ -33,6 +34,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         IAuthEventPublisher eventPublisher,
         IAuthLifecycleHook lifecycleHook,
         IOptions<AuthEventOptions> eventOptions,
+        IOptions<OtpOptions> otpOptions,
         ILogger<OtpAuthService> logger)
     {
         _users = users ?? throw new ArgumentNullException(nameof(users));
@@ -44,6 +46,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
         _lifecycleHook = lifecycleHook ?? throw new ArgumentNullException(nameof(lifecycleHook));
         _eventOptions = eventOptions ?? throw new ArgumentNullException(nameof(eventOptions));
+        _otpOptions = otpOptions ?? throw new ArgumentNullException(nameof(otpOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -64,6 +67,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             new NoOpAuthEventPublisher(),
             new NoOpAuthLifecycleHook(),
             Microsoft.Extensions.Options.Options.Create(new AuthEventOptions()),
+            Microsoft.Extensions.Options.Options.Create(new OtpOptions { AllowAutoProvisionForUnknownUser = true }),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<OtpAuthService>.Instance)
     {
     }
@@ -73,6 +77,18 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         IdentityUtils.ThrowIfNullOrWhiteSpace(destination, nameof(destination));
 
         var (channel, normalized) = IdentityUtils.NormalizeDestination(destination);
+        var existingUser = channel == SenderChannel.Email
+            ? await _users.FindByEmailAsync(normalized, ct)
+            : await _users.FindByPhoneAsync(normalized, ct);
+        if (existingUser is null && !_otpOptions.Value.AllowAutoProvisionForUnknownUser)
+        {
+            _logger.LogWarning(
+                "auth.startotp.blocked_unknown_user destination={Destination} channel={Channel}",
+                normalized,
+                channel);
+            throw new IdentityUnauthorizedException("Unauthorized.");
+        }
+
         var traceId = ResolveTraceId();
         var requested = new OtpChallengeRequestedEvent
         {
@@ -250,6 +266,16 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         var createdNewUser = false;
         if (user is null)
         {
+            if (!_otpOptions.Value.AllowAutoProvisionForUnknownUser)
+            {
+                _logger.LogWarning(
+                    "auth.completeotp.blocked_auto_provision challengeId={ChallengeId} destination={Destination} channel={Channel}",
+                    challengeId,
+                    normalizedDestination,
+                    channel);
+                throw new IdentityUnauthorizedException("Unauthorized.");
+            }
+
             var createRequest = channel == SenderChannel.Email
                 ? new RegisterUserRequest(normalizedDestination, null, string.Empty, displayName)
                 : new RegisterUserRequest(null, normalizedDestination, string.Empty, displayName);

@@ -22,6 +22,7 @@ This package provides the shared language for identity workflows across API, ser
   - `ITenantRoleService` for role orchestration in app/service layers
   - `IRoleAccessAuthorizer` for enforcing role access attributes in non-API services
   - `IPermissionAccessAuthorizer` for dynamic permission-map authorization in services
+  - `IPermissionCatalogProvider` for discovering exposed permission keys (attributes + config)
 - identity models and transport records
 - options models (`JwtOptions`, `OtpOptions`, `OAuthOptions`, `FeatureOptions`, etc.)
 - lifecycle event contracts and default no-op implementations
@@ -47,6 +48,7 @@ This package provides the shared language for identity workflows across API, ser
 - `IBeam:Identity:Events`
 - `IBeam:Identity:EmailTemplates`
 - `IBeam:Identity:PermissionAccess`
+- `IBeam:Identity:RoleManagement`
 
 ## Service Role Access Example
 

@@ -18,6 +18,7 @@ This package is for API hosts that want to expose identity endpoints quickly wit
   - JWT authentication and authorization configuration
 - controller endpoints in `AuthController` covering OTP/password/OAuth/token/session flows
   - `RolesController` for tenant role CRUD + user role grant/revoke
+  - `PermissionMappingsController` for permission catalog + tenant permission->role mappings
   - role authorization attributes:
     - `[AllowRoles("owner","admin")]` (role-name claims)
     - `[AllowRoleIds("3f7a4b4f-8fc5-49bb-b6fe-1f4a9b43a3e9")]` (role-id claims)
@@ -53,6 +54,21 @@ builder.Services.AddIBeamIdentityApiControllers();
 - `GET /api/tenants/{tenantId}/users/{userId}/roles`
 
 Role management endpoints require an authenticated tenant token (`tid`) with one of these role claims: `owner`, `administrator`, or `admin`.
+
+## Permission Management Endpoints
+
+- `GET /api/tenants/{tenantId}/permissions/catalog`
+- `GET /api/tenants/{tenantId}/permissions/mappings`
+- `PUT /api/tenants/{tenantId}/permissions/mappings/by-name`
+- `PUT /api/tenants/{tenantId}/permissions/mappings/by-id`
+- `DELETE /api/tenants/{tenantId}/permissions/mappings/by-name?permissionName=...`
+- `DELETE /api/tenants/{tenantId}/permissions/mappings/by-id/{permissionId}`
+
+Permission mutation behavior is controlled by `IBeam:Identity:RoleManagement`:
+- `PermissionMode`: `HardCoded`, `Repository`, `Configuration`, `Hybrid`
+- `AllowTenantPermissionMapMutation`
+- `AllowTenantRoleCreation`
+- `AllowTenantRoleMutation`
 
 ## Attribute Examples
 

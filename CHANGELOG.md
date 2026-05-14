@@ -1,5 +1,44 @@
 # Changelog
 
+## 2.0.11 - 2026-05-14
+
+### Added
+- Permission catalog + mapping management surface in identity:
+  - `IPermissionCatalogProvider` + `ExposedPermission`
+  - `PermissionCatalogProvider` (discovers permissions from attributes + configuration)
+  - `PermissionCatalogBuilder` + `AddIBeamIdentityPermissionCatalog(...)`
+  - `PermissionMappingsController` endpoints in `IBeam.Identity.Api`
+- Role management options model and wiring:
+  - `RoleManagementOptions` (`IBeam:Identity:RoleManagement`)
+  - role mutation gates in `RolesController`
+
+### Changed
+- OTP auto-provision policy is now controlled in core OTP flow (not app wrappers) by:
+  - `IBeam:Identity:Otp:AllowAutoProvisionForUnknownUser`
+- `StartOtp` behavior:
+  - when `true`, unknown destinations are allowed
+  - when `false`, unknown destinations are blocked with `Unauthorized`
+  - blocked action audit event: `auth.startotp.blocked_unknown_user`
+- `CompleteOtp` behavior:
+  - when `true`, unknown user flow may auto-provision on successful OTP verify
+  - when `false`, any auto-provision path is blocked with `Unauthorized`
+  - blocked action audit event: `auth.completeotp.blocked_auto_provision`
+- OTP auto-provision defaults when setting is omitted:
+  - `Development`: `true`
+  - `Test` and `Production`: `false`
+  - explicit config override always wins, including env var
+    - `IBeam__Identity__Otp__AllowAutoProvisionForUnknownUser=true|false`
+- Permission configuration options extended with catalog entries:
+  - `IBeam:Identity:PermissionAccess:Catalog`
+
+### Tests
+- Added OTP behavior tests for blocked unknown-user start/complete flows.
+- Added OTP options default/override tests for environment-sensitive defaulting.
+- Added API/service tests around permission catalog/mappings and role-management gates.
+
+### Validation
+- `dotnet test IBeam.Tests.Identity.Services/IBeam.Tests.Identity.Services.csproj` could not run in this environment due restricted outbound NuGet access (`NU1301` to `api.nuget.org` / `nuget.pkg.github.com`).
+
 ## 2.0.10 - 2026-03-24
 
 ### Added

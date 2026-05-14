@@ -17,6 +17,8 @@ public sealed class OtpOptions
 
     public string VerificationTokenSecret { get; set; } = "";
 
+    public bool AllowAutoProvisionForUnknownUser { get; set; }
+
     public void Validate()
     {
         //TODO: add validation logic (e.g. CodeLength > 0, ExpirationMinutes > 0, etc.)
