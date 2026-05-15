@@ -20,6 +20,13 @@ jobs:
     environment: production
 
     steps:
+      - name: Validate stable tag ref
+        run: |
+          if [[ ! "${GITHUB_REF}" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Stable publish requires a vX.Y.Z tag ref. Received: ${GITHUB_REF}"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
         with:

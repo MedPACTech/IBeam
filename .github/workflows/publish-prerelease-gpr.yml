@@ -1,10 +1,9 @@
-name: Publish Prerelease (GitHub Packages)
+name: Publish Prerelease (NuGet.org)
 
 on:
   push:
     tags:
       - 'v*.*.*-*'
-  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -12,17 +11,30 @@ concurrency:
 
 permissions:
   contents: read
-  packages: write
+  id-token: write
 
 jobs:
   publish-prerelease:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Validate prerelease tag ref
+        run: |
+          if [[ ! "${GITHUB_REF}" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+-.+$ ]]; then
+            echo "Prerelease publish requires a vX.Y.Z-suffix tag ref. Received: ${GITHUB_REF}"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Login to NuGet.org (Trusted Publishing)
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -38,9 +50,9 @@ jobs:
       - name: Pack
         run: dotnet pack IBeam.sln -c Release --no-build -o ./artifacts/packages
 
-      - name: Push prerelease packages to GitHub Packages
+      - name: Push prerelease packages to NuGet.org
         run: |
           dotnet nuget push "./artifacts/packages/*.nupkg" \
-            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
-            --api-key "${{ secrets.GITHUB_TOKEN }}" \
+            --source "https://api.nuget.org/v3/index.json" \
+            --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
             --skip-duplicate
