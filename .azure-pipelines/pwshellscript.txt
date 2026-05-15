@@ -156,7 +156,7 @@ variables:
 - name: project
   value: '**/{PROJECT_NAME}.csproj'
 - name: packageLocation
-  value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
+  value: 'https://api.nuget.org/v3/index.json'
 - name: apiKey
   value: '$(GH_TOKEN)'
 
@@ -212,3 +212,4 @@ foreach ($csproj in $csprojs) {
 Write-Host ""
 Write-Host "Done. Created: $created  Skipped: $skipped"
 Write-Host "Output directory: $pipelineDir"
+

@@ -30,7 +30,7 @@ variables:
 - name: project
   value: '**/IBeam.Identity.Repositories.AzureTable.csproj'
 - name: packageLocation
-  value: 'https://nuget.pkg.github.com/MedPACTech/index.json'
+  value: 'https://api.nuget.org/v3/index.json'
 - name: apiKey
   value: '$(GH_TOKEN)'
 
@@ -51,4 +51,8 @@ stages:
         project: $(project)
         packageLocation: $(packageLocation)
         apiKey: $(apiKey)
+        publishPackages: true
         buildConfiguration: $(buildConfiguration)
+
+
+

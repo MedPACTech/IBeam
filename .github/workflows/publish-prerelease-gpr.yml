@@ -1,9 +1,7 @@
 name: Publish Prerelease (NuGet.org)
 
 on:
-  push:
-    tags:
-      - 'v*.*.*-*'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,10 +18,7 @@ jobs:
     steps:
       - name: Validate prerelease tag ref
         run: |
-          if [[ ! "${GITHUB_REF}" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+-.+$ ]]; then
-            echo "Prerelease publish requires a vX.Y.Z-suffix tag ref. Received: ${GITHUB_REF}"
-            exit 1
-          fi
+          echo "Manual fallback publish workflow."
 
       - name: Checkout
         uses: actions/checkout@v4

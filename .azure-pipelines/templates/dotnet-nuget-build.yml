@@ -66,6 +66,13 @@ steps:
     projects: ${{ parameters.project }}
     arguments: '--configuration ${{ parameters.buildConfiguration }} /p:Version=$(PackageVersion) /p:PackageVersion=$(PackageVersion)'
 
+- task: DotNetCoreCLI@2
+  displayName: 'Test Solution'
+  inputs:
+    command: 'test'
+    projects: ${{ parameters.solution }}
+    arguments: '--configuration ${{ parameters.buildConfiguration }} --no-build'
+
 # Clean artifact folder (prevents stale nupkg issues)
 - script: rm -rf $(Build.ArtifactStagingDirectory)/*
   displayName: 'Clean artifact staging directory'
@@ -89,4 +96,4 @@ steps:
       --api-key ${{ parameters.apiKey }} \
       --skip-duplicate
   displayName: 'Push NuGet Package'
-  condition: and(succeeded(), eq('${{ parameters.publishPackages }}', 'true'))
+  condition: and(succeeded(), eq('${{ parameters.publishPackages }}', 'true'), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/tags/v')))
