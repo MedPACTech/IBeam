@@ -1,13 +1,13 @@
 name: Publish Stable (NuGet.org)
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
-  workflow_dispatch:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: true
 
 permissions:
@@ -16,21 +16,16 @@ permissions:
 
 jobs:
   publish-stable:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
     runs-on: ubuntu-latest
     environment: production
 
     steps:
-      - name: Validate stable tag ref
-        run: |
-          if [[ ! "${GITHUB_REF}" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Stable publish requires a vX.Y.Z tag ref. Received: ${GITHUB_REF}"
-            exit 1
-          fi
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Login to NuGet.org (Trusted Publishing)
         id: login
