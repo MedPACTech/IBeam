@@ -13,6 +13,9 @@ parameters:
   default: 'Release'
 - name: apiKey
   type: string
+- name: publishPackages
+  type: boolean
+  default: false
 
 steps:
 - task: NuGetToolInstaller@1
@@ -86,3 +89,4 @@ steps:
       --api-key ${{ parameters.apiKey }} \
       --skip-duplicate
   displayName: 'Push NuGet Package'
+  condition: and(succeeded(), eq('${{ parameters.publishPackages }}', 'true'))
