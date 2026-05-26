@@ -20,7 +20,7 @@ variables:
 - name: buildConfiguration
   value: 'Release'
 - name: solution
-  value: '**/IBeam.sln'
+  value: 'IBeam.sln'
 - name: project
   value: '**/IBeam.Communications.Email.Templating.csproj'
 - name: packageLocation
@@ -46,6 +46,7 @@ stages:
         packageLocation: $(packageLocation)
         apiKey: $(apiKey)
         publishPackages: true
+
 
 
 

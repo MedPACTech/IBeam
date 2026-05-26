@@ -68,7 +68,15 @@ steps:
 
 - script: |
     set -e
-    dotnet test ${{ parameters.solution }} \
+    SOLUTION_PATH="${{ parameters.solution }}"
+    if [ ! -f "$SOLUTION_PATH" ]; then
+      SOLUTION_PATH="$(find . -maxdepth 3 -name IBeam.sln | head -n 1)"
+    fi
+    if [ -z "$SOLUTION_PATH" ] || [ ! -f "$SOLUTION_PATH" ]; then
+      echo "Unable to locate IBeam.sln for test execution."
+      exit 1
+    fi
+    dotnet test "$SOLUTION_PATH" \
       --configuration ${{ parameters.buildConfiguration }} \
       --no-build
   displayName: 'Test Solution'
