@@ -10,9 +10,18 @@ This project gives AI coding agents (Codex, Copilot, etc.) the context they need
 2. Generate code that follows IBeam layering and abstractions.
 3. Extend IBeam safely without bypassing framework patterns.
 
+## Builder Quickstart
+
+If you are a practical builder (not a deep framework engineer), start here:
+
+1. Read `docs/builder-quickstart.md`
+2. Paste `examples/builder-onboarding-prompt.md` into your AI tool
+3. Or use `examples/builder-onboarding-prompt-quick.md` for a shorter version
+
 ## Contents
 
 - `AGENTS.md`: default instruction contract for AI agents.
+- `docs/builder-quickstart.md`: step-by-step guide for Codex/Clawbot-style builders.
 - `docs/architecture.md`: package/layer responsibilities.
 - `docs/extension-patterns.md`: extension workflow and guardrails.
 - `docs/anti-patterns.md`: patterns that create drift or complexity.
@@ -23,6 +32,8 @@ This project gives AI coding agents (Codex, Copilot, etc.) the context they need
 - `catalogs/ibeam-capabilities.json`: machine-readable capability map.
 - `catalogs/architecture-rules.json`: machine-readable architecture rules.
 - `examples/prompt-seeds.md`: prompt templates for AI tools.
+- `examples/builder-onboarding-prompt.md`: full onboarding prompt.
+- `examples/builder-onboarding-prompt-quick.md`: short onboarding prompt.
 
 ## Recommended usage flow
 

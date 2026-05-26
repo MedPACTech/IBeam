@@ -1,5 +1,13 @@
 # Prompt Seeds for AI Builders
 
+## Seed 0: Builder Onboarding (Full)
+
+Use `examples/builder-onboarding-prompt.md` as your first message.
+
+## Seed 0b: Builder Onboarding (Quick)
+
+Use `examples/builder-onboarding-prompt-quick.md` for a shorter first message.
+
 ## Seed 1: Package-First Composition
 
 "Read IBeam.AI.Enablement/AGENTS.md. Build this feature by selecting the appropriate package blueprints under IBeam.AI.Enablement/blueprints. Keep controllers thin and put business/role rules in services."
