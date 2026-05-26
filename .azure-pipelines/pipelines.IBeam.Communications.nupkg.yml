@@ -26,7 +26,7 @@ variables:
 - name: buildConfiguration
   value: 'Release'
 - name: solution
-  value: '**/IBeam.sln'
+  value: 'IBeam.sln'
 - name: project
   value: '**/IBeam.Communications.csproj'
 - name: packageLocation
@@ -53,6 +53,7 @@ stages:
         apiKey: $(apiKey)
         publishPackages: true
         buildConfiguration: $(buildConfiguration)
+
 
 
 

@@ -68,10 +68,19 @@ steps:
 
 - script: |
     set -e
-    dotnet test ${{ parameters.solution }} \
-      --configuration ${{ parameters.buildConfiguration }} \
-      --no-build
-  displayName: 'Test Solution'
+    mapfile -t TEST_PROJECTS < <(find . -name "IBeam.Tests*.csproj" -not -path "*/obj/*" | sort)
+    if [ "${#TEST_PROJECTS[@]}" -eq 0 ]; then
+      echo "No test projects found matching IBeam.Tests*.csproj"
+      exit 1
+    fi
+
+    for testProject in "${TEST_PROJECTS[@]}"; do
+      echo "Running tests for $testProject"
+      dotnet test "$testProject" \
+        --configuration ${{ parameters.buildConfiguration }} \
+        --no-restore
+    done
+  displayName: 'Test Projects'
 
 # Clean artifact folder (prevents stale nupkg issues)
 - script: rm -rf $(Build.ArtifactStagingDirectory)/*
