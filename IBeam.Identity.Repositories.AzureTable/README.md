@@ -38,3 +38,17 @@ Primary section:
 - `IBeam:Identity:AzureTable`
 
 Includes connection-string fallback resolution across `IBeam:*` and `ConnectionStrings:*` keys.
+
+## Connection String Cascade
+
+Identity AzureTable provider resolves connection string with fallback precedence:
+
+1. `IBeam:Identity:AzureTable:StorageConnectionString`
+2. `IBeam:AzureTables`
+3. `IBeam:Repositories:ConnectionString`
+4. `IBeam:ConnectionString`
+5. `ConnectionStrings:AzureTables`
+6. `ConnectionStrings:AzureStorage`
+7. `ConnectionStrings:IBeam`
+8. `ConnectionStrings:DefaultConnection`
+9. `ConnectionStrings:IdentityAzureTable`

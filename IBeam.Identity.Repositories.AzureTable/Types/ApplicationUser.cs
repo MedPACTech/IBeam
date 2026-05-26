@@ -1,4 +1,4 @@
-﻿using ElCamino.AspNetCore.Identity.AzureTable.Model;
+using ElCamino.AspNetCore.Identity.AzureTable.Model;
 
 namespace IBeam.Identity.Repositories.AzureTable.Types;
 
@@ -7,4 +7,6 @@ public class ApplicationUser : IdentityUser
 {
     public string DisplayName { get; set; } = "";
     public string? PreferredTwoFactorMethod { get; set; }
+    public string? ProfileExtensionsJson { get; set; }
+    public DateTimeOffset? ProfileExtensionsUpdatedAtUtc { get; set; }
 }

@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IBeam.Identity.Services\IBeam.Identity.Services.csproj" />
+    <ProjectReference Include="..\IBeam.Api\IBeam.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>

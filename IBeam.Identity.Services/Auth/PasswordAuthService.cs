@@ -21,6 +21,8 @@ public sealed class PasswordAuthService : IIdentityAuthService
     private readonly IOtpService _otpService;
     private readonly IOtpChallengeStore _otpChallenges;
     private readonly IIdentityCommunicationSender _sender;
+    private readonly IAuthAttemptStore _attempts;
+    private readonly IOptions<LoginAttemptOptions> _attemptOptions;
     private readonly IAuthEventPublisher _eventPublisher;
     private readonly IAuthLifecycleHook _lifecycleHook;
     private readonly IOptions<AuthEventOptions> _eventOptions;
@@ -34,6 +36,8 @@ public sealed class PasswordAuthService : IIdentityAuthService
         IOtpService otpService,
         IOtpChallengeStore otpChallenges,
         IIdentityCommunicationSender sender,
+        IAuthAttemptStore attempts,
+        IOptions<LoginAttemptOptions> attemptOptions,
         IAuthEventPublisher eventPublisher,
         IAuthLifecycleHook lifecycleHook,
         IOptions<AuthEventOptions> eventOptions,
@@ -46,6 +50,8 @@ public sealed class PasswordAuthService : IIdentityAuthService
         _otpService = otpService ?? throw new ArgumentNullException(nameof(otpService));
         _otpChallenges = otpChallenges ?? throw new ArgumentNullException(nameof(otpChallenges));
         _sender = sender ?? throw new ArgumentNullException(nameof(sender));
+        _attempts = attempts ?? throw new ArgumentNullException(nameof(attempts));
+        _attemptOptions = attemptOptions ?? throw new ArgumentNullException(nameof(attemptOptions));
         _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
         _lifecycleHook = lifecycleHook ?? throw new ArgumentNullException(nameof(lifecycleHook));
         _eventOptions = eventOptions ?? throw new ArgumentNullException(nameof(eventOptions));
@@ -68,6 +74,8 @@ public sealed class PasswordAuthService : IIdentityAuthService
             otpService,
             otpChallenges,
             sender,
+            new Auth.Attempts.InMemoryAuthAttemptStore(),
+            Microsoft.Extensions.Options.Options.Create(new LoginAttemptOptions()),
             new NoOpAuthEventPublisher(),
             new NoOpAuthLifecycleHook(),
             Microsoft.Extensions.Options.Options.Create(new AuthEventOptions()),
@@ -116,10 +124,13 @@ public sealed class PasswordAuthService : IIdentityAuthService
         if (string.IsNullOrWhiteSpace(request.Password)) throw new IdentityValidationException("Password is required.");
 
         var traceId = ResolveTraceId();
+        var normalizedIdentifier = request.Email.Trim().ToLowerInvariant();
+
+        await EnsureNotLockedAsync("password", normalizedIdentifier, ct);
         var loginAttempt = new LoginAttemptedEvent
         {
             Method = "password",
-            Identifier = request.Email.Trim().ToLowerInvariant(),
+            Identifier = normalizedIdentifier,
             TraceId = traceId
         };
         loginAttempt.Metadata["idempotencyKey"] = $"{LoginAttemptedEvent.TypeName}:password:{loginAttempt.Identifier}";
@@ -128,6 +139,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         var user = await _users.FindByEmailAsync(request.Email, ct);
         if (user is null)
         {
+            await RegisterFailedAttemptAsync("password", normalizedIdentifier, ct);
             await EmitLoginFailedAsync("password", request.Email, "User not found.", null, traceId, ct);
             throw new IdentityUnauthorizedException("Invalid credentials.");
         }
@@ -135,9 +147,12 @@ public sealed class PasswordAuthService : IIdentityAuthService
         var ok = await _users.ValidatePasswordAsync(request.Email, request.Password, ct);
         if (!ok)
         {
+            await RegisterFailedAttemptAsync("password", normalizedIdentifier, ct);
             await EmitLoginFailedAsync("password", request.Email, "Password invalid.", null, traceId, ct);
             throw new IdentityUnauthorizedException("Invalid credentials.");
         }
+
+        await _attempts.RegisterSuccessAsync("password", normalizedIdentifier, ct);
 
         if (user.TwoFactorEnabled)
         {
@@ -764,5 +779,30 @@ public sealed class PasswordAuthService : IIdentityAuthService
             return null;
 
         return current.TraceId != default ? current.TraceId.ToString() : current.Id;
+    }
+
+    private async Task EnsureNotLockedAsync(string method, string identifier, CancellationToken ct)
+    {
+        var opts = _attemptOptions.Value;
+        if (!opts.Enabled)
+            return;
+
+        var state = await _attempts.GetStateAsync(method, identifier, ct);
+        if (state.IsLocked(DateTimeOffset.UtcNow))
+            throw new IdentityUnauthorizedException("Too many failed login attempts. Try again later.");
+    }
+
+    private async Task RegisterFailedAttemptAsync(string method, string identifier, CancellationToken ct)
+    {
+        var opts = _attemptOptions.Value;
+        if (!opts.Enabled)
+            return;
+
+        await _attempts.RegisterFailureAsync(
+            method,
+            identifier,
+            opts.MaxFailedAttempts,
+            TimeSpan.FromMinutes(opts.LockoutMinutes),
+            ct);
     }
 }

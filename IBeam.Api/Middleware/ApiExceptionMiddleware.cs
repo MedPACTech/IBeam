@@ -12,17 +12,20 @@ public sealed class ApiExceptionMiddleware
     private readonly ILogger<ApiExceptionMiddleware> _logger;
     private readonly ApiErrorHandlingOptions _options;
     private readonly IApiErrorSink? _errorSink;
+    private readonly ISystemLogSink? _logSink;
 
     public ApiExceptionMiddleware(
         RequestDelegate next,
         ILogger<ApiExceptionMiddleware> logger,
         IOptions<ApiErrorHandlingOptions> options,
-        IApiErrorSink? errorSink = null)
+        IApiErrorSink? errorSink = null,
+        ISystemLogSink? logSink = null)
     {
         _next = next;
         _logger = logger;
         _options = options.Value;
         _errorSink = errorSink;
+        _logSink = logSink;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -51,6 +54,7 @@ public sealed class ApiExceptionMiddleware
         catch (Exception ex)
         {
             await PersistErrorAsync(context, ex, "RequestPipeline", context.RequestAborted);
+            await PersistLogAsync(context, ex, "RequestPipeline", context.RequestAborted);
 
             _logger.LogError(ex, "Unhandled exception for {Method} {Path}", context.Request.Method, context.Request.Path);
 
@@ -121,6 +125,35 @@ public sealed class ApiExceptionMiddleware
         catch (Exception saveEx)
         {
             _logger.LogWarning(saveEx, "Failed to persist API exception details.");
+        }
+    }
+
+    private async Task PersistLogAsync(
+        HttpContext context,
+        Exception ex,
+        string source,
+        CancellationToken cancellationToken)
+    {
+        if (_logSink is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _logSink.SaveAsync(new SystemLogRecord
+            {
+                Source = source,
+                Level = "Error",
+                Message = ex.Message,
+                Detail = ex.ToString(),
+                TraceId = context.TraceIdentifier,
+                Timestamp = DateTimeOffset.UtcNow
+            }, cancellationToken);
+        }
+        catch (Exception saveEx)
+        {
+            _logger.LogWarning(saveEx, "Failed to persist API log details.");
         }
     }
 }

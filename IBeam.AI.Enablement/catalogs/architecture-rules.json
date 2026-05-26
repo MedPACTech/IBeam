@@ -1,0 +1,51 @@
+{
+  "name": "IBeam Architecture Rules",
+  "version": "1.1.0",
+  "rules": [
+    {
+      "id": "api-no-provider-coupling",
+      "description": "API controllers must not depend on provider-specific repository/entity types.",
+      "severity": "error"
+    },
+    {
+      "id": "services-own-business-rules",
+      "description": "Business rules and role/permission enforcement must be implemented in service layer methods.",
+      "severity": "error"
+    },
+    {
+      "id": "services-use-contracts",
+      "description": "Service layer depends on contract interfaces, not concrete data providers.",
+      "severity": "error"
+    },
+    {
+      "id": "service-primary-entity-boundary",
+      "description": "Prefer one primary entity/repository boundary per service to control complexity.",
+      "severity": "warn"
+    },
+    {
+      "id": "no-circular-service-dependencies",
+      "description": "Service dependency graph must be acyclic; use coordinator/facade services for cross-service workflows.",
+      "severity": "error"
+    },
+    {
+      "id": "tenant-boundary-enforced",
+      "description": "Tenant-scoped write and access workflows must validate tenant context in service layer.",
+      "severity": "error"
+    },
+    {
+      "id": "feature-options-driven",
+      "description": "New major behaviors should be feature-flagged or configured via options.",
+      "severity": "warn"
+    },
+    {
+      "id": "connection-cascade-documented",
+      "description": "Repository provider setup must document and follow connection string fallback cascade.",
+      "severity": "warn"
+    },
+    {
+      "id": "default-observability-fallback",
+      "description": "Error handling and logging must have safe defaults when host apps do not provide custom sinks.",
+      "severity": "warn"
+    }
+  ]
+}

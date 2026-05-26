@@ -131,6 +131,36 @@ public sealed class PasswordAuthServiceTests
         sender.VerifyAll();
     }
 
+    [TestMethod]
+    public async Task PasswordLoginAsync_AfterFiveFailures_LocksOutForSubsequentAttempts()
+    {
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var sut = new PasswordAuthService(
+            users.Object,
+            Mock.Of<ITenantMembershipStore>(),
+            Mock.Of<ITenantProvisioningService>(),
+            Mock.Of<ITokenService>(),
+            Mock.Of<IOtpService>(),
+            Mock.Of<IOtpChallengeStore>(),
+            Mock.Of<IIdentityCommunicationSender>());
+
+        users.Setup(x => x.FindByEmailAsync("locked@example.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(Guid.NewGuid(), "locked@example.com", true));
+        users.Setup(x => x.ValidatePasswordAsync("locked@example.com", "bad-pass", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        for (var i = 0; i < 5; i++)
+        {
+            await AssertThrowsAsync<IdentityUnauthorizedException>(() =>
+                sut.PasswordLoginAsync(new PasswordLoginRequest("locked@example.com", "bad-pass")));
+        }
+
+        var lockoutEx = await AssertThrowsAsync<IdentityUnauthorizedException>(() =>
+            sut.PasswordLoginAsync(new PasswordLoginRequest("locked@example.com", "bad-pass")));
+
+        StringAssert.Contains(lockoutEx.Message, "Too many failed login attempts");
+    }
+
     private static async Task<TException> AssertThrowsAsync<TException>(Func<Task> action)
         where TException : Exception
     {
