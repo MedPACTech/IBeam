@@ -1,0 +1,6 @@
+@IBeam.DemoApi_HostAddress = http://localhost:5092
+
+GET {{IBeam.DemoApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

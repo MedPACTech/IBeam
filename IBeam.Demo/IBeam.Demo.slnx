@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="../IBeam.Communications.Abstractions/IBeam.Communications.Abstractions.csproj" />
+  <Project Path="../IBeam.Communications.Email.AzureCommunications/IBeam.Communications.Email.AzureCommunications.csproj" />
+  <Project Path="../IBeam.Identity.Core/IBeam.Identity.Core.csproj" />
+  <Project Path="../IBeam.Identity.Repositories.AzureTable/IBeam.Identity.Repositories.AzureTable.csproj" />
+  <Project Path="../IBeam.Identity.Repositories.EntityFramework/IBeam.Identity.Repositories.EntityFramework.csproj" />
+  <Project Path="../IBeam.Identity.Services/IBeam.Identity.Services.csproj" />
+  <Project Path="IBeam.DemoApi/IBeam.DemoApi.csproj" />
+  <Project Path="IBeam.DemoService/IBeam.DemoService.csproj" />
+</Solution>

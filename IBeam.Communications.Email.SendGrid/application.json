@@ -1,0 +1,13 @@
+{
+  "IBeam": {
+    "Communications": {
+      "Email": {
+        "SendGrid": {
+          "ApiKey": "YOUR_SENDGRID_API_KEY",
+          "DefaultFromAddress": "DoNotReply@yourdomain.com",
+          "DefaultFromDisplayName": "IBeam Notifications"
+        }
+      }
+    }
+  }
+}

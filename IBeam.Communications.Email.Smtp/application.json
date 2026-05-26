@@ -1,0 +1,22 @@
+{
+  "IBeam": {
+    "Communications": {
+      "Email": {
+        "Smtp": {
+          "Host": "smtp.yourdomain.com",
+          "Port": 587,
+          "EnableSsl": true,
+          "Username": "smtp-username",
+          "Password": "smtp-password",
+          "DefaultFromAddress": "DoNotReply@yourdomain.com",
+          "DefaultFromDisplayName": "IBeam Notifications"
+        },
+        "AzureCommunications": {
+          "ConnectionString": "endpoint=https://...;accesskey=...",
+          "DefaultFromAddress": "DoNotReply@yourdomain.com",
+          "DefaultFromDisplayName": "IBeam Notifications"
+        }
+      }
+    }
+  }
+}

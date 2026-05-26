@@ -1,0 +1,37 @@
+{
+  "IBeam": {
+    "Identity": {
+      "Otp": {
+        "CodeLength": 6,
+        "ExpirationMinutes": 10,
+        "MaxAttempts": 5,
+        "ReuseWindowMinutes": 2
+      }
+    },
+    "Communications": {
+      "Email": {
+        "AzureCommunications": {
+          "ConnectionString": "endpoint=https://...;accesskey=...",
+          "DefaultFromAddress": "DoNotReply@yourdomain.com",
+          "DefaultFromDisplayName": "IBeam Notifications"
+        }
+      }
+    },
+    "Storage": {
+      "AzureTable": {
+        "ConnectionString": "DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;",
+        "Tables": {
+          "OtpChallenges": "OtpChallenges",
+          "OtpAttempts": "OtpAttempts"
+        }
+      }
+    }
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
+}

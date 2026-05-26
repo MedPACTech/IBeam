@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+      <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.16.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IBeam.Communications\IBeam.Communications.csproj" />
+    <ProjectReference Include="..\IBeam.Communications.Email.AzureCommunications\IBeam.Communications.Email.AzureCommunications.csproj" />
+    <ProjectReference Include="..\IBeam.Communications.Sms.AzureCommunications\IBeam.Communications.Sms.AzureCommunications.csproj" />
+    <ProjectReference Include="..\IBeam.Identity.Repositories.AzureTable\IBeam.Identity.Repositories.AzureTable.csproj" />
+    <ProjectReference Include="..\IBeam.Identity.Services\IBeam.Identity.Services.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Templates\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>
+
+
