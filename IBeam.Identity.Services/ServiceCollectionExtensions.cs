@@ -2,7 +2,9 @@ using IBeam.Identity.Interfaces;
 using IBeam.Identity.Events;
 using IBeam.Identity.Services.Otp;
 using IBeam.Identity.Services.Auth;
+using IBeam.Identity.Services.Auth.Attempts;
 using IBeam.Identity.Services.Authorization;
+using IBeam.Identity.Services.Profiles;
 using IBeam.Identity.Services.Tenants;
 using IBeam.Identity.Services.Tokens;
 using Microsoft.Extensions.Configuration;
@@ -61,6 +63,15 @@ public static class ServiceCollectionExtensions
         services.AddOptions<FeatureOptions>()
         .Bind(configuration.GetSection("IBeam:Identity:Features"));
 
+        services.AddOptions<LoginAttemptOptions>()
+            .Bind(configuration.GetSection(LoginAttemptOptions.SectionName))
+            .Validate(o =>
+            {
+                o.Validate();
+                return true;
+            })
+            .ValidateOnStart();
+
         services.AddOptions<RoleManagementOptions>()
         .Bind(configuration.GetSection(RoleManagementOptions.SectionName));
 
@@ -79,6 +90,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IOtpService, OtpService>();
         services.AddScoped<ITenantSelectionService, TenantSelectionService>();
         services.AddScoped<ITenantRoleService, TenantRoleService>();
+        services.TryAddScoped<IAuthAttemptStore, InMemoryAuthAttemptStore>();
+        services.TryAddScoped<IIdentityProfileStore, InMemoryIdentityProfileStore>();
+        services.AddScoped<IIdentityProfileService, IdentityProfileService>();
         services.AddScoped<IRoleAccessAuthorizer, RoleAccessAuthorizer>();
         services.TryAddScoped<IPermissionAccessStore, NoOpPermissionAccessStore>();
         services.AddScoped<IPermissionGrantResolver, PermissionGrantResolver>();

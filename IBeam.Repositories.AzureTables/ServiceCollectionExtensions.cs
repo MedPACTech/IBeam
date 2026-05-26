@@ -51,15 +51,17 @@ public static class ServiceCollectionExtensions
         // Precedence:
         // 1) IBeam:Repositories:AzureTables:ConnectionString (bound into options)
         // 2) IBeam:AzureTables
-        // 3) IBeam:ConnectionString
-        // 4) ConnectionStrings:AzureTables
-        // 5) ConnectionStrings:AzureStorage
-        // 6) ConnectionStrings:IBeam
-        // 7) ConnectionStrings:DefaultConnection
+        // 3) IBeam:Repositories:ConnectionString
+        // 4) IBeam:ConnectionString
+        // 5) ConnectionStrings:AzureTables
+        // 6) ConnectionStrings:AzureStorage
+        // 7) ConnectionStrings:IBeam
+        // 8) ConnectionStrings:DefaultConnection
         var resolved =
             FirstNonEmpty(
                 scopedConnectionString,
                 configuration["IBeam:AzureTables"],
+                configuration["IBeam:Repositories:ConnectionString"],
                 configuration["IBeam:ConnectionString"],
                 configuration.GetConnectionString("AzureTables"),
                 configuration.GetConnectionString("AzureTable"),
@@ -70,7 +72,8 @@ public static class ServiceCollectionExtensions
         if (string.IsNullOrWhiteSpace(resolved))
             throw new InvalidOperationException(
                 "AzureTables connection string is required. Set IBeam:Repositories:AzureTables:ConnectionString, " +
-                "or IBeam:AzureTables, or IBeam:ConnectionString, or ConnectionStrings:AzureTables/AzureStorage/IBeam/DefaultConnection.");
+                "or IBeam:AzureTables, or IBeam:Repositories:ConnectionString, or IBeam:ConnectionString, " +
+                "or ConnectionStrings:AzureTables/AzureStorage/IBeam/DefaultConnection.");
 
         return resolved!;
     }

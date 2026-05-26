@@ -34,3 +34,16 @@ This package adds Azure Tables as a concrete data-store implementation for IBeam
 ## Configuration Section
 
 - `IBeam:Repositories:AzureTables`
+
+## Connection String Cascade
+
+AzureTables provider resolves connection string with fallback precedence:
+
+1. `IBeam:Repositories:AzureTables:ConnectionString`
+2. `IBeam:AzureTables`
+3. `IBeam:Repositories:ConnectionString`
+4. `IBeam:ConnectionString`
+5. `ConnectionStrings:AzureTables`
+6. `ConnectionStrings:AzureStorage`
+7. `ConnectionStrings:IBeam`
+8. `ConnectionStrings:DefaultConnection`

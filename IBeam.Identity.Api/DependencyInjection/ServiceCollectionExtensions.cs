@@ -6,6 +6,7 @@ using IBeam.Identity.Interfaces;
 using IBeam.Identity.Options;
 using IBeam.Identity.Api.Authorization;
 using IBeam.Identity.Api.Controllers;
+using IBeam.Api.Abstractions;
 using IBeam.Identity.Repositories.AzureTable.Extensions;
 using IBeam.Identity.Services;
 using IBeam.Identity.Services.Otp;
@@ -15,6 +16,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
 
 namespace IBeam.Identity.Api.DependencyInjection;
@@ -36,6 +38,8 @@ public static class ServiceCollectionExtensions
         services.AddIBeamIdentityAuthOtpService();
         services.AddIBeamIdentityAuthPasswordService();
         services.AddIBeamIdentityAuthOAuthService();
+        services.TryAddScoped<IApiErrorSink, NoOpApiErrorSink>();
+        services.TryAddScoped<ISystemLogSink, NoOpSystemLogSink>();
 
         services.AddMemoryCache();
         services.AddHttpClient();

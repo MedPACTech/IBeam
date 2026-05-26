@@ -17,8 +17,15 @@ public static class EntityFrameworkIdentityServiceCollectionExtensions
         IConfiguration configuration,
         string configSectionPath = "IdentityEf")
     {
-        var opts = configuration.GetSection(configSectionPath).Get<EntityFrameworkIdentityOptions>()
-                   ?? new EntityFrameworkIdentityOptions();
+        var bound = configuration.GetSection(configSectionPath).Get<EntityFrameworkIdentityOptions>()
+                    ?? new EntityFrameworkIdentityOptions();
+
+        var opts = new EntityFrameworkIdentityOptions
+        {
+            Provider = bound.Provider,
+            MigrationsAssembly = bound.MigrationsAssembly,
+            ConnectionString = ResolveConnectionString(configuration, configSectionPath, bound.ConnectionString)
+        };
 
         opts.Validate();
 
@@ -63,4 +70,39 @@ public static class EntityFrameworkIdentityServiceCollectionExtensions
 
         return builder;
     }
+
+    private static string ResolveConnectionString(IConfiguration configuration, string configSectionPath, string? scopedConnectionString)
+    {
+        // Precedence:
+        // 1) {configSectionPath}:ConnectionString (bound into options; default section is "IdentityEf")
+        // 2) IBeam:Identity:EntityFramework:ConnectionString
+        // 3) IBeam:Repositories:EntityFramework:ConnectionString
+        // 4) IBeam:Repositories:ConnectionString
+        // 5) IBeam:ConnectionString
+        // 6) ConnectionStrings:IdentityEf
+        // 7) ConnectionStrings:IdentityEntityFramework
+        // 8) ConnectionStrings:IBeam
+        // 9) ConnectionStrings:DefaultConnection
+        var resolved = FirstNonEmpty(
+            scopedConnectionString,
+            configuration["IBeam:Identity:EntityFramework:ConnectionString"],
+            configuration["IBeam:Repositories:EntityFramework:ConnectionString"],
+            configuration["IBeam:Repositories:ConnectionString"],
+            configuration["IBeam:ConnectionString"],
+            configuration.GetConnectionString("IdentityEf"),
+            configuration.GetConnectionString("IdentityEntityFramework"),
+            configuration.GetConnectionString("IBeam"),
+            configuration.GetConnectionString("DefaultConnection"));
+
+        if (string.IsNullOrWhiteSpace(resolved))
+            throw new InvalidOperationException(
+                $"Entity Framework Identity connection string is required. Set {configSectionPath}:ConnectionString, " +
+                "or IBeam:Identity:EntityFramework:ConnectionString, or IBeam:Repositories:EntityFramework:ConnectionString, " +
+                "or IBeam:Repositories:ConnectionString, or IBeam:ConnectionString, or ConnectionStrings:IdentityEf/IdentityEntityFramework/IBeam/DefaultConnection.");
+
+        return resolved!;
+    }
+
+    private static string? FirstNonEmpty(params string?[] values)
+        => values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
 }

@@ -27,6 +27,9 @@ public sealed class AzureTableIdentityOptions
     public string ExternalLoginsTableName { get; set; } = "ExternalLogins";
     public string AuthSessionsTableName { get; set; } = "AuthSessions";
     public string PermissionRoleMapsTableName { get; set; } = "PermissionRoleMaps";
+    public string AuthAttemptsTableName { get; set; } = "AuthAttempts";
+    public string SystemLogsTableName { get; set; } = "SystemLogs";
+    public string SystemErrorsTableName { get; set; } = "SystemErrors";
 
     // (Optional, only if you implement later)
     public string? OtpAttemptsTableName { get; set; } = null;
@@ -102,6 +105,9 @@ public sealed class AzureTableIdentityOptions
         ExternalLoginsTableName = NormalizeOrDefault(ExternalLoginsTableName, "ExternalLogins");
         AuthSessionsTableName = NormalizeOrDefault(AuthSessionsTableName, "AuthSessions");
         PermissionRoleMapsTableName = NormalizeOrDefault(PermissionRoleMapsTableName, "PermissionRoleMaps");
+        AuthAttemptsTableName = NormalizeOrDefault(AuthAttemptsTableName, "AuthAttempts");
+        SystemLogsTableName = NormalizeOrDefault(SystemLogsTableName, "SystemLogs");
+        SystemErrorsTableName = NormalizeOrDefault(SystemErrorsTableName, "SystemErrors");
 
         // Validate base table names (prefix is not validated here; it becomes part of final name)
         ValidateTableName(IndexTableName, nameof(IndexTableName));
@@ -116,6 +122,9 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(ExternalLoginsTableName, nameof(ExternalLoginsTableName));
         ValidateTableName(AuthSessionsTableName, nameof(AuthSessionsTableName));
         ValidateTableName(PermissionRoleMapsTableName, nameof(PermissionRoleMapsTableName));
+        ValidateTableName(AuthAttemptsTableName, nameof(AuthAttemptsTableName));
+        ValidateTableName(SystemLogsTableName, nameof(SystemLogsTableName));
+        ValidateTableName(SystemErrorsTableName, nameof(SystemErrorsTableName));
 
         if (!string.IsNullOrWhiteSpace(OtpAttemptsTableName))
             ValidateTableName(OtpAttemptsTableName!, nameof(OtpAttemptsTableName));
@@ -133,6 +142,9 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(FullTableName(ExternalLoginsTableName), nameof(TablePrefix) + "+" + nameof(ExternalLoginsTableName));
         ValidateTableName(FullTableName(AuthSessionsTableName), nameof(TablePrefix) + "+" + nameof(AuthSessionsTableName));
         ValidateTableName(FullTableName(PermissionRoleMapsTableName), nameof(TablePrefix) + "+" + nameof(PermissionRoleMapsTableName));
+        ValidateTableName(FullTableName(AuthAttemptsTableName), nameof(TablePrefix) + "+" + nameof(AuthAttemptsTableName));
+        ValidateTableName(FullTableName(SystemLogsTableName), nameof(TablePrefix) + "+" + nameof(SystemLogsTableName));
+        ValidateTableName(FullTableName(SystemErrorsTableName), nameof(TablePrefix) + "+" + nameof(SystemErrorsTableName));
     }
 
     private static string NormalizeOrDefault(string value, string @default)

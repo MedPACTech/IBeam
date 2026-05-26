@@ -1,0 +1,81 @@
+{
+  "name": "IBeam Capability Catalog",
+  "version": "1.1.0",
+  "layers": [
+    {
+      "name": "contracts",
+      "packages": ["IBeam.Identity"],
+      "responsibilities": ["interfaces", "models", "options", "events"]
+    },
+    {
+      "name": "services",
+      "packages": ["IBeam.Identity.Services", "IBeam.Services"],
+      "responsibilities": ["orchestration", "business rules", "role and permission enforcement", "tenant policy"]
+    },
+    {
+      "name": "api",
+      "packages": ["IBeam.Identity.Api", "IBeam.Api"],
+      "responsibilities": ["http endpoints", "auth wiring", "request/response mapping", "exception pipeline"]
+    },
+    {
+      "name": "repositories",
+      "packages": ["IBeam.Identity.Repositories.AzureTable", "IBeam.Identity.Repositories.EntityFramework", "IBeam.Repositories.AzureTables", "IBeam.Repositories.OrmLite"],
+      "responsibilities": ["provider persistence", "store implementations", "schema setup"]
+    },
+    {
+      "name": "communications",
+      "packages": ["IBeam.Communications", "IBeam.Communications.Sms.Twilio", "IBeam.Communications.Email.AzureCommunications"],
+      "responsibilities": ["message delivery", "templated messaging providers"]
+    }
+  ],
+  "identity_auth_methods": ["password", "otp", "oauth"],
+  "identity_features": ["login-attempt-lockout", "profile-extensions"],
+  "multi_tenant": {
+    "principle": "global identity with tenant-scoped authorization",
+    "claims": ["uid", "tid", "role", "rid"]
+  },
+  "service_design": {
+    "primary_boundary": "one-primary-entity-per-service",
+    "service_collaboration": "allowed",
+    "cycles": "prohibited"
+  },
+  "observability_defaults": {
+    "error_sink_default": "NoOpApiErrorSink",
+    "log_sink_default": "NoOpSystemLogSink",
+    "provider_backed_defaults": ["SystemErrors", "SystemLogs"]
+  },
+  "connection_string_cascade": {
+    "identity_azuretable": [
+      "IBeam:Identity:AzureTable:StorageConnectionString",
+      "IBeam:AzureTables",
+      "IBeam:Repositories:ConnectionString",
+      "IBeam:ConnectionString",
+      "ConnectionStrings:AzureTables",
+      "ConnectionStrings:AzureStorage",
+      "ConnectionStrings:IBeam",
+      "ConnectionStrings:DefaultConnection",
+      "ConnectionStrings:IdentityAzureTable"
+    ],
+    "repositories_azuretables": [
+      "IBeam:Repositories:AzureTables:ConnectionString",
+      "IBeam:AzureTables",
+      "IBeam:Repositories:ConnectionString",
+      "IBeam:ConnectionString",
+      "ConnectionStrings:AzureTables",
+      "ConnectionStrings:AzureStorage",
+      "ConnectionStrings:IBeam",
+      "ConnectionStrings:DefaultConnection"
+    ],
+    "identity_entityframework": [
+      "{configSectionPath}:ConnectionString",
+      "IBeam:Identity:EntityFramework:ConnectionString",
+      "IBeam:Repositories:EntityFramework:ConnectionString",
+      "IBeam:Repositories:ConnectionString",
+      "IBeam:ConnectionString",
+      "ConnectionStrings:IdentityEf",
+      "ConnectionStrings:IdentityEntityFramework",
+      "ConnectionStrings:IBeam",
+      "ConnectionStrings:DefaultConnection"
+    ]
+  }
+}

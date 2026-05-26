@@ -9,13 +9,16 @@ public sealed class GlobalErrorHandler : IHostedService
 {
     private readonly ILogger<GlobalErrorHandler> _logger;
     private readonly IApiErrorSink? _errorSink;
+    private readonly ISystemLogSink? _logSink;
 
     public GlobalErrorHandler(
         ILogger<GlobalErrorHandler> logger,
-        IApiErrorSink? errorSink = null)
+        IApiErrorSink? errorSink = null,
+        ISystemLogSink? logSink = null)
     {
         _logger = logger;
         _errorSink = errorSink;
+        _logSink = logSink;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -55,6 +58,7 @@ public sealed class GlobalErrorHandler : IHostedService
 
         if (_errorSink is null)
         {
+            await TryPersistLogAsync(ex, source, cancellationToken);
             return;
         }
 
@@ -74,6 +78,31 @@ public sealed class GlobalErrorHandler : IHostedService
         catch (Exception saveEx)
         {
             _logger.LogError(saveEx, "Failed to persist global error.");
+        }
+
+        await TryPersistLogAsync(ex, source, cancellationToken);
+    }
+
+    private async Task TryPersistLogAsync(Exception ex, string source, CancellationToken cancellationToken)
+    {
+        if (_logSink is null)
+            return;
+
+        try
+        {
+            await _logSink.SaveAsync(new SystemLogRecord
+            {
+                Source = source,
+                Level = "Critical",
+                Message = ex.Message,
+                Detail = ex.ToString(),
+                TraceId = Guid.NewGuid().ToString("N"),
+                Timestamp = DateTimeOffset.UtcNow
+            }, cancellationToken);
+        }
+        catch (Exception logEx)
+        {
+            _logger.LogError(logEx, "Failed to persist global system log.");
         }
     }
 }

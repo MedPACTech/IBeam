@@ -32,3 +32,19 @@ This package offers EF-based Identity store wiring and tenant membership persist
 
 - Supported now: `Sqlite`
 - Not yet active in extension wiring: `SqlServer`, `Postgres`
+
+## Connection String Cascade
+
+EF identity store registration resolves connection string with fallback precedence:
+
+1. `{configSectionPath}:ConnectionString` (default section path is `IdentityEf`)
+2. `IBeam:Identity:EntityFramework:ConnectionString`
+3. `IBeam:Repositories:EntityFramework:ConnectionString`
+4. `IBeam:Repositories:ConnectionString`
+5. `IBeam:ConnectionString`
+6. `ConnectionStrings:IdentityEf`
+7. `ConnectionStrings:IdentityEntityFramework`
+8. `ConnectionStrings:IBeam`
+9. `ConnectionStrings:DefaultConnection`
+
+This aligns EF identity provider behavior with the broader IBeam repository fallback pattern.
