@@ -1,0 +1,107 @@
+name: Update Changelog From Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (ex: v2.0.33)"
+        required: true
+      release_date:
+        description: "Release date (YYYY-MM-DD). Leave empty to use today."
+        required: false
+      release_body:
+        description: "Release notes body in markdown. Leave empty to use GitHub release notes when available."
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release metadata
+        id: meta
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const isDispatch = context.eventName === "workflow_dispatch";
+            const inputTag = core.getInput("tag");
+            const inputDate = core.getInput("release_date");
+            const inputBody = core.getInput("release_body");
+
+            let tag = "";
+            let date = "";
+            let body = "";
+
+            if (isDispatch) {
+              tag = inputTag;
+              date = inputDate || new Date().toISOString().slice(0, 10);
+              body = inputBody || "";
+            } else {
+              const rel = context.payload.release;
+              tag = rel.tag_name;
+              date = (rel.published_at || new Date().toISOString()).slice(0, 10);
+              body = rel.body || "";
+            }
+
+            const version = tag.replace(/^v/, "");
+            core.setOutput("tag", tag);
+            core.setOutput("version", version);
+            core.setOutput("date", date);
+            core.setOutput("body", body);
+
+      - name: Update CHANGELOG.md
+        shell: bash
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          RELEASE_DATE: ${{ steps.meta.outputs.date }}
+          RELEASE_BODY: ${{ steps.meta.outputs.body }}
+        run: |
+          set -euo pipefail
+
+          if [ ! -f CHANGELOG.md ]; then
+            printf "# Changelog\n" > CHANGELOG.md
+          fi
+
+          heading="## ${VERSION} - ${RELEASE_DATE}"
+          if grep -Fq "$heading" CHANGELOG.md; then
+            echo "Changelog entry already exists: $heading"
+            exit 0
+          fi
+
+          sanitized_body="$(printf "%s" "$RELEASE_BODY" | sed 's/\r$//')"
+          if [ -z "${sanitized_body// }" ]; then
+            sanitized_body="### Notes
+- Release ${VERSION}."
+          fi
+
+          {
+            printf "%s\n\n" "$heading"
+            printf "%s\n\n" "$sanitized_body"
+          } > .new_changelog_entry.md
+
+          awk '
+            NR==1 { print; print ""; while ((getline line < ".new_changelog_entry.md") > 0) print line; next }
+            { print }
+          ' CHANGELOG.md > CHANGELOG.tmp
+          mv CHANGELOG.tmp CHANGELOG.md
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/changelog-${{ steps.meta.outputs.version }}
+          title: "docs(changelog): add ${{ steps.meta.outputs.version }} release notes"
+          commit-message: "docs(changelog): add ${{ steps.meta.outputs.version }} release notes"
+          body: |
+            Automated changelog update from release `${{ steps.meta.outputs.tag }}`.
+          add-paths: |
+            CHANGELOG.md

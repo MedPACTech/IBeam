@@ -3,6 +3,7 @@ trigger:
     include:
     - main
     - development
+    - release/*
     - feature/*
     - bugfix/*
   tags:
