@@ -16,6 +16,9 @@ parameters:
 - name: publishPackages
   type: boolean
   default: false
+- name: createPackage
+  type: boolean
+  default: false
 - name: testProjectPattern
   type: string
   default: ''
@@ -109,6 +112,7 @@ steps:
 # Pack (uses NBGV version)
 - task: DotNetCoreCLI@2
   displayName: 'Create NuGet Package'
+  condition: and(succeeded(), eq('${{ parameters.createPackage }}', 'true'))
   inputs:
     command: 'pack'
     packagesToPack: ${{ parameters.project }}
@@ -124,4 +128,4 @@ steps:
       --api-key ${{ parameters.apiKey }} \
       --skip-duplicate
   displayName: 'Push NuGet Package'
-  condition: and(succeeded(), eq('${{ parameters.publishPackages }}', 'true'), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/tags/v')))
+  condition: and(succeeded(), eq('${{ parameters.createPackage }}', 'true'), eq('${{ parameters.publishPackages }}', 'true'), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/tags/v')))

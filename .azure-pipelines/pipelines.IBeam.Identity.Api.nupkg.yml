@@ -30,6 +30,8 @@ variables:
   value: '**/IBeam.Identity.Api.csproj'
 - name: testProjectPattern
   value: '**/IBeam.Tests.Identity.Api.csproj'
+- name: createPackage
+  value: 'false'
 - name: packageLocation
   value: 'https://api.nuget.org/v3/index.json'
 - name: apiKey
@@ -53,6 +55,7 @@ stages:
         packageLocation: $(packageLocation)
         apiKey: $(apiKey)
         publishPackages: false
+        createPackage: $(createPackage)
         testProjectPattern: $(testProjectPattern)
         buildConfiguration: $(buildConfiguration)
 
