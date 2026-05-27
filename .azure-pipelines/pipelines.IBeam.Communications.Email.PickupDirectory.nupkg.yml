@@ -32,7 +32,7 @@ variables:
 - name: packageLocation
   value: 'https://api.nuget.org/v3/index.json'
 - name: apiKey
-  value: '$(GH_TOKEN)'
+  value: '$(NUGET_API_KEY)'
 
 stages:
 - stage: BuildAndPush
@@ -53,6 +53,7 @@ stages:
         apiKey: $(apiKey)
         publishPackages: true
         buildConfiguration: $(buildConfiguration)
+
 
 
 
