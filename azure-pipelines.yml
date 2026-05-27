@@ -45,7 +45,8 @@ stages:
         project: $(project)
         packageLocation: $(packageLocation)
         apiKey: $(apiKey)
-        publishPackages: true
+        publishPackages: false
+
 
 
 
