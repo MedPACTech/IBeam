@@ -80,8 +80,7 @@ jobs:
 
           sanitized_body="$(printf "%s" "$RELEASE_BODY" | sed 's/\r$//')"
           if [ -z "${sanitized_body// }" ]; then
-            sanitized_body="### Notes
-- Release ${VERSION}."
+            sanitized_body=$'### Notes\n- Release '"${VERSION}"'.'
           fi
 
           {

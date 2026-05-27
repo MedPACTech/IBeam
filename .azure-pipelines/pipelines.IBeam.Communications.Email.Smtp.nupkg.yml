@@ -12,8 +12,6 @@ trigger:
   paths:
     include:
     - IBeam.Communications.Email.Smtp/**
-    - .azure-pipelines/templates/**
-    - IBeam.sln
     - .azure-pipelines/pipelines.IBeam.Communications.Email.Smtp.nupkg.yml
 
 pool:
@@ -30,6 +28,8 @@ variables:
   value: 'IBeam.sln'
 - name: project
   value: '**/IBeam.Communications.Email.Smtp.csproj'
+- name: testProjectPattern
+  value: '**/IBeam.Tests.Communications.Email.Smtp.csproj'
 - name: packageLocation
   value: 'https://api.nuget.org/v3/index.json'
 - name: apiKey
@@ -53,6 +53,7 @@ stages:
         packageLocation: $(packageLocation)
         apiKey: $(apiKey)
         publishPackages: false
+        testProjectPattern: $(testProjectPattern)
         buildConfiguration: $(buildConfiguration)
 
 

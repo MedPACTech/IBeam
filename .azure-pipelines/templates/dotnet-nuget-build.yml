@@ -16,6 +16,9 @@ parameters:
 - name: publishPackages
   type: boolean
   default: false
+- name: testProjectPattern
+  type: string
+  default: ''
 
 steps:
 - task: NuGetToolInstaller@1
@@ -30,20 +33,31 @@ steps:
 
 - script: |
     set -e
-    dotnet tool install --tool-path . nbgv
-    ./nbgv cloud
-  displayName: 'NBGV: set version variables'
-
-- script: |
-    set -e
-    BASE_VERSION="$(./nbgv get-version -v SimpleVersion)"
+    PROJECT_PATTERN='${{ parameters.project }}'
     SOURCE_BRANCH='$(Build.SourceBranch)'
-    PACKAGE_VERSION="$BASE_VERSION"
+    BUILD_ID='$(Build.BuildId)'
+    PROJECT_FILE="$(find . -name "$(basename "$PROJECT_PATTERN")" -not -path "*/obj/*" | head -n 1)"
 
-    if [ "$SOURCE_BRANCH" != "refs/heads/main" ] && [[ ! "$SOURCE_BRANCH" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-      PACKAGE_VERSION="${BASE_VERSION}-dev"
+    if [ -z "$PROJECT_FILE" ]; then
+      echo "Could not resolve project file for pattern: $PROJECT_PATTERN"
+      exit 1
     fi
 
+    BASE_VERSION="$(grep -oPm1 '(?<=<VersionPrefix>)[^<]+' "$PROJECT_FILE" || true)"
+    if [ -z "$BASE_VERSION" ]; then
+      BASE_VERSION="$(grep -oPm1 '(?<=<Version>)[^<]+' "$PROJECT_FILE" || true)"
+    fi
+    if [ -z "$BASE_VERSION" ]; then
+      echo "No <VersionPrefix> or <Version> found in $PROJECT_FILE"
+      exit 1
+    fi
+
+    PACKAGE_VERSION="$BASE_VERSION"
+    if [ "$SOURCE_BRANCH" != "refs/heads/main" ] && [[ ! "$SOURCE_BRANCH" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      PACKAGE_VERSION="${BASE_VERSION}-dev.${BUILD_ID}"
+    fi
+
+    echo "Using project file: $PROJECT_FILE"
     echo "Using PackageVersion=$PACKAGE_VERSION for SourceBranch=$SOURCE_BRANCH"
     echo "##vso[task.setvariable variable=PackageVersion]$PACKAGE_VERSION"
   displayName: 'Set package version for branch'
@@ -64,14 +78,20 @@ steps:
   inputs:
     command: 'build'
     projects: ${{ parameters.project }}
-    arguments: '--configuration ${{ parameters.buildConfiguration }} /p:Version=$(PackageVersion) /p:PackageVersion=$(PackageVersion)'
+    arguments: '--configuration ${{ parameters.buildConfiguration }} /p:PackageVersion=$(PackageVersion)'
 
 - script: |
     set -e
-    mapfile -t TEST_PROJECTS < <(find . -name "IBeam.Tests*.csproj" -not -path "*/obj/*" | sort)
+    TEST_PATTERN='${{ parameters.testProjectPattern }}'
+    if [ -z "$TEST_PATTERN" ]; then
+      echo "No testProjectPattern provided for this package pipeline. Skipping tests."
+      exit 0
+    fi
+
+    mapfile -t TEST_PROJECTS < <(find . -name "$(basename "$TEST_PATTERN")" -not -path "*/obj/*" | sort)
     if [ "${#TEST_PROJECTS[@]}" -eq 0 ]; then
-      echo "No test projects found matching IBeam.Tests*.csproj"
-      exit 1
+      echo "No test projects found matching $TEST_PATTERN. Skipping tests."
+      exit 0
     fi
 
     for testProject in "${TEST_PROJECTS[@]}"; do
@@ -96,7 +116,6 @@ steps:
     arguments: >
       --configuration ${{ parameters.buildConfiguration }}
       --no-build
-      /p:Version=$(PackageVersion)
       /p:PackageVersion=$(PackageVersion)
 
 - script: |

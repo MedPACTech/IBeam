@@ -12,8 +12,6 @@ trigger:
   paths:
     include:
     - IBeam.Communications.Sms.Twilio/**
-    - .azure-pipelines/templates/**
-    - IBeam.sln
     - .azure-pipelines/pipelines.IBeam.Communications.Sms.Twilio.nupkg.yml
 
 pool:
@@ -30,6 +28,8 @@ variables:
   value: 'IBeam.sln'
 - name: project
   value: '**/IBeam.Communications.Sms.Twilio.csproj'
+- name: testProjectPattern
+  value: '**/IBeam.Tests.Communications.Sms.Twilio.csproj'
 - name: packageLocation
   value: 'https://api.nuget.org/v3/index.json'
 - name: apiKey
@@ -53,6 +53,7 @@ stages:
         packageLocation: $(packageLocation)
         apiKey: $(apiKey)
         publishPackages: false
+        testProjectPattern: $(testProjectPattern)
         buildConfiguration: $(buildConfiguration)
 
 
