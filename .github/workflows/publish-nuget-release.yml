@@ -1,6 +1,8 @@
 name: Publish Stable (NuGet.org)
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
 
 concurrency:
@@ -13,6 +15,7 @@ permissions:
 
 jobs:
   publish-stable:
+    if: startsWith(github.event.release.tag_name, 'v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: production
 

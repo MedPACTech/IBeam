@@ -3,6 +3,7 @@ trigger:
     include:
     - main
     - development
+    - release/*
     - feature/*
     - bugfix/*
   tags:
@@ -32,7 +33,7 @@ variables:
 - name: packageLocation
   value: 'https://api.nuget.org/v3/index.json'
 - name: apiKey
-  value: '$(GH_TOKEN)'
+  value: '$(NUGET_API_KEY)'
 
 stages:
 - stage: BuildAndPush
@@ -51,8 +52,10 @@ stages:
         project: $(project)
         packageLocation: $(packageLocation)
         apiKey: $(apiKey)
-        publishPackages: true
+        publishPackages: false
         buildConfiguration: $(buildConfiguration)
+
+
 
 
 
