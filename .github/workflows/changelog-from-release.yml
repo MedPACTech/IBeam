@@ -16,8 +16,7 @@ on:
         required: false
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   update-changelog:
@@ -95,16 +94,31 @@ jobs:
           ' CHANGELOG.md > CHANGELOG.tmp
           mv CHANGELOG.tmp CHANGELOG.md
 
-      - name: Commit changelog update
+      - name: Prepare changelog patch artifact
         shell: bash
         run: |
           set -euo pipefail
           if git diff --quiet -- CHANGELOG.md; then
-            echo "No changelog changes to commit."
+            echo "No changelog changes to export."
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md
-          git commit -m "docs(changelog): add ${{ steps.meta.outputs.version }} release notes"
-          git push origin HEAD:${{ github.event.repository.default_branch }}
+          mkdir -p artifacts/changelog
+          cp CHANGELOG.md artifacts/changelog/CHANGELOG.md
+          git diff -- CHANGELOG.md > artifacts/changelog/CHANGELOG.patch
+          {
+            echo "## Changelog Update Ready"
+            echo ""
+            echo "Release: \`${{ steps.meta.outputs.tag }}\`"
+            echo ""
+            echo "A changelog update was generated as workflow artifacts:"
+            echo "- \`CHANGELOG.md\`"
+            echo "- \`CHANGELOG.patch\`"
+            echo ""
+            echo "Apply via your standard PR flow to satisfy branch protections."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload changelog artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog-update-${{ steps.meta.outputs.version }}
+          path: artifacts/changelog/*
