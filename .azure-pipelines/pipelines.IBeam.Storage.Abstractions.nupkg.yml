@@ -1,0 +1,58 @@
+trigger:
+  branches:
+    include:
+    - main
+    - development
+    - release/*
+    - feature/*
+    - bugfix/*
+  tags:
+    include:
+    - v*
+  paths:
+    include:
+    - IBeam.Storage.Abstractions/**
+    - .azure-pipelines/pipelines.IBeam.Storage.Abstractions.nupkg.yml
+
+pool:
+  vmImage: 'ubuntu-22.04'
+
+variables:
+- group: GitHubNuGetSecrets
+
+- name: buildPlatform
+  value: 'AnyCPU'
+- name: buildConfiguration
+  value: 'Release'
+- name: solution
+  value: 'IBeam.sln'
+- name: project
+  value: '**/IBeam.Storage.Abstractions.csproj'
+- name: testProjectPattern
+  value: ''
+- name: packageLocation
+  value: 'https://api.nuget.org/v3/index.json'
+- name: apiKey
+  value: '$(NUGET_API_KEY)'
+
+stages:
+- stage: BuildAndPush
+  jobs:
+  - job: BuildJob
+    steps:
+    - checkout: self
+      clean: true
+      fetchDepth: 0
+      fetchTags: true
+      lfs: false
+
+    - template: templates/dotnet-nuget-build.yml
+      parameters:
+        solution: $(solution)
+        project: $(project)
+        packageLocation: $(packageLocation)
+        apiKey: $(apiKey)
+        publishPackages: false
+        createPackage: false
+        testProjectPattern: $(testProjectPattern)
+        buildConfiguration: $(buildConfiguration)
