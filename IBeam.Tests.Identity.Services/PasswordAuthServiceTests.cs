@@ -132,6 +132,132 @@ public sealed class PasswordAuthServiceTests
     }
 
     [TestMethod]
+    public async Task CompleteEmailPasswordLinkAsync_BindsEmailAndPasswordToCurrentUser()
+    {
+        var userId = Guid.NewGuid();
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var otpChallenges = new Mock<IOtpChallengeStore>(MockBehavior.Strict);
+
+        users.Setup(x => x.FindByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(userId, string.Empty, false, PhoneNumber: "16145551212", PhoneConfirmed: true));
+        users.Setup(x => x.FindByEmailAsync("adam@test.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IdentityUser?)null);
+        users.Setup(x => x.UpdateEmailAsync(userId, "adam@test.com", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        users.Setup(x => x.SetPasswordAsync(userId, "Pass123!", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        users.Setup(x => x.SetEmailConfirmedAsync(userId, true, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        otpChallenges.Setup(x => x.GetAsync("challenge-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpChallengeRecord(
+                ChallengeId: "challenge-1",
+                Destination: "adam@test.com",
+                Purpose: SenderPurpose.UserRegistration,
+                CodeHash: "hash",
+                ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10),
+                AttemptCount: 0,
+                TenantId: null,
+                IsConsumed: true,
+                VerificationToken: "vt",
+                VerificationTokenExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10),
+                Channel: SenderChannel.Email));
+
+        var sut = new PasswordAuthService(
+            users.Object,
+            Mock.Of<ITenantMembershipStore>(),
+            Mock.Of<ITenantProvisioningService>(),
+            Mock.Of<ITokenService>(),
+            Mock.Of<IOtpService>(),
+            otpChallenges.Object,
+            Mock.Of<IIdentityCommunicationSender>());
+
+        await sut.CompleteEmailPasswordLinkAsync(userId, "adam@test.com", "challenge-1", "vt", "Pass123!");
+
+        users.VerifyAll();
+        otpChallenges.VerifyAll();
+    }
+
+    [TestMethod]
+    public async Task StartEmailPasswordLinkAsync_WhenEmailBelongsToAnotherUser_ThrowsValidation()
+    {
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+
+        users.Setup(x => x.FindByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(userId, string.Empty, false));
+        users.Setup(x => x.FindByEmailAsync("adam@test.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(otherUserId, "adam@test.com", true));
+
+        var sut = new PasswordAuthService(
+            users.Object,
+            Mock.Of<ITenantMembershipStore>(),
+            Mock.Of<ITenantProvisioningService>(),
+            Mock.Of<ITokenService>(),
+            Mock.Of<IOtpService>(),
+            Mock.Of<IOtpChallengeStore>(),
+            Mock.Of<IIdentityCommunicationSender>());
+
+        await AssertThrowsAsync<IdentityValidationException>(() =>
+            sut.StartEmailPasswordLinkAsync(userId, "adam@test.com"));
+
+        users.VerifyAll();
+    }
+
+    [TestMethod]
+    public async Task CompletePhoneLinkAsync_BindsPhoneToCurrentUser()
+    {
+        var userId = Guid.NewGuid();
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var otp = new Mock<IOtpService>(MockBehavior.Strict);
+        var otpChallenges = new Mock<IOtpChallengeStore>(MockBehavior.Strict);
+
+        users.Setup(x => x.FindByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(userId, "adam@test.com", true));
+        users.Setup(x => x.FindByPhoneAsync("16145551212", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IdentityUser?)null);
+        users.Setup(x => x.UpdatePhoneAsync(userId, "16145551212", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        users.Setup(x => x.SetPhoneConfirmedAsync(userId, true, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        otp.Setup(x => x.VerifyAsync(
+                It.Is<OtpVerifyRequest>(r => r.ChallengeId == "challenge-1" && r.Code == "123456"),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpVerifyResult(true, "vt", DateTimeOffset.UtcNow.AddMinutes(10)));
+
+        otpChallenges.Setup(x => x.GetAsync("challenge-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpChallengeRecord(
+                ChallengeId: "challenge-1",
+                Destination: "16145551212",
+                Purpose: SenderPurpose.PhoneVerification,
+                CodeHash: "hash",
+                ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10),
+                AttemptCount: 0,
+                TenantId: null,
+                IsConsumed: true,
+                VerificationToken: "vt",
+                VerificationTokenExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10),
+                Channel: SenderChannel.Sms));
+
+        var sut = new PasswordAuthService(
+            users.Object,
+            Mock.Of<ITenantMembershipStore>(),
+            Mock.Of<ITenantProvisioningService>(),
+            Mock.Of<ITokenService>(),
+            otp.Object,
+            otpChallenges.Object,
+            Mock.Of<IIdentityCommunicationSender>());
+
+        await sut.CompletePhoneLinkAsync(userId, "1-614-555-1212", "challenge-1", "123456");
+
+        users.VerifyAll();
+        otp.VerifyAll();
+        otpChallenges.VerifyAll();
+    }
+
+    [TestMethod]
     public async Task PasswordLoginAsync_AfterFiveFailures_LocksOutForSubsequentAttempts()
     {
         var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);

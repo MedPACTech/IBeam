@@ -6,6 +6,10 @@ public interface IIdentityAuthService
     Task<AuthResultResponse> PasswordLoginAsync(PasswordLoginRequest request, CancellationToken ct = default);
     Task<RequestPasswordResetResponse> StartEmailPasswordRegistrationAsync(string email, string? displayName = null, string? resetUrlBase = null, CancellationToken ct = default);
     Task<AuthResultResponse> CompleteEmailPasswordRegistrationAsync(string email, string challengeId, string verificationToken, string newPassword, string? displayName = null, CancellationToken ct = default);
+    Task<RequestPasswordResetResponse> StartEmailPasswordLinkAsync(Guid userId, string email, string? displayName = null, string? resetUrlBase = null, CancellationToken ct = default);
+    Task CompleteEmailPasswordLinkAsync(Guid userId, string email, string challengeId, string verificationToken, string newPassword, CancellationToken ct = default);
+    Task<OtpChallengeResult> StartPhoneLinkAsync(Guid userId, string phoneNumber, CancellationToken ct = default);
+    Task CompletePhoneLinkAsync(Guid userId, string phoneNumber, string challengeId, string code, CancellationToken ct = default);
     Task<OtpChallengeResult> StartTwoFactorSetupAsync(Guid userId, string method, CancellationToken ct = default);
     Task CompleteTwoFactorSetupAsync(Guid userId, string method, string challengeId, string code, CancellationToken ct = default);
     Task<AuthResultResponse> CompleteTwoFactorLoginAsync(string email, string challengeId, string code, CancellationToken ct = default);

@@ -29,6 +29,20 @@ IBeam identity is intentionally layered:
 5. Communications Layer
 - Email/SMS abstractions and providers used by OTP/registration flows.
 
+## Auth Pattern Flexibility
+
+IBeam treats a user as a stable `UserId` with one or more verified authentication identifiers bound to it. The user can start with SMS OTP, add email OTP later, set an email/password credential after that, and still remain the same identity.
+
+The advantage for product teams is that onboarding can be low-friction without painting the account model into a corner:
+
+- SMS-first onboarding for mobile or care-team workflows.
+- Email OTP for magic-link or code-based sign-in.
+- Email/password for users who need a traditional credential.
+- 2FA using either verified email or verified SMS.
+- OAuth links that point back to the same `UserId`.
+
+Provider implementations should resolve auth identifiers through an indexed lookup, then load the canonical user by `UserId`. They should not scan the full user table for login.
+
 ## Features and Components
 
 - auth service contracts:
@@ -82,6 +96,7 @@ IBeam identity is intentionally layered:
 - `TenantRoles`: tenant-scoped roles.
 - `PermissionRoleMaps`: tenant permission mapping to role names/ids.
 - `OtpChallenges`: OTP lifecycle records (destination, hash, attempts, expiry, consume state).
+- `AuthIdentifiers`: auth lookup bindings from email/SMS identifiers to canonical user ids.
 - `ExternalLogins`: OAuth provider-user links.
 - `AuthSessions`: refresh/session tracking and revocation.
 - `Schema`: schema version marker for bootstrap.
@@ -205,4 +220,31 @@ public sealed class PatientService
         return Task.CompletedTask;
     }
 }
+```
+
+### 5) Auth identifier contract example
+
+```csharp
+IdentityUser? byEmail = await userStore.FindByEmailAsync("adam@test.com", ct);
+IdentityUser? bySms = await userStore.FindByPhoneAsync("16145551212", ct);
+
+// Both should return the same UserId after the identifiers are linked.
+```
+
+### 6) Add another auth pattern to the current user
+
+```csharp
+await auth.StartEmailPasswordLinkAsync(
+    userId,
+    "adam@test.com",
+    resetUrlBase: "https://app.example.com/finish-email-link",
+    ct: ct);
+
+await auth.CompleteEmailPasswordLinkAsync(
+    userId,
+    "adam@test.com",
+    challengeId,
+    verificationToken,
+    "new secure password",
+    ct);
 ```

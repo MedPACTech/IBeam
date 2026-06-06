@@ -270,6 +270,11 @@ public sealed class PasswordAuthService : IIdentityAuthService
         var expectedPurpose = channel == SenderChannel.Email ? SenderPurpose.EmailVerification : SenderPurpose.PhoneVerification;
 
         await VerifyOtpChallengeAsync(challengeId, code, destination, expectedPurpose, ct);
+        if (channel == SenderChannel.Email)
+            await _users.SetEmailConfirmedAsync(user.UserId, true, ct);
+        else
+            await _users.SetPhoneConfirmedAsync(user.UserId, true, ct);
+
         await _users.SetTwoFactorAsync(user.UserId, enabled: true, preferredMethod: normalizedMethod, ct);
     }
 
@@ -440,6 +445,128 @@ public sealed class PasswordAuthService : IIdentityAuthService
         await _users.SetEmailConfirmedAsync(user.UserId, true, ct);
 
         return await BuildAuthResultAsync(user, createdNewUser, ct);
+    }
+
+    public async Task<RequestPasswordResetResponse> StartEmailPasswordLinkAsync(
+        Guid userId,
+        string email,
+        string? displayName = null,
+        string? resetUrlBase = null,
+        CancellationToken ct = default)
+    {
+        if (userId == Guid.Empty)
+            throw new IdentityValidationException("UserId is required.");
+        if (string.IsNullOrWhiteSpace(email))
+            throw new IdentityValidationException("Email is required.");
+
+        var user = await _users.FindByIdAsync(userId, ct)
+            ?? throw new IdentityValidationException("User not found.");
+
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var existing = await _users.FindByEmailAsync(normalizedEmail, ct);
+        if (existing is not null && existing.UserId != user.UserId)
+            throw new IdentityValidationException("Email is already bound to another user.");
+
+        return await StartEmailPasswordRegistrationAsync(normalizedEmail, displayName ?? user.DisplayName, resetUrlBase, ct);
+    }
+
+    public async Task CompleteEmailPasswordLinkAsync(
+        Guid userId,
+        string email,
+        string challengeId,
+        string verificationToken,
+        string newPassword,
+        CancellationToken ct = default)
+    {
+        if (userId == Guid.Empty)
+            throw new IdentityValidationException("UserId is required.");
+        if (string.IsNullOrWhiteSpace(email))
+            throw new IdentityValidationException("Email is required.");
+        if (string.IsNullOrWhiteSpace(challengeId))
+            throw new IdentityValidationException("ChallengeId is required.");
+        if (string.IsNullOrWhiteSpace(verificationToken))
+            throw new IdentityValidationException("Verification token is required.");
+        if (string.IsNullOrWhiteSpace(newPassword))
+            throw new IdentityValidationException("New password is required.");
+
+        var user = await _users.FindByIdAsync(userId, ct)
+            ?? throw new IdentityValidationException("User not found.");
+
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var existing = await _users.FindByEmailAsync(normalizedEmail, ct);
+        if (existing is not null && existing.UserId != user.UserId)
+            throw new IdentityValidationException("Email is already bound to another user.");
+
+        var challenge = await _otpChallenges.GetAsync(challengeId, ct);
+        if (challenge is null)
+            throw new IdentityValidationException("Verification challenge not found.");
+        if (!challenge.IsConsumed)
+            throw new IdentityValidationException("Verification challenge is not active.");
+        if (challenge.VerificationTokenExpiresAt is null || challenge.VerificationTokenExpiresAt <= DateTimeOffset.UtcNow)
+            throw new IdentityValidationException("Verification token has expired.");
+        if (!string.Equals(challenge.VerificationToken, verificationToken, StringComparison.Ordinal))
+            throw new IdentityValidationException("Verification token is invalid.");
+        if (!string.Equals(challenge.Destination, normalizedEmail, StringComparison.OrdinalIgnoreCase))
+            throw new IdentityValidationException("Verification email does not match challenge.");
+
+        await _users.UpdateEmailAsync(user.UserId, normalizedEmail, ct);
+        await _users.SetPasswordAsync(user.UserId, newPassword, ct);
+        await _users.SetEmailConfirmedAsync(user.UserId, true, ct);
+    }
+
+    public async Task<OtpChallengeResult> StartPhoneLinkAsync(Guid userId, string phoneNumber, CancellationToken ct = default)
+    {
+        if (userId == Guid.Empty)
+            throw new IdentityValidationException("UserId is required.");
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+            throw new IdentityValidationException("Phone number is required.");
+
+        var user = await _users.FindByIdAsync(userId, ct)
+            ?? throw new IdentityValidationException("User not found.");
+
+        var (channel, normalizedPhone) = IdentityUtils.NormalizeDestination(phoneNumber);
+        if (channel != SenderChannel.Sms)
+            throw new IdentityValidationException("Destination must be a valid phone number.");
+
+        var existing = await _users.FindByPhoneAsync(normalizedPhone, ct);
+        if (existing is not null && existing.UserId != user.UserId)
+            throw new IdentityValidationException("Phone number is already bound to another user.");
+
+        return await _otpService.CreateChallengeAsync(
+            new OtpChallengeRequest(SenderChannel.Sms, normalizedPhone, SenderPurpose.PhoneVerification, null),
+            ct);
+    }
+
+    public async Task CompletePhoneLinkAsync(
+        Guid userId,
+        string phoneNumber,
+        string challengeId,
+        string code,
+        CancellationToken ct = default)
+    {
+        if (userId == Guid.Empty)
+            throw new IdentityValidationException("UserId is required.");
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+            throw new IdentityValidationException("Phone number is required.");
+        if (string.IsNullOrWhiteSpace(challengeId))
+            throw new IdentityValidationException("ChallengeId is required.");
+        if (string.IsNullOrWhiteSpace(code))
+            throw new IdentityValidationException("Code is required.");
+
+        var user = await _users.FindByIdAsync(userId, ct)
+            ?? throw new IdentityValidationException("User not found.");
+
+        var (channel, normalizedPhone) = IdentityUtils.NormalizeDestination(phoneNumber);
+        if (channel != SenderChannel.Sms)
+            throw new IdentityValidationException("Destination must be a valid phone number.");
+
+        var existing = await _users.FindByPhoneAsync(normalizedPhone, ct);
+        if (existing is not null && existing.UserId != user.UserId)
+            throw new IdentityValidationException("Phone number is already bound to another user.");
+
+        await VerifyOtpChallengeAsync(challengeId, code, normalizedPhone, SenderPurpose.PhoneVerification, ct);
+        await _users.UpdatePhoneAsync(user.UserId, normalizedPhone, ct);
+        await _users.SetPhoneConfirmedAsync(user.UserId, true, ct);
     }
 
     public async Task<AuthTokenResponse> SelectTenantAsync(string userId, SelectTenantRequest request, CancellationToken ct = default)

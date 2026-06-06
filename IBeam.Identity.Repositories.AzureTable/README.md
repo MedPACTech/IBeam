@@ -13,6 +13,7 @@ This package connects identity orchestration to Azure Table persistence. It wire
 - Azure Table option binding and validation (`AzureTableIdentityOptions`)
 - Identity store registrations for:
   - users
+  - auth identifier lookup bindings
   - tenants and memberships
   - tenant roles and user-role assignments
   - permission role-mapping store (`IPermissionAccessStore`)
@@ -38,6 +39,42 @@ Primary section:
 - `IBeam:Identity:AzureTable`
 
 Includes connection-string fallback resolution across `IBeam:*` and `ConnectionStrings:*` keys.
+
+## Auth Identifier Index
+
+The Azure Table provider keeps the canonical user in ElCamino's `AspNetUsers` table, but auth lookup is routed through a provider-owned `AuthIdentifiers` table.
+
+Key shape:
+
+```text
+PartitionKey = AUTH|EMAIL|ADAM@TEST.COM
+RowKey       = USER
+UserId       = {guid}
+
+PartitionKey = AUTH|SMS|16145551212
+RowKey       = USER
+UserId       = {same-guid}
+```
+
+Why this matters:
+
+- Email OTP, SMS OTP, and email/password can all resolve to the same `UserId`.
+- Adding or changing email/SMS does not require moving the user row.
+- Authorization remains fast because tenant membership is still loaded by `USR|{userId}`.
+- SMS auth no longer needs to scan the user table by `PhoneNumber`.
+
+The schema bootstrap creates `AuthIdentifiers` with the other custom identity tables. New create/update flows maintain bindings automatically.
+
+## Table Set
+
+- `AspNetUsers`, `AspNetRoles`, `AspNetIndex`: ElCamino identity tables.
+- `AuthIdentifiers`: email/SMS auth lookup bindings to `UserId`.
+- `Tenants`, `TenantUsers`, `UserTenants`, `TenantRoles`: tenant and role membership.
+- `PermissionRoleMaps`: tenant permission-to-role bindings.
+- `OtpChallenges`: OTP challenge state.
+- `ExternalLogins`: OAuth provider-user links.
+- `AuthSessions`, `AuthAttempts`: session and lockout state.
+- `SystemLogs`, `SystemErrors`, `Schema`: operational records.
 
 ## Connection String Cascade
 

@@ -148,6 +148,115 @@ public class AuthController : ControllerBase
         }
     }
 
+    [Authorize]
+    [HttpPost("email-password/link/start")]
+    public async Task<IActionResult> StartEmailPasswordLink([FromBody] StartEmailPasswordRegistrationRequest req, CancellationToken ct)
+    {
+        if (!_features.PasswordAuth) return NotFound(new { message = "Password authentication is disabled." });
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+        if (string.IsNullOrWhiteSpace(req.Email))
+            return BadRequest(new { message = "Email is required." });
+
+        try
+        {
+            var result = await _passwordAuth.StartEmailPasswordLinkAsync(
+                userId,
+                req.Email,
+                req.DisplayName,
+                req.ResetUrlBase,
+                ct);
+
+            return Ok(result);
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
+    [Authorize]
+    [HttpPost("email-password/link/complete")]
+    public async Task<IActionResult> CompleteEmailPasswordLink([FromBody] CompleteEmailPasswordRegistrationRequest req, CancellationToken ct)
+    {
+        if (!_features.PasswordAuth) return NotFound(new { message = "Password authentication is disabled." });
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+
+        if (string.IsNullOrWhiteSpace(req.Email))
+            return BadRequest(new { message = "Email is required." });
+        if (string.IsNullOrWhiteSpace(req.ChallengeId))
+            return BadRequest(new { message = "ChallengeId is required." });
+        if (string.IsNullOrWhiteSpace(req.VerificationToken))
+            return BadRequest(new { message = "VerificationToken is required." });
+        if (string.IsNullOrWhiteSpace(req.NewPassword))
+            return BadRequest(new { message = "NewPassword is required." });
+
+        try
+        {
+            await _passwordAuth.CompleteEmailPasswordLinkAsync(
+                userId,
+                req.Email,
+                req.ChallengeId,
+                req.VerificationToken,
+                req.NewPassword,
+                ct);
+
+            return Ok(new { linked = true, email = req.Email.Trim().ToLowerInvariant(), passwordEnabled = true });
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
+    [Authorize]
+    [HttpPost("phone/link/start")]
+    public async Task<IActionResult> StartPhoneLink([FromBody] StartPhoneLinkRequest req, CancellationToken ct)
+    {
+        if (!_features.Otp) return NotFound(new { message = "OTP authentication is disabled." });
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+        if (string.IsNullOrWhiteSpace(req.PhoneNumber))
+            return BadRequest(new { message = "PhoneNumber is required." });
+
+        try
+        {
+            var result = await _passwordAuth.StartPhoneLinkAsync(userId, req.PhoneNumber, ct);
+            return Ok(result);
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
+    [Authorize]
+    [HttpPost("phone/link/complete")]
+    public async Task<IActionResult> CompletePhoneLink([FromBody] CompletePhoneLinkRequest req, CancellationToken ct)
+    {
+        if (!_features.Otp) return NotFound(new { message = "OTP authentication is disabled." });
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+
+        if (string.IsNullOrWhiteSpace(req.PhoneNumber))
+            return BadRequest(new { message = "PhoneNumber is required." });
+        if (string.IsNullOrWhiteSpace(req.ChallengeId))
+            return BadRequest(new { message = "ChallengeId is required." });
+        if (string.IsNullOrWhiteSpace(req.Code))
+            return BadRequest(new { message = "Code is required." });
+
+        try
+        {
+            await _passwordAuth.CompletePhoneLinkAsync(userId, req.PhoneNumber, req.ChallengeId, req.Code, ct);
+            return Ok(new { linked = true, phoneNumber = req.PhoneNumber.Trim() });
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
     [HttpPost("password-login")]
     public async Task<IActionResult> PasswordLogin([FromBody] PasswordLoginApiRequest req, CancellationToken ct)
     {
@@ -578,6 +687,18 @@ public class CompleteEmailPasswordRegistrationRequest
     public string VerificationToken { get; set; } = string.Empty;
     public string NewPassword { get; set; } = string.Empty;
     public string? DisplayName { get; set; }
+}
+
+public class StartPhoneLinkRequest
+{
+    public string PhoneNumber { get; set; } = string.Empty;
+}
+
+public class CompletePhoneLinkRequest
+{
+    public string PhoneNumber { get; set; } = string.Empty;
+    public string ChallengeId { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
 }
 
 public class PasswordLoginApiRequest

@@ -28,6 +28,21 @@ This package is where identity behavior is implemented. It consumes contracts fr
   - `AddIBeamIdentityAuthOAuthService()`
   - `AddIBeamAuthEvents(...)`
 
+## Cross-Pattern Auth Orchestration
+
+`IBeam.Identity.Services` lets one user move between auth patterns without creating duplicate users. The service layer always works against `UserId` after the repository resolves an auth identifier.
+
+Supported flows:
+
+- OTP with SMS: `StartOtpAsync(phone)` then `CompleteOtpAsync(...)`.
+- OTP with email: `StartOtpAsync(email)` then `CompleteOtpAsync(...)`.
+- Email/password: `StartEmailPasswordRegistrationAsync(...)`, `CompleteEmailPasswordRegistrationAsync(...)`, then `PasswordLoginAsync(...)`.
+- Add email/password to an existing SMS user: `StartEmailPasswordLinkAsync(...)`, then `CompleteEmailPasswordLinkAsync(...)`.
+- Add SMS to an existing email user: `StartPhoneLinkAsync(...)`, then `CompletePhoneLinkAsync(...)`.
+- 2FA: `StartTwoFactorSetupAsync(...)`, `CompleteTwoFactorSetupAsync(...)`, then `CompleteTwoFactorLoginAsync(...)`.
+
+The repository provider is responsible for fast identifier resolution. For Azure Table, this is done by an `AuthIdentifiers` table keyed by identifier type and normalized value.
+
 ## Dependencies
 
 - Internal packages:
@@ -62,3 +77,47 @@ This package is where identity behavior is implemented. It consumes contracts fr
   - `Test` / `Production`: `false`
 - Environment-variable override:
   - `IBeam__Identity__Otp__AllowAutoProvisionForUnknownUser=true|false`
+
+## Code Samples
+
+### SMS OTP first, email/password later
+
+```csharp
+var otp = await otpAuth.StartOtpAsync("16145551212", ct: ct);
+var signedIn = await otpAuth.CompleteOtpAsync(
+    otp.ChallengeId,
+    codeFromSms,
+    "16145551212",
+    displayName: "Adam",
+    ct);
+
+var userIdClaim = signedIn.Token!.Claims.First(c => c.Type == "uid").Value;
+Guid userId = Guid.Parse(userIdClaim);
+
+await passwordAuth.StartEmailPasswordLinkAsync(
+    userId,
+    "adam@test.com",
+    resetUrlBase: "https://app.example.com/finish-email-link",
+    ct: ct);
+
+await passwordAuth.CompleteEmailPasswordLinkAsync(
+    userId,
+    "adam@test.com",
+    challengeId,
+    verificationToken,
+    "new secure password",
+    ct);
+```
+
+### Email user adds SMS
+
+```csharp
+var challenge = await passwordAuth.StartPhoneLinkAsync(userId, "16145551212", ct);
+
+await passwordAuth.CompletePhoneLinkAsync(
+    userId,
+    "16145551212",
+    challenge.ChallengeId,
+    codeFromSms,
+    ct);
+```

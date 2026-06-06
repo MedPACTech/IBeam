@@ -33,6 +33,29 @@ This package offers EF-based Identity store wiring and tenant membership persist
 - Supported now: `Sqlite`
 - Not yet active in extension wiring: `SqlServer`, `Postgres`
 
+## Auth Identifier Parity Guidance
+
+The shared identity services expect provider implementations to resolve users by auth identifier without scanning all users. Azure Table uses an `AuthIdentifiers` table for this.
+
+An EF provider should use an equivalent relational table with a unique key on `(IdentifierType, NormalizedIdentifier)`:
+
+```sql
+create table AuthIdentifiers (
+    IdentifierType nvarchar(32) not null,
+    NormalizedIdentifier nvarchar(256) not null,
+    UserId uniqueidentifier not null,
+    BoundAtUtc datetimeoffset not null,
+    constraint PK_AuthIdentifiers primary key (IdentifierType, NormalizedIdentifier)
+);
+```
+
+Expected behavior:
+
+- `FindByEmailAsync` resolves `email + normalized email` to `UserId`.
+- `FindByPhoneAsync` resolves `sms + normalized phone` to `UserId`.
+- `UpdateEmailAsync` and `UpdatePhoneAsync` move the identifier binding to the same `UserId`.
+- Email/password linking and phone linking should never create a second user for an already-authenticated person.
+
 ## Connection String Cascade
 
 EF identity store registration resolves connection string with fallback precedence:

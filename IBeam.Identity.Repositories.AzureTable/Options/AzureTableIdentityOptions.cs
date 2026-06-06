@@ -24,6 +24,7 @@ public sealed class AzureTableIdentityOptions
     public string UserTenantsTableName { get; set; } = "UserTenants";
     public string TenantRolesTableName { get; set; } = "TenantRoles";
     public string OtpChallengesTableName { get; set; } = "OtpChallenges";
+    public string AuthIdentifiersTableName { get; set; } = "AuthIdentifiers";
     public string ExternalLoginsTableName { get; set; } = "ExternalLogins";
     public string AuthSessionsTableName { get; set; } = "AuthSessions";
     public string PermissionRoleMapsTableName { get; set; } = "PermissionRoleMaps";
@@ -102,6 +103,7 @@ public sealed class AzureTableIdentityOptions
         UserTenantsTableName = NormalizeOrDefault(UserTenantsTableName, "UserTenants");
         TenantRolesTableName = NormalizeOrDefault(TenantRolesTableName, "TenantRoles");
         OtpChallengesTableName = NormalizeOrDefault(OtpChallengesTableName, "OtpChallenges");
+        AuthIdentifiersTableName = NormalizeOrDefault(AuthIdentifiersTableName, "AuthIdentifiers");
         ExternalLoginsTableName = NormalizeOrDefault(ExternalLoginsTableName, "ExternalLogins");
         AuthSessionsTableName = NormalizeOrDefault(AuthSessionsTableName, "AuthSessions");
         PermissionRoleMapsTableName = NormalizeOrDefault(PermissionRoleMapsTableName, "PermissionRoleMaps");
@@ -119,6 +121,7 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(UserTenantsTableName, nameof(UserTenantsTableName));
         ValidateTableName(TenantRolesTableName, nameof(TenantRolesTableName));
         ValidateTableName(OtpChallengesTableName, nameof(OtpChallengesTableName));
+        ValidateTableName(AuthIdentifiersTableName, nameof(AuthIdentifiersTableName));
         ValidateTableName(ExternalLoginsTableName, nameof(ExternalLoginsTableName));
         ValidateTableName(AuthSessionsTableName, nameof(AuthSessionsTableName));
         ValidateTableName(PermissionRoleMapsTableName, nameof(PermissionRoleMapsTableName));
@@ -139,6 +142,7 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(FullTableName(UserTenantsTableName), nameof(TablePrefix) + "+" + nameof(UserTenantsTableName));
         ValidateTableName(FullTableName(TenantRolesTableName), nameof(TablePrefix) + "+" + nameof(TenantRolesTableName));
         ValidateTableName(FullTableName(OtpChallengesTableName), nameof(TablePrefix) + "+" + nameof(OtpChallengesTableName));
+        ValidateTableName(FullTableName(AuthIdentifiersTableName), nameof(TablePrefix) + "+" + nameof(AuthIdentifiersTableName));
         ValidateTableName(FullTableName(ExternalLoginsTableName), nameof(TablePrefix) + "+" + nameof(ExternalLoginsTableName));
         ValidateTableName(FullTableName(AuthSessionsTableName), nameof(TablePrefix) + "+" + nameof(AuthSessionsTableName));
         ValidateTableName(FullTableName(PermissionRoleMapsTableName), nameof(TablePrefix) + "+" + nameof(PermissionRoleMapsTableName));

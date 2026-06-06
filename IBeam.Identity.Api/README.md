@@ -43,6 +43,92 @@ builder.Services.AddIBeamIdentityApi(builder.Configuration);
 builder.Services.AddIBeamIdentityApiControllers();
 ```
 
+## Authentication Patterns
+
+The API exposes multiple sign-in styles against the same underlying user:
+
+- SMS OTP: `POST /api/auth/startotp`, `POST /api/auth/completeotp`
+- Email OTP: `POST /api/auth/startotp`, `POST /api/auth/completeotp`
+- Email/password registration: `POST /api/auth/start-email-password-registration`, `POST /api/auth/complete-email-password-registration`
+- Email/password login: `POST /api/auth/password-login`
+- Link email/password to current user: `POST /api/auth/email-password/link/start`, `POST /api/auth/email-password/link/complete`
+- Link phone to current user: `POST /api/auth/phone/link/start`, `POST /api/auth/phone/link/complete`
+- 2FA setup/login: `POST /api/auth/2fa/setup/start`, `POST /api/auth/2fa/setup/complete`, `POST /api/auth/2fa/complete-login`
+- OAuth: `GET /api/auth/oauth/start`, `POST /api/auth/oauth/complete`
+
+This allows a product to start users with the lowest-friction credential and add stronger or alternate credentials later. For example, a user can sign up with SMS OTP, then add email/password from an authenticated session. Future logins by SMS OTP, email OTP, or email/password resolve to the same `UserId`.
+
+## Request Examples
+
+### SMS OTP
+
+```http
+POST /api/auth/startotp
+Content-Type: application/json
+
+{ "destination": "16145551212" }
+```
+
+```http
+POST /api/auth/completeotp
+Content-Type: application/json
+
+{
+  "challengeId": "8e2c6d3b-4fa1-4c5f-b2df-4a2790f5fbef",
+  "destination": "16145551212",
+  "code": "123456",
+  "displayName": "Adam"
+}
+```
+
+### Add email/password to the current SMS user
+
+```http
+POST /api/auth/email-password/link/start
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+
+{
+  "email": "adam@test.com",
+  "resetUrlBase": "https://app.example.com/finish-email-link"
+}
+```
+
+```http
+POST /api/auth/email-password/link/complete
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+
+{
+  "email": "adam@test.com",
+  "challengeId": "f15c846f-88dc-40fb-91e5-62a6f9f47a46",
+  "verificationToken": "token-from-email",
+  "newPassword": "new secure password"
+}
+```
+
+### Add SMS to the current email user
+
+```http
+POST /api/auth/phone/link/start
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+
+{ "phoneNumber": "16145551212" }
+```
+
+```http
+POST /api/auth/phone/link/complete
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+
+{
+  "phoneNumber": "16145551212",
+  "challengeId": "58ed50e1-a932-4bb5-a37c-2378a514eb79",
+  "code": "123456"
+}
+```
+
 ## Role Management Endpoints
 
 - `GET /api/tenants/{tenantId}/roles`
