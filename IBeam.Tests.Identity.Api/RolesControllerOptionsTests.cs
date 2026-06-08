@@ -107,6 +107,13 @@ public sealed class RolesControllerOptionsTests
                     IsActive: true,
                     CreatedAt: DateTimeOffset.UtcNow)).ToList()));
 
+        public Task<UserTenantRoleAssignment> EnsureTenantMembershipAndGrantRolesAsync(TenantMembershipRoleBootstrapRequest request, CancellationToken ct = default)
+            => GrantRolesAsync(
+                request.TenantId,
+                request.UserId,
+                request.RoleIds ?? Array.Empty<Guid>(),
+                ct);
+
         public Task<UserTenantRoleAssignment> RevokeRolesAsync(Guid tenantId, Guid userId, IReadOnlyList<Guid> roleIds, CancellationToken ct = default)
             => Task.FromResult(new UserTenantRoleAssignment(tenantId, userId, Array.Empty<TenantRole>()));
 

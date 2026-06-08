@@ -43,6 +43,58 @@ builder.Services.AddIBeamIdentityApi(builder.Configuration);
 builder.Services.AddIBeamIdentityApiControllers();
 ```
 
+## Tenant Provisioning Configuration
+
+`AddIBeamIdentityApi(builder.Configuration)` binds the same tenant provisioning options used by the core identity services.
+
+Workspace-per-user behavior is the default:
+
+```json
+{
+  "IBeam": {
+    "Identity": {
+      "TenantProvisioning": {
+        "Mode": "AutoCreateTenantForNewUser"
+      }
+    }
+  }
+}
+```
+
+For a single-tenant API deployment, configure a default tenant explicitly:
+
+```json
+{
+  "IBeam": {
+    "Identity": {
+      "TenantProvisioning": {
+        "Mode": "UseDefaultTenant",
+        "DefaultTenantId": "225925cc-995e-4584-a63b-4f2cb4f38f6f",
+        "AutoLinkUserToDefaultTenant": true,
+        "AutoLinkRoleNames": [ "Member" ]
+      }
+    }
+  }
+}
+```
+
+For strict membership-only auth:
+
+```json
+{
+  "IBeam": {
+    "Identity": {
+      "TenantProvisioning": {
+        "Mode": "RequireExistingTenant",
+        "DefaultTenantId": "225925cc-995e-4584-a63b-4f2cb4f38f6f"
+      }
+    }
+  }
+}
+```
+
+In `RequireExistingTenant`, OTP/password/OAuth endpoints fail clearly when a user is not linked to the requested/configured tenant. They do not create a tenant from the auth flow.
+
 ## Authentication Patterns
 
 The API exposes multiple sign-in styles against the same underlying user:

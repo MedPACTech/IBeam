@@ -276,6 +276,7 @@ public sealed class OtpAuthServiceTests
             hook.Object,
             Options.Create(new AuthEventOptions()),
             Options.Create(new OtpOptions { AllowAutoProvisionForUnknownUser = true }),
+            Options.Create(new TenantProvisioningOptions()),
             NullLogger<OtpAuthService>.Instance);
 
         var result = await sut.CompleteOtpAsync("challenge-1", "123456", "abram.cookson@outlook.com");
@@ -343,6 +344,7 @@ public sealed class OtpAuthServiceTests
             new NoOpAuthLifecycleHook(),
             Options.Create(new AuthEventOptions { StrictPublishFailures = false }),
             Options.Create(new OtpOptions { AllowAutoProvisionForUnknownUser = true }),
+            Options.Create(new TenantProvisioningOptions()),
             NullLogger<OtpAuthService>.Instance);
 
         var result = await sut.CompleteOtpAsync("challenge-1", "123456", "abram.cookson@outlook.com");
@@ -399,6 +401,7 @@ public sealed class OtpAuthServiceTests
             new NoOpAuthLifecycleHook(),
             Options.Create(new AuthEventOptions { StrictPublishFailures = true }),
             Options.Create(new OtpOptions { AllowAutoProvisionForUnknownUser = true }),
+            Options.Create(new TenantProvisioningOptions()),
             NullLogger<OtpAuthService>.Instance);
 
         await AssertThrowsAsync<InvalidOperationException>(() =>
@@ -425,6 +428,7 @@ public sealed class OtpAuthServiceTests
             new NoOpAuthLifecycleHook(),
             Options.Create(new AuthEventOptions()),
             Options.Create(new OtpOptions { AllowAutoProvisionForUnknownUser = false }),
+            Options.Create(new TenantProvisioningOptions()),
             NullLogger<OtpAuthService>.Instance);
 
         await AssertThrowsAsync<IdentityUnauthorizedException>(() =>
@@ -470,6 +474,7 @@ public sealed class OtpAuthServiceTests
             new NoOpAuthLifecycleHook(),
             Options.Create(new AuthEventOptions()),
             Options.Create(new OtpOptions { AllowAutoProvisionForUnknownUser = false }),
+            Options.Create(new TenantProvisioningOptions()),
             NullLogger<OtpAuthService>.Instance);
 
         await AssertThrowsAsync<IdentityUnauthorizedException>(() =>

@@ -7,7 +7,7 @@ namespace IBeam.Identity.Services.Utils;
 public static class IdentityUtils
 {
     public static readonly Regex EmailRegex = new(@"^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    public static readonly Regex PhoneRegex = new(@"^\+?[0-9 .-]+$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    public static readonly Regex PhoneRegex = new(@"^\+?[0-9 ().-]+$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public static (SenderChannel channel, string normalized) NormalizeDestination(string destination)
     {
@@ -18,12 +18,7 @@ public static class IdentityUtils
         }
         else if (PhoneRegex.IsMatch(destination))
         {
-            var normalized = destination.Replace("-", "").Replace(".", "").Replace(" ", "");
-            if (normalized.StartsWith("+01"))
-                normalized = normalized.Substring(3);
-            else if (normalized.StartsWith("+"))
-                normalized = normalized.Substring(1);
-            return (SenderChannel.Sms, normalized);
+            return (SenderChannel.Sms, NormalizePhoneNumber(destination));
         }
         else
         {
@@ -35,5 +30,34 @@ public static class IdentityUtils
     {
         if (string.IsNullOrWhiteSpace(value))
             throw new IdentityValidationException($"{paramName} is required.");
+    }
+
+    public static string NormalizePhoneNumber(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+            return string.Empty;
+
+        var trimmed = phone.Trim();
+        var hasLeadingPlus = trimmed.StartsWith("+", StringComparison.Ordinal);
+        var digits = new string(trimmed.Where(char.IsDigit).ToArray());
+        if (digits.Length == 0)
+            throw new IdentityValidationException("Phone number is required.");
+
+        if (digits.StartsWith("01", StringComparison.Ordinal) && digits.Length == 12)
+            digits = digits[2..];
+
+        if (digits.Length == 10)
+            return $"+1{digits}";
+
+        if (digits.Length == 11 && digits.StartsWith("1", StringComparison.Ordinal))
+            return $"+{digits}";
+
+        if (hasLeadingPlus && digits.Length >= 8 && digits.Length <= 15)
+            return $"+{digits}";
+
+        if (digits.Length >= 8 && digits.Length <= 15)
+            return $"+{digits}";
+
+        throw new IdentityValidationException("Destination must be a valid email or phone number.");
     }
 }

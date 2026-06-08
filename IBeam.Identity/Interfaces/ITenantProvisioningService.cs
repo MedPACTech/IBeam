@@ -14,4 +14,12 @@ public interface ITenantProvisioningService
         Guid userId,
         string? email,
         CancellationToken ct = default);
+
+    Task EnsureUserTenantMembershipAsync(
+        Guid tenantId,
+        Guid userId,
+        string? tenantName = null,
+        IReadOnlyList<string>? roleNames = null,
+        bool setAsDefault = false,
+        CancellationToken ct = default);
 }

@@ -22,6 +22,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
     private readonly IAuthLifecycleHook _lifecycleHook;
     private readonly IOptions<AuthEventOptions> _eventOptions;
     private readonly IOptions<OtpOptions> _otpOptions;
+    private readonly IOptions<TenantProvisioningOptions> _tenantProvisioningOptions;
     private readonly ILogger<OtpAuthService> _logger;
 
     public OtpAuthService(
@@ -35,6 +36,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         IAuthLifecycleHook lifecycleHook,
         IOptions<AuthEventOptions> eventOptions,
         IOptions<OtpOptions> otpOptions,
+        IOptions<TenantProvisioningOptions> tenantProvisioningOptions,
         ILogger<OtpAuthService> logger)
     {
         _users = users ?? throw new ArgumentNullException(nameof(users));
@@ -47,6 +49,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         _lifecycleHook = lifecycleHook ?? throw new ArgumentNullException(nameof(lifecycleHook));
         _eventOptions = eventOptions ?? throw new ArgumentNullException(nameof(eventOptions));
         _otpOptions = otpOptions ?? throw new ArgumentNullException(nameof(otpOptions));
+        _tenantProvisioningOptions = tenantProvisioningOptions ?? throw new ArgumentNullException(nameof(tenantProvisioningOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -68,6 +71,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             new NoOpAuthLifecycleHook(),
             Microsoft.Extensions.Options.Options.Create(new AuthEventOptions()),
             Microsoft.Extensions.Options.Options.Create(new OtpOptions { AllowAutoProvisionForUnknownUser = true }),
+            Microsoft.Extensions.Options.Options.Create(new TenantProvisioningOptions()),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<OtpAuthService>.Instance)
     {
     }
@@ -89,12 +93,13 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             throw new IdentityUnauthorizedException("Unauthorized.");
         }
 
+        var effectiveTenantId = ResolveEffectiveTenantId(tenantId);
         var traceId = ResolveTraceId();
         var requested = new OtpChallengeRequestedEvent
         {
             Destination = normalized,
             Purpose = SenderPurpose.LoginMfa.ToString(),
-            TenantId = tenantId,
+            TenantId = effectiveTenantId,
             TraceId = traceId
         };
         requested.Metadata["idempotencyKey"] =
@@ -104,7 +109,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             (hook, evt, token) => hook.OnBeforeOtpChallengeCreateAsync(evt, token),
             ct);
 
-        var request = new OtpChallengeRequest(channel, normalized, SenderPurpose.LoginMfa, tenantId);
+        var request = new OtpChallengeRequest(channel, normalized, SenderPurpose.LoginMfa, effectiveTenantId);
         var challenge = await _otpService.CreateChallengeAsync(request, ct);
 
         var challengeCreated = new OtpChallengeCreatedEvent
@@ -323,80 +328,24 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             .Where(t => t.IsActive)
             .ToList();
 
-        if (createdNewUser || activeTenants.Count == 0)
+        var policyTenantId = ResolveEffectiveTenantId(challenge.TenantId);
+        activeTenants = await ApplyTenantProvisioningPolicyAsync(
+            user,
+            createdNewUser,
+            activeTenants,
+            policyTenantId,
+            challengeId,
+            traceId,
+            channel == SenderChannel.Email ? normalizedDestination : user.Email,
+            ct);
+
+        if (policyTenantId.HasValue)
         {
-            var email = channel == SenderChannel.Email ? normalizedDestination : user.Email;
-            var tenantCreateRequested = new TenantCreateRequestedEvent
-            {
-                AuthUserId = user.UserId.ToString("D"),
-                SuggestedTenantName = string.IsNullOrWhiteSpace(email) ? null : $"{email.Split('@')[0]}'s Workspace",
-                CorrelationId = challengeId,
-                CausationId = challengeId,
-                TraceId = traceId
-            };
-            tenantCreateRequested.Metadata["idempotencyKey"] =
-                $"{TenantCreateRequestedEvent.TypeName}:{user.UserId:D}";
-            await InvokeLifecycleAndPublishAsync(
-                tenantCreateRequested,
-                (hook, evt, token) => hook.OnBeforeTenantCreateAsync(evt, token),
-                ct);
+            var requestedTenant = activeTenants.FirstOrDefault(t => t.TenantId == policyTenantId.Value);
+            if (requestedTenant is null)
+                throw new IdentityValidationException($"User is not linked to tenant '{policyTenantId.Value:D}'.");
 
-            var createdTenantId = await _tenantProvisioning.CreateTenantForNewUserAsync(user.UserId, email, ct);
-            activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
-                .Where(t => t.IsActive)
-                .ToList();
-
-            if (!activeTenants.Any(t => t.TenantId == createdTenantId))
-                throw new IdentityProviderException("Tenant provisioning completed but membership could not be resolved.");
-
-            var createdTenant = activeTenants.FirstOrDefault(t => t.TenantId == createdTenantId);
-            var tenantCreatedEvent = new TenantCreatedEvent
-            {
-                TenantId = createdTenantId,
-                TenantName = createdTenant?.Name,
-                CorrelationId = challengeId,
-                CausationId = challengeId,
-                TraceId = traceId
-            };
-            tenantCreatedEvent.Metadata["idempotencyKey"] = $"{TenantCreatedEvent.TypeName}:{createdTenantId:D}";
-
-            await InvokeLifecycleAndPublishAsync(
-                tenantCreatedEvent,
-                (hook, evt, token) => hook.OnTenantCreatedAsync(evt, token),
-                ct);
-
-            var linkedRole = createdTenant?.Roles?.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r));
-            var linkRequested = new TenantUserLinkRequestedEvent
-            {
-                TenantId = createdTenantId,
-                AuthUserId = user.UserId.ToString("D"),
-                CorrelationId = challengeId,
-                CausationId = challengeId,
-                TraceId = traceId
-            };
-            linkRequested.Metadata["idempotencyKey"] = $"{TenantUserLinkRequestedEvent.TypeName}:{createdTenantId:D}:{user.UserId:D}";
-            await InvokeLifecycleAndPublishAsync(
-                linkRequested,
-                (hook, evt, token) => hook.OnBeforeTenantUserLinkAsync(evt, token),
-                ct);
-
-            var tenantUserLinkedEvent = new TenantUserLinkedEvent
-            {
-                TenantId = createdTenantId,
-                AuthUserId = user.UserId.ToString("D"),
-                Role = linkedRole,
-                UserTenantId = $"{createdTenantId:D}|{user.UserId:D}",
-                CorrelationId = challengeId,
-                CausationId = challengeId,
-                TraceId = traceId
-            };
-            tenantUserLinkedEvent.Metadata["idempotencyKey"] =
-                $"{TenantUserLinkedEvent.TypeName}:{createdTenantId:D}:{user.UserId:D}";
-
-            await InvokeLifecycleAndPublishAsync(
-                tenantUserLinkedEvent,
-                (hook, evt, token) => hook.OnTenantUserLinkedAsync(evt, token),
-                ct);
+            activeTenants = new List<TenantInfo> { requestedTenant };
         }
 
         if (activeTenants.Count == 1)
@@ -432,6 +381,152 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         var preToken = await _tokens.CreatePreTenantTokenAsync(user.UserId, preClaims, ct);
         await EmitLoginSucceededAsync("otp", user.UserId, null, true, challengeId, traceId, ct);
         return AuthResultResponse.RequiresSelection(preToken.AccessToken, activeTenants, createdNewUser);
+    }
+
+    private async Task<List<TenantInfo>> ApplyTenantProvisioningPolicyAsync(
+        IdentityUser user,
+        bool createdNewUser,
+        List<TenantInfo> activeTenants,
+        Guid? requestedTenantId,
+        string correlationId,
+        string? traceId,
+        string? email,
+        CancellationToken ct)
+    {
+        var options = _tenantProvisioningOptions.Value;
+
+        if (options.Mode == TenantProvisioningMode.RequireExistingTenant)
+        {
+            if (requestedTenantId.HasValue)
+            {
+                if (activeTenants.Any(t => t.TenantId == requestedTenantId.Value))
+                    return activeTenants;
+
+                throw new IdentityValidationException($"User is not linked to required tenant '{requestedTenantId.Value:D}'.");
+            }
+
+            if (activeTenants.Count == 0)
+                throw new IdentityValidationException("User does not have an active tenant membership.");
+
+            return activeTenants;
+        }
+
+        if (options.Mode == TenantProvisioningMode.UseDefaultTenant)
+        {
+            var defaultTenantId = requestedTenantId ?? options.DefaultTenantId;
+            if (!defaultTenantId.HasValue || defaultTenantId.Value == Guid.Empty)
+                throw new IdentityValidationException("Default tenant id is required.");
+
+            if (activeTenants.Any(t => t.TenantId == defaultTenantId.Value))
+                return activeTenants;
+
+            if (!options.AutoLinkUserToDefaultTenant)
+                throw new IdentityValidationException($"User is not linked to default tenant '{defaultTenantId.Value:D}'.");
+
+            await _tenantProvisioning.EnsureUserTenantMembershipAsync(
+                defaultTenantId.Value,
+                user.UserId,
+                roleNames: options.AutoLinkRoleNames,
+                setAsDefault: true,
+                ct: ct);
+
+            activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
+                .Where(t => t.IsActive)
+                .ToList();
+
+            if (!activeTenants.Any(t => t.TenantId == defaultTenantId.Value))
+                throw new IdentityProviderException("Default tenant membership could not be resolved after linking.");
+
+            return activeTenants;
+        }
+
+        if (createdNewUser || activeTenants.Count == 0)
+        {
+            var tenantCreateRequested = new TenantCreateRequestedEvent
+            {
+                AuthUserId = user.UserId.ToString("D"),
+                SuggestedTenantName = string.IsNullOrWhiteSpace(email) ? null : $"{email.Split('@')[0]}'s Workspace",
+                CorrelationId = correlationId,
+                CausationId = correlationId,
+                TraceId = traceId
+            };
+            tenantCreateRequested.Metadata["idempotencyKey"] =
+                $"{TenantCreateRequestedEvent.TypeName}:{user.UserId:D}";
+            await InvokeLifecycleAndPublishAsync(
+                tenantCreateRequested,
+                (hook, evt, token) => hook.OnBeforeTenantCreateAsync(evt, token),
+                ct);
+
+            var createdTenantId = await _tenantProvisioning.CreateTenantForNewUserAsync(user.UserId, email, ct);
+            activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
+                .Where(t => t.IsActive)
+                .ToList();
+
+            if (!activeTenants.Any(t => t.TenantId == createdTenantId))
+                throw new IdentityProviderException("Tenant provisioning completed but membership could not be resolved.");
+
+            var createdTenant = activeTenants.FirstOrDefault(t => t.TenantId == createdTenantId);
+            var tenantCreatedEvent = new TenantCreatedEvent
+            {
+                TenantId = createdTenantId,
+                TenantName = createdTenant?.Name,
+                CorrelationId = correlationId,
+                CausationId = correlationId,
+                TraceId = traceId
+            };
+            tenantCreatedEvent.Metadata["idempotencyKey"] = $"{TenantCreatedEvent.TypeName}:{createdTenantId:D}";
+
+            await InvokeLifecycleAndPublishAsync(
+                tenantCreatedEvent,
+                (hook, evt, token) => hook.OnTenantCreatedAsync(evt, token),
+                ct);
+
+            var linkedRole = createdTenant?.Roles?.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r));
+            var linkRequested = new TenantUserLinkRequestedEvent
+            {
+                TenantId = createdTenantId,
+                AuthUserId = user.UserId.ToString("D"),
+                CorrelationId = correlationId,
+                CausationId = correlationId,
+                TraceId = traceId
+            };
+            linkRequested.Metadata["idempotencyKey"] = $"{TenantUserLinkRequestedEvent.TypeName}:{createdTenantId:D}:{user.UserId:D}";
+            await InvokeLifecycleAndPublishAsync(
+                linkRequested,
+                (hook, evt, token) => hook.OnBeforeTenantUserLinkAsync(evt, token),
+                ct);
+
+            var tenantUserLinkedEvent = new TenantUserLinkedEvent
+            {
+                TenantId = createdTenantId,
+                AuthUserId = user.UserId.ToString("D"),
+                Role = linkedRole,
+                UserTenantId = $"{createdTenantId:D}|{user.UserId:D}",
+                CorrelationId = correlationId,
+                CausationId = correlationId,
+                TraceId = traceId
+            };
+            tenantUserLinkedEvent.Metadata["idempotencyKey"] =
+                $"{TenantUserLinkedEvent.TypeName}:{createdTenantId:D}:{user.UserId:D}";
+
+            await InvokeLifecycleAndPublishAsync(
+                tenantUserLinkedEvent,
+                (hook, evt, token) => hook.OnTenantUserLinkedAsync(evt, token),
+                ct);
+        }
+
+        return activeTenants;
+    }
+
+    private Guid? ResolveEffectiveTenantId(Guid? requestedTenantId)
+    {
+        if (requestedTenantId.HasValue && requestedTenantId.Value != Guid.Empty)
+            return requestedTenantId;
+
+        var options = _tenantProvisioningOptions.Value;
+        return options.Mode == TenantProvisioningMode.UseDefaultTenant
+            ? options.DefaultTenantId
+            : null;
     }
 
     private static List<ClaimItem> BuildBaseClaims(IdentityUser user)

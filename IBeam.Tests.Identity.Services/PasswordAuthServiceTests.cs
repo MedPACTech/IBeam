@@ -139,7 +139,7 @@ public sealed class PasswordAuthServiceTests
         var otpChallenges = new Mock<IOtpChallengeStore>(MockBehavior.Strict);
 
         users.Setup(x => x.FindByIdAsync(userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IdentityUser(userId, string.Empty, false, PhoneNumber: "16145551212", PhoneConfirmed: true));
+            .ReturnsAsync(new IdentityUser(userId, string.Empty, false, PhoneNumber: "+16145551212", PhoneConfirmed: true));
         users.Setup(x => x.FindByEmailAsync("adam@test.com", It.IsAny<CancellationToken>()))
             .ReturnsAsync((IdentityUser?)null);
         users.Setup(x => x.UpdateEmailAsync(userId, "adam@test.com", It.IsAny<CancellationToken>()))
@@ -215,9 +215,9 @@ public sealed class PasswordAuthServiceTests
 
         users.Setup(x => x.FindByIdAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new IdentityUser(userId, "adam@test.com", true));
-        users.Setup(x => x.FindByPhoneAsync("16145551212", It.IsAny<CancellationToken>()))
+        users.Setup(x => x.FindByPhoneAsync("+16145551212", It.IsAny<CancellationToken>()))
             .ReturnsAsync((IdentityUser?)null);
-        users.Setup(x => x.UpdatePhoneAsync(userId, "16145551212", It.IsAny<CancellationToken>()))
+        users.Setup(x => x.UpdatePhoneAsync(userId, "+16145551212", It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         users.Setup(x => x.SetPhoneConfirmedAsync(userId, true, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -230,7 +230,7 @@ public sealed class PasswordAuthServiceTests
         otpChallenges.Setup(x => x.GetAsync("challenge-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OtpChallengeRecord(
                 ChallengeId: "challenge-1",
-                Destination: "16145551212",
+                Destination: "+16145551212",
                 Purpose: SenderPurpose.PhoneVerification,
                 CodeHash: "hash",
                 ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10),

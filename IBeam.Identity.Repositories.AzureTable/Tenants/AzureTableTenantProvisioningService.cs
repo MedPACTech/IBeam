@@ -1,5 +1,6 @@
 using Azure.Data.Tables;
 using IBeam.Identity.Interfaces;
+using IBeam.Identity.Models;
 using IBeam.Identity.Repositories.AzureTable.Entities;
 using IBeam.Identity.Repositories.AzureTable.Options;
 using Microsoft.Extensions.Options;
@@ -93,5 +94,23 @@ internal sealed class AzureTableTenantProvisioningService : ITenantProvisioningS
         }, TableUpdateMode.Replace, ct).ConfigureAwait(false);
 
         return tenantId;
+    }
+
+    public async Task EnsureUserTenantMembershipAsync(
+        Guid tenantId,
+        Guid userId,
+        string? tenantName = null,
+        IReadOnlyList<string>? roleNames = null,
+        bool setAsDefault = false,
+        CancellationToken ct = default)
+    {
+        await _tenantRoles.EnsureTenantMembershipAndGrantRolesAsync(
+            new TenantMembershipRoleBootstrapRequest(
+                TenantId: tenantId,
+                UserId: userId,
+                TenantName: tenantName,
+                RoleNames: roleNames,
+                SetAsDefault: setAsDefault),
+            ct).ConfigureAwait(false);
     }
 }

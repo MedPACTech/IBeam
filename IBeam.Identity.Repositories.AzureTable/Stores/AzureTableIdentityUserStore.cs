@@ -5,6 +5,7 @@ using IBeam.Identity.Models;
 using IBeam.Identity.Repositories.AzureTable.Entities;
 using IBeam.Identity.Repositories.AzureTable.Options;
 using IBeam.Identity.Repositories.AzureTable.Types;
+using IBeam.Identity.Services.Utils;
 using Microsoft.AspNetCore.Identity;
 using ElCamino.AspNetCore.Identity.AzureTable.Model;
 using AbstractionIdentityUser = IBeam.Identity.Models.IdentityUser;
@@ -283,7 +284,7 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
         => (email ?? string.Empty).Trim().ToLowerInvariant();
 
     private static string NormalizePhone(string? phone)
-        => (phone ?? string.Empty).Trim();
+        => IdentityUtils.NormalizePhoneNumber(phone);
 
     private TableClient GetAuthIdentifiersTable()
         => _serviceClient.GetTableClient(_opts.FullTableName(_opts.AuthIdentifiersTableName));

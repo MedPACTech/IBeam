@@ -35,6 +35,16 @@ This package adds Azure Tables as a concrete data-store implementation for IBeam
 
 - `IBeam:Repositories:AzureTables`
 
+## Table Name Prefix
+
+Repository table names are built from:
+
+`{TableNamePrefix}{EntityOrMappedTableName}`
+
+`TableNamePrefix` is configured at `IBeam:Repositories:AzureTables:TableNamePrefix`. If it is unset, the generic repository provider uses an empty prefix. IBeam does not derive a prefix from environment name, application name, or connection string; values such as `WellderlyTest` only appear when explicitly configured.
+
+This setting is separate from the identity Azure Table provider setting, `IBeam:Identity:AzureTable:TablePrefix`.
+
 ## Connection String Cascade
 
 AzureTables provider resolves connection string with fallback precedence:

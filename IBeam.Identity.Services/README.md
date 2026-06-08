@@ -64,6 +64,7 @@ The repository provider is responsible for fast identifier resolution. For Azure
 - `IBeam:Identity:Features`
 - `IBeam:Identity:OAuth` (when OAuth is enabled)
 - `IBeam:Identity:Events` (optional)
+- `IBeam:Identity:TenantProvisioning` (optional; auth tenant creation/linking policy)
 - `IBeam:Identity:PermissionAccess` (optional; JSON permission map source)
 - `IBeam:Identity:RoleManagement` (optional; tenant/admin policy toggles)
 
@@ -77,6 +78,48 @@ The repository provider is responsible for fast identifier resolution. For Azure
   - `Test` / `Production`: `false`
 - Environment-variable override:
   - `IBeam__Identity__Otp__AllowAutoProvisionForUnknownUser=true|false`
+
+### Tenant Provisioning Policy
+
+`IBeam:Identity:TenantProvisioning:Mode` controls tenant behavior after OTP, password, and OAuth authentication resolves a user.
+
+- `AutoCreateTenantForNewUser`: default/current behavior; creates a tenant/workspace when the authenticated user has no active membership.
+- `RequireExistingTenant`: never creates or links a tenant from auth; missing membership fails with a validation error.
+- `UseDefaultTenant`: uses `DefaultTenantId` when auth requests omit tenant id.
+
+For `UseDefaultTenant`, set `AutoLinkUserToDefaultTenant` to `true` when IBeam should link authenticated users to the configured tenant automatically. Optional `AutoLinkRoleNames` are granted during that link.
+
+Configuration example for a single-tenant deployment:
+
+```json
+{
+  "IBeam": {
+    "Identity": {
+      "TenantProvisioning": {
+        "Mode": "UseDefaultTenant",
+        "DefaultTenantId": "225925cc-995e-4584-a63b-4f2cb4f38f6f",
+        "AutoLinkUserToDefaultTenant": true,
+        "AutoLinkRoleNames": [ "Member" ]
+      }
+    }
+  }
+}
+```
+
+Configuration example for strict membership-only auth:
+
+```json
+{
+  "IBeam": {
+    "Identity": {
+      "TenantProvisioning": {
+        "Mode": "RequireExistingTenant",
+        "DefaultTenantId": "225925cc-995e-4584-a63b-4f2cb4f38f6f"
+      }
+    }
+  }
+}
+```
 
 ## Code Samples
 
@@ -120,4 +163,34 @@ await passwordAuth.CompletePhoneLinkAsync(
     challenge.ChallengeId,
     codeFromSms,
     ct);
+```
+
+### Single-tenant OTP with configured tenant
+
+With `Mode = UseDefaultTenant`, an omitted OTP tenant id resolves to `DefaultTenantId`. The service also stores the effective tenant id on the OTP challenge.
+
+```csharp
+var otp = await otpAuth.StartOtpAsync("+16142649686", ct: ct);
+
+var result = await otpAuth.CompleteOtpAsync(
+    otp.ChallengeId,
+    codeFromSms,
+    "16142649686",
+    displayName: "Care Team User",
+    ct);
+```
+
+If `AutoLinkUserToDefaultTenant` is `false` and the user is not already linked to `DefaultTenantId`, completion fails with an `IdentityValidationException`.
+
+### Code-based options configuration
+
+```csharp
+builder.Services.AddIBeamIdentityServices(builder.Configuration);
+
+builder.Services.Configure<TenantProvisioningOptions>(options =>
+{
+    options.Mode = TenantProvisioningMode.RequireExistingTenant;
+    options.DefaultTenantId = Guid.Parse(builder.Configuration["Wellderly:TenantId"]!);
+    options.AutoLinkUserToDefaultTenant = false;
+});
 ```

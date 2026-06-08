@@ -72,6 +72,15 @@ public static class ServiceCollectionExtensions
             })
             .ValidateOnStart();
 
+        services.AddOptions<TenantProvisioningOptions>()
+            .Bind(configuration.GetSection(TenantProvisioningOptions.SectionName))
+            .Validate(o =>
+            {
+                o.Validate();
+                return true;
+            })
+            .ValidateOnStart();
+
         services.AddOptions<RoleManagementOptions>()
         .Bind(configuration.GetSection(RoleManagementOptions.SectionName));
 

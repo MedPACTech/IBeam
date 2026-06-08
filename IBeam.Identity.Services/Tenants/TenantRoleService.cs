@@ -56,6 +56,28 @@ public sealed class TenantRoleService : ITenantRoleService
         return _roles.GrantRolesAsync(tenantId, userId, roleIds, ct);
     }
 
+    public Task<UserTenantRoleAssignment> EnsureTenantMembershipAndGrantRolesAsync(TenantMembershipRoleBootstrapRequest request, CancellationToken ct = default)
+    {
+        if (request is null)
+            throw new ArgumentNullException(nameof(request));
+
+        ValidateTenantId(request.TenantId);
+        ValidateUserId(request.UserId);
+        ValidateBootstrapRoles(request.RoleIds, request.RoleNames);
+
+        return _roles.EnsureTenantMembershipAndGrantRolesAsync(
+            request with
+            {
+                TenantName = string.IsNullOrWhiteSpace(request.TenantName) ? null : request.TenantName.Trim(),
+                RoleIds = request.RoleIds?.Where(x => x != Guid.Empty).Distinct().ToList(),
+                RoleNames = request.RoleNames?
+                    .Select(NormalizeRoleName)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+            },
+            ct);
+    }
+
     public Task<UserTenantRoleAssignment> RevokeRolesAsync(Guid tenantId, Guid userId, IReadOnlyList<Guid> roleIds, CancellationToken ct = default)
     {
         ValidateTenantId(tenantId);
@@ -95,6 +117,18 @@ public sealed class TenantRoleService : ITenantRoleService
             throw new IdentityValidationException("At least one roleId is required.");
         if (roleIds.Any(x => x == Guid.Empty))
             throw new IdentityValidationException("roleIds cannot contain empty GUID values.");
+    }
+
+    private static void ValidateBootstrapRoles(IReadOnlyList<Guid>? roleIds, IReadOnlyList<string>? roleNames)
+    {
+        if ((roleIds is null || roleIds.Count == 0) && (roleNames is null || roleNames.Count == 0))
+            throw new IdentityValidationException("At least one roleId or roleName is required.");
+
+        if (roleIds?.Any(x => x == Guid.Empty) == true)
+            throw new IdentityValidationException("roleIds cannot contain empty GUID values.");
+
+        if (roleNames?.Any(string.IsNullOrWhiteSpace) == true)
+            throw new IdentityValidationException("roleNames cannot contain empty values.");
     }
 
     private static string NormalizeRoleName(string name)

@@ -27,6 +27,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
     private readonly IAuthEventPublisher _eventPublisher;
     private readonly IAuthLifecycleHook _lifecycleHook;
     private readonly IOptions<AuthEventOptions> _eventOptions;
+    private readonly IOptions<TenantProvisioningOptions> _tenantProvisioningOptions;
     private readonly ILogger<OAuthAuthService> _logger;
 
     public OAuthAuthService(
@@ -41,6 +42,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         IAuthEventPublisher eventPublisher,
         IAuthLifecycleHook lifecycleHook,
         IOptions<AuthEventOptions> eventOptions,
+        IOptions<TenantProvisioningOptions> tenantProvisioningOptions,
         ILogger<OAuthAuthService> logger)
     {
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
@@ -54,6 +56,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
         _lifecycleHook = lifecycleHook ?? throw new ArgumentNullException(nameof(lifecycleHook));
         _eventOptions = eventOptions ?? throw new ArgumentNullException(nameof(eventOptions));
+        _tenantProvisioningOptions = tenantProvisioningOptions ?? throw new ArgumentNullException(nameof(tenantProvisioningOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -78,6 +81,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
             new NoOpAuthEventPublisher(),
             new NoOpAuthLifecycleHook(),
             Microsoft.Extensions.Options.Options.Create(new AuthEventOptions()),
+            Microsoft.Extensions.Options.Options.Create(new TenantProvisioningOptions()),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<OAuthAuthService>.Instance)
     {
     }
@@ -382,6 +386,110 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
             .Where(t => t.IsActive)
             .ToList();
 
+        activeTenants = await ApplyTenantProvisioningPolicyAsync(user, createdNewUser, activeTenants, traceId, ct);
+
+        var policyTenantId = ResolveEffectiveTenantId();
+        if (policyTenantId.HasValue)
+        {
+            var tenant = activeTenants.FirstOrDefault(t => t.TenantId == policyTenantId.Value)
+                ?? throw new IdentityValidationException($"User is not linked to tenant '{policyTenantId.Value:D}'.");
+            activeTenants = new List<TenantInfo> { tenant };
+        }
+
+        if (activeTenants.Count == 1)
+        {
+            var tenant = activeTenants[0];
+            var claims = BuildBaseClaims(user, provider);
+            claims.Add(new ClaimItem("tid", tenant.TenantId.ToString("D")));
+            foreach (var role in tenant.Roles.Where(r => !string.IsNullOrWhiteSpace(r)))
+                claims.Add(new ClaimItem("role", role));
+            if (tenant.RoleIds is not null)
+            {
+                foreach (var roleId in tenant.RoleIds.Where(x => x != Guid.Empty).Distinct())
+                    claims.Add(new ClaimItem("rid", roleId.ToString("D")));
+            }
+            var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
+            return AuthResultResponse.WithToken(token, createdNewUser);
+        }
+
+        var defaultTenantId = await _tenants.GetDefaultTenantIdAsync(user.UserId, ct);
+        if (defaultTenantId.HasValue)
+        {
+            var defaultTenant = activeTenants.FirstOrDefault(x => x.TenantId == defaultTenantId.Value);
+            if (defaultTenant is not null)
+            {
+                var claims = BuildBaseClaims(user, provider);
+                claims.Add(new ClaimItem("tid", defaultTenant.TenantId.ToString("D")));
+                foreach (var role in defaultTenant.Roles.Where(r => !string.IsNullOrWhiteSpace(r)))
+                    claims.Add(new ClaimItem("role", role));
+                if (defaultTenant.RoleIds is not null)
+                {
+                    foreach (var roleId in defaultTenant.RoleIds.Where(x => x != Guid.Empty).Distinct())
+                        claims.Add(new ClaimItem("rid", roleId.ToString("D")));
+                }
+                var token = await _tokens.CreateAccessTokenAsync(user.UserId, defaultTenant.TenantId, claims, ct);
+                return AuthResultResponse.WithToken(token, createdNewUser);
+            }
+        }
+
+        var preClaims = BuildBaseClaims(user, provider);
+        preClaims.Add(new ClaimItem("pt", "1"));
+        var pre = await _tokens.CreatePreTenantTokenAsync(user.UserId, preClaims, ct);
+        return AuthResultResponse.RequiresSelection(pre.AccessToken, activeTenants, createdNewUser);
+    }
+
+    private async Task<List<TenantInfo>> ApplyTenantProvisioningPolicyAsync(
+        IdentityUser user,
+        bool createdNewUser,
+        List<TenantInfo> activeTenants,
+        string? traceId,
+        CancellationToken ct)
+    {
+        var options = _tenantProvisioningOptions.Value;
+        var configuredTenantId = ResolveEffectiveTenantId();
+
+        if (options.Mode == TenantProvisioningMode.RequireExistingTenant)
+        {
+            if (configuredTenantId.HasValue)
+            {
+                if (activeTenants.Any(t => t.TenantId == configuredTenantId.Value))
+                    return activeTenants;
+
+                throw new IdentityValidationException($"User is not linked to required tenant '{configuredTenantId.Value:D}'.");
+            }
+
+            if (activeTenants.Count == 0)
+                throw new IdentityValidationException("User does not have an active tenant membership.");
+
+            return activeTenants;
+        }
+
+        if (options.Mode == TenantProvisioningMode.UseDefaultTenant)
+        {
+            var defaultTenantId = configuredTenantId ?? throw new IdentityValidationException("Default tenant id is required.");
+            if (activeTenants.Any(t => t.TenantId == defaultTenantId))
+                return activeTenants;
+
+            if (!options.AutoLinkUserToDefaultTenant)
+                throw new IdentityValidationException($"User is not linked to default tenant '{defaultTenantId:D}'.");
+
+            await _tenantProvisioning.EnsureUserTenantMembershipAsync(
+                defaultTenantId,
+                user.UserId,
+                roleNames: options.AutoLinkRoleNames,
+                setAsDefault: true,
+                ct: ct);
+
+            activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
+                .Where(t => t.IsActive)
+                .ToList();
+
+            if (!activeTenants.Any(t => t.TenantId == defaultTenantId))
+                throw new IdentityProviderException("Default tenant membership could not be resolved after linking.");
+
+            return activeTenants;
+        }
+
         if (createdNewUser || activeTenants.Count == 0)
         {
             var preTenant = new TenantCreateRequestedEvent
@@ -432,46 +540,16 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
             await InvokeLifecycleAndPublishAsync(linked, (hook, evt, token) => hook.OnTenantUserLinkedAsync(evt, token), ct);
         }
 
-        if (activeTenants.Count == 1)
-        {
-            var tenant = activeTenants[0];
-            var claims = BuildBaseClaims(user, provider);
-            claims.Add(new ClaimItem("tid", tenant.TenantId.ToString("D")));
-            foreach (var role in tenant.Roles.Where(r => !string.IsNullOrWhiteSpace(r)))
-                claims.Add(new ClaimItem("role", role));
-            if (tenant.RoleIds is not null)
-            {
-                foreach (var roleId in tenant.RoleIds.Where(x => x != Guid.Empty).Distinct())
-                    claims.Add(new ClaimItem("rid", roleId.ToString("D")));
-            }
-            var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
-            return AuthResultResponse.WithToken(token, createdNewUser);
-        }
+        return activeTenants;
+    }
 
-        var defaultTenantId = await _tenants.GetDefaultTenantIdAsync(user.UserId, ct);
-        if (defaultTenantId.HasValue)
-        {
-            var defaultTenant = activeTenants.FirstOrDefault(x => x.TenantId == defaultTenantId.Value);
-            if (defaultTenant is not null)
-            {
-                var claims = BuildBaseClaims(user, provider);
-                claims.Add(new ClaimItem("tid", defaultTenant.TenantId.ToString("D")));
-                foreach (var role in defaultTenant.Roles.Where(r => !string.IsNullOrWhiteSpace(r)))
-                    claims.Add(new ClaimItem("role", role));
-                if (defaultTenant.RoleIds is not null)
-                {
-                    foreach (var roleId in defaultTenant.RoleIds.Where(x => x != Guid.Empty).Distinct())
-                        claims.Add(new ClaimItem("rid", roleId.ToString("D")));
-                }
-                var token = await _tokens.CreateAccessTokenAsync(user.UserId, defaultTenant.TenantId, claims, ct);
-                return AuthResultResponse.WithToken(token, createdNewUser);
-            }
-        }
-
-        var preClaims = BuildBaseClaims(user, provider);
-        preClaims.Add(new ClaimItem("pt", "1"));
-        var pre = await _tokens.CreatePreTenantTokenAsync(user.UserId, preClaims, ct);
-        return AuthResultResponse.RequiresSelection(pre.AccessToken, activeTenants, createdNewUser);
+    private Guid? ResolveEffectiveTenantId()
+    {
+        var options = _tenantProvisioningOptions.Value;
+        return options.Mode == TenantProvisioningMode.UseDefaultTenant ||
+               (options.Mode == TenantProvisioningMode.RequireExistingTenant && options.DefaultTenantId.HasValue)
+            ? options.DefaultTenantId
+            : null;
     }
 
     private static List<ClaimItem> BuildBaseClaims(IdentityUser user, string provider)
