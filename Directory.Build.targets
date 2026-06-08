@@ -1,0 +1,12 @@
+<Project>
+  <Target Name="ApplyReleasePackageVersion"
+          AfterTargets="GetBuildVersion"
+          BeforeTargets="GenerateNuspec;SupplyNuGetManifestVersion"
+          Condition="'$(ReleasePackageVersion)' != ''">
+    <PropertyGroup>
+      <Version>$(ReleasePackageVersion)</Version>
+      <PackageVersion>$(ReleasePackageVersion)</PackageVersion>
+      <NuGetPackageVersion>$(ReleasePackageVersion)</NuGetPackageVersion>
+    </PropertyGroup>
+  </Target>
+</Project>
