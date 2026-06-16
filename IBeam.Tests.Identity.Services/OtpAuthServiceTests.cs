@@ -409,6 +409,148 @@ public sealed class OtpAuthServiceTests
     }
 
     [TestMethod]
+    public async Task CompleteOtpAsync_WhenCreateLosesIdentifierRace_ReResolvesExistingUser()
+    {
+        var userId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var tenants = new Mock<ITenantMembershipStore>(MockBehavior.Strict);
+        var tokens = new Mock<ITokenService>(MockBehavior.Strict);
+        var otpService = new Mock<IOtpService>(MockBehavior.Strict);
+        var otpChallenges = new Mock<IOtpChallengeStore>(MockBehavior.Strict);
+
+        otpService.Setup(x => x.VerifyAsync(It.IsAny<OtpVerifyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpVerifyResult(true, "vt", DateTimeOffset.UtcNow.AddMinutes(10)));
+
+        otpChallenges.Setup(x => x.GetAsync("challenge-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpChallengeRecord(
+                "challenge-1",
+                "abram.cookson@outlook.com",
+                SenderPurpose.LoginMfa,
+                "hash",
+                DateTimeOffset.UtcNow.AddMinutes(10),
+                0,
+                null,
+                true,
+                "vt",
+                DateTimeOffset.UtcNow.AddMinutes(10)));
+
+        var existingUser = new IdentityUser(userId, "abram.cookson@outlook.com", true);
+        users.SetupSequence(x => x.FindByEmailAsync("ABRAM.COOKSON@OUTLOOK.COM", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IdentityUser?)null)
+            .ReturnsAsync(existingUser);
+        users.Setup(x => x.CreateAsync(It.IsAny<RegisterUserRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateUserResult.Failure(new Dictionary<string, string[]>
+            {
+                ["email"] = ["email identifier is already bound to another user."]
+            }));
+
+        tenants.Setup(x => x.GetTenantsForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TenantInfo> { new(tenantId, "Tenant A", new List<string> { "Owner" }, true) });
+
+        tokens.Setup(x => x.CreateAccessTokenAsync(
+                userId,
+                tenantId,
+                It.IsAny<IReadOnlyList<ClaimItem>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TokenResult("jwt-token", DateTimeOffset.UtcNow.AddMinutes(60), Array.Empty<ClaimItem>()));
+
+        var sut = new OtpAuthService(
+            users.Object,
+            tenants.Object,
+            Mock.Of<ITenantProvisioningService>(MockBehavior.Strict),
+            tokens.Object,
+            otpService.Object,
+            otpChallenges.Object);
+
+        var result = await sut.CompleteOtpAsync("challenge-1", "123456", "abram.cookson@outlook.com");
+
+        Assert.IsNotNull(result.Token);
+        Assert.AreEqual("jwt-token", result.Token!.AccessToken);
+        Assert.IsFalse(result.IsNewUser);
+        users.Verify(x => x.CreateAsync(It.IsAny<RegisterUserRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task CompleteOtpAsync_WhenProvisioningFailsAfterOtpConsumed_RetryUsesExistingUserAndSameChallenge()
+    {
+        var userId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var tenants = new Mock<ITenantMembershipStore>(MockBehavior.Strict);
+        var tenantProvisioning = new Mock<ITenantProvisioningService>(MockBehavior.Strict);
+        var tokens = new Mock<ITokenService>(MockBehavior.Strict);
+        var otpService = new Mock<IOtpService>(MockBehavior.Strict);
+        var otpChallenges = new Mock<IOtpChallengeStore>(MockBehavior.Strict);
+
+        otpService.SetupSequence(x => x.VerifyAsync(It.IsAny<OtpVerifyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpVerifyResult(true, "vt", DateTimeOffset.UtcNow.AddMinutes(10)))
+            .ReturnsAsync(new OtpVerifyResult(false));
+
+        otpChallenges.Setup(x => x.GetAsync("challenge-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpChallengeRecord(
+                "challenge-1",
+                "abram.cookson@outlook.com",
+                SenderPurpose.LoginMfa,
+                "hash",
+                DateTimeOffset.UtcNow.AddMinutes(10),
+                0,
+                null,
+                true,
+                "vt",
+                DateTimeOffset.UtcNow.AddMinutes(10)));
+
+        var createdUser = new IdentityUser(userId, "abram.cookson@outlook.com", true);
+        users.SetupSequence(x => x.FindByEmailAsync("ABRAM.COOKSON@OUTLOOK.COM", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IdentityUser?)null)
+            .ReturnsAsync(createdUser);
+        users.Setup(x => x.CreateAsync(It.IsAny<RegisterUserRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateUserResult.Success(createdUser));
+
+        tenants.SetupSequence(x => x.GetTenantsForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TenantInfo>())
+            .ReturnsAsync(Array.Empty<TenantInfo>())
+            .ReturnsAsync(new[] { new TenantInfo(tenantId, "Tenant A", new[] { "Owner", "Administrator" }, true) })
+            .ReturnsAsync(new[] { new TenantInfo(tenantId, "Tenant A", new[] { "Owner", "Administrator" }, true) });
+
+        tenantProvisioning.SetupSequence(x => x.CreateTenantForNewUserAsync(
+                userId,
+                "ABRAM.COOKSON@OUTLOOK.COM",
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IdentityProviderException("Tenant provisioning completed but membership could not be resolved."))
+            .ReturnsAsync(tenantId);
+
+        tokens.Setup(x => x.CreateAccessTokenAsync(
+                userId,
+                tenantId,
+                It.IsAny<IReadOnlyList<ClaimItem>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TokenResult("jwt-token", DateTimeOffset.UtcNow.AddMinutes(60), Array.Empty<ClaimItem>()));
+
+        var sut = new OtpAuthService(
+            users.Object,
+            tenants.Object,
+            tenantProvisioning.Object,
+            tokens.Object,
+            otpService.Object,
+            otpChallenges.Object);
+
+        await AssertThrowsAsync<IdentityProviderException>(() =>
+            sut.CompleteOtpAsync("challenge-1", "123456", "abram.cookson@outlook.com"));
+
+        var retry = await sut.CompleteOtpAsync("challenge-1", "123456", "abram.cookson@outlook.com");
+
+        Assert.IsNotNull(retry.Token);
+        Assert.AreEqual("jwt-token", retry.Token!.AccessToken);
+        Assert.IsFalse(retry.IsNewUser);
+        users.Verify(x => x.CreateAsync(It.IsAny<RegisterUserRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+        tenantProvisioning.Verify(x => x.CreateTenantForNewUserAsync(
+            userId,
+            "ABRAM.COOKSON@OUTLOOK.COM",
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [TestMethod]
     public async Task StartOtpAsync_UnknownUser_WhenAutoProvisionDisabled_ThrowsUnauthorized()
     {
         var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);

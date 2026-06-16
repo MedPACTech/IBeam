@@ -230,36 +230,9 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         var verifyResult = await _otpService.VerifyAsync(new OtpVerifyRequest(challengeId, code), ct);
         if (!verifyResult.Success)
         {
-            var failed = new OtpVerificationFailedEvent
-            {
-                ChallengeId = challengeId,
-                Reason = "OTP verification failed.",
-                CorrelationId = challengeId,
-                CausationId = challengeId,
-                TraceId = traceId
-            };
-            failed.Metadata["idempotencyKey"] = $"{OtpVerificationFailedEvent.TypeName}:{challengeId}";
-            await InvokeLifecycleAndPublishAsync(
-                failed,
-                (hook, evt, token) => hook.OnOtpVerificationFailedAsync(evt, token),
-                ct);
-
-            var loginFailed = new LoginFailedEvent
-            {
-                Method = "otp",
-                Identifier = normalizedDestination,
-                Reason = "OTP verification failed.",
-                CorrelationId = challengeId,
-                CausationId = challengeId,
-                TraceId = traceId
-            };
-            loginFailed.Metadata["idempotencyKey"] = $"{LoginFailedEvent.TypeName}:otp:{challengeId}";
-            await InvokeLifecycleAndPublishAsync(
-                loginFailed,
-                (hook, evt, token) => hook.OnLoginFailedAsync(evt, token),
-                ct);
-
-            throw new IdentityValidationException("OTP verification failed.");
+            verifyResult = await TryResumeConsumedChallengeAsync(challengeId, ct).ConfigureAwait(false)
+                ?? await FailOtpVerificationAsync(challengeId, normalizedDestination, traceId, ct)
+                    .ConfigureAwait(false);
         }
 
         var verified = new OtpVerifiedEvent
@@ -302,9 +275,8 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         if (!string.Equals(normalizedFromChallenge, normalizedDestination, StringComparison.OrdinalIgnoreCase))
             throw new IdentityValidationException("OTP destination mismatch.");
 
-        IdentityUser? user = channel == SenderChannel.Email
-            ? await _users.FindByEmailAsync(normalizedDestination, ct)
-            : await _users.FindByPhoneAsync(normalizedDestination, ct);
+        IdentityUser? user = await FindUserByDestinationAsync(channel, normalizedDestination, ct)
+            .ConfigureAwait(false);
 
         var createdNewUser = false;
         if (user is null)
@@ -338,28 +310,62 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
                 (hook, evt, token) => hook.OnBeforeAuthUserCreateAsync(evt, token),
                 ct);
 
-            var createResult = await _users.CreateAsync(createRequest, ct);
+            CreateUserResult createResult;
+            try
+            {
+                createResult = await _users.CreateAsync(createRequest, ct).ConfigureAwait(false);
+            }
+            catch (IdentityException)
+            {
+                var existing = await FindUserByDestinationAsync(channel, normalizedDestination, ct)
+                    .ConfigureAwait(false);
+                if (existing is null)
+                    throw;
+
+                user = existing;
+                createdNewUser = false;
+                createResult = CreateUserResult.Success(existing);
+            }
+
+            if (!createResult.Succeeded || createResult.User is null)
+            {
+                var existing = await FindUserByDestinationAsync(channel, normalizedDestination, ct)
+                    .ConfigureAwait(false);
+                if (existing is not null)
+                {
+                    user = existing;
+                    createdNewUser = false;
+                    createResult = CreateUserResult.Success(existing);
+                }
+            }
+
             if (!createResult.Succeeded || createResult.User is null)
                 throw new IdentityValidationException("User creation failed.", createResult.Errors);
 
-            user = createResult.User;
-            createdNewUser = true;
-
-            var userCreatedEvent = new AuthUserCreatedEvent
+            if (user is null)
             {
-                AuthUserId = user.UserId.ToString("D"),
-                NormalizedEmail = string.IsNullOrWhiteSpace(user.Email) ? null : user.Email.Trim().ToLowerInvariant(),
-                NormalizedPhone = string.IsNullOrWhiteSpace(user.PhoneNumber) ? null : user.PhoneNumber.Trim(),
-                CorrelationId = challengeId,
-                CausationId = challengeId,
-                TraceId = traceId
-            };
-            userCreatedEvent.Metadata["idempotencyKey"] = $"{AuthUserCreatedEvent.TypeName}:{user.UserId:D}";
+                user = createResult.User;
+                createdNewUser = true;
+            }
 
-            await InvokeLifecycleAndPublishAsync(
-                userCreatedEvent,
-                (hook, evt, token) => hook.OnAuthUserCreatedAsync(evt, token),
-                ct);
+            if (createdNewUser)
+            {
+                var userCreatedEvent = new AuthUserCreatedEvent
+                {
+                    AuthUserId = user.UserId.ToString("D"),
+                    NormalizedEmail = string.IsNullOrWhiteSpace(user.Email) ? null : user.Email.Trim().ToLowerInvariant(),
+                    NormalizedPhone = string.IsNullOrWhiteSpace(user.PhoneNumber) ? null : user.PhoneNumber.Trim(),
+                    CorrelationId = challengeId,
+                    CausationId = challengeId,
+                    TraceId = traceId
+                };
+                userCreatedEvent.Metadata["idempotencyKey"] = $"{AuthUserCreatedEvent.TypeName}:{user.UserId:D}";
+
+                await InvokeLifecycleAndPublishAsync(
+                    userCreatedEvent,
+                    (hook, evt, token) => hook.OnAuthUserCreatedAsync(evt, token),
+                    ct);
+            }
         }
 
         var activeTenants = await GetActiveTenantsForUserAsync(user.UserId, ct);
@@ -581,6 +587,71 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
 
         return tenants.Where(t => t.IsActive).ToList();
     }
+
+    private async Task<OtpVerifyResult?> TryResumeConsumedChallengeAsync(string challengeId, CancellationToken ct)
+    {
+        var challenge = await _otpChallengeStore.GetAsync(challengeId, ct).ConfigureAwait(false);
+        if (challenge is null || !challenge.IsConsumed)
+            return null;
+
+        if (string.IsNullOrWhiteSpace(challenge.VerificationToken) ||
+            !challenge.VerificationTokenExpiresAt.HasValue ||
+            challenge.VerificationTokenExpiresAt.Value <= DateTimeOffset.UtcNow)
+        {
+            return null;
+        }
+
+        return new OtpVerifyResult(
+            true,
+            challenge.VerificationToken,
+            challenge.VerificationTokenExpiresAt);
+    }
+
+    private async Task<OtpVerifyResult> FailOtpVerificationAsync(
+        string challengeId,
+        string normalizedDestination,
+        string? traceId,
+        CancellationToken ct)
+    {
+        var failed = new OtpVerificationFailedEvent
+        {
+            ChallengeId = challengeId,
+            Reason = "OTP verification failed.",
+            CorrelationId = challengeId,
+            CausationId = challengeId,
+            TraceId = traceId
+        };
+        failed.Metadata["idempotencyKey"] = $"{OtpVerificationFailedEvent.TypeName}:{challengeId}";
+        await InvokeLifecycleAndPublishAsync(
+            failed,
+            (hook, evt, token) => hook.OnOtpVerificationFailedAsync(evt, token),
+            ct);
+
+        var loginFailed = new LoginFailedEvent
+        {
+            Method = "otp",
+            Identifier = normalizedDestination,
+            Reason = "OTP verification failed.",
+            CorrelationId = challengeId,
+            CausationId = challengeId,
+            TraceId = traceId
+        };
+        loginFailed.Metadata["idempotencyKey"] = $"{LoginFailedEvent.TypeName}:otp:{challengeId}";
+        await InvokeLifecycleAndPublishAsync(
+            loginFailed,
+            (hook, evt, token) => hook.OnLoginFailedAsync(evt, token),
+            ct);
+
+        throw new IdentityValidationException("OTP verification failed.");
+    }
+
+    private Task<IdentityUser?> FindUserByDestinationAsync(
+        SenderChannel channel,
+        string normalizedDestination,
+        CancellationToken ct)
+        => channel == SenderChannel.Email
+            ? _users.FindByEmailAsync(normalizedDestination, ct)
+            : _users.FindByPhoneAsync(normalizedDestination, ct);
 
     private async Task EnsureTenantExtensionsForUserAsync(
         Guid userId,

@@ -82,6 +82,10 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
             if (string.IsNullOrWhiteSpace(userName))
                 throw new InvalidOperationException("Either email or phone number is required.");
 
+            if (string.IsNullOrWhiteSpace(request.Password))
+                return await CreateAutoProvisionedUserAsync(request, email, phone, userName, ct)
+                    .ConfigureAwait(false);
+
             await EnsureIdentifierAvailableAsync("email", email, null, ct);
             await EnsureIdentifierAvailableAsync("sms", phone, null, ct);
             if (!string.IsNullOrWhiteSpace(email) && await _store.FindByEmailAsync(email, ct) is not null)
@@ -311,6 +315,113 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
         return await _store.FindByIdAsync(response.Value.UserId);
     }
 
+    private async Task<CreateUserResult> CreateAutoProvisionedUserAsync(
+        RegisterUserRequest request,
+        string email,
+        string phone,
+        string userName,
+        CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            var existingByEmail = await _store.FindByEmailAsync(email, ct).ConfigureAwait(false);
+            if (existingByEmail is not null)
+            {
+                await BindIdentifierAsync("email", email, existingByEmail.Id, ct).ConfigureAwait(false);
+                return CreateUserResult.Success(MapOrThrow(existingByEmail));
+            }
+        }
+
+        var primaryType = !string.IsNullOrWhiteSpace(email) ? "email" : "sms";
+        var primaryIdentifier = !string.IsNullOrWhiteSpace(email) ? email : phone;
+        var stableUserId = DeterministicGuid
+            .Create("IBeam.Identity.AzureTable.UserIdentifier", $"{primaryType}:{primaryIdentifier}")
+            .ToString("D");
+        var reservedUserId = await ReserveIdentifierAsync(primaryType, primaryIdentifier, stableUserId, ct)
+            .ConfigureAwait(false);
+
+        var existingByReservedId = await _store.FindByIdAsync(reservedUserId).ConfigureAwait(false);
+        if (existingByReservedId is not null)
+        {
+            await BindIdentifierAsync(primaryType, primaryIdentifier, existingByReservedId.Id, ct)
+                .ConfigureAwait(false);
+            await BindIdentifierAsync("email", email, existingByReservedId.Id, ct).ConfigureAwait(false);
+            await BindIdentifierAsync("sms", phone, existingByReservedId.Id, ct).ConfigureAwait(false);
+            return CreateUserResult.Success(MapOrThrow(existingByReservedId));
+        }
+
+        await EnsureIdentifierAvailableAsync("email", email, reservedUserId, ct).ConfigureAwait(false);
+        await EnsureIdentifierAvailableAsync("sms", phone, reservedUserId, ct).ConfigureAwait(false);
+
+        var appUser = new ApplicationUser
+        {
+            Id = reservedUserId,
+            UserName = userName,
+            Email = string.IsNullOrWhiteSpace(email) ? null : email,
+            PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone,
+            DisplayName = request.DisplayName ?? string.Empty
+        };
+
+        var result = await _store.CreateAsync(appUser).ConfigureAwait(false);
+        if (result.Succeeded)
+        {
+            await BindIdentifierAsync("email", email, appUser.Id, ct).ConfigureAwait(false);
+            await BindIdentifierAsync("sms", phone, appUser.Id, ct).ConfigureAwait(false);
+            return CreateUserResult.Success(MapOrThrow(appUser));
+        }
+
+        var existingAfterConflict = await _store.FindByIdAsync(reservedUserId).ConfigureAwait(false);
+        if (existingAfterConflict is not null)
+        {
+            await BindIdentifierAsync("email", email, existingAfterConflict.Id, ct).ConfigureAwait(false);
+            await BindIdentifierAsync("sms", phone, existingAfterConflict.Id, ct).ConfigureAwait(false);
+            return CreateUserResult.Success(MapOrThrow(existingAfterConflict));
+        }
+
+        await DeleteIdentifierIfBoundToUserAsync(primaryType, primaryIdentifier, reservedUserId, ct)
+            .ConfigureAwait(false);
+
+        return CreateUserResult.Failure(MapErrors(result));
+    }
+
+    private async Task<string> ReserveIdentifierAsync(string type, string identifier, string suggestedUserId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+            return suggestedUserId;
+
+        var table = GetAuthIdentifiersTable();
+        await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+
+        var entity = new AuthIdentifierEntity
+        {
+            PartitionKey = IdentifierPartition(type, identifier),
+            RowKey = IdentifierRowKey(),
+            UserId = suggestedUserId,
+            IdentifierType = type.Trim().ToLowerInvariant(),
+            Identifier = identifier.Trim(),
+            BoundAtUtc = DateTimeOffset.UtcNow
+        };
+
+        try
+        {
+            await table.AddEntityAsync(entity, ct).ConfigureAwait(false);
+            return suggestedUserId;
+        }
+        catch (RequestFailedException ex) when (ex.Status == 409)
+        {
+            var existing = await table.GetEntityIfExistsAsync<AuthIdentifierEntity>(
+                    IdentifierPartition(type, identifier),
+                    IdentifierRowKey(),
+                    cancellationToken: ct)
+                .ConfigureAwait(false);
+
+            if (!existing.HasValue || string.IsNullOrWhiteSpace(existing.Value.UserId))
+                throw;
+
+            return existing.Value.UserId;
+        }
+    }
+
     private async Task EnsureIdentifierAvailableAsync(string type, string identifier, string? userId, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(identifier))
@@ -414,6 +525,31 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
         }
+    }
+
+    private async Task DeleteIdentifierIfBoundToUserAsync(
+        string type,
+        string identifier,
+        string userId,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+            return;
+
+        var table = GetAuthIdentifiersTable();
+        var response = await table.GetEntityIfExistsAsync<AuthIdentifierEntity>(
+                IdentifierPartition(type, identifier),
+                IdentifierRowKey(),
+                cancellationToken: ct)
+            .ConfigureAwait(false);
+
+        if (!response.HasValue ||
+            !string.Equals(response.Value.UserId, userId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        await DeleteIdentifierAsync(type, identifier, ct).ConfigureAwait(false);
     }
 
     private static bool IsCancellation(Exception ex)

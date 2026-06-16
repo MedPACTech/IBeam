@@ -275,14 +275,8 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         try
         {
             ct.ThrowIfCancellationRequested();
-            var current = await GetActiveRoleEntitiesAsync(tenantId, ct).ConfigureAwait(false);
-            var byName = current.ToDictionary(x => x.NormalizedName, StringComparer.OrdinalIgnoreCase);
-
-            if (!byName.ContainsKey(OwnerRoleName.ToUpperInvariant()))
-                await CreateRoleAsync(tenantId, OwnerRoleName, isSystem: true, ct).ConfigureAwait(false);
-
-            if (!byName.ContainsKey(AdminRoleName.ToUpperInvariant()))
-                await CreateRoleAsync(tenantId, AdminRoleName, isSystem: true, ct).ConfigureAwait(false);
+            await EnsureRoleByNameAsync(tenantId, OwnerRoleName, isSystem: true, ct).ConfigureAwait(false);
+            await EnsureRoleByNameAsync(tenantId, AdminRoleName, isSystem: true, ct).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -291,6 +285,28 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
     }
 
     private async Task<UserTenantRoleAssignment> UpdateMembershipRolesAsync(
+        Guid tenantId,
+        Guid userId,
+        Func<HashSet<Guid>, HashSet<Guid>> roleIdMutation,
+        IReadOnlyList<TenantRole> activeRoles,
+        CancellationToken ct)
+    {
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                return await UpdateMembershipRolesOnceAsync(tenantId, userId, roleIdMutation, activeRoles, ct)
+                    .ConfigureAwait(false);
+            }
+            catch (RequestFailedException ex) when (ex.Status == 412 && attempt < 4)
+            {
+            }
+        }
+
+        throw new IdentityProviderException("Failed to update tenant membership roles due to concurrent updates.");
+    }
+
+    private async Task<UserTenantRoleAssignment> UpdateMembershipRolesOnceAsync(
         Guid tenantId,
         Guid userId,
         Func<HashSet<Guid>, HashSet<Guid>> roleIdMutation,
@@ -410,15 +426,34 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         }
         else
         {
-            await tenantUsers.AddEntityAsync(new TenantUserEntity
+            try
             {
-                PartitionKey = tenantUserPk,
-                RowKey = tenantUserRk,
-                TenantId = tenantIdStr,
-                UserId = userIdStr,
-                Status = "Active",
-                CreatedAt = now
-            }, ct).ConfigureAwait(false);
+                await tenantUsers.AddEntityAsync(new TenantUserEntity
+                {
+                    PartitionKey = tenantUserPk,
+                    RowKey = tenantUserRk,
+                    TenantId = tenantIdStr,
+                    UserId = userIdStr,
+                    Status = "Active",
+                    CreatedAt = now
+                }, ct).ConfigureAwait(false);
+            }
+            catch (RequestFailedException ex) when (ex.Status == 409)
+            {
+                var existing = await tenantUsers
+                    .GetEntityIfExistsAsync<TenantUserEntity>(tenantUserPk, tenantUserRk, cancellationToken: ct)
+                    .ConfigureAwait(false);
+
+                if (!existing.HasValue)
+                    throw;
+
+                var tenantUser = existing.Value;
+                tenantUser.Status = "Active";
+                tenantUser.DisabledAt = null;
+                tenantUser.DisabledReason = null;
+                await tenantUsers.UpdateEntityAsync(tenantUser, tenantUser.ETag, TableUpdateMode.Replace, ct)
+                    .ConfigureAwait(false);
+            }
         }
 
         var userTenants = UserTenantsTable();
@@ -446,42 +481,136 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         }
         else
         {
-            await userTenants.AddEntityAsync(new UserTenantEntity
+            try
             {
-                PartitionKey = userTenantPk,
-                RowKey = userTenantRk,
-                UserId = userIdStr,
-                TenantId = tenantIdStr,
-                Status = "Active",
-                TenantDisplayName = displayName,
-                IsDefault = setAsDefault,
-                LastSelectedAt = setAsDefault ? now : null,
-                CreatedAt = now
-            }, ct).ConfigureAwait(false);
+                await userTenants.AddEntityAsync(new UserTenantEntity
+                {
+                    PartitionKey = userTenantPk,
+                    RowKey = userTenantRk,
+                    UserId = userIdStr,
+                    TenantId = tenantIdStr,
+                    Status = "Active",
+                    TenantDisplayName = displayName,
+                    IsDefault = setAsDefault,
+                    LastSelectedAt = setAsDefault ? now : null,
+                    CreatedAt = now
+                }, ct).ConfigureAwait(false);
+            }
+            catch (RequestFailedException ex) when (ex.Status == 409)
+            {
+                var existing = await userTenants
+                    .GetEntityIfExistsAsync<UserTenantEntity>(userTenantPk, userTenantRk, cancellationToken: ct)
+                    .ConfigureAwait(false);
+
+                if (!existing.HasValue)
+                    throw;
+
+                var userTenant = existing.Value;
+                userTenant.Status = "Active";
+                userTenant.DisabledAt = null;
+                userTenant.DisabledReason = null;
+                if (!string.IsNullOrWhiteSpace(displayName))
+                    userTenant.TenantDisplayName = displayName;
+                if (setAsDefault)
+                {
+                    userTenant.IsDefault = true;
+                    userTenant.LastSelectedAt = now;
+                }
+
+                await userTenants.UpdateEntityAsync(userTenant, userTenant.ETag, TableUpdateMode.Replace, ct)
+                    .ConfigureAwait(false);
+            }
         }
     }
 
-    private async Task<TenantRole> GetOrCreateRoleByNameAsync(Guid tenantId, string name, CancellationToken ct)
+    private Task<TenantRole> GetOrCreateRoleByNameAsync(Guid tenantId, string name, CancellationToken ct)
+        => EnsureRoleByNameAsync(tenantId, name, isSystem: false, ct);
+
+    private async Task<TenantRole> EnsureRoleByNameAsync(Guid tenantId, string name, bool isSystem, CancellationToken ct)
     {
-        var normalized = NormalizeName(name).ToUpperInvariant();
-        var existing = (await GetActiveRoleEntitiesAsync(tenantId, ct).ConfigureAwait(false))
+        var roleName = NormalizeName(name);
+        var normalized = roleName.ToUpperInvariant();
+        var existingByName = (await GetActiveRoleEntitiesAsync(tenantId, ct).ConfigureAwait(false))
             .FirstOrDefault(x => string.Equals(x.NormalizedName, normalized, StringComparison.OrdinalIgnoreCase));
 
-        if (existing is not null)
-            return Map(existing);
+        if (existingByName is not null)
+        {
+            if (isSystem && !existingByName.IsSystem)
+            {
+                existingByName.IsSystem = true;
+                existingByName.UpdatedAt = DateTimeOffset.UtcNow;
+                await RolesTable()
+                    .UpdateEntityAsync(existingByName, existingByName.ETag, TableUpdateMode.Replace, ct)
+                    .ConfigureAwait(false);
+            }
+
+            return Map(existingByName);
+        }
+
+        var roleId = DeterministicGuid.Create(
+            "IBeam.Identity.AzureTable.TenantRole",
+            $"{tenantId:D}:{normalized}");
+        var now = DateTimeOffset.UtcNow;
+        var entity = new TenantRoleEntity
+        {
+            PartitionKey = _opts.TenantRolesPk(tenantId),
+            RowKey = _opts.TenantRolesRk(roleId),
+            TenantId = tenantId.ToString("D"),
+            RoleId = roleId.ToString("D"),
+            Name = roleName,
+            NormalizedName = normalized,
+            IsSystem = isSystem,
+            Status = "Active",
+            CreatedAt = now
+        };
 
         try
         {
-            return await CreateRoleAsync(tenantId, name, isSystem: false, ct).ConfigureAwait(false);
+            await RolesTable().AddEntityAsync(entity, ct).ConfigureAwait(false);
+            return Map(entity);
         }
-        catch (IdentityValidationException)
+        catch (RequestFailedException ex) when (ex.Status == 409)
         {
-            existing = (await GetActiveRoleEntitiesAsync(tenantId, ct).ConfigureAwait(false))
-                .FirstOrDefault(x => string.Equals(x.NormalizedName, normalized, StringComparison.OrdinalIgnoreCase));
-            if (existing is not null)
-                return Map(existing);
+            var response = await RolesTable()
+                .GetEntityIfExistsAsync<TenantRoleEntity>(
+                    _opts.TenantRolesPk(tenantId),
+                    _opts.TenantRolesRk(roleId),
+                    cancellationToken: ct)
+                .ConfigureAwait(false);
 
-            throw;
+            if (!response.HasValue)
+                throw;
+
+            var existing = response.Value;
+            var changed = false;
+            if (!IsActive(existing.Status))
+            {
+                existing.Status = "Active";
+                changed = true;
+            }
+
+            if (!string.Equals(existing.Name, roleName, StringComparison.Ordinal))
+            {
+                existing.Name = roleName;
+                existing.NormalizedName = normalized;
+                changed = true;
+            }
+
+            if (isSystem && !existing.IsSystem)
+            {
+                existing.IsSystem = true;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                existing.UpdatedAt = now;
+                await RolesTable()
+                    .UpdateEntityAsync(existing, existing.ETag, TableUpdateMode.Replace, ct)
+                    .ConfigureAwait(false);
+            }
+
+            return Map(existing);
         }
     }
 
