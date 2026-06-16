@@ -31,6 +31,7 @@ public static class EntityFrameworkIdentityServiceCollectionExtensions
 
         services.AddSingleton(opts);
 
+        services.AddScoped<IIdentityTenantStore, EntityFrameworkIdentityTenantStore>();
         services.AddScoped<ITenantMembershipStore, EntityFrameworkTenantMembershipStore>();
 
         services.AddDbContext<IBeamIdentityDbContext>(db =>

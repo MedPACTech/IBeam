@@ -13,6 +13,12 @@ public interface IAuthLifecycleHook
         => Task.CompletedTask;
     Task OnTenantCreatedAsync(TenantCreatedEvent evt, CancellationToken ct = default)
         => Task.CompletedTask;
+    Task OnTenantUpdatedAsync(TenantUpdatedEvent evt, CancellationToken ct = default)
+        => Task.CompletedTask;
+    Task OnTenantActivatedAsync(TenantActivatedEvent evt, CancellationToken ct = default)
+        => Task.CompletedTask;
+    Task OnTenantDeactivatedAsync(TenantDeactivatedEvent evt, CancellationToken ct = default)
+        => Task.CompletedTask;
 
     Task OnBeforeTenantUserLinkAsync(TenantUserLinkRequestedEvent evt, CancellationToken ct = default)
         => Task.CompletedTask;

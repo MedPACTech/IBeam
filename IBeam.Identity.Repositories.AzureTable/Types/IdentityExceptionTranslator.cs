@@ -16,9 +16,7 @@ internal static class IdentityExceptionTranslator
     public static Exception ToProviderException(Exception ex)
     {
         // Already translated
-        if (ex is IdentityValidationException ||
-            ex is IdentityUnauthorizedException ||
-            ex is IdentityProviderException)
+        if (ex is IdentityException)
             return ex;
 
         // Cancellation should flow through unchanged

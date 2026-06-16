@@ -55,3 +55,5 @@ __azurite_db_table__.json
 /_tmp_pkg_smoke
 /__blobstorage__
 /.store
+/IBeam.Demo/IBeam.DemoWeb/node_modules
+/IBeam.Demo/IBeam.DemoWeb/dist

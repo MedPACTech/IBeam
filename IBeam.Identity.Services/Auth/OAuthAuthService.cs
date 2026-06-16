@@ -7,6 +7,7 @@ using IBeam.Identity.Events;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
+using IBeam.Identity.Services.Tenants;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
@@ -28,6 +29,8 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
     private readonly IAuthLifecycleHook _lifecycleHook;
     private readonly IOptions<AuthEventOptions> _eventOptions;
     private readonly IOptions<TenantProvisioningOptions> _tenantProvisioningOptions;
+    private readonly ITenantInfoResolver _tenantInfoResolver;
+    private readonly ITenantExtensionCoordinator _tenantExtensions;
     private readonly ILogger<OAuthAuthService> _logger;
 
     public OAuthAuthService(
@@ -44,6 +47,41 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         IOptions<AuthEventOptions> eventOptions,
         IOptions<TenantProvisioningOptions> tenantProvisioningOptions,
         ILogger<OAuthAuthService> logger)
+        : this(
+            cache,
+            httpClientFactory,
+            oauthOptions,
+            users,
+            externalLogins,
+            tenants,
+            tenantProvisioning,
+            tokens,
+            eventPublisher,
+            lifecycleHook,
+            eventOptions,
+            tenantProvisioningOptions,
+            new TenantInfoResolver(new NoOpTenantMetadataProvider()),
+            new NoOpTenantExtensionCoordinator(),
+            logger)
+    {
+    }
+
+    public OAuthAuthService(
+        IMemoryCache cache,
+        IHttpClientFactory httpClientFactory,
+        IOptionsMonitor<OAuthOptions> oauthOptions,
+        IIdentityUserStore users,
+        IExternalLoginStore externalLogins,
+        ITenantMembershipStore tenants,
+        ITenantProvisioningService tenantProvisioning,
+        ITokenService tokens,
+        IAuthEventPublisher eventPublisher,
+        IAuthLifecycleHook lifecycleHook,
+        IOptions<AuthEventOptions> eventOptions,
+        IOptions<TenantProvisioningOptions> tenantProvisioningOptions,
+        ITenantInfoResolver tenantInfoResolver,
+        ITenantExtensionCoordinator tenantExtensions,
+        ILogger<OAuthAuthService> logger)
     {
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
@@ -57,6 +95,8 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         _lifecycleHook = lifecycleHook ?? throw new ArgumentNullException(nameof(lifecycleHook));
         _eventOptions = eventOptions ?? throw new ArgumentNullException(nameof(eventOptions));
         _tenantProvisioningOptions = tenantProvisioningOptions ?? throw new ArgumentNullException(nameof(tenantProvisioningOptions));
+        _tenantInfoResolver = tenantInfoResolver ?? throw new ArgumentNullException(nameof(tenantInfoResolver));
+        _tenantExtensions = tenantExtensions ?? throw new ArgumentNullException(nameof(tenantExtensions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -382,11 +422,10 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         CancellationToken ct)
     {
         var traceId = ResolveTraceId();
-        var activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
-            .Where(t => t.IsActive)
-            .ToList();
+        var activeTenants = await GetActiveTenantsForUserAsync(user.UserId, ct);
 
         activeTenants = await ApplyTenantProvisioningPolicyAsync(user, createdNewUser, activeTenants, traceId, ct);
+        await EnsureTenantExtensionsForUserAsync(user.UserId, TenantExtensionOperations.Ensure, null, null, traceId, ct);
 
         var policyTenantId = ResolveEffectiveTenantId();
         if (policyTenantId.HasValue)
@@ -480,9 +519,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
                 setAsDefault: true,
                 ct: ct);
 
-            activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
-                .Where(t => t.IsActive)
-                .ToList();
+            activeTenants = await GetActiveTenantsForUserAsync(user.UserId, ct);
 
             if (!activeTenants.Any(t => t.TenantId == defaultTenantId))
                 throw new IdentityProviderException("Default tenant membership could not be resolved after linking.");
@@ -502,9 +539,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
             await InvokeLifecycleAndPublishAsync(preTenant, (hook, evt, token) => hook.OnBeforeTenantCreateAsync(evt, token), ct);
 
             var createdTenantId = await _tenantProvisioning.CreateTenantForNewUserAsync(user.UserId, user.Email, ct);
-            activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
-                .Where(t => t.IsActive)
-                .ToList();
+            activeTenants = await GetActiveTenantsForUserAsync(user.UserId, ct);
 
             if (!activeTenants.Any(t => t.TenantId == createdTenantId))
                 throw new IdentityProviderException("Tenant provisioning completed but membership could not be resolved.");
@@ -514,10 +549,23 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
             {
                 TenantId = createdTenantId,
                 TenantName = createdTenant?.Name,
+                Status = IdentityTenantStatuses.Active,
                 TraceId = traceId
             };
             tenantCreated.Metadata["idempotencyKey"] = $"{TenantCreatedEvent.TypeName}:{createdTenantId:D}";
             await InvokeLifecycleAndPublishAsync(tenantCreated, (hook, evt, token) => hook.OnTenantCreatedAsync(evt, token), ct);
+
+            if (createdTenant is not null)
+            {
+                await _tenantExtensions.OnTenantCreatedAsync(
+                    IdentityTenant.FromTenantInfo(createdTenant, DateTimeOffset.UtcNow),
+                    TenantExtensionContext.Create(
+                        TenantExtensionOperations.Created,
+                        user.UserId,
+                        traceId: traceId,
+                        metadata: tenantCreated.Metadata),
+                    ct).ConfigureAwait(false);
+            }
 
             var preLink = new TenantUserLinkRequestedEvent
             {
@@ -541,6 +589,40 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         }
 
         return activeTenants;
+    }
+
+    private async Task<List<TenantInfo>> GetActiveTenantsForUserAsync(Guid userId, CancellationToken ct)
+    {
+        var tenants = await _tenantInfoResolver
+            .EnrichAsync(await _tenants.GetTenantsForUserAsync(userId, ct).ConfigureAwait(false), ct)
+            .ConfigureAwait(false);
+
+        return tenants.Where(t => t.IsActive).ToList();
+    }
+
+    private async Task EnsureTenantExtensionsForUserAsync(
+        Guid userId,
+        string operation,
+        string? correlationId,
+        string? causationId,
+        string? traceId,
+        CancellationToken ct)
+    {
+        var identityTenantsTask = _tenants.GetTenantsForUserAsync(userId, ct);
+        if (identityTenantsTask is null)
+            return;
+
+        var identityTenants = await identityTenantsTask.ConfigureAwait(false);
+        if (identityTenants is null)
+            return;
+
+        foreach (var tenant in identityTenants.Where(t => t.IsActive))
+        {
+            await _tenantExtensions.EnsureExtensionAsync(
+                IdentityTenant.FromTenantInfo(tenant),
+                TenantExtensionContext.Create(operation, userId, correlationId, causationId, traceId),
+                ct).ConfigureAwait(false);
+        }
     }
 
     private Guid? ResolveEffectiveTenantId()

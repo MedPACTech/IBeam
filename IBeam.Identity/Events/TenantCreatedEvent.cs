@@ -11,5 +11,5 @@ public sealed record TenantCreatedEvent : AuthLifecycleEventBase
 
     public Guid TenantId { get; init; }
     public string? TenantName { get; init; }
+    public string Status { get; init; } = string.Empty;
 }
-

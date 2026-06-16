@@ -3,6 +3,7 @@ using IBeam.Identity.Events;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
+using IBeam.Identity.Services.Tenants;
 using IBeam.Identity.Services.Utils;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -27,6 +28,8 @@ public sealed class PasswordAuthService : IIdentityAuthService
     private readonly IAuthEventPublisher _eventPublisher;
     private readonly IAuthLifecycleHook _lifecycleHook;
     private readonly IOptions<AuthEventOptions> _eventOptions;
+    private readonly ITenantInfoResolver _tenantInfoResolver;
+    private readonly ITenantExtensionCoordinator _tenantExtensions;
     private readonly ILogger<PasswordAuthService> _logger;
 
     public PasswordAuthService(
@@ -44,6 +47,43 @@ public sealed class PasswordAuthService : IIdentityAuthService
         IAuthLifecycleHook lifecycleHook,
         IOptions<AuthEventOptions> eventOptions,
         ILogger<PasswordAuthService> logger)
+        : this(
+            users,
+            tenants,
+            tenantProvisioning,
+            tokens,
+            otpService,
+            otpChallenges,
+            sender,
+            attempts,
+            attemptOptions,
+            tenantProvisioningOptions,
+            eventPublisher,
+            lifecycleHook,
+            eventOptions,
+            new TenantInfoResolver(new NoOpTenantMetadataProvider()),
+            new NoOpTenantExtensionCoordinator(),
+            logger)
+    {
+    }
+
+    public PasswordAuthService(
+        IIdentityUserStore users,
+        ITenantMembershipStore tenants,
+        ITenantProvisioningService tenantProvisioning,
+        ITokenService tokens,
+        IOtpService otpService,
+        IOtpChallengeStore otpChallenges,
+        IIdentityCommunicationSender sender,
+        IAuthAttemptStore attempts,
+        IOptions<LoginAttemptOptions> attemptOptions,
+        IOptions<TenantProvisioningOptions> tenantProvisioningOptions,
+        IAuthEventPublisher eventPublisher,
+        IAuthLifecycleHook lifecycleHook,
+        IOptions<AuthEventOptions> eventOptions,
+        ITenantInfoResolver tenantInfoResolver,
+        ITenantExtensionCoordinator tenantExtensions,
+        ILogger<PasswordAuthService> logger)
     {
         _users = users ?? throw new ArgumentNullException(nameof(users));
         _tenants = tenants ?? throw new ArgumentNullException(nameof(tenants));
@@ -58,6 +98,8 @@ public sealed class PasswordAuthService : IIdentityAuthService
         _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
         _lifecycleHook = lifecycleHook ?? throw new ArgumentNullException(nameof(lifecycleHook));
         _eventOptions = eventOptions ?? throw new ArgumentNullException(nameof(eventOptions));
+        _tenantInfoResolver = tenantInfoResolver ?? throw new ArgumentNullException(nameof(tenantInfoResolver));
+        _tenantExtensions = tenantExtensions ?? throw new ArgumentNullException(nameof(tenantExtensions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -190,9 +232,9 @@ public sealed class PasswordAuthService : IIdentityAuthService
             return AuthResultResponse.RequiresTwoFactorChallenge(challenge.ChallengeId, method);
         }
 
-        var tenants = await _tenants.GetTenantsForUserAsync(user.UserId, ct);
-        var activeTenants = tenants.Where(t => t.IsActive).ToList();
+        var activeTenants = await GetActiveTenantsForUserAsync(user.UserId, ct);
         activeTenants = await ApplyTenantProvisioningPolicyAsync(user, createdNewUser: false, activeTenants, traceId, ct);
+        await EnsureTenantExtensionsForUserAsync(user.UserId, TenantExtensionOperations.Ensure, null, null, traceId, ct);
 
         var policyTenantId = ResolveEffectiveTenantId();
         if (policyTenantId.HasValue)
@@ -623,11 +665,22 @@ public sealed class PasswordAuthService : IIdentityAuthService
             (hook, evt, token) => hook.OnBeforeTenantSelectionAsync(evt, token),
             ct);
 
-        var tenant = await _tenants.GetTenantForUserAsync(userGuid, request.TenantId, ct);
+        var tenant = await _tenantInfoResolver
+            .EnrichAsync(await _tenants.GetTenantForUserAsync(userGuid, request.TenantId, ct).ConfigureAwait(false), ct)
+            .ConfigureAwait(false);
         if (tenant is null || !tenant.IsActive)
             throw new IdentityUnauthorizedException("No active tenant membership.");
         if (request.SetAsDefault)
             await _tenants.SetDefaultTenantAsync(userGuid, request.TenantId, ct);
+        await _tenantExtensions.EnsureExtensionAsync(
+            IdentityTenant.FromTenantInfo(tenant),
+            TenantExtensionContext.Create(
+                TenantExtensionOperations.Selected,
+                userGuid,
+                request.TenantId.ToString("D"),
+                request.TenantId.ToString("D"),
+                traceId),
+            ct).ConfigureAwait(false);
         var claims = BuildBaseClaims(userGuid, string.Empty);
         AddTenantClaims(claims, tenant.TenantId);
         AddRoleClaims(claims, tenant.Roles);
@@ -657,11 +710,10 @@ public sealed class PasswordAuthService : IIdentityAuthService
     private async Task<AuthResultResponse> BuildAuthResultAsync(IdentityUser user, bool createdNewUser, CancellationToken ct)
     {
         var traceId = ResolveTraceId();
-        var activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
-            .Where(t => t.IsActive)
-            .ToList();
+        var activeTenants = await GetActiveTenantsForUserAsync(user.UserId, ct);
 
         activeTenants = await ApplyTenantProvisioningPolicyAsync(user, createdNewUser, activeTenants, traceId, ct);
+        await EnsureTenantExtensionsForUserAsync(user.UserId, TenantExtensionOperations.Ensure, null, null, traceId, ct);
 
         var policyTenantId = ResolveEffectiveTenantId();
         if (policyTenantId.HasValue)
@@ -749,9 +801,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
                 setAsDefault: true,
                 ct: ct);
 
-            activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
-                .Where(t => t.IsActive)
-                .ToList();
+            activeTenants = await GetActiveTenantsForUserAsync(user.UserId, ct);
 
             if (!activeTenants.Any(t => t.TenantId == defaultTenantId))
                 throw new IdentityProviderException("Default tenant membership could not be resolved after linking.");
@@ -771,9 +821,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
             await InvokeLifecycleAndPublishAsync(preTenant, (hook, evt, token) => hook.OnBeforeTenantCreateAsync(evt, token), ct);
 
             var createdTenantId = await _tenantProvisioning.CreateTenantForNewUserAsync(user.UserId, user.Email, ct);
-            activeTenants = (await _tenants.GetTenantsForUserAsync(user.UserId, ct))
-                .Where(t => t.IsActive)
-                .ToList();
+            activeTenants = await GetActiveTenantsForUserAsync(user.UserId, ct);
 
             if (!activeTenants.Any(t => t.TenantId == createdTenantId))
                 throw new IdentityProviderException("Tenant provisioning completed but membership could not be resolved.");
@@ -783,10 +831,23 @@ public sealed class PasswordAuthService : IIdentityAuthService
             {
                 TenantId = createdTenantId,
                 TenantName = createdTenant?.Name,
+                Status = IdentityTenantStatuses.Active,
                 TraceId = traceId
             };
             tenantCreated.Metadata["idempotencyKey"] = $"{TenantCreatedEvent.TypeName}:{createdTenantId:D}";
             await InvokeLifecycleAndPublishAsync(tenantCreated, (hook, evt, token) => hook.OnTenantCreatedAsync(evt, token), ct);
+
+            if (createdTenant is not null)
+            {
+                await _tenantExtensions.OnTenantCreatedAsync(
+                    IdentityTenant.FromTenantInfo(createdTenant, DateTimeOffset.UtcNow),
+                    TenantExtensionContext.Create(
+                        TenantExtensionOperations.Created,
+                        user.UserId,
+                        traceId: traceId,
+                        metadata: tenantCreated.Metadata),
+                    ct).ConfigureAwait(false);
+            }
 
             var preLink = new TenantUserLinkRequestedEvent
             {
@@ -810,6 +871,40 @@ public sealed class PasswordAuthService : IIdentityAuthService
         }
 
         return activeTenants;
+    }
+
+    private async Task<List<TenantInfo>> GetActiveTenantsForUserAsync(Guid userId, CancellationToken ct)
+    {
+        var tenants = await _tenantInfoResolver
+            .EnrichAsync(await _tenants.GetTenantsForUserAsync(userId, ct).ConfigureAwait(false), ct)
+            .ConfigureAwait(false);
+
+        return tenants.Where(t => t.IsActive).ToList();
+    }
+
+    private async Task EnsureTenantExtensionsForUserAsync(
+        Guid userId,
+        string operation,
+        string? correlationId,
+        string? causationId,
+        string? traceId,
+        CancellationToken ct)
+    {
+        var identityTenantsTask = _tenants.GetTenantsForUserAsync(userId, ct);
+        if (identityTenantsTask is null)
+            return;
+
+        var identityTenants = await identityTenantsTask.ConfigureAwait(false);
+        if (identityTenants is null)
+            return;
+
+        foreach (var tenant in identityTenants.Where(t => t.IsActive))
+        {
+            await _tenantExtensions.EnsureExtensionAsync(
+                IdentityTenant.FromTenantInfo(tenant),
+                TenantExtensionContext.Create(operation, userId, correlationId, causationId, traceId),
+                ct).ConfigureAwait(false);
+        }
     }
 
     private Guid? ResolveEffectiveTenantId()

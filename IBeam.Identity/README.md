@@ -201,6 +201,44 @@ Default mode is `AutoCreateTenantForNewUser`, which preserves the original works
 }
 ```
 
+## Tenant Extension Pattern
+
+IBeam owns `IdentityTenant` for identity/auth concerns, while an application can own its app/domain tenant entity such as `Tenant`, `Organization`, `Workspace`, `Practice`, or `Business`.
+
+`IdentityTenant` stays minimal:
+
+- `TenantId`
+- `Name`
+- `NormalizedName`
+- `Status`
+- `CreatedAt`
+- `UpdatedAt`
+
+Applications map their extended tenant row by the same `TenantId` and keep app/business fields there. For example, Hubbsly can keep `Slug`, `DisplayName`, `StripeAppKey`, `IsActive`, `IsDeleted`, `CreatedUtc`, and `UpdatedUtc` in `Hubbsly.Tenants` while IBeam keeps auth tenant metadata in `IBeamIdentityTenants`.
+
+Core extension contracts:
+
+- `IIdentityTenantExtension`
+- `ITenantExtensionStore<TTenant>`
+- `ITenantExtensionResolver<TTenant>`
+- `ITenantExtensionCoordinator`
+- `ITenantLifecycleHook`
+- `ITenantMetadataProvider`
+- `IIdentityTenantStore`
+- `IIdentityTenantService`
+
+Service registration:
+
+```csharp
+services.AddIBeamIdentityServices(configuration);
+services.AddIBeamIdentityTenantExtension<Tenant, TenantExtensionStore>();
+services.AddIBeamIdentityTenantMetadataProvider<TenantMetadataProvider>();
+```
+
+When configured, IBeam hydrates the app-owned tenant extension during tenant creation, tenant selection, tenant listing, and tenant membership bootstrap. If the identity tenant exists but the app tenant row does not, the app's `ITenantExtensionStore<TTenant>.CreateAsync` is called. If the app row exists, `UpdateFromIdentityTenantAsync` can keep display metadata in sync.
+
+`ITenantMetadataProvider` lets an app project app-owned metadata back into IBeam tenant displays. For example, a Hubbsly provider can return `DisplayName = Tenant.DisplayName` and `IsActive = Tenant.IsActive && !Tenant.IsDeleted`; IBeam then uses that metadata when returning tenant selections and before issuing tenant-scoped tokens.
+
 For single-tenant deployments, use `UseDefaultTenant` with an explicit tenant ID. Auth requests that omit tenant ID use this configured default; IBeam does not infer it from environment name or storage account.
 
 ```json

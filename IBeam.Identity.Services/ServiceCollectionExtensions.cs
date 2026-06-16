@@ -97,8 +97,13 @@ public static class ServiceCollectionExtensions
 
         // Core services
         services.AddScoped<IOtpService, OtpService>();
+        services.AddScoped<IIdentityTenantService, IdentityTenantService>();
         services.AddScoped<ITenantSelectionService, TenantSelectionService>();
         services.AddScoped<ITenantRoleService, TenantRoleService>();
+        services.TryAddScoped<ITenantMetadataProvider, NoOpTenantMetadataProvider>();
+        services.TryAddScoped<ITenantLifecycleHook, NoOpTenantLifecycleHook>();
+        services.TryAddScoped<ITenantExtensionCoordinator, NoOpTenantExtensionCoordinator>();
+        services.TryAddScoped<ITenantInfoResolver, TenantInfoResolver>();
         services.TryAddScoped<IAuthAttemptStore, InMemoryAuthAttemptStore>();
         services.TryAddScoped<IIdentityProfileStore, InMemoryIdentityProfileStore>();
         services.AddScoped<IIdentityProfileService, IdentityProfileService>();
@@ -112,6 +117,34 @@ public static class ServiceCollectionExtensions
 
         // Note: IOtpChallengeStore, ISender, and other dependencies must be registered by the consumer or by repository/communications packages.
 
+        return services;
+    }
+
+    public static IServiceCollection AddIBeamIdentityTenantExtension<TTenant, TStore>(
+        this IServiceCollection services)
+        where TTenant : class, IIdentityTenantExtension
+        where TStore : class, ITenantExtensionStore<TTenant>
+    {
+        services.AddScoped<ITenantExtensionStore<TTenant>, TStore>();
+        services.AddScoped<ITenantExtensionResolver<TTenant>, TenantExtensionResolver<TTenant>>();
+        services.AddScoped<ITenantExtensionCoordinator, TenantExtensionCoordinator<TTenant>>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddIBeamIdentityTenantMetadataProvider<TProvider>(
+        this IServiceCollection services)
+        where TProvider : class, ITenantMetadataProvider
+    {
+        services.AddScoped<ITenantMetadataProvider, TProvider>();
+        return services;
+    }
+
+    public static IServiceCollection AddIBeamIdentityTenantLifecycleHook<THook>(
+        this IServiceCollection services)
+        where THook : class, ITenantLifecycleHook
+    {
+        services.AddScoped<ITenantLifecycleHook, THook>();
         return services;
     }
 

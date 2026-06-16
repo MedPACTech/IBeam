@@ -7,10 +7,17 @@ namespace IBeam.Identity.Services.Tenants;
 public sealed class TenantRoleService : ITenantRoleService
 {
     private readonly ITenantRoleStore _roles;
+    private readonly ITenantExtensionCoordinator _tenantExtensions;
 
     public TenantRoleService(ITenantRoleStore roles)
+        : this(roles, new NoOpTenantExtensionCoordinator())
+    {
+    }
+
+    public TenantRoleService(ITenantRoleStore roles, ITenantExtensionCoordinator tenantExtensions)
     {
         _roles = roles ?? throw new ArgumentNullException(nameof(roles));
+        _tenantExtensions = tenantExtensions ?? throw new ArgumentNullException(nameof(tenantExtensions));
     }
 
     public Task<IReadOnlyList<TenantRole>> GetRolesAsync(Guid tenantId, CancellationToken ct = default)
@@ -65,17 +72,38 @@ public sealed class TenantRoleService : ITenantRoleService
         ValidateUserId(request.UserId);
         ValidateBootstrapRoles(request.RoleIds, request.RoleNames);
 
-        return _roles.EnsureTenantMembershipAndGrantRolesAsync(
-            request with
-            {
-                TenantName = string.IsNullOrWhiteSpace(request.TenantName) ? null : request.TenantName.Trim(),
-                RoleIds = request.RoleIds?.Where(x => x != Guid.Empty).Distinct().ToList(),
-                RoleNames = request.RoleNames?
-                    .Select(NormalizeRoleName)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList()
-            },
-            ct);
+        var normalizedRequest = request with
+        {
+            TenantName = string.IsNullOrWhiteSpace(request.TenantName) ? null : request.TenantName.Trim(),
+            RoleIds = request.RoleIds?.Where(x => x != Guid.Empty).Distinct().ToList(),
+            RoleNames = request.RoleNames?
+                .Select(NormalizeRoleName)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList()
+        };
+
+        return EnsureTenantMembershipAndGrantRolesCoreAsync(normalizedRequest, ct);
+    }
+
+    private async Task<UserTenantRoleAssignment> EnsureTenantMembershipAndGrantRolesCoreAsync(
+        TenantMembershipRoleBootstrapRequest request,
+        CancellationToken ct)
+    {
+        var result = await _roles.EnsureTenantMembershipAndGrantRolesAsync(request, ct).ConfigureAwait(false);
+        var tenantName = string.IsNullOrWhiteSpace(request.TenantName) ? "Workspace" : request.TenantName.Trim();
+
+        await _tenantExtensions.EnsureExtensionAsync(
+            new IdentityTenant(
+                request.TenantId,
+                tenantName,
+                IdentityTenant.NormalizeName(tenantName),
+                IdentityTenantStatuses.Active),
+            TenantExtensionContext.Create(
+                TenantExtensionOperations.Linked,
+                request.UserId),
+            ct).ConfigureAwait(false);
+
+        return result;
     }
 
     public Task<UserTenantRoleAssignment> RevokeRolesAsync(Guid tenantId, Guid userId, IReadOnlyList<Guid> roleIds, CancellationToken ct = default)
