@@ -74,17 +74,6 @@ Content-Type: application/json
   "sessionId": "{sessionId}"
 }`,
 
-  profileExtensions: `PUT /api/auth/profile/extensions
-Authorization: Bearer {accessToken}
-Content-Type: application/json
-
-{
-  "attributes": {
-    "department": "Engineering",
-    "demoTrack": "Identity"
-  }
-}`,
-
   roles: `POST /api/tenants/{tenantId}/roles
 Authorization: Bearer {accessToken}
 Content-Type: application/json

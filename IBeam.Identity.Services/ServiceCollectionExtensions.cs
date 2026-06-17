@@ -4,9 +4,9 @@ using IBeam.Identity.Services.Otp;
 using IBeam.Identity.Services.Auth;
 using IBeam.Identity.Services.Auth.Attempts;
 using IBeam.Identity.Services.Authorization;
-using IBeam.Identity.Services.Profiles;
 using IBeam.Identity.Services.Tenants;
 using IBeam.Identity.Services.Tokens;
+using IBeam.Identity.Services.Users;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -103,10 +103,9 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ITenantMetadataProvider, NoOpTenantMetadataProvider>();
         services.TryAddScoped<ITenantLifecycleHook, NoOpTenantLifecycleHook>();
         services.TryAddScoped<ITenantExtensionCoordinator, NoOpTenantExtensionCoordinator>();
+        services.TryAddScoped<IIdentityUserExtensionCoordinator, NoOpIdentityUserExtensionCoordinator>();
         services.TryAddScoped<ITenantInfoResolver, TenantInfoResolver>();
         services.TryAddScoped<IAuthAttemptStore, InMemoryAuthAttemptStore>();
-        services.TryAddScoped<IIdentityProfileStore, InMemoryIdentityProfileStore>();
-        services.AddScoped<IIdentityProfileService, IdentityProfileService>();
         services.AddScoped<IRoleAccessAuthorizer, RoleAccessAuthorizer>();
         services.TryAddScoped<IPermissionAccessStore, NoOpPermissionAccessStore>();
         services.AddScoped<IPermissionGrantResolver, PermissionGrantResolver>();
@@ -128,6 +127,18 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITenantExtensionStore<TTenant>, TStore>();
         services.AddScoped<ITenantExtensionResolver<TTenant>, TenantExtensionResolver<TTenant>>();
         services.AddScoped<ITenantExtensionCoordinator, TenantExtensionCoordinator<TTenant>>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddIBeamIdentityUserExtension<TUserExtension, TStore>(
+        this IServiceCollection services)
+        where TUserExtension : class, IIdentityUserExtension
+        where TStore : class, IIdentityUserExtensionStore<TUserExtension>
+    {
+        services.AddScoped<IIdentityUserExtensionStore<TUserExtension>, TStore>();
+        services.AddScoped<IIdentityUserExtensionResolver<TUserExtension>, IdentityUserExtensionResolver<TUserExtension>>();
+        services.AddScoped<IIdentityUserExtensionCoordinator, IdentityUserExtensionCoordinator<TUserExtension>>();
 
         return services;
     }

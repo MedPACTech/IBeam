@@ -17,7 +17,6 @@ public class AuthController : ControllerBase
     private readonly IIdentityAuthService _passwordAuth;
     private readonly IIdentityOAuthAuthService _oauthAuth;
     private readonly ITokenService _tokens;
-    private readonly IIdentityProfileService _profile;
     private readonly FeatureOptions _features;
 
     public AuthController(
@@ -25,7 +24,6 @@ public class AuthController : ControllerBase
         IIdentityAuthService passwordAuth,
         IIdentityOAuthAuthService oauthAuth,
         ITokenService tokens,
-        IIdentityProfileService profile,
         IOptionsSnapshot<FeatureOptions> features)
     {
 
@@ -33,7 +31,6 @@ public class AuthController : ControllerBase
         _passwordAuth = passwordAuth;
         _oauthAuth = oauthAuth;
         _tokens = tokens;
-        _profile = profile;
         _features = features.Value;
     }
 
@@ -566,66 +563,6 @@ public class AuthController : ControllerBase
     }
 
     [Authorize]
-    [HttpGet("profile/extensions")]
-    public async Task<IActionResult> GetProfileExtensions(CancellationToken ct)
-    {
-        if (!TryGetCurrentUserId(out var userId))
-            return Unauthorized(new { message = "Authenticated user id claim is missing." });
-
-        try
-        {
-            var profile = await _profile.GetAsync(userId, ct);
-            return Ok(profile);
-        }
-        catch (IdentityValidationException ex)
-        {
-            return BadRequest(new { message = ex.Message, errors = ex.Errors });
-        }
-    }
-
-    [Authorize]
-    [HttpPut("profile/extensions")]
-    public async Task<IActionResult> UpsertProfileExtensions([FromBody] UpsertProfileExtensionsRequest req, CancellationToken ct)
-    {
-        if (!TryGetCurrentUserId(out var userId))
-            return Unauthorized(new { message = "Authenticated user id claim is missing." });
-
-        if (req.Attributes is null)
-            return BadRequest(new { message = "Attributes is required." });
-
-        try
-        {
-            var updated = await _profile.UpsertAsync(userId, req.Attributes, ct);
-            return Ok(updated);
-        }
-        catch (IdentityValidationException ex)
-        {
-            return BadRequest(new { message = ex.Message, errors = ex.Errors });
-        }
-    }
-
-    [Authorize]
-    [HttpPost("profile/extensions/remove-keys")]
-    public async Task<IActionResult> RemoveProfileExtensionKeys([FromBody] RemoveProfileExtensionKeysRequest req, CancellationToken ct)
-    {
-        if (!TryGetCurrentUserId(out var userId))
-            return Unauthorized(new { message = "Authenticated user id claim is missing." });
-
-        if (req.Keys is null || req.Keys.Count == 0)
-            return BadRequest(new { message = "Keys is required." });
-
-        try
-        {
-            await _profile.RemoveKeysAsync(userId, req.Keys, ct);
-            return Ok(new { removed = true });
-        }
-        catch (IdentityValidationException ex)
-        {
-            return BadRequest(new { message = ex.Message, errors = ex.Errors });
-        }
-    }
-
-    [Authorize]
     [HttpPost("sessions/revoke")]
     public async Task<IActionResult> RevokeSession([FromBody] RevokeSessionRequest req, CancellationToken ct)
     {
@@ -744,12 +681,3 @@ public class OAuthUnlinkRequest
     public string Provider { get; set; } = string.Empty;
 }
 
-public sealed class UpsertProfileExtensionsRequest
-{
-    public Dictionary<string, string> Attributes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-}
-
-public sealed class RemoveProfileExtensionKeysRequest
-{
-    public List<string> Keys { get; set; } = new();
-}

@@ -1,6 +1,7 @@
 using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
+using IBeam.Identity.Services.Users;
 
 namespace IBeam.Identity.Services.Tenants;
 
@@ -10,6 +11,8 @@ public sealed class TenantSelectionService : ITenantSelectionService
     private readonly ITokenService _tokenService;
     private readonly ITenantInfoResolver _tenantInfoResolver;
     private readonly ITenantExtensionCoordinator _tenantExtensions;
+    private readonly IIdentityUserStore? _users;
+    private readonly IIdentityUserExtensionCoordinator _userExtensions;
 
     public TenantSelectionService(
         ITenantMembershipStore tenants,
@@ -18,7 +21,9 @@ public sealed class TenantSelectionService : ITenantSelectionService
             tenants,
             tokenService,
             new TenantInfoResolver(new NoOpTenantMetadataProvider()),
-            new NoOpTenantExtensionCoordinator())
+            new NoOpTenantExtensionCoordinator(),
+            null,
+            new NoOpIdentityUserExtensionCoordinator())
     {
     }
 
@@ -27,11 +32,30 @@ public sealed class TenantSelectionService : ITenantSelectionService
         ITokenService tokenService,
         ITenantInfoResolver tenantInfoResolver,
         ITenantExtensionCoordinator tenantExtensions)
+        : this(
+            tenants,
+            tokenService,
+            tenantInfoResolver,
+            tenantExtensions,
+            null,
+            new NoOpIdentityUserExtensionCoordinator())
+    {
+    }
+
+    public TenantSelectionService(
+        ITenantMembershipStore tenants,
+        ITokenService tokenService,
+        ITenantInfoResolver tenantInfoResolver,
+        ITenantExtensionCoordinator tenantExtensions,
+        IIdentityUserStore? users,
+        IIdentityUserExtensionCoordinator userExtensions)
     {
         _tenants = tenants ?? throw new ArgumentNullException(nameof(tenants));
         _tokenService = tokenService ?? throw new ArgumentNullException(nameof(tokenService));
         _tenantInfoResolver = tenantInfoResolver ?? throw new ArgumentNullException(nameof(tenantInfoResolver));
         _tenantExtensions = tenantExtensions ?? throw new ArgumentNullException(nameof(tenantExtensions));
+        _users = users;
+        _userExtensions = userExtensions ?? throw new ArgumentNullException(nameof(userExtensions));
     }
 
     public async Task<IReadOnlyList<TenantInfo>> GetTenantsForUserAsync(Guid userId, CancellationToken ct = default)
@@ -63,6 +87,7 @@ public sealed class TenantSelectionService : ITenantSelectionService
             IdentityTenant.FromTenantInfo(identityTenant!),
             TenantExtensionContext.Create(TenantExtensionOperations.Selected, authUserId: request.UserId),
             ct).ConfigureAwait(false);
+        await EnsureSelectedUserExtensionAsync(request.UserId, tenant.TenantId, ct).ConfigureAwait(false);
 
         var claims = new List<ClaimItem>
         {
@@ -105,5 +130,26 @@ public sealed class TenantSelectionService : ITenantSelectionService
                 TenantExtensionContext.Create(operation, authUserId: userId),
                 ct).ConfigureAwait(false);
         }
+    }
+
+    private async Task EnsureSelectedUserExtensionAsync(Guid userId, Guid tenantId, CancellationToken ct)
+    {
+        if (_users is null)
+            return;
+
+        var user = await _users.FindByIdAsync(userId, ct).ConfigureAwait(false);
+        if (user is null)
+            return;
+
+        await _userExtensions.EnsureExtensionAsync(
+            user,
+            UserExtensionContext.Create(
+                UserExtensionOperations.Selected,
+                user.UserId,
+                tenantId,
+                user.Email,
+                user.PhoneNumber,
+                user.DisplayName),
+            ct).ConfigureAwait(false);
     }
 }

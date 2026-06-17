@@ -4,6 +4,7 @@ using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
 using IBeam.Identity.Services.Tenants;
+using IBeam.Identity.Services.Users;
 using IBeam.Identity.Services.Utils;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -26,6 +27,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
     private readonly IOptions<TenantProvisioningOptions> _tenantProvisioningOptions;
     private readonly ITenantInfoResolver _tenantInfoResolver;
     private readonly ITenantExtensionCoordinator _tenantExtensions;
+    private readonly IIdentityUserExtensionCoordinator _userExtensions;
     private readonly ILogger<OtpAuthService> _logger;
 
     public OtpAuthService(
@@ -55,6 +57,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             tenantProvisioningOptions,
             new TenantInfoResolver(new NoOpTenantMetadataProvider()),
             new NoOpTenantExtensionCoordinator(),
+            new NoOpIdentityUserExtensionCoordinator(),
             logger)
     {
     }
@@ -73,6 +76,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         IOptions<TenantProvisioningOptions> tenantProvisioningOptions,
         ITenantInfoResolver tenantInfoResolver,
         ITenantExtensionCoordinator tenantExtensions,
+        IIdentityUserExtensionCoordinator userExtensions,
         ILogger<OtpAuthService> logger)
     {
         _users = users ?? throw new ArgumentNullException(nameof(users));
@@ -88,6 +92,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         _tenantProvisioningOptions = tenantProvisioningOptions ?? throw new ArgumentNullException(nameof(tenantProvisioningOptions));
         _tenantInfoResolver = tenantInfoResolver ?? throw new ArgumentNullException(nameof(tenantInfoResolver));
         _tenantExtensions = tenantExtensions ?? throw new ArgumentNullException(nameof(tenantExtensions));
+        _userExtensions = userExtensions ?? throw new ArgumentNullException(nameof(userExtensions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -344,7 +349,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
 
             if (user is null)
             {
-                user = createResult.User;
+                user = createResult.User with { DisplayName = displayName ?? createResult.User.DisplayName };
                 createdNewUser = true;
             }
 
@@ -365,6 +370,8 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
                     userCreatedEvent,
                     (hook, evt, token) => hook.OnAuthUserCreatedAsync(evt, token),
                     ct);
+                await OnUserCreatedExtensionAsync(user, null, challengeId, challengeId, traceId, userCreatedEvent.Metadata, ct)
+                    .ConfigureAwait(false);
             }
         }
 
@@ -405,6 +412,8 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             AddTenantClaims(claims, tenant.TenantId);
             AddRoleClaims(claims, tenant.Roles);
             AddRoleIdClaims(claims, tenant.RoleIds);
+            await EnsureUserExtensionAsync(user, tenant.TenantId, UserExtensionOperations.Login, challengeId, challengeId, traceId, ct)
+                .ConfigureAwait(false);
             var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
             await EmitLoginSucceededAsync("otp", user.UserId, tenant.TenantId, false, challengeId, traceId, ct);
             return AuthResultResponse.WithToken(token, createdNewUser);
@@ -420,6 +429,8 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
                 AddTenantClaims(claims, defaultTenant.TenantId);
                 AddRoleClaims(claims, defaultTenant.Roles);
                 AddRoleIdClaims(claims, defaultTenant.RoleIds);
+                await EnsureUserExtensionAsync(user, defaultTenant.TenantId, UserExtensionOperations.Login, challengeId, challengeId, traceId, ct)
+                    .ConfigureAwait(false);
                 var token = await _tokens.CreateAccessTokenAsync(user.UserId, defaultTenant.TenantId, claims, ct);
                 await EmitLoginSucceededAsync("otp", user.UserId, defaultTenant.TenantId, false, challengeId, traceId, ct);
                 return AuthResultResponse.WithToken(token, createdNewUser);
@@ -688,6 +699,52 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             IdentityTenant.FromTenantInfo(tenant),
             TenantExtensionContext.Create(operation, userId, correlationId, causationId, traceId),
             ct);
+
+    private Task OnUserCreatedExtensionAsync(
+        IdentityUser user,
+        Guid? tenantId,
+        string? correlationId,
+        string? causationId,
+        string? traceId,
+        IReadOnlyDictionary<string, string>? metadata,
+        CancellationToken ct)
+        => _userExtensions.OnUserCreatedAsync(
+            user,
+            CreateUserExtensionContext(user, UserExtensionOperations.Created, tenantId, correlationId, causationId, traceId, metadata),
+            ct);
+
+    private Task EnsureUserExtensionAsync(
+        IdentityUser user,
+        Guid? tenantId,
+        string operation,
+        string? correlationId,
+        string? causationId,
+        string? traceId,
+        CancellationToken ct)
+        => _userExtensions.EnsureExtensionAsync(
+            user,
+            CreateUserExtensionContext(user, operation, tenantId, correlationId, causationId, traceId, null),
+            ct);
+
+    private static UserExtensionContext CreateUserExtensionContext(
+        IdentityUser user,
+        string operation,
+        Guid? tenantId,
+        string? correlationId,
+        string? causationId,
+        string? traceId,
+        IReadOnlyDictionary<string, string>? metadata)
+        => UserExtensionContext.Create(
+            operation,
+            user.UserId,
+            tenantId,
+            user.Email,
+            user.PhoneNumber,
+            user.DisplayName,
+            correlationId: correlationId,
+            causationId: causationId,
+            traceId: traceId,
+            metadata: metadata);
 
     private Guid? ResolveEffectiveTenantId(Guid? requestedTenantId)
     {

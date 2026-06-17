@@ -8,6 +8,7 @@ using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
 using IBeam.Identity.Services.Tenants;
+using IBeam.Identity.Services.Users;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
@@ -31,6 +32,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
     private readonly IOptions<TenantProvisioningOptions> _tenantProvisioningOptions;
     private readonly ITenantInfoResolver _tenantInfoResolver;
     private readonly ITenantExtensionCoordinator _tenantExtensions;
+    private readonly IIdentityUserExtensionCoordinator _userExtensions;
     private readonly ILogger<OAuthAuthService> _logger;
 
     public OAuthAuthService(
@@ -62,6 +64,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
             tenantProvisioningOptions,
             new TenantInfoResolver(new NoOpTenantMetadataProvider()),
             new NoOpTenantExtensionCoordinator(),
+            new NoOpIdentityUserExtensionCoordinator(),
             logger)
     {
     }
@@ -81,6 +84,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         IOptions<TenantProvisioningOptions> tenantProvisioningOptions,
         ITenantInfoResolver tenantInfoResolver,
         ITenantExtensionCoordinator tenantExtensions,
+        IIdentityUserExtensionCoordinator userExtensions,
         ILogger<OAuthAuthService> logger)
     {
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
@@ -97,6 +101,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         _tenantProvisioningOptions = tenantProvisioningOptions ?? throw new ArgumentNullException(nameof(tenantProvisioningOptions));
         _tenantInfoResolver = tenantInfoResolver ?? throw new ArgumentNullException(nameof(tenantInfoResolver));
         _tenantExtensions = tenantExtensions ?? throw new ArgumentNullException(nameof(tenantExtensions));
+        _userExtensions = userExtensions ?? throw new ArgumentNullException(nameof(userExtensions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -270,7 +275,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
             if (!createResult.Succeeded || createResult.User is null)
                 throw new IdentityValidationException("User creation failed.", createResult.Errors);
 
-            user = createResult.User;
+            user = createResult.User with { DisplayName = externalUser.DisplayName ?? createResult.User.DisplayName };
             createdNewUser = true;
 
             var created = new AuthUserCreatedEvent
@@ -283,6 +288,8 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
             };
             created.Metadata["idempotencyKey"] = $"{AuthUserCreatedEvent.TypeName}:{user.UserId:D}";
             await InvokeLifecycleAndPublishAsync(created, (hook, evt, token) => hook.OnAuthUserCreatedAsync(evt, token), ct);
+            await OnUserCreatedExtensionAsync(user, null, request.State?.Trim(), request.State?.Trim(), traceId, created.Metadata, ct)
+                .ConfigureAwait(false);
         }
 
         await _externalLogins.LinkAsync(user.UserId, normalizedProvider, externalUser.ProviderUserId, normalizedEmail, ct);
@@ -447,6 +454,8 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
                 foreach (var roleId in tenant.RoleIds.Where(x => x != Guid.Empty).Distinct())
                     claims.Add(new ClaimItem("rid", roleId.ToString("D")));
             }
+            await EnsureUserExtensionAsync(user, tenant.TenantId, UserExtensionOperations.Login, null, null, traceId, ct)
+                .ConfigureAwait(false);
             var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
             return AuthResultResponse.WithToken(token, createdNewUser);
         }
@@ -466,6 +475,8 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
                     foreach (var roleId in defaultTenant.RoleIds.Where(x => x != Guid.Empty).Distinct())
                         claims.Add(new ClaimItem("rid", roleId.ToString("D")));
                 }
+                await EnsureUserExtensionAsync(user, defaultTenant.TenantId, UserExtensionOperations.Login, null, null, traceId, ct)
+                    .ConfigureAwait(false);
                 var token = await _tokens.CreateAccessTokenAsync(user.UserId, defaultTenant.TenantId, claims, ct);
                 return AuthResultResponse.WithToken(token, createdNewUser);
             }
@@ -624,6 +635,52 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
                 ct).ConfigureAwait(false);
         }
     }
+
+    private Task OnUserCreatedExtensionAsync(
+        IdentityUser user,
+        Guid? tenantId,
+        string? correlationId,
+        string? causationId,
+        string? traceId,
+        IReadOnlyDictionary<string, string>? metadata,
+        CancellationToken ct)
+        => _userExtensions.OnUserCreatedAsync(
+            user,
+            CreateUserExtensionContext(user, UserExtensionOperations.Created, tenantId, correlationId, causationId, traceId, metadata),
+            ct);
+
+    private Task EnsureUserExtensionAsync(
+        IdentityUser user,
+        Guid? tenantId,
+        string operation,
+        string? correlationId,
+        string? causationId,
+        string? traceId,
+        CancellationToken ct)
+        => _userExtensions.EnsureExtensionAsync(
+            user,
+            CreateUserExtensionContext(user, operation, tenantId, correlationId, causationId, traceId, null),
+            ct);
+
+    private static UserExtensionContext CreateUserExtensionContext(
+        IdentityUser user,
+        string operation,
+        Guid? tenantId,
+        string? correlationId,
+        string? causationId,
+        string? traceId,
+        IReadOnlyDictionary<string, string>? metadata)
+        => UserExtensionContext.Create(
+            operation,
+            user.UserId,
+            tenantId,
+            user.Email,
+            user.PhoneNumber,
+            user.DisplayName,
+            correlationId: correlationId,
+            causationId: causationId,
+            traceId: traceId,
+            metadata: metadata);
 
     private Guid? ResolveEffectiveTenantId()
     {

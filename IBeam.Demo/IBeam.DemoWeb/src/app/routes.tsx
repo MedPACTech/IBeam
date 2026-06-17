@@ -1,7 +1,6 @@
 import {
   BadgeCheck,
   BookOpen,
-  Braces,
   Fingerprint,
   KeyRound,
   Layers3,
@@ -146,19 +145,6 @@ export const demoRoutes: DemoRoute[] = [
         summary="Decode access tokens, refresh tokens, inspect auth sessions, and revoke sessions."
         endpoints={["POST /api/auth/refresh", "GET /api/auth/sessions", "POST /api/auth/sessions/revoke"]}
         snippetKey="sessions"
-      />
-    )
-  },
-  {
-    path: "/profile",
-    label: "Profile",
-    icon: Braces,
-    element: (
-      <WorkflowPage
-        title="Profile Extensions"
-        summary="Read, upsert, and remove custom string attributes attached to the current user's identity profile."
-        endpoints={["GET /api/auth/profile/extensions", "PUT /api/auth/profile/extensions", "POST /api/auth/profile/extensions/remove-keys"]}
-        snippetKey="profileExtensions"
       />
     )
   },

@@ -13,6 +13,7 @@ IBeam identity is intentionally layered:
 1. API Layer (`IBeam.Identity.Api`)
 - HTTP endpoints, auth middleware, request validation, response mapping.
 - Controllers include OTP/password/OAuth/token/session/tenant-role APIs.
+- Controllers are intentionally thin. They translate HTTP input/output and let expected service exceptions return friendly messages.
 
 2. Contract Layer (`IBeam.Identity`)
 - Interfaces, models, options, events, authorization attributes.
@@ -21,6 +22,7 @@ IBeam identity is intentionally layered:
 3. Service Layer (`IBeam.Identity.Services`)
 - Core auth orchestration: OTP, password, OAuth, token issuing, tenant selection.
 - Uses only contracts (`IIdentityUserStore`, `IOtpChallengeStore`, etc.).
+- Owns business rules, validation decisions, lifecycle logging/events, and error classification.
 
 4. Repository Layer (provider implementations)
 - Azure Table provider (`IBeam.Identity.Repositories.AzureTable`) currently ships complete implementations.
@@ -28,6 +30,14 @@ IBeam identity is intentionally layered:
 
 5. Communications Layer
 - Email/SMS abstractions and providers used by OTP/registration flows.
+
+## Service-Owned Rules and Error Handling
+
+IBeam keeps business behavior in services, not controllers or repositories. Services are responsible for enforcing auth and tenant rules, deciding whether an error is expected, emitting lifecycle events/logging, and throwing typed identity exceptions with user-safe messages when a request cannot proceed.
+
+Controllers should stay as transport adapters. They validate basic HTTP shape, call the service, and map expected errors such as validation failures, missing membership, invalid credentials, and not-found cases into friendly API responses.
+
+Unexpected exceptions and system failures should not be turned into detailed user-facing messages. They bubble to the API exception pipeline, which writes operational details through `IApiErrorSink`. With the Azure Table provider, those records are stored in the `SystemErrors` table. The response remains generic unless detailed errors are explicitly enabled.
 
 ## Auth Pattern Flexibility
 
@@ -238,6 +248,30 @@ services.AddIBeamIdentityTenantMetadataProvider<TenantMetadataProvider>();
 When configured, IBeam hydrates the app-owned tenant extension during tenant creation, tenant selection, tenant listing, and tenant membership bootstrap. If the identity tenant exists but the app tenant row does not, the app's `ITenantExtensionStore<TTenant>.CreateAsync` is called. If the app row exists, `UpdateFromIdentityTenantAsync` can keep display metadata in sync.
 
 `ITenantMetadataProvider` lets an app project app-owned metadata back into IBeam tenant displays. For example, a Hubbsly provider can return `DisplayName = Tenant.DisplayName` and `IsActive = Tenant.IsActive && !Tenant.IsDeleted`; IBeam then uses that metadata when returning tenant selections and before issuing tenant-scoped tokens.
+
+### User extensions
+
+IBeam owns identity/security primitives only: identity user id, login identifiers, verification/auth state, passwords, OTP, sessions, refresh tokens, tenant membership, and role/token claims. Applications own extended user profile data such as display name, first and last name, preferences, onboarding state, and tenant-scoped profile metadata.
+
+Register a host-owned user extension store when the app wants IBeam lifecycle events to project identity users into its own user table:
+
+```csharp
+services.AddIBeamIdentityServices(configuration);
+services.AddIBeamIdentityUserExtension<User, UserExtensionStore>();
+```
+
+Core contracts:
+
+- `IIdentityUserExtension`
+- `IIdentityUserProfileExtension`
+- `IIdentityUserExtensionStore<TUserExtension>`
+- `IIdentityUserExtensionResolver<TUserExtension>`
+- `IIdentityUserExtensionCoordinator`
+- `UserExtensionContext`
+
+When configured, IBeam invokes the user extension store during user creation and when auth resolves to a tenant-scoped login or tenant selection. If the app row does not exist, `CreateAsync` is called with the `IdentityUser` and `UserExtensionContext`; if it already exists, `UpdateFromIdentityUserAsync` can sync identity-owned values such as normalized email or phone. If no user extension store is registered, IBeam continues auth normally and does not create user profile rows.
+
+IBeam does not expose built-in profile extension routes and does not persist app-specific user profile fields. For Hubbsly-style apps, the app-owned `Users` table should be keyed by selected IBeam `TenantId` plus IBeam `UserId`.
 
 For single-tenant deployments, use `UseDefaultTenant` with an explicit tenant ID. Auth requests that omit tenant ID use this configured default; IBeam does not infer it from environment name or storage account.
 

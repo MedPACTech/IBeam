@@ -96,10 +96,7 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
                 Id = Guid.NewGuid().ToString("D"),
                 UserName = userName,
                 Email = string.IsNullOrWhiteSpace(email) ? null : email,
-                PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone,
-
-                // optional if your provider-internal user keeps it
-                DisplayName = request.DisplayName ?? string.Empty
+                PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone
             };
 
             if (!string.IsNullOrWhiteSpace(request.Password))
@@ -358,8 +355,7 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
             Id = reservedUserId,
             UserName = userName,
             Email = string.IsNullOrWhiteSpace(email) ? null : email,
-            PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone,
-            DisplayName = request.DisplayName ?? string.Empty
+            PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone
         };
 
         var result = await _store.CreateAsync(appUser).ConfigureAwait(false);
@@ -567,7 +563,7 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
             EmailConfirmed: u.EmailConfirmed,
             PhoneNumber: u.PhoneNumber,
             PhoneConfirmed: u.PhoneNumberConfirmed,
-            DisplayName: u.DisplayName,
+            DisplayName: null,
             TwoFactorEnabled: u.TwoFactorEnabled,
             PreferredTwoFactorMethod: u.PreferredTwoFactorMethod
         );

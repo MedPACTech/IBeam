@@ -4,6 +4,7 @@ using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
 using IBeam.Identity.Services.Tenants;
+using IBeam.Identity.Services.Users;
 using IBeam.Identity.Services.Utils;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -30,6 +31,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
     private readonly IOptions<AuthEventOptions> _eventOptions;
     private readonly ITenantInfoResolver _tenantInfoResolver;
     private readonly ITenantExtensionCoordinator _tenantExtensions;
+    private readonly IIdentityUserExtensionCoordinator _userExtensions;
     private readonly ILogger<PasswordAuthService> _logger;
 
     public PasswordAuthService(
@@ -63,6 +65,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
             eventOptions,
             new TenantInfoResolver(new NoOpTenantMetadataProvider()),
             new NoOpTenantExtensionCoordinator(),
+            new NoOpIdentityUserExtensionCoordinator(),
             logger)
     {
     }
@@ -83,6 +86,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         IOptions<AuthEventOptions> eventOptions,
         ITenantInfoResolver tenantInfoResolver,
         ITenantExtensionCoordinator tenantExtensions,
+        IIdentityUserExtensionCoordinator userExtensions,
         ILogger<PasswordAuthService> logger)
     {
         _users = users ?? throw new ArgumentNullException(nameof(users));
@@ -100,6 +104,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         _eventOptions = eventOptions ?? throw new ArgumentNullException(nameof(eventOptions));
         _tenantInfoResolver = tenantInfoResolver ?? throw new ArgumentNullException(nameof(tenantInfoResolver));
         _tenantExtensions = tenantExtensions ?? throw new ArgumentNullException(nameof(tenantExtensions));
+        _userExtensions = userExtensions ?? throw new ArgumentNullException(nameof(userExtensions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -152,6 +157,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         if (result.User is null)
             throw new IdentityProviderException("UnknownProvider", "User store returned success but no user.");
 
+        var extensionUser = result.User with { DisplayName = request.DisplayName ?? result.User.DisplayName };
         var created = new AuthUserCreatedEvent
         {
             AuthUserId = result.User.UserId.ToString("D"),
@@ -161,6 +167,8 @@ public sealed class PasswordAuthService : IIdentityAuthService
         };
         created.Metadata["idempotencyKey"] = $"{AuthUserCreatedEvent.TypeName}:{result.User.UserId:D}";
         await InvokeLifecycleAndPublishAsync(created, (hook, evt, token) => hook.OnAuthUserCreatedAsync(evt, token), ct);
+        await OnUserCreatedExtensionAsync(extensionUser, null, null, null, traceId, created.Metadata, ct)
+            .ConfigureAwait(false);
     }
 
     public async Task<AuthResultResponse> PasswordLoginAsync(PasswordLoginRequest request, CancellationToken ct = default)
@@ -246,6 +254,8 @@ public sealed class PasswordAuthService : IIdentityAuthService
             AddTenantClaims(claims, tenant.TenantId);
             AddRoleClaims(claims, tenant.Roles);
             AddRoleIdClaims(claims, tenant.RoleIds);
+            await EnsureUserExtensionAsync(user, tenant.TenantId, UserExtensionOperations.Login, null, null, traceId, ct)
+                .ConfigureAwait(false);
             var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
             await EmitLoginSucceededAsync("password", user.UserId, tenant.TenantId, false, traceId, ct);
             return AuthResultResponse.WithToken(token);
@@ -261,6 +271,8 @@ public sealed class PasswordAuthService : IIdentityAuthService
             AddTenantClaims(claims, t.TenantId);
             AddRoleClaims(claims, t.Roles);
             AddRoleIdClaims(claims, t.RoleIds);
+            await EnsureUserExtensionAsync(user, t.TenantId, UserExtensionOperations.Login, null, null, traceId, ct)
+                .ConfigureAwait(false);
             var token = await _tokens.CreateAccessTokenAsync(user.UserId, t.TenantId, claims, ct);
             await EmitLoginSucceededAsync("password", user.UserId, t.TenantId, false, traceId, ct);
             return AuthResultResponse.WithToken(token);
@@ -276,6 +288,8 @@ public sealed class PasswordAuthService : IIdentityAuthService
                 AddTenantClaims(claims, def.TenantId);
                 AddRoleClaims(claims, def.Roles);
                 AddRoleIdClaims(claims, def.RoleIds);
+                await EnsureUserExtensionAsync(user, def.TenantId, UserExtensionOperations.Login, null, null, traceId, ct)
+                    .ConfigureAwait(false);
                 var token = await _tokens.CreateAccessTokenAsync(user.UserId, def.TenantId, claims, ct);
                 await EmitLoginSucceededAsync("password", user.UserId, def.TenantId, false, traceId, ct);
                 return AuthResultResponse.WithToken(token);
@@ -489,7 +503,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
             if (!createResult.Succeeded || createResult.User is null)
                 throw new IdentityValidationException("User creation failed.", createResult.Errors);
 
-            user = createResult.User;
+            user = createResult.User with { DisplayName = displayName ?? createResult.User.DisplayName };
             createdNewUser = true;
 
             var created = new AuthUserCreatedEvent
@@ -502,6 +516,8 @@ public sealed class PasswordAuthService : IIdentityAuthService
             };
             created.Metadata["idempotencyKey"] = $"{AuthUserCreatedEvent.TypeName}:{user.UserId:D}";
             await InvokeLifecycleAndPublishAsync(created, (hook, evt, token) => hook.OnAuthUserCreatedAsync(evt, token), ct);
+            await OnUserCreatedExtensionAsync(user, null, challengeId, challengeId, traceId, created.Metadata, ct)
+                .ConfigureAwait(false);
         }
 
         await _users.SetPasswordAsync(user.UserId, newPassword, ct);
@@ -681,6 +697,18 @@ public sealed class PasswordAuthService : IIdentityAuthService
                 request.TenantId.ToString("D"),
                 traceId),
             ct).ConfigureAwait(false);
+        var user = await _users.FindByIdAsync(userGuid, ct).ConfigureAwait(false);
+        if (user is not null)
+        {
+            await EnsureUserExtensionAsync(
+                user,
+                tenant.TenantId,
+                UserExtensionOperations.Selected,
+                request.TenantId.ToString("D"),
+                request.TenantId.ToString("D"),
+                traceId,
+                ct).ConfigureAwait(false);
+        }
         var claims = BuildBaseClaims(userGuid, string.Empty);
         AddTenantClaims(claims, tenant.TenantId);
         AddRoleClaims(claims, tenant.Roles);
@@ -731,6 +759,8 @@ public sealed class PasswordAuthService : IIdentityAuthService
             AddTenantClaims(claims, tenant.TenantId);
             AddRoleClaims(claims, tenant.Roles);
             AddRoleIdClaims(claims, tenant.RoleIds);
+            await EnsureUserExtensionAsync(user, tenant.TenantId, UserExtensionOperations.Login, null, null, traceId, ct)
+                .ConfigureAwait(false);
             var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
             await EmitLoginSucceededAsync("password", user.UserId, tenant.TenantId, false, traceId, ct);
             return AuthResultResponse.WithToken(token, createdNewUser);
@@ -746,6 +776,8 @@ public sealed class PasswordAuthService : IIdentityAuthService
                 AddTenantClaims(claims, def.TenantId);
                 AddRoleClaims(claims, def.Roles);
                 AddRoleIdClaims(claims, def.RoleIds);
+                await EnsureUserExtensionAsync(user, def.TenantId, UserExtensionOperations.Login, null, null, traceId, ct)
+                    .ConfigureAwait(false);
                 var token = await _tokens.CreateAccessTokenAsync(user.UserId, def.TenantId, claims, ct);
                 await EmitLoginSucceededAsync("password", user.UserId, def.TenantId, false, traceId, ct);
                 return AuthResultResponse.WithToken(token, createdNewUser);
@@ -906,6 +938,52 @@ public sealed class PasswordAuthService : IIdentityAuthService
                 ct).ConfigureAwait(false);
         }
     }
+
+    private Task OnUserCreatedExtensionAsync(
+        IdentityUser user,
+        Guid? tenantId,
+        string? correlationId,
+        string? causationId,
+        string? traceId,
+        IReadOnlyDictionary<string, string>? metadata,
+        CancellationToken ct)
+        => _userExtensions.OnUserCreatedAsync(
+            user,
+            CreateUserExtensionContext(user, UserExtensionOperations.Created, tenantId, correlationId, causationId, traceId, metadata),
+            ct);
+
+    private Task EnsureUserExtensionAsync(
+        IdentityUser user,
+        Guid? tenantId,
+        string operation,
+        string? correlationId,
+        string? causationId,
+        string? traceId,
+        CancellationToken ct)
+        => _userExtensions.EnsureExtensionAsync(
+            user,
+            CreateUserExtensionContext(user, operation, tenantId, correlationId, causationId, traceId, null),
+            ct);
+
+    private static UserExtensionContext CreateUserExtensionContext(
+        IdentityUser user,
+        string operation,
+        Guid? tenantId,
+        string? correlationId,
+        string? causationId,
+        string? traceId,
+        IReadOnlyDictionary<string, string>? metadata)
+        => UserExtensionContext.Create(
+            operation,
+            user.UserId,
+            tenantId,
+            user.Email,
+            user.PhoneNumber,
+            user.DisplayName,
+            correlationId: correlationId,
+            causationId: causationId,
+            traceId: traceId,
+            metadata: metadata);
 
     private Guid? ResolveEffectiveTenantId()
     {

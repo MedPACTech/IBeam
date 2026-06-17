@@ -21,6 +21,14 @@ Use middleware:
 app.UseApiExceptionHandling();
 ```
 
+## Service Boundary and Errors
+
+Controllers should stay thin. They adapt HTTP requests to service calls and shape responses; they should not own business rules, persistence rules, or duplicate service policy checks.
+
+Services own business rules, validation decisions, logging/auditing decisions, and expected error classification. Expected failures should use typed, user-safe exceptions or service results that controllers can return as friendly messages.
+
+Unexpected exceptions and system-level failures should bubble to `ApiExceptionMiddleware`. The middleware returns a generic error response unless detailed errors are enabled, and persists operational details through `IApiErrorSink` when configured. In the Azure Table identity provider, that sink writes to the `SystemErrors` table.
+
 ## CrudControllerBase
 
 `CrudControllerBase<TService, TEntity, TKey>` is an opt-in baseline controller with route defaults and operation flags.
@@ -81,5 +89,5 @@ If you want `201 Created`, override:
 
 ## Notes
 
-- Exceptions should bubble to `ApiExceptionMiddleware` for centralized handling.
+- Unexpected exceptions should bubble to `ApiExceptionMiddleware` for centralized handling.
 - If an enabled action is missing the required service contract, an `InvalidOperationException` is thrown to fail fast with clear diagnostics.

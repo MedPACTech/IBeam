@@ -83,13 +83,6 @@ function getDefaultBody(snippetKey: SnippetKey): unknown {
       return {
         method: "email"
       };
-    case "profileExtensions":
-      return {
-        attributes: {
-          department: "Engineering",
-          demoTrack: "Identity"
-        }
-      };
     case "roles":
       return {
         name: "admin"
