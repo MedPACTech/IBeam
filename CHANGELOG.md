@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.68 - 2026-06-22
+
+### Fixed
+- Fixed API credential management authorization to recognize tenant and role claim aliases produced by JWT validation, including `tenant_id`, Microsoft tenant-id URI claims, `roles`, `ClaimTypes.Role`, and JSON-array role values.
+
+### Tests
+- Added API credential controller authorization tests for mapped tenant claims, `Administrator`, `Owner`, and array-shaped role claims.
+
 ## 2.0.67 - 2026-06-22
 
 ### Fixed

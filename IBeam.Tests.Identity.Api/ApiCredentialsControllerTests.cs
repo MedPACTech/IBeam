@@ -43,6 +43,48 @@ public sealed class ApiCredentialsControllerTests
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
 
+    [TestMethod]
+    public async Task Create_ReturnsOk_ForMappedTenantClaimAndAdministratorRole()
+    {
+        var sut = CreateController([
+            new Claim("http://schemas.microsoft.com/identity/claims/tenantid", TenantId.ToString("D")),
+            new Claim(ClaimTypes.NameIdentifier, UserId.ToString("D")),
+            new Claim(ClaimTypes.Role, "Administrator")
+        ]);
+
+        var result = await sut.Create(new CreateApiCredentialRequest { DisplayName = "Worker" }, CancellationToken.None);
+
+        Assert.IsInstanceOfType<OkObjectResult>(result);
+    }
+
+    [TestMethod]
+    public async Task Create_ReturnsOk_ForTenantIdAliasAndOwnerRolesClaim()
+    {
+        var sut = CreateController([
+            new Claim("tenant_id", TenantId.ToString("D")),
+            new Claim("sub", UserId.ToString("D")),
+            new Claim("roles", "Owner")
+        ]);
+
+        var result = await sut.Create(new CreateApiCredentialRequest { DisplayName = "Worker" }, CancellationToken.None);
+
+        Assert.IsInstanceOfType<OkObjectResult>(result);
+    }
+
+    [TestMethod]
+    public async Task Create_ReturnsOk_ForJwtArrayRoleClaimShape()
+    {
+        var sut = CreateController([
+            new Claim("tid", TenantId.ToString("D")),
+            new Claim("uid", UserId.ToString("D")),
+            new Claim("role", """["Administrator","Owner"]""")
+        ]);
+
+        var result = await sut.Create(new CreateApiCredentialRequest { DisplayName = "Worker" }, CancellationToken.None);
+
+        Assert.IsInstanceOfType<OkObjectResult>(result);
+    }
+
     private static ApiCredentialsController CreateController(IEnumerable<Claim> claims)
     {
         var controller = new ApiCredentialsController(new FakeApiCredentialService(), new FakeApiCredentialAuthenticator())
