@@ -119,6 +119,7 @@ internal sealed class AzureTableIdentitySchemaManager : IIdentitySchemaManager
         yield return $"{_opts.TablePrefix}{_opts.AuthIdentifiersTableName}";
         yield return $"{_opts.TablePrefix}{_opts.ExternalLoginsTableName}";
         yield return $"{_opts.TablePrefix}{_opts.AuthSessionsTableName}";
+        yield return $"{_opts.TablePrefix}{_opts.ApiCredentialsTableName}";
         yield return $"{_opts.TablePrefix}{_opts.PermissionRoleMapsTableName}";
         yield return $"{_opts.TablePrefix}{_opts.AuthAttemptsTableName}";
         yield return $"{_opts.TablePrefix}{_opts.SystemLogsTableName}";

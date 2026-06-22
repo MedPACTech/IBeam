@@ -1,6 +1,7 @@
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Events;
 using IBeam.Identity.Services.Otp;
+using IBeam.Identity.Services.ApiCredentials;
 using IBeam.Identity.Services.Auth;
 using IBeam.Identity.Services.Auth.Attempts;
 using IBeam.Identity.Services.Authorization;
@@ -93,6 +94,15 @@ public static class ServiceCollectionExtensions
         services.AddOptions<PermissionAccessOptions>()
         .Bind(configuration.GetSection(PermissionAccessOptions.SectionName));
 
+        services.AddOptions<ApiCredentialOptions>()
+        .Bind(configuration.GetSection(ApiCredentialOptions.SectionName))
+        .Validate(o =>
+        {
+            o.Validate();
+            return true;
+        })
+        .ValidateOnStart();
+
         services.AddIBeamAuthEvents(configuration);
 
         // Core services
@@ -112,6 +122,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPermissionAccessAuthorizer, PermissionAccessAuthorizer>();
         services.AddSingleton<IPermissionCatalogProvider, PermissionCatalogProvider>();
         services.AddScoped<ITokenService, JwtTokenService>();
+        services.AddScoped<IApiCredentialKeyGenerator, ApiCredentialKeyGenerator>();
+        services.AddScoped<IApiCredentialSecretHasher, ApiCredentialSecretHasher>();
+        services.AddScoped<IApiCredentialRoleAssignmentValidator, ApiCredentialRoleAssignmentValidator>();
+        services.AddScoped<IApiCredentialPrincipalFactory, ApiCredentialPrincipalFactory>();
+        services.AddScoped<IApiCredentialService, ApiCredentialService>();
+        services.AddScoped<IApiCredentialAuthenticator, ApiCredentialAuthenticator>();
 
 
         // Note: IOtpChallengeStore, ISender, and other dependencies must be registered by the consumer or by repository/communications packages.

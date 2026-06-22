@@ -166,6 +166,7 @@ In `RequireExistingTenant`, OTP/password/OAuth auth flows do not create `Tenants
 - `AspNetUsers`, `AspNetRoles`, `AspNetIndex`: ElCamino identity tables.
 - `AuthIdentifiers`: email/SMS auth lookup bindings to `UserId`.
 - `Tenants`, `TenantUsers`, `UserTenants`, `Roles`: tenant and role membership.
+- `ApiCredentials`: tenant API credential records with hashed secrets and role/scope assignments.
 - `PermissionRoleMaps`: tenant permission-to-role bindings.
 - `OtpChallenges`: OTP challenge state.
 - `ExternalLogins`: OAuth provider-user links.

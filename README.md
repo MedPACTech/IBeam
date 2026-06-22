@@ -82,10 +82,9 @@ See `CONTRIBUTING.md` for workflow and standards.
 
 ## Tenant Roles and API Credentials
 
-IBeam Identity supports tenant-scoped roles that can be managed through `IBeam.Identity.Api`.
-Tenant Owner/Admin users can create custom roles and assign them to tenant members today. API
-credentials should reuse the same tenant role catalog by assigning role IDs or API-safe scope names
-to the credential subject, without creating a fake human user.
+IBeam Identity supports tenant-scoped roles and tenant-level API credentials. API credentials are
+service identities, not human users. They belong to a tenant, store only a hashed secret, emit a
+credential principal, and can be assigned tenant role IDs and/or API-safe role/scope names.
 
 Role management endpoints:
 
@@ -112,32 +111,68 @@ Tenants
 TenantUsers
 UserTenants
 Roles
+ApiCredentials
 ```
 
 Existing applications that already use a `TenantRoles` table can keep that physical table by setting
 `IBeam:Identity:AzureTable:TenantRolesTableName` to `TenantRoles`.
 
-### Implementation Prompt
+API credential management endpoints:
 
-Use this prompt when asking an implementation agent to add tenant roles and API credentials to an
-IBeam-based application:
+```http
+GET  /api/api-credentials
+POST /api/api-credentials
+PUT  /api/api-credentials/{credentialId}/roles
+POST /api/api-credentials/{credentialId}/revoke
+POST /api/api-credentials/introspect
+```
+
+Create request:
+
+```json
+{
+  "displayName": "Marketing App Email Worker",
+  "agentKey": "marketing",
+  "roleNames": ["API", "api-scope:email", "email:send"],
+  "roleIds": [],
+  "expiresUtc": "2026-09-20T00:00:00Z"
+}
+```
+
+The raw `apiKey` is returned only from the create response. Store it in the calling system's secret
+store. IBeam stores only the secure hash.
+
+API credential authentication accepts either:
+
+```http
+X-API-Key: {raw-api-key}
+Authorization: ApiKey {raw-api-key}
+```
+
+Successful API-key authentication emits:
 
 ```text
-Implement tenant role and API credential support using IBeam Identity.
-
-Requirements:
-- Register IBeam.Identity.Api and the selected IBeam identity repository provider.
-- Use IBeam tenant role endpoints to create and manage tenant roles.
-- Require tenant Owner/Admin authorization before role or API credential management.
-- Store tenant roles in the IBeam tenant role catalog and assign API credentials by RoleIds and/or API-safe RoleNames/scopes.
-- Do not model API credentials as human users.
-- API credentials must belong to a TenantId and may have CreatedByUserId/RevokedByUserId only for audit.
-- Store only a secure hash of the raw key and return the raw key only once at creation.
-- Emit credential principals with tenant_id/tid, sub/nameidentifier/uid, api_credential_id, api_subject_type=credential, optional agent_key, role claims, and name.
-- Reject revoked, expired, deleted, malformed, or hash-invalid credentials.
-- Do not allow API credentials to receive Owner/Admin human-management roles unless the host app explicitly overrides the validator.
-- Include tests for create, list, role assignment, authentication, revoked keys, expired keys, invalid hashes, role claims, and management authorization.
+tenant_id / tid
+sub / nameidentifier / uid
+api_credential_id
+api_subject_type = credential
+api_agent_key / agent_key
+role claims
+name
+rid / role_id claims
 ```
+
+Role-rule options for services and APIs:
+
+- Use built-in ASP.NET authorization with role names, for example `[Authorize(Roles = "API,email:send")]`.
+- Use IBeam role attributes on service methods, for example `[RoleAccess("API", "email:send")]`.
+- Use IBeam role-id attributes when role IDs are stable, for example `[RoleAccessId("{roleId}")]`.
+- Use `IRoleAccessAuthorizer` in service code when authorization must be checked imperatively.
+- Use `IPermissionAccessAuthorizer` and permission mappings when a method should be protected by a permission that maps to tenant roles.
+- Use API credential role/scope names such as `api-scope:email`, `email:send`, `agent:marketing`, or `project:hubbsly` for service-safe authorization.
+- Keep human-management roles such as `Owner`, `Administrator`, and `Admin` off API credentials unless a host app explicitly replaces `IApiCredentialRoleAssignmentValidator`.
+- For tool/MCP-style APIs, protect the tool endpoint with API-key auth and require the needed service role/scope on the action.
+- For distributed services that cannot access the credential store directly, use `POST /api/api-credentials/introspect` from a trusted internal human/admin or service context.
 
 ### Data and Services
 - `IBeam.Repositories`: repository abstractions and base implementations

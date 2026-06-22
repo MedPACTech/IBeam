@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.0.66 - 2026-06-22
+
+### Added
+- Tenant API credential framework across Identity packages:
+  - API credential contracts, models, options, validators, principal factory, service, and authenticator.
+  - API-key authentication scheme for `X-API-Key` and `Authorization: ApiKey ...`.
+  - API credential management endpoints in `IBeam.Identity.Api`.
+  - API credential introspection endpoint for trusted internal validation workflows.
+  - Azure Table `ApiCredentials` store and schema registration.
+- Tests for API credential creation, hash-only storage, authentication, role claim emission, revocation, invalid hash handling, unsafe role denial, and management authorization.
+
+### Documentation
+- Expanded root README with API credential endpoints, authentication headers, emitted claims, and role-rule guidance for services/APIs.
+- Updated Azure Table identity README with the `ApiCredentials` table.
+
 ## 2.0.12 - 2026-06-22
 
 ### Changed

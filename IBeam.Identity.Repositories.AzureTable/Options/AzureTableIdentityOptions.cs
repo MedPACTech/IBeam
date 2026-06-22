@@ -27,6 +27,7 @@ public sealed class AzureTableIdentityOptions
     public string AuthIdentifiersTableName { get; set; } = "AuthIdentifiers";
     public string ExternalLoginsTableName { get; set; } = "ExternalLogins";
     public string AuthSessionsTableName { get; set; } = "AuthSessions";
+    public string ApiCredentialsTableName { get; set; } = "ApiCredentials";
     public string PermissionRoleMapsTableName { get; set; } = "PermissionRoleMaps";
     public string AuthAttemptsTableName { get; set; } = "AuthAttempts";
     public string SystemLogsTableName { get; set; } = "SystemLogs";
@@ -81,6 +82,10 @@ public sealed class AzureTableIdentityOptions
     // PermissionRoleMaps: PK = "TEN|{tenantId}", RK = "NAM|{hash}" or "ID|{permissionId}"
     public string PermissionRoleMapsPk(Guid tenantId) => $"TEN|{tenantId:D}";
 
+    // ApiCredentials: PK = "TEN|{tenantId}", RK = "CRED|{credentialId}"
+    public string ApiCredentialsPk(Guid tenantId) => $"TEN|{tenantId:D}";
+    public string ApiCredentialsRk(Guid credentialId) => $"CRED|{credentialId:D}";
+
     // Tenants: PK = "TEN", RK = tenantId
     public const string TenantsPk = "TEN";
     public string TenantsRk(Guid tenantId) => tenantId.ToString("D");
@@ -106,6 +111,7 @@ public sealed class AzureTableIdentityOptions
         AuthIdentifiersTableName = NormalizeOrDefault(AuthIdentifiersTableName, "AuthIdentifiers");
         ExternalLoginsTableName = NormalizeOrDefault(ExternalLoginsTableName, "ExternalLogins");
         AuthSessionsTableName = NormalizeOrDefault(AuthSessionsTableName, "AuthSessions");
+        ApiCredentialsTableName = NormalizeOrDefault(ApiCredentialsTableName, "ApiCredentials");
         PermissionRoleMapsTableName = NormalizeOrDefault(PermissionRoleMapsTableName, "PermissionRoleMaps");
         AuthAttemptsTableName = NormalizeOrDefault(AuthAttemptsTableName, "AuthAttempts");
         SystemLogsTableName = NormalizeOrDefault(SystemLogsTableName, "SystemLogs");
@@ -124,6 +130,7 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(AuthIdentifiersTableName, nameof(AuthIdentifiersTableName));
         ValidateTableName(ExternalLoginsTableName, nameof(ExternalLoginsTableName));
         ValidateTableName(AuthSessionsTableName, nameof(AuthSessionsTableName));
+        ValidateTableName(ApiCredentialsTableName, nameof(ApiCredentialsTableName));
         ValidateTableName(PermissionRoleMapsTableName, nameof(PermissionRoleMapsTableName));
         ValidateTableName(AuthAttemptsTableName, nameof(AuthAttemptsTableName));
         ValidateTableName(SystemLogsTableName, nameof(SystemLogsTableName));
@@ -145,6 +152,7 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(FullTableName(AuthIdentifiersTableName), nameof(TablePrefix) + "+" + nameof(AuthIdentifiersTableName));
         ValidateTableName(FullTableName(ExternalLoginsTableName), nameof(TablePrefix) + "+" + nameof(ExternalLoginsTableName));
         ValidateTableName(FullTableName(AuthSessionsTableName), nameof(TablePrefix) + "+" + nameof(AuthSessionsTableName));
+        ValidateTableName(FullTableName(ApiCredentialsTableName), nameof(TablePrefix) + "+" + nameof(ApiCredentialsTableName));
         ValidateTableName(FullTableName(PermissionRoleMapsTableName), nameof(TablePrefix) + "+" + nameof(PermissionRoleMapsTableName));
         ValidateTableName(FullTableName(AuthAttemptsTableName), nameof(TablePrefix) + "+" + nameof(AuthAttemptsTableName));
         ValidateTableName(FullTableName(SystemLogsTableName), nameof(TablePrefix) + "+" + nameof(SystemLogsTableName));

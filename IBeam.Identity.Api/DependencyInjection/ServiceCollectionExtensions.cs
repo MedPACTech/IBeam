@@ -4,6 +4,7 @@ using IBeam.Communications.Email.AzureCommunications;
 using IBeam.Communications.Sms.AzureCommunications;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Options;
+using IBeam.Identity.Api.Authentication;
 using IBeam.Identity.Api.Authorization;
 using IBeam.Identity.Api.Controllers;
 using IBeam.Api.Abstractions;
@@ -110,9 +111,19 @@ public static class ServiceCollectionExtensions
                     RoleClaimType = "role",
                     ClockSkew = TimeSpan.FromSeconds(jwt.ClockSkewSeconds)
                 };
-            });
+            })
+            .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(
+                ApiKeyAuthenticationDefaults.AuthenticationScheme,
+                _ => { });
 
-        services.AddAuthorization();
+        services.AddAuthorization(options =>
+        {
+            options.DefaultPolicy = new AuthorizationPolicyBuilder(
+                    JwtBearerDefaults.AuthenticationScheme,
+                    ApiKeyAuthenticationDefaults.AuthenticationScheme)
+                .RequireAuthenticatedUser()
+                .Build();
+        });
         services.AddSingleton<IAuthorizationPolicyProvider, RoleIdsAuthorizationPolicyProvider>();
         services.AddScoped<IAuthorizationHandler, RequireRoleIdsAuthorizationHandler>();
 
