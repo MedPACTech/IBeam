@@ -80,6 +80,65 @@ See `CONTRIBUTING.md` for workflow and standards.
 - `IBeam.Identity.Repositories.AzureTable`: Azure Table-backed identity stores and schema bootstrap
 - `IBeam.Identity.Repositories.EntityFramework`: EF-backed identity store wiring (Sqlite currently active)
 
+## Tenant Roles and API Credentials
+
+IBeam Identity supports tenant-scoped roles that can be managed through `IBeam.Identity.Api`.
+Tenant Owner/Admin users can create custom roles and assign them to tenant members today. API
+credentials should reuse the same tenant role catalog by assigning role IDs or API-safe scope names
+to the credential subject, without creating a fake human user.
+
+Role management endpoints:
+
+```http
+GET    /api/tenants/{tenantId}/roles
+GET    /api/tenants/{tenantId}/roles/{roleId}
+POST   /api/tenants/{tenantId}/roles
+PUT    /api/tenants/{tenantId}/roles/{roleId}
+DELETE /api/tenants/{tenantId}/roles/{roleId}
+```
+
+User role assignment endpoints:
+
+```http
+GET  /api/tenants/{tenantId}/users/{userId}/roles
+POST /api/tenants/{tenantId}/roles/grant
+POST /api/tenants/{tenantId}/roles/revoke
+```
+
+Azure Table identity storage uses these default table names for tenant membership:
+
+```text
+Tenants
+TenantUsers
+UserTenants
+Roles
+```
+
+Existing applications that already use a `TenantRoles` table can keep that physical table by setting
+`IBeam:Identity:AzureTable:TenantRolesTableName` to `TenantRoles`.
+
+### Implementation Prompt
+
+Use this prompt when asking an implementation agent to add tenant roles and API credentials to an
+IBeam-based application:
+
+```text
+Implement tenant role and API credential support using IBeam Identity.
+
+Requirements:
+- Register IBeam.Identity.Api and the selected IBeam identity repository provider.
+- Use IBeam tenant role endpoints to create and manage tenant roles.
+- Require tenant Owner/Admin authorization before role or API credential management.
+- Store tenant roles in the IBeam tenant role catalog and assign API credentials by RoleIds and/or API-safe RoleNames/scopes.
+- Do not model API credentials as human users.
+- API credentials must belong to a TenantId and may have CreatedByUserId/RevokedByUserId only for audit.
+- Store only a secure hash of the raw key and return the raw key only once at creation.
+- Emit credential principals with tenant_id/tid, sub/nameidentifier/uid, api_credential_id, api_subject_type=credential, optional agent_key, role claims, and name.
+- Reject revoked, expired, deleted, malformed, or hash-invalid credentials.
+- Do not allow API credentials to receive Owner/Admin human-management roles unless the host app explicitly overrides the validator.
+- Include tests for create, list, role assignment, authentication, revoked keys, expired keys, invalid hashes, role claims, and management authorization.
+```
+
 ### Data and Services
 - `IBeam.Repositories`: repository abstractions and base implementations
 - `IBeam.Repositories.AzureTables`: Azure Table repository implementation

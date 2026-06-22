@@ -22,7 +22,7 @@ public sealed class AzureTableIdentityOptions
     public string TenantsTableName { get; set; } = "Tenants";
     public string TenantUsersTableName { get; set; } = "TenantUsers";
     public string UserTenantsTableName { get; set; } = "UserTenants";
-    public string TenantRolesTableName { get; set; } = "TenantRoles";
+    public string TenantRolesTableName { get; set; } = "Roles";
     public string OtpChallengesTableName { get; set; } = "OtpChallenges";
     public string AuthIdentifiersTableName { get; set; } = "AuthIdentifiers";
     public string ExternalLoginsTableName { get; set; } = "ExternalLogins";
@@ -74,7 +74,7 @@ public sealed class AzureTableIdentityOptions
         return !string.IsNullOrWhiteSpace(userId);
     }
 
-    // TenantRoles: PK = "TEN|{tenantId}", RK = "ROL|{roleId}"
+    // Roles: PK = "TEN|{tenantId}", RK = "ROL|{roleId}"
     public string TenantRolesPk(Guid tenantId) => $"TEN|{tenantId:D}";
     public string TenantRolesRk(Guid roleId) => $"ROL|{roleId:D}";
 
@@ -101,7 +101,7 @@ public sealed class AzureTableIdentityOptions
         TenantsTableName = NormalizeOrDefault(TenantsTableName, "Tenants");
         TenantUsersTableName = NormalizeOrDefault(TenantUsersTableName, "TenantUsers");
         UserTenantsTableName = NormalizeOrDefault(UserTenantsTableName, "UserTenants");
-        TenantRolesTableName = NormalizeOrDefault(TenantRolesTableName, "TenantRoles");
+        TenantRolesTableName = NormalizeOrDefault(TenantRolesTableName, "Roles");
         OtpChallengesTableName = NormalizeOrDefault(OtpChallengesTableName, "OtpChallenges");
         AuthIdentifiersTableName = NormalizeOrDefault(AuthIdentifiersTableName, "AuthIdentifiers");
         ExternalLoginsTableName = NormalizeOrDefault(ExternalLoginsTableName, "ExternalLogins");

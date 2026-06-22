@@ -103,7 +103,7 @@ For Azure Table storage, that path ensures:
 - `Tenants` has the configured tenant row.
 - `TenantUsers` has the tenant-to-user membership row.
 - `UserTenants` has the user-to-tenant reverse row.
-- `TenantRoles` has any requested role names.
+- `Roles` has any requested role names.
 
 It does not create a random tenant id.
 
@@ -159,13 +159,13 @@ Use `RequireExistingTenant` when auth should fail instead of mutating tenant tab
 }
 ```
 
-In `RequireExistingTenant`, OTP/password/OAuth auth flows do not create `Tenants`, `TenantUsers`, `UserTenants`, or `TenantRoles` records for missing memberships.
+In `RequireExistingTenant`, OTP/password/OAuth auth flows do not create `Tenants`, `TenantUsers`, `UserTenants`, or `Roles` records for missing memberships.
 
 ## Table Set
 
 - `AspNetUsers`, `AspNetRoles`, `AspNetIndex`: ElCamino identity tables.
 - `AuthIdentifiers`: email/SMS auth lookup bindings to `UserId`.
-- `Tenants`, `TenantUsers`, `UserTenants`, `TenantRoles`: tenant and role membership.
+- `Tenants`, `TenantUsers`, `UserTenants`, `Roles`: tenant and role membership.
 - `PermissionRoleMaps`: tenant permission-to-role bindings.
 - `OtpChallenges`: OTP challenge state.
 - `ExternalLogins`: OAuth provider-user links.

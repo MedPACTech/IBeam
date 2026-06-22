@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.0.12 - 2026-06-22
+
+### Changed
+- Azure Table tenant roles now default to the `Roles` table instead of `TenantRoles`.
+- The `TenantRolesTableName` option is still available so existing deployments can keep using `TenantRoles` or another configured table name.
+
+### Documentation
+- Added tenant role endpoint guidance to the root README.
+- Added API credential implementation prompt guidance for IBeam-based applications.
+- Updated Azure Table identity README table-set documentation to reference the `Roles` default.
+
+### Validation
+- `dotnet build IBeam.Identity.Repositories.AzureTable\IBeam.Identity.Repositories.AzureTable.csproj --no-restore` passed.
+
 ## 2.0.11 - 2026-05-14
 
 ### Added
