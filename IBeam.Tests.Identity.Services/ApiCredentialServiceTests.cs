@@ -107,6 +107,21 @@ public sealed class ApiCredentialServiceTests
     }
 
     [TestMethod]
+    public void TryParse_PreservesLeadingUnderscoreSecret()
+    {
+        var generator = new ApiCredentialKeyGenerator(Options.Create(new ApiCredentialOptions()));
+        var credentialId = Guid.NewGuid();
+        var raw = $"ibk_{TenantId:N}_{credentialId:N}__secret-with-leading-underscore";
+
+        var parsed = generator.TryParse(raw, out var key);
+
+        Assert.IsTrue(parsed);
+        Assert.AreEqual(TenantId, key.TenantId);
+        Assert.AreEqual(credentialId, key.CredentialId);
+        Assert.AreEqual("_secret-with-leading-underscore", key.Secret);
+    }
+
+    [TestMethod]
     public async Task CreateAsync_DeniesHumanManagementRoles()
     {
         var fixture = CreateFixture();

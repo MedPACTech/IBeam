@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.67 - 2026-06-22
+
+### Fixed
+- Fixed API credential key parsing when the random base64url secret begins with `_`, which could cause valid API keys to fail authentication intermittently.
+
+### Tests
+- Added a regression test that verifies API credential parsing preserves leading-underscore secrets.
+
 ## 2.0.66 - 2026-06-22
 
 ### Added

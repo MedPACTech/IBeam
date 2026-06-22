@@ -32,18 +32,23 @@ public sealed class ApiCredentialKeyGenerator : IApiCredentialKeyGenerator
         if (string.IsNullOrWhiteSpace(rawKey))
             return false;
 
-        var parts = rawKey.Trim().Split('_', 4, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var parts = rawKey.Trim().Split('_', 4);
         if (parts.Length != 4)
             return false;
 
-        if (string.IsNullOrWhiteSpace(parts[0]) || string.IsNullOrWhiteSpace(parts[3]))
+        var prefix = parts[0].Trim();
+        var tenant = parts[1].Trim();
+        var credential = parts[2].Trim();
+        var secret = parts[3];
+
+        if (string.IsNullOrWhiteSpace(prefix) || string.IsNullOrEmpty(secret))
             return false;
-        if (!Guid.TryParseExact(parts[1], "N", out var tenantId))
+        if (!Guid.TryParseExact(tenant, "N", out var tenantId))
             return false;
-        if (!Guid.TryParseExact(parts[2], "N", out var credentialId))
+        if (!Guid.TryParseExact(credential, "N", out var credentialId))
             return false;
 
-        parsedKey = new ParsedApiCredentialKey(parts[0], tenantId, credentialId, parts[3]);
+        parsedKey = new ParsedApiCredentialKey(prefix, tenantId, credentialId, secret);
         return true;
     }
 
