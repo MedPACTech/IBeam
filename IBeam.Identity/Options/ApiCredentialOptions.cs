@@ -9,6 +9,7 @@ public sealed class ApiCredentialOptions
     public int HashIterations { get; set; } = 100_000;
     public string ApiKeyHeaderName { get; set; } = "X-API-Key";
     public string AuthorizationSchemeName { get; set; } = "ApiKey";
+    public List<ApiCredentialRoleCatalogEntryOptions> RoleCatalog { get; set; } = [];
     public List<string> DeniedCredentialRoleNames { get; set; } =
     [
         "Owner",
@@ -36,8 +37,37 @@ public sealed class ApiCredentialOptions
             .Select(x => x.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        RoleCatalog = RoleCatalog
+            .Where(x => !string.IsNullOrWhiteSpace(x.Name))
+            .Select(x =>
+            {
+                x.Normalize();
+                return x;
+            })
+            .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.First())
+            .ToList();
     }
 
     private static string Normalize(string? value, string fallback)
         => string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+}
+
+public sealed class ApiCredentialRoleCatalogEntryOptions
+{
+    public string Name { get; set; } = string.Empty;
+    public string? DisplayName { get; set; }
+    public string? Description { get; set; }
+    public string? Category { get; set; }
+    public bool IsPattern { get; set; }
+    public bool IsAssignable { get; set; } = true;
+
+    internal void Normalize()
+    {
+        Name = Name.Trim();
+        DisplayName = string.IsNullOrWhiteSpace(DisplayName) ? Name : DisplayName.Trim();
+        Description = string.IsNullOrWhiteSpace(Description) ? string.Empty : Description.Trim();
+        Category = string.IsNullOrWhiteSpace(Category) ? "custom" : Category.Trim();
+    }
 }

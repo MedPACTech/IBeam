@@ -193,6 +193,19 @@ Content-Type: application/json
 
 Role management endpoints require an authenticated tenant token (`tid`) with one of these role claims: `owner`, `administrator`, or `admin`.
 
+## API Credential Role Catalog
+
+API credential role names are machine/agent scopes assigned directly to API credentials. They are
+separate from tenant user membership roles.
+
+- `GET /api/api-credentials/role-catalog`
+
+The catalog endpoint returns structured entries with name, display name, description, category,
+and built-in/pattern/assignable flags. Built-ins include `API`, `tool:mcp`, `api-scope:*`,
+`api-scope:work`, `api-scope:contacts`, `api-scope:money`, and `agent:*`.
+
+Configured host entries can be added under `IBeam:Identity:ApiCredentials:RoleCatalog`.
+
 ## Permission Management Endpoints
 
 - `GET /api/tenants/{tenantId}/permissions/catalog`

@@ -85,9 +85,46 @@ public sealed class ApiCredentialsControllerTests
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
 
+    [TestMethod]
+    public async Task RoleCatalog_ReturnsBuiltInApiCredentialScopes_ForHumanTenantAdmin()
+    {
+        var sut = CreateController([
+            new Claim("tid", TenantId.ToString("D")),
+            new Claim("uid", UserId.ToString("D")),
+            new Claim("role", "admin")
+        ]);
+
+        var result = await sut.RoleCatalog(CancellationToken.None);
+
+        Assert.IsInstanceOfType<OkObjectResult>(result);
+        var entries = (IReadOnlyList<ApiCredentialRoleCatalogEntry>)((OkObjectResult)result).Value!;
+        CollectionAssert.Contains(entries.Select(x => x.Name).ToList(), "API");
+        CollectionAssert.Contains(entries.Select(x => x.Name).ToList(), "tool:mcp");
+        CollectionAssert.Contains(entries.Select(x => x.Name).ToList(), "api-scope:work");
+    }
+
+    [TestMethod]
+    public async Task RoleCatalog_ReturnsForbidden_ForCredentialSubject()
+    {
+        var sut = CreateController([
+            new Claim("tid", TenantId.ToString("D")),
+            new Claim("uid", UserId.ToString("D")),
+            new Claim("role", "admin"),
+            new Claim("api_subject_type", "credential")
+        ]);
+
+        var result = await sut.RoleCatalog(CancellationToken.None);
+
+        Assert.IsInstanceOfType<ObjectResult>(result);
+        Assert.AreEqual(StatusCodes.Status403Forbidden, ((ObjectResult)result).StatusCode);
+    }
+
     private static ApiCredentialsController CreateController(IEnumerable<Claim> claims)
     {
-        var controller = new ApiCredentialsController(new FakeApiCredentialService(), new FakeApiCredentialAuthenticator())
+        var controller = new ApiCredentialsController(
+            new FakeApiCredentialService(),
+            new FakeApiCredentialAuthenticator(),
+            new FakeApiCredentialRoleCatalogProvider())
         {
             ControllerContext = new ControllerContext
             {
@@ -153,5 +190,16 @@ public sealed class ApiCredentialsControllerTests
     {
         public Task<ApiCredentialAuthenticationResult> AuthenticateAsync(string apiKey, string? ipAddress = null, CancellationToken ct = default)
             => Task.FromResult(ApiCredentialAuthenticationResult.Fail("not_implemented"));
+    }
+
+    private sealed class FakeApiCredentialRoleCatalogProvider : IApiCredentialRoleCatalogProvider
+    {
+        public Task<IReadOnlyList<ApiCredentialRoleCatalogEntry>> ListAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<ApiCredentialRoleCatalogEntry>>(
+            [
+                new("API", "API", "Base API credential role.", "base", true, false, true),
+                new("tool:mcp", "MCP Tool Access", "Allows MCP tool access.", "mcp", true, false, true),
+                new("api-scope:work", "Work", "Allows Work tools.", "module", true, false, true)
+            ]);
     }
 }

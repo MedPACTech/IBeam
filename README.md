@@ -126,6 +126,7 @@ API credential management endpoints:
 
 ```http
 GET  /api/api-credentials
+GET  /api/api-credentials/role-catalog
 POST /api/api-credentials
 PUT  /api/api-credentials/{credentialId}/roles
 POST /api/api-credentials/{credentialId}/revoke
@@ -156,6 +157,42 @@ their own alphanumeric prefix for newly created credentials:
     "Identity": {
       "ApiCredentials": {
         "KeyPrefix": "hbk"
+      }
+    }
+  }
+}
+```
+
+API credential role names are service/agent scopes assigned directly to an API credential. They are
+separate from human tenant membership roles such as `Owner`, `Administrator`, or `Admin`.
+Use `GET /api/api-credentials/role-catalog` to drive admin UI assignment lists. The built-in catalog
+includes:
+
+```text
+API
+tool:mcp
+api-scope:*
+api-scope:work
+api-scope:contacts
+api-scope:money
+agent:*
+```
+
+Host apps can add app-specific catalog entries without forking IBeam:
+
+```json
+{
+  "IBeam": {
+    "Identity": {
+      "ApiCredentials": {
+        "RoleCatalog": [
+          {
+            "Name": "api-scope:calendar",
+            "DisplayName": "Calendar",
+            "Description": "Allows access to Calendar API and MCP tools.",
+            "Category": "module"
+          }
+        ]
       }
     }
   }

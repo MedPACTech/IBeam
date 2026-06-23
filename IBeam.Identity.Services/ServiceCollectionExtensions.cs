@@ -124,6 +124,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITokenService, JwtTokenService>();
         services.AddScoped<IApiCredentialKeyGenerator, ApiCredentialKeyGenerator>();
         services.AddScoped<IApiCredentialSecretHasher, ApiCredentialSecretHasher>();
+        services.AddScoped<IApiCredentialRoleCatalogProvider, ApiCredentialRoleCatalogProvider>();
         services.AddScoped<IApiCredentialRoleAssignmentValidator, ApiCredentialRoleAssignmentValidator>();
         services.AddScoped<IApiCredentialPrincipalFactory, ApiCredentialPrincipalFactory>();
         services.AddScoped<IApiCredentialService, ApiCredentialService>();

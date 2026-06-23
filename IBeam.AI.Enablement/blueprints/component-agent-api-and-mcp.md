@@ -44,7 +44,7 @@ Use IBeam API credentials for machine and agent callers:
 
 1. Create one credential per agent, integration, environment, or automation boundary.
 2. Store only the raw key in the client secret store; IBeam stores the hash.
-3. Assign API-safe role/scope names such as `API`, `api-scope:work`, `tool:mcp`, `agent:codex`, or app-specific module scopes.
+3. Assign API credential role/scope names from `GET /api/api-credentials/role-catalog`, such as `API`, `api-scope:work`, `tool:mcp`, `agent:codex`, or app-specific module scopes.
 4. Use `agentKey` to identify the calling agent in service workflows.
 5. Avoid human-management roles such as `Owner`, `Administrator`, and `Admin`.
 

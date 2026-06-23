@@ -20,6 +20,7 @@ Guide AI to implement identity features using IBeam contracts, services, and API
 3. Keep controllers thin.
 4. Use options for feature toggles and lockout/profile policies.
 5. Use API credentials directly for service/agent callers; do not require API-key callers to exchange credentials for JWTs.
+6. Keep API credential role/scope names separate from tenant user membership roles; use the API credential role catalog for machine/agent assignment UI.
 
 ## Extension Path
 

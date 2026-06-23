@@ -107,6 +107,29 @@ public sealed class ApiCredentialServiceTests
     }
 
     [TestMethod]
+    public async Task UpdateRolesAsync_AcceptsApiCredentialCatalogScopeNames()
+    {
+        var fixture = CreateFixture();
+        var created = await fixture.Service.CreateAsync(
+            TenantId,
+            new CreateApiCredentialRequest { DisplayName = "Hubbsly Agent", RoleNames = ["API"] },
+            Guid.NewGuid());
+
+        var updated = await fixture.Service.UpdateRolesAsync(
+            TenantId,
+            created.Credential.Id,
+            new UpdateApiCredentialRolesRequest
+            {
+                RoleNames = ["API", "tool:mcp", "api-scope:work"]
+            });
+
+        CollectionAssert.AreEquivalent(
+            new[] { "API", "api-scope:work", "tool:mcp" },
+            updated.RoleNames.ToArray());
+        Assert.IsFalse(updated.RoleIds.Any());
+    }
+
+    [TestMethod]
     public void TryParse_PreservesLeadingUnderscoreSecret()
     {
         var generator = new ApiCredentialKeyGenerator(Options.Create(new ApiCredentialOptions()));
@@ -151,6 +174,46 @@ public sealed class ApiCredentialServiceTests
                     RoleIds = [AdminRoleId]
                 },
                 Guid.NewGuid()));
+    }
+
+    [TestMethod]
+    public async Task RoleCatalogProvider_ReturnsBuiltIns_AndConfiguredEntries()
+    {
+        var provider = new ApiCredentialRoleCatalogProvider(Options.Create(new ApiCredentialOptions
+        {
+            RoleCatalog =
+            [
+                new ApiCredentialRoleCatalogEntryOptions
+                {
+                    Name = "api-scope:calendar",
+                    DisplayName = "Calendar",
+                    Description = "Allows access to Calendar API and MCP tools.",
+                    Category = "module"
+                }
+            ]
+        }));
+
+        var entries = await provider.ListAsync();
+        var names = entries.Select(x => x.Name).ToList();
+
+        CollectionAssert.Contains(names, "API");
+        CollectionAssert.Contains(names, "tool:mcp");
+        CollectionAssert.Contains(names, "api-scope:*");
+        CollectionAssert.Contains(names, "api-scope:work");
+        CollectionAssert.Contains(names, "api-scope:contacts");
+        CollectionAssert.Contains(names, "api-scope:money");
+        CollectionAssert.Contains(names, "agent:*");
+        CollectionAssert.Contains(names, "api-scope:calendar");
+
+        var custom = entries.Single(x => x.Name == "api-scope:calendar");
+        Assert.IsFalse(custom.IsBuiltIn);
+        Assert.IsTrue(custom.IsAssignable);
+        Assert.AreEqual("module", custom.Category);
+
+        var pattern = entries.Single(x => x.Name == "api-scope:*");
+        Assert.IsTrue(pattern.IsBuiltIn);
+        Assert.IsTrue(pattern.IsPattern);
+        Assert.IsFalse(pattern.IsAssignable);
     }
 
     private static Fixture CreateFixture()

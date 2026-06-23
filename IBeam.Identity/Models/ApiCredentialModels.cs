@@ -88,6 +88,15 @@ public sealed class UpdateApiCredentialRolesRequest
     public List<Guid> RoleIds { get; set; } = [];
 }
 
+public sealed record ApiCredentialRoleCatalogEntry(
+    string Name,
+    string DisplayName,
+    string Description,
+    string Category,
+    bool IsBuiltIn,
+    bool IsPattern,
+    bool IsAssignable);
+
 public sealed class RevokeApiCredentialRequest
 {
     public string? Reason { get; set; }

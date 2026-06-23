@@ -19,13 +19,16 @@ public sealed class ApiCredentialsController : ControllerBase
 
     private readonly IApiCredentialService _credentials;
     private readonly IApiCredentialAuthenticator _authenticator;
+    private readonly IApiCredentialRoleCatalogProvider _roleCatalog;
 
     public ApiCredentialsController(
         IApiCredentialService credentials,
-        IApiCredentialAuthenticator authenticator)
+        IApiCredentialAuthenticator authenticator,
+        IApiCredentialRoleCatalogProvider roleCatalog)
     {
         _credentials = credentials;
         _authenticator = authenticator;
+        _roleCatalog = roleCatalog;
     }
 
     [HttpGet]
@@ -35,6 +38,16 @@ public sealed class ApiCredentialsController : ControllerBase
             return forbidden;
 
         var result = await _credentials.ListAsync(tenantId, ct);
+        return Ok(result);
+    }
+
+    [HttpGet("role-catalog")]
+    public async Task<IActionResult> RoleCatalog(CancellationToken ct)
+    {
+        if (!TryAuthorizeHumanTenantAdmin(out _, out _, out var forbidden))
+            return forbidden;
+
+        var result = await _roleCatalog.ListAsync(ct).ConfigureAwait(false);
         return Ok(result);
     }
 
