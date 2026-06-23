@@ -122,6 +122,22 @@ public sealed class ApiCredentialServiceTests
     }
 
     [TestMethod]
+    public void CreateKey_UsesConfiguredKeyPrefix()
+    {
+        var generator = new ApiCredentialKeyGenerator(Options.Create(new ApiCredentialOptions
+        {
+            KeyPrefix = "hbk"
+        }));
+
+        var credentialId = Guid.NewGuid();
+        var created = generator.CreateKey(TenantId, credentialId);
+
+        Assert.IsTrue(created.RawKey.StartsWith($"hbk_{TenantId:N}_{credentialId:N}_", StringComparison.Ordinal));
+        Assert.IsTrue(created.KeyPrefix.StartsWith("hbk_", StringComparison.Ordinal));
+        Assert.AreEqual("hbk", created.ParsedKey.Prefix);
+    }
+
+    [TestMethod]
     public async Task CreateAsync_DeniesHumanManagementRoles()
     {
         var fixture = CreateFixture();

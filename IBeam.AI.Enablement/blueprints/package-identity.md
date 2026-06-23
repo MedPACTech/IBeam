@@ -19,6 +19,7 @@ Guide AI to implement identity features using IBeam contracts, services, and API
 2. Put role/permission checks in services.
 3. Keep controllers thin.
 4. Use options for feature toggles and lockout/profile policies.
+5. Use API credentials directly for service/agent callers; do not require API-key callers to exchange credentials for JWTs.
 
 ## Extension Path
 
@@ -26,3 +27,7 @@ Guide AI to implement identity features using IBeam contracts, services, and API
 2. Implement orchestration in `IBeam.Identity.Services`.
 3. Add provider store changes in selected repo provider.
 4. Expose endpoints in `IBeam.Identity.Api`.
+
+## Related Blueprints
+
+- `component-agent-api-and-mcp.md`: API-key agent access and optional MCP tool surfaces.

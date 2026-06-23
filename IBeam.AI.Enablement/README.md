@@ -29,6 +29,7 @@ If you are a practical builder (not a deep framework engineer), start here:
 - `blueprints/package-repositories.md`: blueprint for repo/provider composition.
 - `blueprints/package-communications.md`: blueprint for Twilio/email/SMS composition.
 - `blueprints/component-multi-tenant-app.md`: blueprint for multi-tenant app composition.
+- `blueprints/component-agent-api-and-mcp.md`: blueprint for API-key agent access and optional MCP tool surfaces.
 - `catalogs/ibeam-capabilities.json`: machine-readable capability map.
 - `catalogs/architecture-rules.json`: machine-readable architecture rules.
 - `examples/prompt-seeds.md`: prompt templates for AI tools.
@@ -46,6 +47,9 @@ If you are a practical builder (not a deep framework engineer), start here:
 
 This project documents and constrains architecture behavior. Runtime implementation remains in:
 
+- `IBeam.Ai`
+- `IBeam.Ai.Services`
+- `IBeam.Ai.Api`
 - `IBeam.Identity*`
 - `IBeam.Repositories*`
 - `IBeam.Services*`

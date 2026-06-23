@@ -64,6 +64,11 @@ See `CONTRIBUTING.md` for workflow and standards.
 - `IBeam.Api`: reusable API composition helpers (response envelopes, exception middleware, DI/config builder)
 - `IBeam.Identity.Api`: identity endpoint module that composes identity services + providers
 
+### AI
+- `IBeam.Ai`: core agent tooling contracts and MCP models
+- `IBeam.Ai.Services`: agent tool registry, authorization, and MCP service orchestration
+- `IBeam.Ai.Api`: ASP.NET Core endpoint wiring for IBeam AI agent and MCP tooling
+
 ### Communications
 - `IBeam.Communications`: provider-agnostic email/SMS contracts, options, validation, templating orchestration
 - `IBeam.Communications.Email.Templating`: file-based email template renderer and templated send orchestration
@@ -141,6 +146,21 @@ Create request:
 
 The raw `apiKey` is returned only from the create response. Store it in the calling system's secret
 store. IBeam stores only the secure hash.
+
+The default raw key prefix is `ibk`, producing keys that start with `ibk_`. Applications can configure
+their own alphanumeric prefix for newly created credentials:
+
+```json
+{
+  "IBeam": {
+    "Identity": {
+      "ApiCredentials": {
+        "KeyPrefix": "hbk"
+      }
+    }
+  }
+}
+```
 
 API credential authentication accepts either:
 

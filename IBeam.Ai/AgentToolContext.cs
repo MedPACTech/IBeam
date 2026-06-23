@@ -1,0 +1,10 @@
+using System.Security.Claims;
+
+namespace IBeam.Ai;
+
+public sealed record AgentToolContext(
+    ClaimsPrincipal User,
+    IServiceProvider Services,
+    string? AgentKey,
+    Guid? TenantId,
+    Guid? ApiCredentialId);
