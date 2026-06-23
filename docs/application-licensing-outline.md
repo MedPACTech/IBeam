@@ -310,9 +310,9 @@ IBeam.Licensing.Paddle
 
 ## Suggested First Implementation Slice
 
-1. Create `IBeam.Licensing` contracts and models.
-2. Create `IBeam.Licensing.Services` with in-memory/no-op catalog support.
-3. Create `IBeam.Licensing.Api` with plan and tenant-license endpoints.
+1. Create `IBeam.Licensing` contracts and models. Implemented.
+2. Create `IBeam.Licensing.Services` with in-memory/no-op catalog support. Implemented.
+3. Create `IBeam.Licensing.Api` with plan and tenant-license endpoints. Implemented.
 4. Add Azure Table provider after service contracts stabilize.
 5. Add EF provider if host apps need relational persistence.
 6. Add optional AI/MCP access policy integration after base licensing checks work.

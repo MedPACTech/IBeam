@@ -69,6 +69,24 @@ See `CONTRIBUTING.md` for workflow and standards.
 - `IBeam.Ai.Services`: agent tool registry, authorization, and MCP service orchestration
 - `IBeam.Ai.Api`: ASP.NET Core endpoint wiring for IBeam AI agent and MCP tooling
 
+### Licensing
+- `IBeam.Licensing`: core tenant licensing contracts and models
+- `IBeam.Licensing.Services`: plan catalog, tenant license, seat assignment, and entitlement services
+- `IBeam.Licensing.Api`: ASP.NET Core endpoint wiring for tenant application licensing
+
+Quick start:
+
+```powershell
+dotnet add package IBeam.Licensing.Api
+```
+
+```csharp
+builder.Services.AddIBeamLicensingApi(builder.Configuration);
+app.MapIBeamLicensing();
+```
+
+Configure plans under `IBeam:Licensing:Plans`, then use `ILicenseAuthorizer` or the licensing API endpoints to check tenant entitlements. See the package READMEs for full setup, API examples, and production store replacement guidance.
+
 ### Communications
 - `IBeam.Communications`: provider-agnostic email/SMS contracts, options, validation, templating orchestration
 - `IBeam.Communications.Email.Templating`: file-based email template renderer and templated send orchestration
