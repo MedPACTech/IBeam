@@ -2,7 +2,15 @@
 
 ## Objective
 
-Provide an IBeam licensing framework that lets host applications sell and assign tenant-scoped licenses while keeping licensing separate from authentication and tenant membership.
+Provide an IBeam licensing framework that lets host applications sell, grant, renew, and assign tenant-scoped licenses while keeping licensing separate from authentication and tenant membership.
+
+License issuing should be treated as three related parts:
+
+1. Subscription and billing: the commercial source of truth for purchases, renewals, cancellations, invoices, provider references, and payment status.
+2. Licenses: tenant-level grants that describe what a tenant can access and when that access is valid.
+3. Seats: subject-level assignments that describe which users, agents, or credentials can consume a tenant license.
+
+Subscriptions will eventually become the gatekeeper for license lifecycle, but licensing should not require every license to be renewed by the same provider, schedule, or payment flow. Some licenses may be issued manually, renewed by contract, granted by support, or synchronized from a billing provider at different intervals.
 
 Licensing should answer:
 
@@ -41,6 +49,20 @@ Provider packages depend on `IBeam.Licensing` contracts and are composed by the 
 
 ## Core Concepts
 
+### Subscription And Billing
+
+A subscription or billing record represents the commercial relationship behind one or more licenses.
+
+It may include provider information, invoice state, renewal rules, payment status, contract terms, or other purchase metadata. Billing can determine whether a license should be issued, renewed, suspended, or revoked, but runtime authorization should evaluate the resulting license and seat state.
+
+Subscription and billing should be modeled separately because not every license will renew the same way. A host app may have:
+
+- monthly self-service subscriptions
+- annual contract renewals
+- manually granted trial or partner licenses
+- support-issued extensions
+- externally synchronized provider subscriptions
+
 ### Product
 
 A product is a sellable application or module group.
@@ -68,12 +90,17 @@ Examples:
 
 A tenant license is an active purchase or grant assigned to one tenant.
 
+Licenses belong to tenants. They can be backed by a subscription, a billing provider, a manual grant, or another issuing process. A license should have an issue date and an expiration date. The expiration date can be updated when the license is renewed, extended, corrected, or synchronized from an external source.
+
+A tenant may have one license per user behind the scenes, even when those users belong to a single tenant. A tenant may also have one shared license, or one type of license, with multiple purchased seats assigned to individual users.
+
 It should include:
 
 - `tenantId`
 - `licenseId`
 - `planKey`
 - `status`
+- `issuedUtc`
 - `startsUtc`
 - `expiresUtc`
 - `seatLimit`
@@ -100,6 +127,10 @@ contacts:communications:log
 ### Seat Assignment
 
 A seat assignment links a tenant license to a user, API credential, or agent.
+
+Seats are issued to users or other license subjects. A license can be effectively one-to-one with a user by issuing one license and one seat for that user, or it can be one-to-many by issuing one tenant license with multiple available seats.
+
+Seat assignment should be the mechanism that determines who can consume a tenant license. Tenant membership alone should not imply license access unless the host app explicitly configures an automatic seat assignment policy.
 
 Assignment subject types:
 
@@ -140,17 +171,26 @@ Identity owns:
 
 Licensing owns:
 
+- subscription and billing references
 - plans
 - licenses
 - entitlements
 - seat assignment
 - usage limits
-- billing/provider references
 
 Services should be able to check both:
 
 1. Identity authorization: "Can this principal perform this action?"
 2. Licensing entitlement: "Has this tenant purchased this capability and does it have remaining capacity?"
+
+When users are added to tenants, Identity should remain responsible for tenant membership and roles. Licensing should provide a follow-up decision point:
+
+- Does this tenant license require a seat for this user?
+- Should a seat be assigned automatically when membership is created?
+- Should an administrator choose the license or seat type manually?
+- Should user creation be blocked, allowed without licensed access, or allowed with limited access when no seat is available?
+
+That integration should be designed after the licensing model is stable, because the correct behavior may differ by host application and license type.
 
 ## Authorization Flow
 
@@ -299,7 +339,11 @@ providerCustomerId
 providerSubscriptionId
 providerPriceId
 providerStatus
+providerCurrentPeriodStartUtc
+providerCurrentPeriodEndUtc
 ```
+
+Billing providers should update license state rather than replacing it. For example, a successful renewal may update `expiresUtc`, while a failed payment may eventually suspend or revoke the affected license. Manual licenses can use the same license dates without having a provider subscription.
 
 Potential provider packages:
 
@@ -307,6 +351,22 @@ Potential provider packages:
 IBeam.Licensing.Stripe
 IBeam.Licensing.Paddle
 ```
+
+## Deferred Identity Integration Work
+
+After the license, subscription, and seat model is stable, build out the rules for users being added to tenants.
+
+See [Identity And Licensing Implementation Prompt](identity-licensing-implementation-prompt.md) for a handoff-ready implementation brief covering Identity invitations, expanded users/roles/tenants, optional license seat policy, and schema/table guidance.
+
+Key decisions:
+
+- whether tenant membership automatically attempts to assign a license seat
+- whether seat assignment is tied to a default tenant license, a selected plan type, or an administrator action
+- whether users can belong to a tenant without consuming a license
+- how failed seat assignment should appear in Identity and application UX
+- how seat assignment changes should be reflected in claims, authorization checks, or tenant membership views
+
+The integration should keep Identity as the source of truth for membership while Licensing remains the source of truth for entitlement and seat consumption.
 
 ## Suggested First Implementation Slice
 
