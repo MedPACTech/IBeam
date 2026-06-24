@@ -1,10 +1,10 @@
 # Identity And Licensing Implementation Prompt
 
-Use this prompt when implementing tenant user invitations, Identity membership, role assignment, and optional Licensing seat assignment in an IBeam-based application. Keep the architecture modular: `IBeam.Identity` must work without `IBeam.Licensing`, and `IBeam.Licensing` must add entitlement and seat behavior without becoming part of authentication.
+Use this prompt when implementing tenant user invitations, Identity membership, role assignment, optional Licensing seat assignment, and dynamic resource access in an IBeam-based application. Keep the architecture modular: `IBeam.Identity` must work without `IBeam.Licensing` or `IBeam.AccessControl`; `IBeam.Licensing` must add entitlement and seat behavior without becoming part of authentication; and `IBeam.AccessControl` must handle per-resource grants without knowing host app domain models.
 
 ## Implementation Goal
 
-Build a tenant invitation and user onboarding flow that lets an authorized tenant administrator invite or add a user, verify that user through OTP or email-password setup, assign tenant roles, and optionally assign or reserve a license seat. Identity answers who the subject is, which tenant they belong to, and which roles or permissions they have. Licensing answers whether the tenant has a valid license, which entitlements are available, and whether a user, agent, or credential has a seat. Do not put license state into the core Identity model or require Licensing for Identity-only apps.
+Build a tenant invitation and user onboarding flow that lets an authorized tenant administrator invite or add a user, verify that user through OTP or email-password setup, assign tenant roles, optionally assign or reserve a license seat, and optionally grant access to dynamic resources. Identity answers who the subject is, which tenant they belong to, and which roles or permissions they have. Licensing answers whether the tenant has a valid license, which entitlements are available, and whether a user, agent, or credential has a seat. AccessControl answers which specific tenant resources a subject can view, edit, manage, or own. Do not put license state or resource grant state into the core Identity model.
 
 ## Identity Model
 
@@ -34,6 +34,10 @@ public interface ITenantUserInviteService
 
 The framework should provide the mechanics. Host applications should provide policy: who can invite, which roles can be granted, whether a domain is allowed, whether approval is required, what messages say, and what UX to show when no license seat is available.
 
+The Identity API should expose reusable tenant, role, and tenant-user operations so host apps do not need to rebuild the same framework calls. Recommended endpoints include tenant create/read/update/activate/deactivate, tenant extension ensure/sync, current-user tenant listing, tenant-user listing, tenant-user lookup, tenant-user linking, default tenant selection, role grant/revoke, and tenant-user disable. These endpoints should operate on Identity-owned data only.
+
+Extended tenant tables are supported through `ITenantExtensionStore<TTenant>` and `ITenantExtensionCoordinator`, but IBeam Identity cannot safely provide a universal update API for app-specific fields because it does not know each host app's schema, validation, storage rules, or file handling requirements. For example, if a host app extends a tenant with physical address and logo fields, the built-in Identity API can ensure the extension row exists and remains synchronized with the Identity tenant, but the host app should provide its own typed endpoint for updating address and logo data. If multiple apps need generic extension CRUD later, introduce a separate opt-in metadata extension package with an explicit dictionary/JSON contract rather than adding arbitrary app data to core Identity.
+
 ## Licensing Model
 
 Use `IBeam.Licensing` as an optional entitlement layer. Treat license issuing in three parts:
@@ -60,6 +64,36 @@ await licensingSeats.AssignSeatAsync(
 ```
 
 Host apps decide the failure mode. If no license seat is available, they may block invite creation, allow membership but block licensed features, allow a pending/unlicensed user state, or require an administrator to choose a different license. Identity should not fail merely because Licensing is absent.
+
+## Dynamic Resource Access Model
+
+Use `IBeam.AccessControl` for dynamic, per-resource grants. Tenant roles should stay stable and human-readable, such as `Owner`, `Admin`, and `User`. Do not create a new tenant role for every project, document, case, card, or workflow item. Instead, keep stable action permissions such as `projects:view` and `projects:update`, then grant resource-level access for specific records.
+
+Example:
+
+```text
+Tenant role: User
+Permission: projects:view
+Resource grant: user-1 can view project-1
+Resource grant: user-4 can edit project-2
+Resource grant: user-4 can edit project-3
+```
+
+The runtime check should compose layers:
+
+```csharp
+await identityAuthorizer.RequirePermissionAsync(principal, tenantId, "projects:view", ct);
+await licenseAuthorizer.RequireEntitlementAsync(tenantId, subject, "feature:projects", ct);
+await resourceAccessAuthorizer.AuthorizeAsync(
+    tenantId,
+    resourceType: "project",
+    resourceId: projectId.ToString("D"),
+    subject: new AccessSubject(AccessSubjectTypes.User, userId.ToString("D")),
+    requiredAccessLevel: ResourceAccessLevels.View,
+    ct);
+```
+
+AccessControl should use generic fields: tenant id, resource type, resource id, subject type, subject id, access level, status, expiration, and metadata. Host apps still own the actual resource tables and decide whether tenant admins, owners, or explicit grants can see or modify each resource.
 
 ## Table And Schema Guidance
 

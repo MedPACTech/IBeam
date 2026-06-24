@@ -120,6 +120,60 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
         }
     }
 
+    public async Task<IReadOnlyList<TenantUserInfo>> GetUsersForTenantAsync(Guid tenantId, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var table = GetTenantUsersTable();
+            var pk = _opts.TenantUsersPk(tenantId);
+            var users = new List<TenantUserEntity>();
+
+            await foreach (var e in table.QueryAsync<TenantUserEntity>(x => x.PartitionKey == pk, cancellationToken: ct)
+                .ConfigureAwait(false))
+            {
+                if (string.IsNullOrWhiteSpace(e.UserId))
+                {
+                    if (_opts.TryParseUserIdFromTenantUsersRk(e.RowKey, out var parsed))
+                        e.UserId = parsed;
+                    else
+                        continue;
+                }
+
+                users.Add(e);
+            }
+
+            return users.Select(MapTenantUser).ToList();
+        }
+        catch (Exception ex)
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
+    public async Task<TenantUserInfo?> GetUserForTenantAsync(Guid tenantId, Guid userId, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var userIdStr = userId.ToString("D");
+            var resp = await GetTenantUsersTable()
+                .GetEntityIfExistsAsync<TenantUserEntity>(
+                    _opts.TenantUsersPk(tenantId),
+                    _opts.TenantUsersRk(userIdStr),
+                    cancellationToken: ct)
+                .ConfigureAwait(false);
+
+            return resp.HasValue ? MapTenantUser(resp.Value) : null;
+        }
+        catch (Exception ex)
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
 
     public async Task<Guid?> GetDefaultTenantIdAsync(Guid userId, CancellationToken ct = default)
     {
@@ -208,6 +262,61 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
         }
     }
 
+    public async Task DisableTenantMembershipAsync(Guid tenantId, Guid userId, string? reason = null, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var now = DateTimeOffset.UtcNow;
+            var userIdStr = userId.ToString("D");
+            var tenantUsers = GetTenantUsersTable();
+            var userTenants = GetUserTenantsTable();
+
+            var tenantUserResp = await tenantUsers
+                .GetEntityIfExistsAsync<TenantUserEntity>(
+                    _opts.TenantUsersPk(tenantId),
+                    _opts.TenantUsersRk(userIdStr),
+                    cancellationToken: ct)
+                .ConfigureAwait(false);
+
+            var userTenantResp = await userTenants
+                .GetEntityIfExistsAsync<UserTenantEntity>(
+                    _opts.UserTenantsPk(userIdStr),
+                    _opts.UserTenantsRk(tenantId),
+                    cancellationToken: ct)
+                .ConfigureAwait(false);
+
+            if (!tenantUserResp.HasValue && !userTenantResp.HasValue)
+                throw new IdentityValidationException($"User '{userId}' is not a member of tenant '{tenantId}'.");
+
+            if (tenantUserResp.HasValue)
+            {
+                var tenantUser = tenantUserResp.Value;
+                tenantUser.Status = "Disabled";
+                tenantUser.DisabledAt = now;
+                tenantUser.DisabledReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+                await tenantUsers.UpdateEntityAsync(tenantUser, tenantUser.ETag, TableUpdateMode.Replace, ct)
+                    .ConfigureAwait(false);
+            }
+
+            if (userTenantResp.HasValue)
+            {
+                var userTenant = userTenantResp.Value;
+                userTenant.Status = "Disabled";
+                userTenant.DisabledAt = now;
+                userTenant.DisabledReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+                userTenant.IsDefault = false;
+                await userTenants.UpdateEntityAsync(userTenant, userTenant.ETag, TableUpdateMode.Replace, ct)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
 
     // -------- helpers --------
 
@@ -262,6 +371,9 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
 
     private TableClient GetUserTenantsTable()
         => _serviceClient.GetTableClient($"{_opts.TablePrefix}{_opts.UserTenantsTableName}");
+
+    private TableClient GetTenantUsersTable()
+        => _serviceClient.GetTableClient($"{_opts.TablePrefix}{_opts.TenantUsersTableName}");
 
     private TableClient GetTenantsTable()
     => _serviceClient.GetTableClient($"{_opts.TablePrefix}{_opts.TenantsTableName}");
@@ -330,6 +442,28 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
 
     private static bool IsActiveStatus(string? status)
     => string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase);
+
+    private static TenantUserInfo MapTenantUser(TenantUserEntity entity)
+    {
+        var tenantId = Guid.TryParse(entity.TenantId, out var parsedTenantId)
+            ? parsedTenantId
+            : Guid.Empty;
+        var userId = Guid.TryParse(entity.UserId, out var parsedUserId)
+            ? parsedUserId
+            : Guid.Empty;
+
+        return new TenantUserInfo(
+            TenantId: tenantId,
+            UserId: userId,
+            Roles: SplitRoles(entity.RolesCsv),
+            IsActive: IsActiveStatus(entity.Status),
+            RoleIds: SplitRoleIds(entity.RoleIdsCsv),
+            UserDisplayName: entity.UserDisplayName,
+            Email: entity.Email,
+            CreatedAt: entity.CreatedAt,
+            DisabledAt: entity.DisabledAt,
+            DisabledReason: entity.DisabledReason);
+    }
 
    
 

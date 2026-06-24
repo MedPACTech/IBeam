@@ -326,6 +326,7 @@ Future enhancement:
 
 - Add optional `RequiredEntitlements` metadata to `AgentToolDefinition`.
 - Provide an `IAgentToolAccessPolicy` implementation that checks both Identity scopes and Licensing entitlements.
+- Compose `IBeam.AccessControl` for dynamic per-resource grants when a licensed feature has tenant records that only some users, agents, or credentials should access.
 
 ## Billing Provider Integration
 
