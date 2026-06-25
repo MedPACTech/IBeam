@@ -10,11 +10,16 @@ public sealed class AccessControlOptions
         [ResourceAccessLevels.View] = 10,
         [ResourceAccessLevels.Write] = 20,
         [ResourceAccessLevels.Edit] = 20,
-        [ResourceAccessLevels.Manage] = 30,
-        [ResourceAccessLevels.Admin] = 40,
-        [ResourceAccessLevels.Owner] = 50,
+        [ResourceAccessLevels.Delete] = 30,
+        [ResourceAccessLevels.Manage] = 40,
+        [ResourceAccessLevels.Admin] = 50,
+        [ResourceAccessLevels.Owner] = 60,
         ["*"] = int.MaxValue
     };
+
+    public bool EmitResourceAccessClaim { get; set; } = true;
+
+    public int MaxResourceAccessClaimsInJwt { get; set; } = 200;
 
     public void Validate()
     {
@@ -24,5 +29,8 @@ public sealed class AccessControlOptions
 
         if (!AccessLevelRanks.ContainsKey("*"))
             AccessLevelRanks["*"] = int.MaxValue;
+
+        if (MaxResourceAccessClaimsInJwt < 1)
+            MaxResourceAccessClaimsInJwt = 1;
     }
 }

@@ -24,6 +24,7 @@ public sealed class JwtTokenService : ITokenService
     private readonly IAuthLifecycleHook _lifecycleHook;
     private readonly IOptions<AuthEventOptions> _eventOptions;
     private readonly ILogger<JwtTokenService> _logger;
+    private readonly IReadOnlyList<IClaimsEnricher> _claimsEnrichers;
 
     public JwtTokenService(
         IOptions<JwtOptions> options,
@@ -32,6 +33,25 @@ public sealed class JwtTokenService : ITokenService
         IAuthLifecycleHook lifecycleHook,
         IOptions<AuthEventOptions> eventOptions,
         ILogger<JwtTokenService> logger)
+        : this(
+            options,
+            sessions,
+            eventPublisher,
+            lifecycleHook,
+            eventOptions,
+            logger,
+            Array.Empty<IClaimsEnricher>())
+    {
+    }
+
+    public JwtTokenService(
+        IOptions<JwtOptions> options,
+        IAuthSessionStore sessions,
+        IAuthEventPublisher eventPublisher,
+        IAuthLifecycleHook lifecycleHook,
+        IOptions<AuthEventOptions> eventOptions,
+        ILogger<JwtTokenService> logger,
+        IEnumerable<IClaimsEnricher> claimsEnrichers)
     {
         _options = options.Value ?? throw new ArgumentNullException(nameof(options));
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
@@ -39,6 +59,7 @@ public sealed class JwtTokenService : ITokenService
         _lifecycleHook = lifecycleHook ?? throw new ArgumentNullException(nameof(lifecycleHook));
         _eventOptions = eventOptions ?? throw new ArgumentNullException(nameof(eventOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _claimsEnrichers = claimsEnrichers?.ToList() ?? [];
         Validate(_options);
     }
 
@@ -82,6 +103,8 @@ public sealed class JwtTokenService : ITokenService
             ct);
 
         var effective = NormalizeAccessClaims(userId, tenantId, claims, sessionId);
+        effective = await EnrichAccessClaimsAsync(userId, tenantId, sessionId, effective, ct)
+            .ConfigureAwait(false);
 
         var jwtClaims = CreateJwtClaimsFromClaimItems(effective);
         var jwt = SignJwt(jwtClaims, now, expiresAt);
@@ -139,6 +162,8 @@ public sealed class JwtTokenService : ITokenService
 
         var existingClaims = JsonSerializer.Deserialize<List<ClaimItem>>(existing.ClaimsJson) ?? new List<ClaimItem>();
         var claims = NormalizeAccessClaims(existing.UserId, existing.TenantId, existingClaims, existing.SessionId);
+        claims = await EnrichAccessClaimsAsync(existing.UserId, existing.TenantId, existing.SessionId, claims, ct)
+            .ConfigureAwait(false);
 
         var expiresAt = now.AddMinutes(_options.AccessTokenMinutes);
         var jwtClaims = CreateJwtClaimsFromClaimItems(claims);
@@ -325,6 +350,55 @@ public sealed class JwtTokenService : ITokenService
     {
         claims.RemoveAll(c => string.Equals(c.Type, claimType, StringComparison.OrdinalIgnoreCase));
         claims.Add(new ClaimItem(claimType, claimValue));
+    }
+
+    private async Task<List<ClaimItem>> EnrichAccessClaimsAsync(
+        Guid userId,
+        Guid tenantId,
+        string sessionId,
+        List<ClaimItem> claims,
+        CancellationToken ct)
+    {
+        if (_claimsEnrichers.Count == 0)
+            return claims;
+
+        var effective = new List<ClaimItem>(claims);
+        foreach (var enricher in _claimsEnrichers)
+        {
+            var enriched = await enricher.EnrichAsync(
+                    new ClaimsEnrichmentContext(userId, tenantId, effective),
+                    ct)
+                .ConfigureAwait(false);
+
+            MergeReplacingClaimTypes(effective, enriched);
+        }
+
+        EnsureSingleClaim(effective, "sub", userId.ToString("D"));
+        EnsureSingleClaim(effective, "uid", userId.ToString("D"));
+        EnsureSingleClaim(effective, "tid", tenantId.ToString("D"));
+        EnsureSingleClaim(effective, "sid", sessionId);
+
+        return effective;
+    }
+
+    private static void MergeReplacingClaimTypes(List<ClaimItem> claims, IReadOnlyList<ClaimItem>? incoming)
+    {
+        if (incoming is null || incoming.Count == 0)
+            return;
+
+        var normalized = incoming
+            .Where(x => !string.IsNullOrWhiteSpace(x.Type) && x.Value is not null)
+            .Select(x => x with { Type = x.Type.Trim() })
+            .ToList();
+
+        foreach (var claimType in normalized
+                     .Select(x => x.Type)
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            claims.RemoveAll(x => string.Equals(x.Type, claimType, StringComparison.OrdinalIgnoreCase));
+        }
+
+        claims.AddRange(normalized);
     }
 
     private string SignJwt(List<Claim> claims, DateTimeOffset now, DateTimeOffset expiresAt)

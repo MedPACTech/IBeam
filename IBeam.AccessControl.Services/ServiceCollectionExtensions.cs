@@ -1,3 +1,4 @@
+using IBeam.Identity.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -20,8 +21,10 @@ public static class AccessControlServiceCollectionExtensions
             .ValidateOnStart();
 
         services.TryAddSingleton<IResourceAccessStore, InMemoryResourceAccessStore>();
+        services.TryAddScoped<IResourceAccessHierarchyResolver, NoOpResourceAccessHierarchyResolver>();
         services.TryAddScoped<IResourceAccessService, ResourceAccessService>();
         services.TryAddScoped<IResourceAccessAuthorizer, ResourceAccessAuthorizer>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IClaimsEnricher, ResourceAccessClaimsEnricher>());
 
         return services;
     }

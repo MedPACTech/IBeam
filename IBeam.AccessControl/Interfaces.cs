@@ -8,6 +8,15 @@ public interface IResourceAccessStore
     Task DeleteGrantAsync(Guid tenantId, Guid grantId, CancellationToken ct = default);
 }
 
+public interface IResourceAccessHierarchyResolver
+{
+    Task<IReadOnlyList<ResourceAccessResource>> ListAncestorsAsync(
+        Guid tenantId,
+        string resourceType,
+        string resourceId,
+        CancellationToken ct = default);
+}
+
 public interface IResourceAccessService
 {
     Task<IReadOnlyList<ResourceAccessGrantInfo>> ListGrantsAsync(
@@ -42,4 +51,3 @@ public interface IResourceAccessAuthorizer
         string requiredAccessLevel,
         CancellationToken ct = default);
 }
-

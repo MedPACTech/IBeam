@@ -4,7 +4,7 @@ Use this prompt when implementing tenant user invitations, Identity membership, 
 
 ## Implementation Goal
 
-Build a tenant invitation and user onboarding flow that lets an authorized tenant administrator invite or add a user, verify that user through OTP or email-password setup, assign tenant roles, optionally assign or reserve a license seat, and optionally grant access to dynamic resources. Identity answers who the subject is, which tenant they belong to, and which roles or permissions they have. Licensing answers whether the tenant has a valid license, which entitlements are available, and whether a user, agent, or credential has a seat. AccessControl answers which specific tenant resources a subject can view, edit, manage, or own. Do not put license state or resource grant state into the core Identity model.
+Build a tenant invitation and user onboarding flow that lets an authorized tenant administrator invite or add a user, verify that user through OTP or email-password setup, assign tenant roles, optionally assign or reserve a license seat, and optionally grant access to dynamic resources. Identity answers who the subject is, which tenant they belong to, and which roles or permissions they have. Licensing answers whether the tenant has a valid license, which entitlements are available, and whether a user, agent, or credential has a seat. AccessControl answers which specific tenant resources a subject can view, edit, delete, or manage. Do not put license state or resource grant state into the core Identity model.
 
 ## Identity Model
 

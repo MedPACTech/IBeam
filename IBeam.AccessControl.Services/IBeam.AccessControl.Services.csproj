@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IBeam.AccessControl\IBeam.AccessControl.csproj" />
+    <ProjectReference Include="..\IBeam.Identity\IBeam.Identity.csproj" />
   </ItemGroup>
 
   <ItemGroup>

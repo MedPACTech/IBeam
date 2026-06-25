@@ -1,11 +1,13 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using IBeam.Identity.Events;
 using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
 using IBeam.Identity.Services.Tokens;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 
@@ -77,6 +79,30 @@ public sealed class JwtTokenServiceTests
     }
 
     [TestMethod]
+    public async Task CreateAccessTokenAsync_AddsClaimsFromEnrichers()
+    {
+        var userId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+
+        AuthSessionRecord? saved = null;
+        var sessions = new Mock<IAuthSessionStore>(MockBehavior.Strict);
+        sessions.Setup(x => x.SaveAsync(It.IsAny<AuthSessionRecord>(), It.IsAny<CancellationToken>()))
+            .Callback<AuthSessionRecord, CancellationToken>((record, _) => saved = record)
+            .Returns(Task.CompletedTask);
+
+        var sut = CreateSut(
+            sessions.Object,
+            [new TestClaimsEnricher(new ClaimItem("resource_access", "{\"grants\":[]}", "json"))]);
+
+        var token = await sut.CreateAccessTokenAsync(userId, tenantId, []);
+
+        Assert.AreEqual("{\"grants\":[]}", token.Claims.Single(x => x.Type == "resource_access").Value);
+        Assert.IsNotNull(saved);
+        var persisted = JsonSerializer.Deserialize<List<ClaimItem>>(saved!.ClaimsJson) ?? [];
+        Assert.AreEqual("{\"grants\":[]}", persisted.Single(x => x.Type == "resource_access").Value);
+    }
+
+    [TestMethod]
     public async Task RefreshAccessTokenAsync_RotatesRefreshTokenAndPreservesSessionId()
     {
         var userId = Guid.NewGuid();
@@ -122,6 +148,56 @@ public sealed class JwtTokenServiceTests
         Assert.IsFalse(string.Equals(oldRefresh, refreshed.RefreshToken, StringComparison.Ordinal));
         Assert.AreEqual(sessionId, rotated!.SessionId);
         Assert.AreNotEqual(oldHash, rotated.RefreshTokenHash);
+    }
+
+    [TestMethod]
+    public async Task RefreshAccessTokenAsync_ReplacesClaimsFromEnrichers()
+    {
+        var userId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+        const string sessionId = "session-1";
+        const string oldRefresh = "refresh-1";
+
+        var oldHash = HashRefreshToken(oldRefresh);
+        var existingClaims = new List<ClaimItem>
+        {
+            new("sub", userId.ToString("D")),
+            new("uid", userId.ToString("D")),
+            new("tid", tenantId.ToString("D")),
+            new("sid", sessionId),
+            new("resource_access", "{\"grants\":[{\"resourceId\":\"stale\"}]}", "json")
+        };
+
+        var existing = new AuthSessionRecord(
+            RefreshTokenHash: oldHash,
+            SessionId: sessionId,
+            UserId: userId,
+            TenantId: tenantId,
+            ClaimsJson: JsonSerializer.Serialize(existingClaims),
+            CreatedAt: DateTimeOffset.UtcNow.AddDays(-1),
+            LastSeenAt: DateTimeOffset.UtcNow.AddMinutes(-30),
+            RefreshTokenExpiresAt: DateTimeOffset.UtcNow.AddDays(1));
+
+        AuthSessionRecord? rotated = null;
+        var sessions = new Mock<IAuthSessionStore>(MockBehavior.Strict);
+        sessions.Setup(x => x.GetByRefreshTokenHashAsync(oldHash, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+        sessions.Setup(x => x.DeleteByRefreshTokenHashAsync(oldHash, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        sessions.Setup(x => x.SaveAsync(It.IsAny<AuthSessionRecord>(), It.IsAny<CancellationToken>()))
+            .Callback<AuthSessionRecord, CancellationToken>((record, _) => rotated = record)
+            .Returns(Task.CompletedTask);
+
+        var sut = CreateSut(
+            sessions.Object,
+            [new TestClaimsEnricher(new ClaimItem("resource_access", "{\"grants\":[]}", "json"))]);
+
+        var refreshed = await sut.RefreshAccessTokenAsync(oldRefresh);
+
+        Assert.AreEqual("{\"grants\":[]}", refreshed.Claims.Single(x => x.Type == "resource_access").Value);
+        Assert.IsNotNull(rotated);
+        var persisted = JsonSerializer.Deserialize<List<ClaimItem>>(rotated!.ClaimsJson) ?? [];
+        Assert.AreEqual("{\"grants\":[]}", persisted.Single(x => x.Type == "resource_access").Value);
     }
 
     [TestMethod]
@@ -197,7 +273,9 @@ public sealed class JwtTokenServiceTests
             sut.RefreshAccessTokenAsync(refreshToken));
     }
 
-    private static JwtTokenService CreateSut(IAuthSessionStore sessions)
+    private static JwtTokenService CreateSut(
+        IAuthSessionStore sessions,
+        IEnumerable<IClaimsEnricher>? claimsEnrichers = null)
     {
         var options = new JwtOptions
         {
@@ -209,7 +287,29 @@ public sealed class JwtTokenServiceTests
             RefreshTokenDays = 30
         };
 
-        return new JwtTokenService(Options.Create(options), sessions);
+        return new JwtTokenService(
+            Options.Create(options),
+            sessions,
+            new NoOpAuthEventPublisher(),
+            new NoOpAuthLifecycleHook(),
+            Options.Create(new AuthEventOptions()),
+            NullLogger<JwtTokenService>.Instance,
+            claimsEnrichers ?? []);
+    }
+
+    private sealed class TestClaimsEnricher : IClaimsEnricher
+    {
+        private readonly ClaimItem _claim;
+
+        public TestClaimsEnricher(ClaimItem claim)
+        {
+            _claim = claim;
+        }
+
+        public Task<IReadOnlyList<ClaimItem>> EnrichAsync(
+            ClaimsEnrichmentContext context,
+            CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<ClaimItem>>([_claim]);
     }
 
     private static string HashRefreshToken(string token)
