@@ -78,6 +78,41 @@ public sealed class AzureTableApiCredentialStore : IApiCredentialStore
         }
     }
 
+    public async Task<ApiCredentialRecord> UpdateAsync(
+        ApiCredentialRecord credential,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            for (var attempt = 0; attempt < 5; attempt++)
+            {
+                try
+                {
+                    var entity = await RequireEntityAsync(credential.TenantId, credential.CredentialId, ct).ConfigureAwait(false);
+                    entity.DisplayName = credential.DisplayName;
+                    entity.Description = credential.Description;
+                    entity.AgentKey = credential.AgentKey;
+                    entity.AgentDisplayName = credential.AgentDisplayName;
+                    entity.AllowedAgentKeysCsv = JoinStrings(credential.AllowedAgentKeys ?? Array.Empty<string>());
+                    entity.RoleIdsCsv = JoinGuids(credential.RoleIds);
+                    entity.RoleNamesCsv = JoinStrings(credential.RoleNames);
+                    entity.ExpiresUtc = credential.ExpiresUtc;
+                    await Table().UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+                    return Map(entity);
+                }
+                catch (RequestFailedException ex) when (ex.Status == 412 && attempt < 4)
+                {
+                }
+            }
+
+            throw new IdentityProviderException("Failed to update API credential due to concurrent updates.");
+        }
+        catch (Exception ex)
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
     public async Task<ApiCredentialRecord> UpdateRolesAsync(
         Guid tenantId,
         Guid credentialId,
@@ -103,6 +138,41 @@ public sealed class AzureTableApiCredentialStore : IApiCredentialStore
             }
 
             throw new IdentityProviderException("Failed to update API credential roles due to concurrent updates.");
+        }
+        catch (Exception ex)
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
+    public async Task<ApiCredentialRecord> RotateSecretAsync(
+        Guid tenantId,
+        Guid credentialId,
+        string secretHash,
+        DateTimeOffset rotatedUtc,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            for (var attempt = 0; attempt < 5; attempt++)
+            {
+                try
+                {
+                    var entity = await RequireEntityAsync(tenantId, credentialId, ct).ConfigureAwait(false);
+                    entity.SecretHash = secretHash;
+                    entity.RotatedUtc = rotatedUtc;
+                    entity.RevokedUtc = null;
+                    entity.RevokedByUserId = null;
+                    entity.RevocationReason = null;
+                    await Table().UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+                    return Map(entity);
+                }
+                catch (RequestFailedException ex) when (ex.Status == 412 && attempt < 4)
+                {
+                }
+            }
+
+            throw new IdentityProviderException("Failed to rotate API credential due to concurrent updates.");
         }
         catch (Exception ex)
         {
@@ -136,6 +206,37 @@ public sealed class AzureTableApiCredentialStore : IApiCredentialStore
             }
 
             throw new IdentityProviderException("Failed to revoke API credential due to concurrent updates.");
+        }
+        catch (Exception ex)
+        {
+            throw IdentityExceptionTranslator.ToProviderException(ex);
+        }
+    }
+
+    public async Task<ApiCredentialRecord> ActivateAsync(
+        Guid tenantId,
+        Guid credentialId,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            for (var attempt = 0; attempt < 5; attempt++)
+            {
+                try
+                {
+                    var entity = await RequireEntityAsync(tenantId, credentialId, ct).ConfigureAwait(false);
+                    entity.RevokedUtc = null;
+                    entity.RevokedByUserId = null;
+                    entity.RevocationReason = null;
+                    await Table().UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+                    return Map(entity);
+                }
+                catch (RequestFailedException ex) when (ex.Status == 412 && attempt < 4)
+                {
+                }
+            }
+
+            throw new IdentityProviderException("Failed to activate API credential due to concurrent updates.");
         }
         catch (Exception ex)
         {
@@ -198,7 +299,10 @@ public sealed class AzureTableApiCredentialStore : IApiCredentialStore
             CredentialId = credential.CredentialId.ToString("D"),
             TenantId = credential.TenantId.ToString("D"),
             DisplayName = credential.DisplayName,
+            Description = credential.Description,
             AgentKey = credential.AgentKey,
+            AgentDisplayName = credential.AgentDisplayName,
+            AllowedAgentKeysCsv = JoinStrings(credential.AllowedAgentKeys ?? Array.Empty<string>()),
             KeyPrefix = credential.KeyPrefix,
             SecretHash = credential.SecretHash,
             RoleNamesCsv = JoinStrings(credential.RoleNames),
@@ -208,6 +312,7 @@ public sealed class AzureTableApiCredentialStore : IApiCredentialStore
             ExpiresUtc = credential.ExpiresUtc,
             LastUsedUtc = credential.LastUsedUtc,
             LastUsedIp = credential.LastUsedIp,
+            RotatedUtc = credential.RotatedUtc,
             RevokedUtc = credential.RevokedUtc,
             RevokedByUserId = credential.RevokedByUserId?.ToString("D"),
             RevocationReason = credential.RevocationReason,
@@ -229,10 +334,14 @@ public sealed class AzureTableApiCredentialStore : IApiCredentialStore
             ExpiresUtc: entity.ExpiresUtc,
             LastUsedUtc: entity.LastUsedUtc,
             LastUsedIp: entity.LastUsedIp,
+            RotatedUtc: entity.RotatedUtc,
             RevokedUtc: entity.RevokedUtc,
             RevokedByUserId: TryParseGuid(entity.RevokedByUserId),
             RevocationReason: entity.RevocationReason,
-            IsDeleted: entity.IsDeleted);
+            IsDeleted: entity.IsDeleted,
+            Description: entity.Description,
+            AgentDisplayName: entity.AgentDisplayName,
+            AllowedAgentKeys: SplitStrings(entity.AllowedAgentKeysCsv));
 
     private static string JoinStrings(IEnumerable<string> values)
         => string.Join(",", values.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase));

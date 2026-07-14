@@ -212,6 +212,325 @@ and built-in/pattern/assignable flags. Built-ins include `API`, `tool:mcp`, `api
 
 Configured host entries can be added under `IBeam:Identity:ApiCredentials:RoleCatalog`.
 
+## First-Class API Credential Access
+
+API credentials are machine principals. IBeam keeps the existing role-string behavior for compatibility, but also normalizes credential roles into structured API scopes, tool scopes, agent bindings, resource constraints, claims, and evaluated access context.
+
+Legacy role strings remain valid:
+
+```text
+API
+api-scope:work
+api-scope:money
+api-agent:codex
+tool:mcp
+product:hubbsly
+project:*
+```
+
+IBeam normalizes them as:
+
+- `api-scope:work` -> `apiScopes: ["work"]`
+- `tool:mcp` -> `tools: ["mcp"]`
+- `api-agent:codex` or `agent:codex` -> `allowedAgentKeys: ["codex"]`
+- `product:hubbsly` -> resource access entry for product `hubbsly`
+- `project:*` -> wildcard project access entry
+
+### API Credential Scope Catalog
+
+Register API modules and tools in code:
+
+```csharp
+builder.Services.AddIBeamApiCredentials(options =>
+{
+    options.KeyPrefix = "hbk";
+
+    options.Scopes.AddModule("work", "Work API", "Allows access to Work API features.");
+    options.Scopes.AddModule("planning", "Planning API", "Allows access to Planning API features.");
+    options.Scopes.AddModule("products", "Products API", "Allows access to Products and Projects API features.");
+    options.Scopes.AddModule("ops", "Operations API", "Allows access to Operations API features.");
+    options.Scopes.AddModule("content", "Content API", "Allows access to Content API features.");
+    options.Scopes.AddModule("money", "Money API", "Allows access to Money API features.");
+    options.Scopes.AddModule("contacts", "Contacts API", "Allows access to Contacts API features.");
+
+    options.Scopes.AddTool("mcp", "MCP Tools", "Allows access to the MCP tools endpoint.");
+});
+```
+
+Fetch the assignable catalog:
+
+```http
+GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/api-credentials/scope-catalog
+Authorization: Bearer {ownerOrAdminTenantToken}
+```
+
+Example response item:
+
+```json
+{
+  "key": "work",
+  "displayName": "Work API",
+  "description": "Allows access to Work API features.",
+  "category": "module",
+  "isAssignable": true,
+  "isWildcardCapable": true,
+  "requiredParentScope": null,
+  "moduleKey": "work",
+  "resourceType": null
+}
+```
+
+### Tenant-Scoped Credential Management
+
+The existing `/api/api-credentials` routes still work for the current tenant in the caller's token. New tenant-scoped routes are also available:
+
+```http
+GET    /api/tenants/{tenantId}/api-credentials
+GET    /api/tenants/{tenantId}/api-credentials/{credentialId}
+POST   /api/tenants/{tenantId}/api-credentials
+PUT    /api/tenants/{tenantId}/api-credentials/{credentialId}
+DELETE /api/tenants/{tenantId}/api-credentials/{credentialId}
+```
+
+Create a credential with structured agent metadata and backward-compatible roles:
+
+```http
+POST /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/api-credentials
+Authorization: Bearer {ownerOrAdminTenantToken}
+Content-Type: application/json
+
+{
+  "displayName": "Codex Work Agent",
+  "description": "Automation credential for Codex work-board tasks.",
+  "agentKey": "codex",
+  "agentDisplayName": "Codex Agent",
+  "allowedAgentKeys": ["codex"],
+  "roleNames": ["API", "api-scope:work", "tool:mcp", "api-agent:codex"],
+  "roleIds": [],
+  "expiresUtc": "2026-09-20T00:00:00Z"
+}
+```
+
+The raw API key is returned only once:
+
+```json
+{
+  "credential": {
+    "id": "1dff7a6a-545a-4790-aec1-37f5c5182fb1",
+    "tenantId": "225925cc-995e-4584-a63b-4f2cb4f38f6f",
+    "displayName": "Codex Work Agent",
+    "agentKey": "codex",
+    "roleNames": ["API", "api-agent:codex", "api-scope:work", "tool:mcp"],
+    "isActive": true
+  },
+  "apiKey": "hbk_xxxxxxxxxxxxxxxxxxxxx"
+}
+```
+
+Rotate, revoke, and reactivate:
+
+```http
+POST /api/tenants/{tenantId}/api-credentials/{credentialId}/rotate
+POST /api/tenants/{tenantId}/api-credentials/{credentialId}/revoke
+POST /api/tenants/{tenantId}/api-credentials/{credentialId}/activate
+```
+
+Rotation returns a new raw secret once and clears revocation metadata. Revocation disables authentication until rotation or activation.
+
+### Credential Access
+
+Credential access can be managed separately from display metadata:
+
+```http
+GET /api/tenants/{tenantId}/api-credentials/{credentialId}/access
+PUT /api/tenants/{tenantId}/api-credentials/{credentialId}/access
+```
+
+Example update:
+
+```http
+PUT /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/api-credentials/1dff7a6a-545a-4790-aec1-37f5c5182fb1/access
+Authorization: Bearer {ownerOrAdminTenantToken}
+Content-Type: application/json
+
+{
+  "roleNames": ["API"],
+  "roleIds": [],
+  "apiScopes": ["work", "products"],
+  "toolScopes": ["mcp"],
+  "allowedAgentKeys": ["codex"]
+}
+```
+
+This is stored in backward-compatible role names such as `api-scope:work`, `tool:mcp`, and `api-agent:codex`, while the access endpoint returns a structured context.
+
+API credential access checks can include module/API scope, permission, resource, and requested agent requirements in one request:
+
+```http
+POST /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-control/check
+Authorization: Bearer {tenantScopedAccessToken}
+Content-Type: application/json
+
+{
+  "subjectType": "apiCredential",
+  "subjectId": "1dff7a6a-545a-4790-aec1-37f5c5182fb1",
+  "module": "work",
+  "permission": "work.update",
+  "resourceType": "project",
+  "resourceId": "24e4785d-d558-4511-a879-b70d5c88cd51",
+  "accessLevel": "edit",
+  "agentKey": "codex"
+}
+```
+
+The check requires all supplied dimensions to pass: requested agent, module/API scope, permission, and resource access.
+
+### API Credential Resource Grants
+
+API credentials use the same generic access grant system as users:
+
+```http
+POST /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-control/grants
+Authorization: Bearer {ownerOrAdminTenantToken}
+Content-Type: application/json
+
+{
+  "subjectType": "apiCredential",
+  "subjectId": "1dff7a6a-545a-4790-aec1-37f5c5182fb1",
+  "resourceType": "project",
+  "resourceId": "24e4785d-d558-4511-a879-b70d5c88cd51",
+  "accessLevel": "edit"
+}
+```
+
+Module/API scopes determine which module APIs can be called. Resource grants narrow which products, projects, or records the credential may touch. Host domain rules should still enforce relationships such as product-to-project containment.
+
+### Evaluated Credential Context
+
+For the current API credential:
+
+```http
+GET /api/api-credentials/me/access
+X-API-Key: {rawApiKey}
+X-Agent-Key: codex
+```
+
+The generalized endpoint also returns credential access context when the caller is authenticated by API key:
+
+```http
+GET /api/access/me
+X-API-Key: {rawApiKey}
+X-Agent-Key: codex
+```
+
+Example response:
+
+```json
+{
+  "principalType": "apiCredential",
+  "tenantId": "225925cc-995e-4584-a63b-4f2cb4f38f6f",
+  "credentialId": "1dff7a6a-545a-4790-aec1-37f5c5182fb1",
+  "credentialName": "Codex Work Agent",
+  "agentKey": "codex",
+  "agentDisplayName": "Codex Agent",
+  "isActive": true,
+  "roles": ["API", "api-scope:work", "tool:mcp", "api-agent:codex"],
+  "roleIds": [],
+  "permissions": ["work.read", "work.update"],
+  "apiScopes": ["work"],
+  "tools": ["mcp"],
+  "allowedAgentKeys": ["codex"],
+  "resources": {
+    "project": [
+      {
+        "resourceId": "24e4785d-d558-4511-a879-b70d5c88cd51",
+        "slug": null,
+        "accessLevel": "edit",
+        "source": "grant"
+      }
+    ]
+  },
+  "capabilities": {
+    "canUseMcp": true,
+    "canAccessWorkApi": true,
+    "canActAsRequestedAgent": true
+  }
+}
+```
+
+### Agent Selectors
+
+IBeam understands these headers when validating a requested agent:
+
+```http
+X-Agent-Key: codex
+X-Api-Agent: codex
+X-Api-Agent-Key: codex
+```
+
+It also accepts claim selectors:
+
+```text
+agent_key
+api_agent_key
+apiAgentKey
+apiAgentId
+```
+
+### Normalized API Credential Claims
+
+API key authentication emits compatibility role claims and structured claims:
+
+```text
+tid = {tenantId}
+tenant_id = {tenantId}
+sub = {credentialId}
+uid = {credentialId}
+api_subject_type = credential
+principal_type = apiCredential
+api_credential_id = {credentialId}
+api_credential_name = {displayName}
+agent_key = {agentKey}
+api_agent_key = {agentKey}
+role = API
+role = api-scope:work
+role = tool:mcp
+scope = work
+tool = mcp
+allowed_agent_key = codex
+```
+
+### API Credential Authorization Policies
+
+Dynamic policy names are available for API credential access:
+
+```csharp
+[Authorize(Policy = "RequireApiScope:work")]
+[Authorize(Policy = "RequireTool:mcp")]
+[Authorize(Policy = "RequireAgent:codex")]
+```
+
+Imperative checks are available through `IApiCredentialAccessService`:
+
+```csharp
+public sealed class WorkMcpService
+{
+    private readonly IApiCredentialAccessService _access;
+
+    public WorkMcpService(IApiCredentialAccessService access)
+    {
+        _access = access;
+    }
+
+    public async Task InvokeAsync(ClaimsPrincipal principal, CancellationToken ct)
+    {
+        await _access.RequireToolAccessAsync(principal, "mcp", ct);
+        await _access.RequireApiScopeAsync(principal, "work", ct);
+        await _access.RequireAgentAccessAsync(principal, "codex", ct);
+    }
+}
+```
+
 ## Permission Management Endpoints
 
 - `GET /api/tenants/{tenantId}/permissions/catalog`
@@ -369,6 +688,171 @@ public static class HubbslyModules
 }
 ```
 
+### Layered Access Catalog
+
+Definitions/options are layered, assignments are persisted, and evaluation is unified.
+
+The effective catalog endpoint is what a frontend should use to decide what can be assigned:
+
+```http
+GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-catalog
+Authorization: Bearer {ownerOrAdminTenantToken}
+```
+
+Optional filters:
+
+```http
+GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-catalog?subjectType=user
+GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-catalog?subjectType=apiCredential
+GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-catalog?category=resource
+```
+
+Catalog items include their source, assignability, mutability, enabled state, subject type, and optional resource metadata. Duplicate keys are resolved in this precedence order:
+
+```text
+tenantOverride
+tenantDb
+hostProvider
+hostConfig
+ibeamDefault
+```
+
+Example response:
+
+```json
+{
+  "roles": [
+    {
+      "key": "Owner",
+      "label": "Owner",
+      "category": "role",
+      "source": "ibeamDefault",
+      "isAssignable": true,
+      "isMutable": false,
+      "isEnabled": true,
+      "subjectTypes": ["user"]
+    }
+  ],
+  "permissions": [
+    {
+      "key": "work.view",
+      "label": "View work",
+      "description": "Open the work board.",
+      "category": "permission",
+      "source": "hostConfig",
+      "isAssignable": true,
+      "isMutable": false,
+      "isEnabled": true,
+      "subjectTypes": ["user"],
+      "supportedAccessLevels": ["view"]
+    }
+  ],
+  "modules": [
+    {
+      "key": "work",
+      "label": "Work",
+      "description": "Work board access.",
+      "category": "module",
+      "source": "hostConfig",
+      "isAssignable": true,
+      "isMutable": false,
+      "isEnabled": true,
+      "subjectTypes": ["user", "apiCredential"],
+      "resourceType": "module",
+      "resourceId": "work",
+      "supportedAccessLevels": ["view", "edit", "manage"]
+    }
+  ],
+  "apiScopes": [
+    {
+      "key": "work",
+      "label": "Work API",
+      "description": "Allows access to Work API features.",
+      "category": "apiScope",
+      "source": "ibeamDefault",
+      "isAssignable": true,
+      "isMutable": false,
+      "isEnabled": true,
+      "subjectTypes": ["apiCredential"],
+      "resourceId": "work"
+    }
+  ],
+  "tools": [
+    {
+      "key": "mcp",
+      "label": "MCP Tools",
+      "category": "tool",
+      "source": "ibeamDefault",
+      "isAssignable": true,
+      "isMutable": false,
+      "isEnabled": true,
+      "subjectTypes": ["apiCredential"]
+    }
+  ],
+  "agents": [],
+  "resources": [
+    {
+      "key": "project:24e4785d-d558-4511-a879-b70d5c88cd51",
+      "label": "Platform",
+      "category": "resource",
+      "source": "hostProvider",
+      "isAssignable": true,
+      "isMutable": false,
+      "isEnabled": true,
+      "subjectTypes": ["user", "apiCredential"],
+      "resourceType": "project",
+      "resourceId": "24e4785d-d558-4511-a879-b70d5c88cd51",
+      "parentResourceType": "product",
+      "parentResourceId": "hubbsly",
+      "supportedAccessLevels": ["view", "edit", "manage"]
+    }
+  ],
+  "accessLevels": [
+    {
+      "key": "view",
+      "label": "View",
+      "category": "accessLevel",
+      "source": "ibeamDefault",
+      "isAssignable": true,
+      "isMutable": false,
+      "isEnabled": true,
+      "rank": 0
+    }
+  ],
+  "resourceTypes": ["project"]
+}
+```
+
+Tenant-specific catalog additions or allowed overrides are managed with:
+
+```http
+GET    /api/tenants/{tenantId}/access-catalog/overrides
+POST   /api/tenants/{tenantId}/access-catalog/overrides
+PUT    /api/tenants/{tenantId}/access-catalog/overrides/{catalogItemId}
+DELETE /api/tenants/{tenantId}/access-catalog/overrides/{catalogItemId}
+```
+
+Example tenant DB addition:
+
+```http
+POST /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-catalog/overrides
+Authorization: Bearer {ownerOrAdminTenantToken}
+Content-Type: application/json
+
+{
+  "key": "agent:atlas",
+  "label": "Atlas Agent",
+  "description": "Tenant-approved automation agent.",
+  "category": "agent",
+  "isAssignable": true,
+  "isMutable": true,
+  "isEnabled": true,
+  "subjectTypes": ["apiCredential"]
+}
+```
+
+IBeam rejects attempts to mutate a matching non-mutable system or host catalog item. New tenant additions are stored in the configured catalog override store; the Azure Table provider persists them in `AccessCatalogOverrides`.
+
 ### Dynamic Resource Catalog Provider
 
 Use `IIBeamAccessCatalogProvider` when access can be granted to tenant-specific resources such as products, projects, work boards, contacts, records, or facilities. IBeam does not need to know the app's domain schema; the host projects assignable resources into IBeam's generic catalog shape.
@@ -410,44 +894,43 @@ public sealed class HubbslyAccessCatalogProvider : IIBeamAccessCatalogProvider
             ResourceId: project.ProjectId.ToString("D"),
             Label: project.Name,
             Description: project.Status,
-            SupportedAccessLevels: ["view", "edit", "manage"])));
+            SupportedAccessLevels: ["view", "edit", "manage"],
+            ParentResourceType: "product",
+            ParentResourceId: project.ProductId.ToString("D"))));
 
         return resources;
     }
 }
 ```
 
-The access catalog endpoint merges static modules with dynamic provider resources:
+For catalog entries that are not resources, use `IIBeamAccessCatalogItemProvider`:
 
-```http
-GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-catalog
-Authorization: Bearer {ownerOrAdminTenantToken}
-```
+```csharp
+using IBeam.Identity.Interfaces;
+using IBeam.Identity.Models;
 
-Example response:
-
-```json
+public sealed class HubbslyAgentCatalogProvider : IIBeamAccessCatalogItemProvider
 {
-  "resourceTypes": ["module", "product", "project"],
-  "accessLevels": ["view", "edit", "manage"],
-  "resources": [
-    {
-      "resourceType": "module",
-      "resourceId": "work",
-      "label": "Work",
-      "description": "Work board access.",
-      "supportedAccessLevels": ["view", "edit", "manage"]
-    },
-    {
-      "resourceType": "product",
-      "resourceId": "24e4785d-d558-4511-a879-b70d5c88cd51",
-      "label": "Qurvia",
-      "description": "Remote patient monitoring product.",
-      "supportedAccessLevels": ["view", "edit", "manage"]
-    }
-  ]
+    public Task<IReadOnlyList<AccessCatalogItem>> GetCatalogItemsAsync(
+        Guid tenantId,
+        CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<AccessCatalogItem>>(
+        [
+            new(
+                Key: "codex",
+                Label: "Codex",
+                Description: "Coding and repository automation agent.",
+                Category: AccessCatalogCategories.Agent,
+                Source: AccessCatalogSources.HostProvider,
+                IsAssignable: true,
+                IsMutable: false,
+                IsEnabled: true,
+                SubjectTypes: [AccessSubjectTypes.ApiCredential])
+        ]);
 }
 ```
+
+Resource grants do not imply module or API access. A user or API credential with `project:24e4785d...:edit` still needs the relevant module grant, permission, or API scope such as `module:work` or `api-scope:work`.
 
 ### Permission Catalog Examples
 

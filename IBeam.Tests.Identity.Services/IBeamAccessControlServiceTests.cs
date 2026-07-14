@@ -87,10 +87,65 @@ public sealed class IBeamAccessControlServiceTests
         Assert.IsTrue(context.Capabilities.CanAssignOwner);
     }
 
+    [TestMethod]
+    public async Task GetAccessCatalogAsync_MergesDefaultsProvidersAndTenantOverrides()
+    {
+        var overrideItem = new AccessCatalogOverride(
+            Guid.NewGuid(),
+            TenantId,
+            "project:platform",
+            "Platform",
+            null,
+            AccessCatalogCategories.Resource,
+            true,
+            true,
+            true,
+            [AccessSubjectTypes.User, AccessSubjectTypes.ApiCredential],
+            "project",
+            "platform",
+            "product",
+            "hubbsly",
+            [AccessLevels.View, AccessLevels.Edit],
+            null,
+            DateTimeOffset.UtcNow);
+
+        var sut = CreateSut(
+            catalogOverrides: [overrideItem],
+            catalogItemProviders:
+            [
+                new FakeAccessCatalogItemProvider(
+                [
+                    new AccessCatalogItem(
+                        "atlas",
+                        "Atlas",
+                        null,
+                        AccessCatalogCategories.Agent,
+                        AccessCatalogSources.HostProvider,
+                        true,
+                        false,
+                        true,
+                        [AccessSubjectTypes.ApiCredential])
+                ])
+            ]);
+
+        var catalog = await sut.GetAccessCatalogAsync(TenantId);
+
+        Assert.IsTrue(catalog.Roles.Any(x => x.Key == "Owner" && x.Source == AccessCatalogSources.IBeamDefault));
+        Assert.IsTrue(catalog.Modules.Any(x => x.Key == "work" && x.Source == AccessCatalogSources.HostConfig));
+        Assert.IsTrue(catalog.ApiScopes.Any(x => x.Key == "work"));
+        Assert.IsTrue(catalog.Agents.Any(x => x.Key == "atlas"));
+        Assert.IsTrue(catalog.Resources.Any(x =>
+            x.Key == "project:platform" &&
+            x.Source == AccessCatalogSources.TenantDb &&
+            x.ParentResourceType == "product"));
+    }
+
     private static IBeamAccessControlService CreateSut(
         IReadOnlyList<AccessGrant>? grants = null,
+        IReadOnlyList<AccessCatalogOverride>? catalogOverrides = null,
         IPermissionCatalogProvider? catalog = null,
-        IPermissionGrantResolver? permissionResolver = null)
+        IPermissionGrantResolver? permissionResolver = null,
+        IReadOnlyList<IIBeamAccessCatalogItemProvider>? catalogItemProviders = null)
     {
         var options = new IBeamAccessControlOptions
         {
@@ -106,10 +161,14 @@ public sealed class IBeamAccessControlServiceTests
 
         return new IBeamAccessControlService(
             new FakeAccessGrantStore(grants ?? Array.Empty<AccessGrant>()),
+            new FakeAccessCatalogOverrideStore(catalogOverrides ?? Array.Empty<AccessCatalogOverride>()),
             catalog ?? new FakePermissionCatalogProvider(Array.Empty<ExposedPermission>()),
+            new FakeApiCredentialScopeCatalogProvider(),
             permissionResolver ?? CreatePermissionResolver(PermissionGrantSet.Empty).Object,
             new StaticOptionsMonitor<IBeamAccessControlOptions>(options),
             Array.Empty<IIBeamAccessCatalogProvider>(),
+            catalogItemProviders ?? Array.Empty<IIBeamAccessCatalogItemProvider>(),
+            Array.Empty<IAgentCatalogProvider>(),
             Array.Empty<IIBeamAccessRuleProvider>());
     }
 
@@ -165,6 +224,51 @@ public sealed class IBeamAccessControlServiceTests
             => throw new NotSupportedException();
     }
 
+    private sealed class FakeAccessCatalogOverrideStore : IIBeamAccessCatalogOverrideStore
+    {
+        private readonly IReadOnlyList<AccessCatalogOverride> _overrides;
+
+        public FakeAccessCatalogOverrideStore(IReadOnlyList<AccessCatalogOverride> overrides)
+        {
+            _overrides = overrides;
+        }
+
+        public Task<IReadOnlyList<AccessCatalogOverride>> GetOverridesAsync(Guid tenantId, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<AccessCatalogOverride>>(_overrides.Where(x => x.TenantId == tenantId).ToList());
+
+        public Task<AccessCatalogOverride?> GetOverrideAsync(Guid tenantId, Guid catalogItemId, CancellationToken ct = default)
+            => Task.FromResult(_overrides.FirstOrDefault(x => x.TenantId == tenantId && x.CatalogItemId == catalogItemId));
+
+        public Task<AccessCatalogOverride> UpsertOverrideAsync(Guid tenantId, Guid? catalogItemId, UpsertAccessCatalogOverrideRequest request, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
+        public Task DeleteOverrideAsync(Guid tenantId, Guid catalogItemId, CancellationToken ct = default)
+            => throw new NotSupportedException();
+    }
+
+    private sealed class FakeApiCredentialScopeCatalogProvider : IApiCredentialScopeCatalogProvider
+    {
+        public Task<IReadOnlyList<ApiScopeCatalogItem>> GetScopesAsync(Guid tenantId, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<ApiScopeCatalogItem>>(
+            [
+                new ApiScopeCatalogItem("work", "Work API", "Allows Work API calls.", "module", true, true, ModuleKey: "work"),
+                new ApiScopeCatalogItem("mcp", "MCP", "Allows MCP tool calls.", "tool", true, false)
+            ]);
+    }
+
+    private sealed class FakeAccessCatalogItemProvider : IIBeamAccessCatalogItemProvider
+    {
+        private readonly IReadOnlyList<AccessCatalogItem> _items;
+
+        public FakeAccessCatalogItemProvider(IReadOnlyList<AccessCatalogItem> items)
+        {
+            _items = items;
+        }
+
+        public Task<IReadOnlyList<AccessCatalogItem>> GetCatalogItemsAsync(Guid tenantId, CancellationToken ct = default)
+            => Task.FromResult(_items);
+    }
+
     private sealed class FakePermissionCatalogProvider : IPermissionCatalogProvider
     {
         private readonly IReadOnlyList<ExposedPermission> _permissions;
@@ -186,4 +290,3 @@ public sealed class IBeamAccessControlServiceTests
         public IDisposable? OnChange(Action<T, string?> listener) => null;
     }
 }
-

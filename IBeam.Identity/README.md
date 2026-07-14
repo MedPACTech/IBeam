@@ -73,6 +73,8 @@ Provider implementations should resolve auth identifiers through an indexed look
   - `IPermissionCatalogProvider`
   - `IIBeamAccessControlService`
   - `IIBeamAccessCatalogProvider`
+  - `IIBeamAccessCatalogItemProvider`
+  - `IIBeamAccessCatalogOverrideStore`
   - `IIBeamAccessRuleProvider`
 - options models (`JwtOptions`, `OtpOptions`, `OAuthOptions`, `FeatureOptions`, etc.)
 - lifecycle event contracts and default no-op implementations
@@ -468,6 +470,32 @@ public sealed class HubbslyAccessCatalogProvider : IIBeamAccessCatalogProvider
     }
 }
 ```
+
+The effective access catalog is layered from IBeam defaults, host configuration, host providers, and tenant DB additions or overrides. Use `IIBeamAccessCatalogProvider` for resource rows such as products and projects. Use `IIBeamAccessCatalogItemProvider` for non-resource catalog entries such as tenant-specific agents or integrations:
+
+```csharp
+public sealed class HubbslyAgentCatalogProvider : IIBeamAccessCatalogItemProvider
+{
+    public Task<IReadOnlyList<AccessCatalogItem>> GetCatalogItemsAsync(
+        Guid tenantId,
+        CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<AccessCatalogItem>>(
+        [
+            new(
+                Key: "codex",
+                Label: "Codex",
+                Description: "Coding and repository automation agent.",
+                Category: AccessCatalogCategories.Agent,
+                Source: AccessCatalogSources.HostProvider,
+                IsAssignable: true,
+                IsMutable: false,
+                IsEnabled: true,
+                SubjectTypes: [AccessSubjectTypes.ApiCredential])
+        ]);
+}
+```
+
+Tenant catalog additions and allowed overrides are persisted through `IIBeamAccessCatalogOverrideStore`; the Azure Table provider stores them in `AccessCatalogOverrides`. Assignments and grants remain separate and database-backed.
 
 ### 9) Check access from domain services
 

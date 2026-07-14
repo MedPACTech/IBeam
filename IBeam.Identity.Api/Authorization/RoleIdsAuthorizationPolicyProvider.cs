@@ -9,6 +9,9 @@ public sealed class RoleIdsAuthorizationPolicyProvider : IAuthorizationPolicyPro
     public const string PermissionPolicyPrefix = "RequirePermission:";
     public const string ModulePolicyPrefix = "RequireModule:";
     public const string ResourcePolicyPrefix = "RequireResource:";
+    public const string ApiScopePolicyPrefix = "RequireApiScope:";
+    public const string ToolPolicyPrefix = "RequireTool:";
+    public const string AgentPolicyPrefix = "RequireAgent:";
 
     private readonly DefaultAuthorizationPolicyProvider _fallbackProvider;
 
@@ -61,6 +64,42 @@ public sealed class RoleIdsAuthorizationPolicyProvider : IAuthorizationPolicyPro
             return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .AddRequirements(new RequireResourceRequirement(parts[0], parts[1], parts.ElementAtOrDefault(2) ?? "view"))
+                .Build());
+        }
+
+        if (policyName.StartsWith(ApiScopePolicyPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var moduleKey = policyName[ApiScopePolicyPrefix.Length..].Trim();
+            if (moduleKey.Length == 0)
+                return Task.FromResult<AuthorizationPolicy?>(null);
+
+            return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new RequireApiScopeRequirement(moduleKey))
+                .Build());
+        }
+
+        if (policyName.StartsWith(ToolPolicyPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var toolKey = policyName[ToolPolicyPrefix.Length..].Trim();
+            if (toolKey.Length == 0)
+                return Task.FromResult<AuthorizationPolicy?>(null);
+
+            return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new RequireToolRequirement(toolKey))
+                .Build());
+        }
+
+        if (policyName.StartsWith(AgentPolicyPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var agentKey = policyName[AgentPolicyPrefix.Length..].Trim();
+            if (agentKey.Length == 0)
+                return Task.FromResult<AuthorizationPolicy?>(null);
+
+            return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new RequireAgentRequirement(agentKey))
                 .Build());
         }
 

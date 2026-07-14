@@ -8,9 +8,28 @@ public interface IIBeamAccessCatalogProvider
     Task<IReadOnlyList<AccessCatalogResource>> GetResourcesAsync(Guid tenantId, CancellationToken ct = default);
 }
 
+public interface IIBeamAccessCatalogItemProvider
+{
+    Task<IReadOnlyList<AccessCatalogItem>> GetCatalogItemsAsync(Guid tenantId, CancellationToken ct = default);
+}
+
 public interface IIBeamAccessRuleProvider
 {
     Task<IReadOnlyList<AccessDecision>> EvaluateAsync(AccessEvaluationContext context, CancellationToken ct = default);
+}
+
+public interface IIBeamAccessCatalogOverrideStore
+{
+    Task<IReadOnlyList<AccessCatalogOverride>> GetOverridesAsync(Guid tenantId, CancellationToken ct = default);
+    Task<AccessCatalogOverride?> GetOverrideAsync(Guid tenantId, Guid catalogItemId, CancellationToken ct = default);
+
+    Task<AccessCatalogOverride> UpsertOverrideAsync(
+        Guid tenantId,
+        Guid? catalogItemId,
+        UpsertAccessCatalogOverrideRequest request,
+        CancellationToken ct = default);
+
+    Task DeleteOverrideAsync(Guid tenantId, Guid catalogItemId, CancellationToken ct = default);
 }
 
 public interface IIBeamAccessGrantStore
@@ -48,7 +67,9 @@ public interface IIBeamAccessControlService
     Task RequireResourceAccessAsync(ClaimsPrincipal principal, string resourceType, string resourceId, string minimumAccessLevel = AccessLevels.View, CancellationToken ct = default);
 
     Task<AccessCatalogDto> GetAccessCatalogAsync(Guid tenantId, CancellationToken ct = default);
+    Task<IReadOnlyList<AccessCatalogOverride>> GetAccessCatalogOverridesAsync(Guid tenantId, CancellationToken ct = default);
+    Task<AccessCatalogOverride> UpsertAccessCatalogOverrideAsync(Guid tenantId, Guid? catalogItemId, UpsertAccessCatalogOverrideRequest request, CancellationToken ct = default);
+    Task DeleteAccessCatalogOverrideAsync(Guid tenantId, Guid catalogItemId, CancellationToken ct = default);
     Task<AccessContextDto> GetCurrentAccessContextAsync(ClaimsPrincipal principal, Guid? tenantId = null, CancellationToken ct = default);
     Task<AccessDecision> CheckAccessAsync(ClaimsPrincipal principal, Guid tenantId, AccessCheckRequest request, CancellationToken ct = default);
 }
-

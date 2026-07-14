@@ -122,6 +122,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRoleAccessAuthorizer, RoleAccessAuthorizer>();
         services.TryAddScoped<IPermissionAccessStore, NoOpPermissionAccessStore>();
         services.TryAddScoped<IIBeamAccessGrantStore, NoOpAccessGrantStore>();
+        services.TryAddScoped<IIBeamAccessCatalogOverrideStore, NoOpAccessCatalogOverrideStore>();
         services.AddScoped<IPermissionGrantResolver, PermissionGrantResolver>();
         services.AddScoped<IPermissionAccessAuthorizer, PermissionAccessAuthorizer>();
         services.AddScoped<IIBeamAccessControlService, IBeamAccessControlService>();
@@ -132,12 +133,29 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IApiCredentialRoleCatalogProvider, ApiCredentialRoleCatalogProvider>();
         services.AddScoped<IApiCredentialRoleAssignmentValidator, ApiCredentialRoleAssignmentValidator>();
         services.AddScoped<IApiCredentialPrincipalFactory, ApiCredentialPrincipalFactory>();
+        services.AddScoped<IApiCredentialScopeCatalogProvider, ApiCredentialScopeCatalogProvider>();
+        services.AddScoped<IApiCredentialAccessService, ApiCredentialAccessService>();
         services.AddScoped<IApiCredentialService, ApiCredentialService>();
         services.AddScoped<IApiCredentialAuthenticator, ApiCredentialAuthenticator>();
 
 
         // Note: IOtpChallengeStore, ISender, and other dependencies must be registered by the consumer or by repository/communications packages.
 
+        return services;
+    }
+
+    public static IServiceCollection AddIBeamApiCredentials(
+        this IServiceCollection services,
+        Action<ApiCredentialOptionsBuilder> configure)
+    {
+        services.Configure<ApiCredentialOptions>(options =>
+        {
+            var builder = new ApiCredentialOptionsBuilder(options);
+            configure(builder);
+        });
+
+        services.TryAddScoped<IApiCredentialScopeCatalogProvider, ApiCredentialScopeCatalogProvider>();
+        services.TryAddScoped<IApiCredentialAccessService, ApiCredentialAccessService>();
         return services;
     }
 
@@ -161,6 +179,8 @@ public static class ServiceCollectionExtensions
         }
 
         services.TryAddScoped<IIBeamAccessGrantStore, NoOpAccessGrantStore>();
+        services.TryAddScoped<IIBeamAccessCatalogOverrideStore, NoOpAccessCatalogOverrideStore>();
+        services.TryAddScoped<IApiCredentialScopeCatalogProvider, ApiCredentialScopeCatalogProvider>();
         services.TryAddScoped<IIBeamAccessControlService, IBeamAccessControlService>();
         return services;
     }

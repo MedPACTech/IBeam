@@ -18,25 +18,37 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
     ];
 
     private readonly IIBeamAccessGrantStore _grants;
+    private readonly IIBeamAccessCatalogOverrideStore _catalogOverrides;
     private readonly IPermissionCatalogProvider _catalog;
+    private readonly IApiCredentialScopeCatalogProvider _apiScopeCatalog;
     private readonly IPermissionGrantResolver _permissionGrantResolver;
     private readonly IOptionsMonitor<IBeamAccessControlOptions> _options;
     private readonly IEnumerable<IIBeamAccessCatalogProvider> _catalogProviders;
+    private readonly IEnumerable<IIBeamAccessCatalogItemProvider> _catalogItemProviders;
+    private readonly IEnumerable<IAgentCatalogProvider> _agentCatalogProviders;
     private readonly IEnumerable<IIBeamAccessRuleProvider> _ruleProviders;
 
     public IBeamAccessControlService(
         IIBeamAccessGrantStore grants,
+        IIBeamAccessCatalogOverrideStore catalogOverrides,
         IPermissionCatalogProvider catalog,
+        IApiCredentialScopeCatalogProvider apiScopeCatalog,
         IPermissionGrantResolver permissionGrantResolver,
         IOptionsMonitor<IBeamAccessControlOptions> options,
         IEnumerable<IIBeamAccessCatalogProvider> catalogProviders,
+        IEnumerable<IIBeamAccessCatalogItemProvider> catalogItemProviders,
+        IEnumerable<IAgentCatalogProvider> agentCatalogProviders,
         IEnumerable<IIBeamAccessRuleProvider> ruleProviders)
     {
         _grants = grants ?? throw new ArgumentNullException(nameof(grants));
+        _catalogOverrides = catalogOverrides ?? throw new ArgumentNullException(nameof(catalogOverrides));
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        _apiScopeCatalog = apiScopeCatalog ?? throw new ArgumentNullException(nameof(apiScopeCatalog));
         _permissionGrantResolver = permissionGrantResolver ?? throw new ArgumentNullException(nameof(permissionGrantResolver));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _catalogProviders = catalogProviders ?? throw new ArgumentNullException(nameof(catalogProviders));
+        _catalogItemProviders = catalogItemProviders ?? throw new ArgumentNullException(nameof(catalogItemProviders));
+        _agentCatalogProviders = agentCatalogProviders ?? throw new ArgumentNullException(nameof(agentCatalogProviders));
         _ruleProviders = ruleProviders ?? throw new ArgumentNullException(nameof(ruleProviders));
     }
 
@@ -180,41 +192,261 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
         if (tenantId == Guid.Empty)
             throw new IdentityValidationException("tenantId is required.");
 
+        var items = await BuildEffectiveCatalogItemsAsync(tenantId, includeOverrides: true, ct).ConfigureAwait(false);
+        var resources = ItemsForCategory(items, AccessCatalogCategories.Resource);
+
+        return new AccessCatalogDto(
+            Roles: ItemsForCategory(items, AccessCatalogCategories.Role),
+            Permissions: ItemsForCategory(items, AccessCatalogCategories.Permission),
+            Modules: ItemsForCategory(items, AccessCatalogCategories.Module),
+            ApiScopes: ItemsForCategory(items, AccessCatalogCategories.ApiScope),
+            Tools: ItemsForCategory(items, AccessCatalogCategories.Tool),
+            Agents: ItemsForCategory(items, AccessCatalogCategories.Agent),
+            Resources: resources,
+            AccessLevels: ItemsForCategory(items, AccessCatalogCategories.AccessLevel),
+            ResourceTypes: resources
+                .Select(x => x.ResourceType)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList());
+    }
+
+    public Task<IReadOnlyList<AccessCatalogOverride>> GetAccessCatalogOverridesAsync(Guid tenantId, CancellationToken ct = default)
+    {
+        if (tenantId == Guid.Empty)
+            throw new IdentityValidationException("tenantId is required.");
+
+        return _catalogOverrides.GetOverridesAsync(tenantId, ct);
+    }
+
+    public async Task<AccessCatalogOverride> UpsertAccessCatalogOverrideAsync(
+        Guid tenantId,
+        Guid? catalogItemId,
+        UpsertAccessCatalogOverrideRequest request,
+        CancellationToken ct = default)
+    {
+        if (tenantId == Guid.Empty)
+            throw new IdentityValidationException("tenantId is required.");
+        if (request is null)
+            throw new ArgumentNullException(nameof(request));
+
+        var key = NormalizeRequired(request.Key, "key");
+        var category = NormalizeRequired(request.Category, "category");
+        var label = NormalizeRequired(request.Label, "label");
+        var normalized = new UpsertAccessCatalogOverrideRequest
+        {
+            Key = key,
+            Label = label,
+            Description = NormalizeOptional(request.Description),
+            Category = category,
+            IsAssignable = request.IsAssignable,
+            IsMutable = request.IsMutable,
+            IsEnabled = request.IsEnabled,
+            SubjectTypes = NormalizeList(request.SubjectTypes).ToList(),
+            ResourceType = NormalizeOptional(request.ResourceType),
+            ResourceId = NormalizeOptional(request.ResourceId),
+            ParentResourceType = NormalizeOptional(request.ParentResourceType),
+            ParentResourceId = NormalizeOptional(request.ParentResourceId),
+            SupportedAccessLevels = NormalizeList(request.SupportedAccessLevels).ToList(),
+            Rank = request.Rank
+        };
+
+        if (catalogItemId is null)
+        {
+            var baseItems = await BuildEffectiveCatalogItemsAsync(tenantId, includeOverrides: false, ct).ConfigureAwait(false);
+            var existing = baseItems.FirstOrDefault(x =>
+                string.Equals(x.Category, category, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(x.Key, key, StringComparison.OrdinalIgnoreCase));
+
+            if (existing is not null && !existing.IsMutable)
+                throw new IdentityValidationException($"Catalog item '{category}:{key}' is not mutable.");
+        }
+
+        return await _catalogOverrides.UpsertOverrideAsync(tenantId, catalogItemId, normalized, ct).ConfigureAwait(false);
+    }
+
+    public Task DeleteAccessCatalogOverrideAsync(Guid tenantId, Guid catalogItemId, CancellationToken ct = default)
+    {
+        if (tenantId == Guid.Empty)
+            throw new IdentityValidationException("tenantId is required.");
+        if (catalogItemId == Guid.Empty)
+            throw new IdentityValidationException("catalogItemId is required.");
+
+        return _catalogOverrides.DeleteOverrideAsync(tenantId, catalogItemId, ct);
+    }
+
+    private async Task<IReadOnlyList<AccessCatalogItem>> BuildEffectiveCatalogItemsAsync(
+        Guid tenantId,
+        bool includeOverrides,
+        CancellationToken ct)
+    {
         var options = _options.CurrentValue;
-        var resources = options.Modules
+        var items = new List<AccessCatalogItem>();
+
+        items.AddRange(options.OwnerRoleNames.Select(x => RoleItem(x, AccessCatalogSources.IBeamDefault)));
+        items.AddRange(options.AdminRoleNames.Select(x => RoleItem(x, AccessCatalogSources.IBeamDefault)));
+        items.AddRange(options.ApplicationRoleNames.Select(x => RoleItem(x, AccessCatalogSources.IBeamDefault)));
+
+        items.AddRange(options.AccessLevels
             .Where(x => !string.IsNullOrWhiteSpace(x.Key))
-            .Select(x => new AccessCatalogResource(
-                AccessResourceTypes.Module,
+            .Select(x => new AccessCatalogItem(
+                x.Key.Trim(),
+                string.IsNullOrWhiteSpace(x.Label) ? x.Key.Trim() : x.Label.Trim(),
+                null,
+                AccessCatalogCategories.AccessLevel,
+                IsBuiltInAccessLevel(x) ? AccessCatalogSources.IBeamDefault : AccessCatalogSources.HostConfig,
+                true,
+                false,
+                true,
+                SupportedAccessLevels: null,
+                Rank: x.Rank)));
+
+        items.AddRange(options.Modules
+            .Where(x => !string.IsNullOrWhiteSpace(x.Key))
+            .Select(x => new AccessCatalogItem(
                 x.Key.Trim(),
                 string.IsNullOrWhiteSpace(x.Label) ? x.Key.Trim() : x.Label.Trim(),
                 x.Description,
-                NormalizeAccessLevels(x.SupportedAccessLevels)))
-            .ToList();
+                AccessCatalogCategories.Module,
+                AccessCatalogSources.HostConfig,
+                true,
+                false,
+                true,
+                SubjectTypes: [AccessSubjectTypes.User, AccessSubjectTypes.ApiCredential],
+                ResourceType: AccessResourceTypes.Module,
+                ResourceId: x.Key.Trim(),
+                SupportedAccessLevels: NormalizeAccessLevels(x.SupportedAccessLevels))));
+
+        var permissions = await _catalog.GetExposedPermissionsAsync(ct).ConfigureAwait(false);
+        items.AddRange(permissions
+            .Where(x => !string.IsNullOrWhiteSpace(x.PermissionName))
+            .Select(x => new AccessCatalogItem(
+                x.PermissionName!.Trim(),
+                string.IsNullOrWhiteSpace(x.Label) ? x.PermissionName!.Trim() : x.Label!.Trim(),
+                x.Description,
+                AccessCatalogCategories.Permission,
+                NormalizePermissionSource(x.Source),
+                x.IsAssignable,
+                false,
+                true,
+                SubjectTypes: [AccessSubjectTypes.User],
+                ResourceType: x.ResourceType,
+                ResourceId: x.ResourceId,
+                SupportedAccessLevels: string.IsNullOrWhiteSpace(x.AccessLevel) ? null : [x.AccessLevel.Trim()])));
+
+        var apiScopes = await _apiScopeCatalog.GetScopesAsync(tenantId, ct).ConfigureAwait(false);
+        items.AddRange(apiScopes.Select(x => new AccessCatalogItem(
+            x.Key,
+            x.DisplayName,
+            x.Description,
+            string.Equals(x.Category, "tool", StringComparison.OrdinalIgnoreCase)
+                ? AccessCatalogCategories.Tool
+                : AccessCatalogCategories.ApiScope,
+            AccessCatalogSources.IBeamDefault,
+            x.IsAssignable,
+            false,
+            true,
+            SubjectTypes: [AccessSubjectTypes.ApiCredential],
+            ResourceType: x.ResourceType,
+            ResourceId: x.ModuleKey ?? x.Key,
+            SupportedAccessLevels: null)));
+
+        foreach (var provider in _agentCatalogProviders)
+        {
+            var agents = await provider.GetAgentsAsync(tenantId, ct).ConfigureAwait(false);
+            items.AddRange(agents
+                .Where(x => !string.IsNullOrWhiteSpace(x.Key))
+                .Select(x => new AccessCatalogItem(
+                    x.Key.Trim(),
+                    string.IsNullOrWhiteSpace(x.DisplayName) ? x.Key.Trim() : x.DisplayName.Trim(),
+                    x.Description,
+                    AccessCatalogCategories.Agent,
+                    AccessCatalogSources.HostProvider,
+                    x.IsAssignable,
+                    false,
+                    true,
+                    SubjectTypes: [AccessSubjectTypes.ApiCredential])));
+        }
 
         foreach (var provider in _catalogProviders)
         {
             var provided = await provider.GetResourcesAsync(tenantId, ct).ConfigureAwait(false);
-            resources.AddRange(provided.Where(x =>
-                !string.IsNullOrWhiteSpace(x.ResourceType) &&
-                !string.IsNullOrWhiteSpace(x.ResourceId)));
+            items.AddRange(provided
+                .Where(x => !string.IsNullOrWhiteSpace(x.ResourceType) && !string.IsNullOrWhiteSpace(x.ResourceId))
+                .Select(x => new AccessCatalogItem(
+                    $"{x.ResourceType.Trim()}:{x.ResourceId.Trim()}",
+                    x.Label,
+                    x.Description,
+                    AccessCatalogCategories.Resource,
+                    string.IsNullOrWhiteSpace(x.Source) ? AccessCatalogSources.HostProvider : x.Source.Trim(),
+                    x.IsAssignable,
+                    x.IsMutable,
+                    x.IsEnabled,
+                    SubjectTypes: [AccessSubjectTypes.User, AccessSubjectTypes.ApiCredential],
+                    ResourceType: x.ResourceType.Trim(),
+                    ResourceId: x.ResourceId.Trim(),
+                    ParentResourceType: NormalizeOptional(x.ParentResourceType),
+                    ParentResourceId: NormalizeOptional(x.ParentResourceId),
+                    SupportedAccessLevels: NormalizeAccessLevels(x.SupportedAccessLevels))));
         }
 
-        var accessLevels = OrderedAccessLevels().Select(x => x.Key).ToList();
-        var resourceTypes = resources
-            .Select(x => x.ResourceType)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        foreach (var provider in _catalogItemProviders)
+        {
+            var provided = await provider.GetCatalogItemsAsync(tenantId, ct).ConfigureAwait(false);
+            items.AddRange(provided
+                .Where(x => !string.IsNullOrWhiteSpace(x.Key) && !string.IsNullOrWhiteSpace(x.Category))
+                .Select(x => x with
+                {
+                    Key = x.Key.Trim(),
+                    Category = x.Category.Trim(),
+                    Source = string.IsNullOrWhiteSpace(x.Source) ? AccessCatalogSources.HostProvider : x.Source.Trim()
+                }));
+        }
 
-        return new AccessCatalogDto(
-            resourceTypes,
-            accessLevels,
-            resources
-                .GroupBy(x => $"{x.ResourceType}|{x.ResourceId}", StringComparer.OrdinalIgnoreCase)
-                .Select(x => x.First())
-                .OrderBy(x => x.ResourceType, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
-                .ToList());
+        if (includeOverrides)
+        {
+            var baseKeys = items
+                .Select(CatalogIdentity)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var overrides = await _catalogOverrides.GetOverridesAsync(tenantId, ct).ConfigureAwait(false);
+            items.AddRange(overrides.Select(x =>
+            {
+                var identity = CatalogIdentity(x.Category, x.Key);
+                var source = baseKeys.Contains(identity)
+                    ? AccessCatalogSources.TenantOverride
+                    : AccessCatalogSources.TenantDb;
+
+                return new AccessCatalogItem(
+                    x.Key,
+                    x.Label,
+                    x.Description,
+                    x.Category,
+                    source,
+                    x.IsAssignable,
+                    x.IsMutable,
+                    x.IsEnabled,
+                    x.SubjectTypes,
+                    x.ResourceType,
+                    x.ResourceId,
+                    x.ParentResourceType,
+                    x.ParentResourceId,
+                    x.SupportedAccessLevels,
+                    x.Rank);
+            }));
+        }
+
+        return items
+            .Where(x => !string.IsNullOrWhiteSpace(x.Key) && !string.IsNullOrWhiteSpace(x.Category))
+            .GroupBy(CatalogIdentity, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.OrderBy(SourceOrder).Last())
+            .Where(x => x.IsEnabled)
+            .OrderBy(x => CategoryOrder(x.Category))
+            .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     public async Task<AccessContextDto> GetCurrentAccessContextAsync(
@@ -335,6 +567,90 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
 
         return new AccessDecision(false, "none", null, request.AccessLevel);
     }
+
+    private static IReadOnlyList<AccessCatalogItem> ItemsForCategory(
+        IReadOnlyList<AccessCatalogItem> items,
+        string category)
+        => items
+            .Where(x => string.Equals(x.Category, category, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+    private static AccessCatalogItem RoleItem(string roleName, string source)
+    {
+        var key = string.IsNullOrWhiteSpace(roleName) ? string.Empty : roleName.Trim();
+        return new AccessCatalogItem(
+            key,
+            key,
+            null,
+            AccessCatalogCategories.Role,
+            source,
+            true,
+            false,
+            true,
+            SubjectTypes: [AccessSubjectTypes.User]);
+    }
+
+    private static string NormalizePermissionSource(string? source)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+            return AccessCatalogSources.HostConfig;
+
+        var value = source.Trim();
+        if (value.StartsWith("configuration", StringComparison.OrdinalIgnoreCase))
+            return AccessCatalogSources.HostConfig;
+        if (value.StartsWith("attribute", StringComparison.OrdinalIgnoreCase))
+            return AccessCatalogSources.HostProvider;
+        if (value.StartsWith("mapping", StringComparison.OrdinalIgnoreCase))
+            return AccessCatalogSources.HostConfig;
+
+        return value;
+    }
+
+    private static bool IsBuiltInAccessLevel(AccessLevelDefinition level)
+        => (string.Equals(level.Key, AccessLevels.View, StringComparison.OrdinalIgnoreCase) && level.Rank == 0) ||
+           (string.Equals(level.Key, AccessLevels.Edit, StringComparison.OrdinalIgnoreCase) && level.Rank == 10) ||
+           (string.Equals(level.Key, AccessLevels.Manage, StringComparison.OrdinalIgnoreCase) && level.Rank == 20);
+
+    private static int CategoryOrder(string category)
+        => category.ToLowerInvariant() switch
+        {
+            AccessCatalogCategories.Role => 0,
+            AccessCatalogCategories.Permission => 1,
+            AccessCatalogCategories.Module => 2,
+            AccessCatalogCategories.ApiScope => 3,
+            AccessCatalogCategories.Tool => 4,
+            AccessCatalogCategories.Agent => 5,
+            AccessCatalogCategories.Resource => 6,
+            AccessCatalogCategories.AccessLevel => 7,
+            _ => 100
+        };
+
+    private static int SourceOrder(AccessCatalogItem item)
+        => item.Source.Trim().ToLowerInvariant() switch
+        {
+            AccessCatalogSources.IBeamDefault => 0,
+            AccessCatalogSources.HostConfig => 1,
+            AccessCatalogSources.HostProvider => 2,
+            AccessCatalogSources.TenantDb => 3,
+            AccessCatalogSources.TenantOverride => 4,
+            _ => 1
+        };
+
+    private static string CatalogIdentity(AccessCatalogItem item)
+        => CatalogIdentity(item.Category, item.Key);
+
+    private static string CatalogIdentity(string category, string key)
+        => $"{category.Trim()}|{key.Trim()}";
+
+    private static IReadOnlyList<string> NormalizeList(IEnumerable<string>? values)
+        => (values ?? Array.Empty<string>())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    private static string? NormalizeOptional(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private IReadOnlyList<AccessContextModuleDto> BuildModuleContext(
         IReadOnlyList<string> roleNames,

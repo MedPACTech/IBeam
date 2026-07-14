@@ -22,6 +22,27 @@ public static class AccessLevels
     public const string Manage = "manage";
 }
 
+public static class AccessCatalogSources
+{
+    public const string IBeamDefault = "ibeamDefault";
+    public const string HostConfig = "hostConfig";
+    public const string HostProvider = "hostProvider";
+    public const string TenantDb = "tenantDb";
+    public const string TenantOverride = "tenantOverride";
+}
+
+public static class AccessCatalogCategories
+{
+    public const string Role = "role";
+    public const string Permission = "permission";
+    public const string Module = "module";
+    public const string ApiScope = "apiScope";
+    public const string Tool = "tool";
+    public const string Agent = "agent";
+    public const string Resource = "resource";
+    public const string AccessLevel = "accessLevel";
+}
+
 public sealed record AccessModuleDefinition(
     string Key,
     string Label,
@@ -42,12 +63,79 @@ public sealed record AccessCatalogResource(
     string ResourceId,
     string Label,
     string? Description = null,
-    IReadOnlyList<string>? SupportedAccessLevels = null);
+    IReadOnlyList<string>? SupportedAccessLevels = null,
+    string? ParentResourceType = null,
+    string? ParentResourceId = null,
+    string Source = AccessCatalogSources.HostProvider,
+    bool IsAssignable = true,
+    bool IsMutable = false,
+    bool IsEnabled = true);
+
+public sealed record AccessCatalogItem(
+    string Key,
+    string Label,
+    string? Description,
+    string Category,
+    string Source,
+    bool IsAssignable,
+    bool IsMutable,
+    bool IsEnabled,
+    IReadOnlyList<string>? SubjectTypes = null,
+    string? ResourceType = null,
+    string? ResourceId = null,
+    string? ParentResourceType = null,
+    string? ParentResourceId = null,
+    IReadOnlyList<string>? SupportedAccessLevels = null,
+    int? Rank = null);
 
 public sealed record AccessCatalogDto(
-    IReadOnlyList<string> ResourceTypes,
-    IReadOnlyList<string> AccessLevels,
-    IReadOnlyList<AccessCatalogResource> Resources);
+    IReadOnlyList<AccessCatalogItem> Roles,
+    IReadOnlyList<AccessCatalogItem> Permissions,
+    IReadOnlyList<AccessCatalogItem> Modules,
+    IReadOnlyList<AccessCatalogItem> ApiScopes,
+    IReadOnlyList<AccessCatalogItem> Tools,
+    IReadOnlyList<AccessCatalogItem> Agents,
+    IReadOnlyList<AccessCatalogItem> Resources,
+    IReadOnlyList<AccessCatalogItem> AccessLevels,
+    IReadOnlyList<string>? ResourceTypes = null);
+
+public sealed record AccessCatalogOverride(
+    Guid CatalogItemId,
+    Guid TenantId,
+    string Key,
+    string Label,
+    string? Description,
+    string Category,
+    bool IsAssignable,
+    bool IsMutable,
+    bool IsEnabled,
+    IReadOnlyList<string>? SubjectTypes = null,
+    string? ResourceType = null,
+    string? ResourceId = null,
+    string? ParentResourceType = null,
+    string? ParentResourceId = null,
+    IReadOnlyList<string>? SupportedAccessLevels = null,
+    int? Rank = null,
+    DateTimeOffset? CreatedAt = null,
+    DateTimeOffset? UpdatedAt = null);
+
+public sealed class UpsertAccessCatalogOverrideRequest
+{
+    public string Key { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Category { get; set; } = AccessCatalogCategories.Resource;
+    public bool IsAssignable { get; set; } = true;
+    public bool IsMutable { get; set; } = true;
+    public bool IsEnabled { get; set; } = true;
+    public List<string> SubjectTypes { get; set; } = [];
+    public string? ResourceType { get; set; }
+    public string? ResourceId { get; set; }
+    public string? ParentResourceType { get; set; }
+    public string? ParentResourceId { get; set; }
+    public List<string> SupportedAccessLevels { get; set; } = [];
+    public int? Rank { get; set; }
+}
 
 public sealed record AccessGrant(
     Guid GrantId,
@@ -66,7 +154,10 @@ public sealed record AccessCheckRequest(
     string SubjectId,
     string ResourceType,
     string ResourceId,
-    string AccessLevel = AccessLevels.View);
+    string AccessLevel = AccessLevels.View,
+    string? Module = null,
+    string? Permission = null,
+    string? AgentKey = null);
 
 public sealed record AccessDecision(
     bool IsAllowed,
@@ -112,4 +203,3 @@ public sealed record AccessCapabilitiesDto(
     bool CanManageRoles,
     bool CanManageAccess,
     bool CanAssignOwner);
-
