@@ -90,7 +90,14 @@ public sealed class PermissionCatalogProvider : IPermissionCatalogProvider
                 PermissionId: x.PermissionId,
                 Source: "configuration:catalog",
                 Resource: string.IsNullOrWhiteSpace(x.Resource) ? "Configuration" : x.Resource.Trim(),
-                Description: string.IsNullOrWhiteSpace(x.Description) ? null : x.Description.Trim()))
+                Description: string.IsNullOrWhiteSpace(x.Description) ? null : x.Description.Trim(),
+                Label: string.IsNullOrWhiteSpace(x.Label) ? null : x.Label.Trim(),
+                Category: string.IsNullOrWhiteSpace(x.Category) ? null : x.Category.Trim(),
+                IsAssignable: x.IsAssignable,
+                ModuleKey: string.IsNullOrWhiteSpace(x.ModuleKey) ? null : x.ModuleKey.Trim(),
+                ResourceType: string.IsNullOrWhiteSpace(x.ResourceType) ? null : x.ResourceType.Trim(),
+                ResourceId: string.IsNullOrWhiteSpace(x.ResourceId) ? null : x.ResourceId.Trim(),
+                AccessLevel: string.IsNullOrWhiteSpace(x.AccessLevel) ? null : x.AccessLevel.Trim()))
             .Where(HasPermissionKey)
             .ToList();
     }

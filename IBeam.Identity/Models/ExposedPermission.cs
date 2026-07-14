@@ -5,4 +5,11 @@ public sealed record ExposedPermission(
     Guid? PermissionId,
     string Source,
     string Resource,
-    string? Description = null);
+    string? Description = null,
+    string? Label = null,
+    string? Category = null,
+    bool IsAssignable = true,
+    string? ModuleKey = null,
+    string? ResourceType = null,
+    string? ResourceId = null,
+    string? AccessLevel = null);

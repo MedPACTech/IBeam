@@ -94,6 +94,9 @@ public static class ServiceCollectionExtensions
         services.AddOptions<PermissionAccessOptions>()
         .Bind(configuration.GetSection(PermissionAccessOptions.SectionName));
 
+        services.AddOptions<IBeamAccessControlOptions>()
+        .Bind(configuration.GetSection(IBeamAccessControlOptions.SectionName));
+
         services.AddOptions<ApiCredentialOptions>()
         .Bind(configuration.GetSection(ApiCredentialOptions.SectionName))
         .Validate(o =>
@@ -118,8 +121,10 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IAuthAttemptStore, InMemoryAuthAttemptStore>();
         services.AddScoped<IRoleAccessAuthorizer, RoleAccessAuthorizer>();
         services.TryAddScoped<IPermissionAccessStore, NoOpPermissionAccessStore>();
+        services.TryAddScoped<IIBeamAccessGrantStore, NoOpAccessGrantStore>();
         services.AddScoped<IPermissionGrantResolver, PermissionGrantResolver>();
         services.AddScoped<IPermissionAccessAuthorizer, PermissionAccessAuthorizer>();
+        services.AddScoped<IIBeamAccessControlService, IBeamAccessControlService>();
         services.AddSingleton<IPermissionCatalogProvider, PermissionCatalogProvider>();
         services.AddScoped<ITokenService, JwtTokenService>();
         services.AddScoped<IApiCredentialKeyGenerator, ApiCredentialKeyGenerator>();
@@ -133,6 +138,30 @@ public static class ServiceCollectionExtensions
 
         // Note: IOtpChallengeStore, ISender, and other dependencies must be registered by the consumer or by repository/communications packages.
 
+        return services;
+    }
+
+    public static IServiceCollection AddIBeamAccessControl(
+        this IServiceCollection services,
+        Action<IBeamAccessControlOptions>? configure = null)
+    {
+        if (configure is not null)
+        {
+            services.Configure(configure);
+
+            var configured = new IBeamAccessControlOptions();
+            configure(configured);
+
+            foreach (var providerType in configured.ResourceCatalogProviders.Distinct())
+            {
+                services.TryAddEnumerable(ServiceDescriptor.Scoped(
+                    typeof(IIBeamAccessCatalogProvider),
+                    providerType));
+            }
+        }
+
+        services.TryAddScoped<IIBeamAccessGrantStore, NoOpAccessGrantStore>();
+        services.TryAddScoped<IIBeamAccessControlService, IBeamAccessControlService>();
         return services;
     }
 

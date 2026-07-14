@@ -126,6 +126,7 @@ public static class ServiceCollectionExtensions
         });
         services.AddSingleton<IAuthorizationPolicyProvider, RoleIdsAuthorizationPolicyProvider>();
         services.AddScoped<IAuthorizationHandler, RequireRoleIdsAuthorizationHandler>();
+        services.AddScoped<IAuthorizationHandler, AccessControlAuthorizationHandler>();
 
         return services;
     }

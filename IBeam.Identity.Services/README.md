@@ -19,8 +19,10 @@ This package is where identity behavior is implemented. It consumes contracts fr
   - `IdentityCommunicationAdapter`
   - `PermissionAccessAuthorizer` (dynamic permission map authorization)
   - `PermissionCatalogProvider` (exposed permission catalog discovery)
+  - `IBeamAccessControlService` (roles, permissions, grants, modules, resources, and current access context)
 - DI extension methods:
   - `AddIBeamIdentityServices(IConfiguration)`
+  - `AddIBeamAccessControl(...)`
   - `AddIBeamIdentityPermissionMappings(...)`
   - `AddIBeamIdentityPermissionCatalog(...)`
   - `AddIBeamIdentityAuthPasswordService()`
@@ -67,6 +69,7 @@ The repository provider is responsible for fast identifier resolution. For Azure
 - `IBeam:Identity:TenantProvisioning` (optional; auth tenant creation/linking policy)
 - `IBeam:Identity:PermissionAccess` (optional; JSON permission map source)
 - `IBeam:Identity:RoleManagement` (optional; tenant/admin policy toggles)
+- `IBeam:Identity:AccessControl` (optional; module, access-level, and default role policy configuration)
 
 ### OTP Auto-Provision Toggle
 
@@ -194,3 +197,117 @@ builder.Services.Configure<TenantProvisioningOptions>(options =>
     options.AutoLinkUserToDefaultTenant = false;
 });
 ```
+
+## Access Control Examples
+
+### Register modules, permissions, and mappings
+
+```csharp
+using IBeam.Identity.Models;
+using IBeam.Identity.Services;
+
+builder.Services.AddIBeamIdentityServices(builder.Configuration);
+
+builder.Services.AddIBeamAccessControl(options =>
+{
+    options.OwnerRoleNames.Clear();
+    options.OwnerRoleNames.Add("Owner");
+
+    options.AdminRoleNames.Clear();
+    options.AdminRoleNames.Add("Administrator");
+    options.AdminRoleNames.Add("Admin");
+
+    options.Modules.Add(new AccessModuleDefinition(
+        Key: "work",
+        Label: "Work",
+        Description: "Work board access.",
+        SupportedAccessLevels: ["view", "edit", "manage"],
+        ImpliedByRoleNames: ["Owner", "Administrator", "Work Viewer"],
+        ImpliedByPermissionNames: ["work.view"]));
+
+    options.Modules.Add(new AccessModuleDefinition(
+        Key: "products",
+        Label: "Products",
+        Description: "Product catalog access.",
+        SupportedAccessLevels: ["view", "edit", "manage"],
+        ImpliedByRoleNames: ["Owner", "Administrator", "Product Manager"],
+        ImpliedByPermissionNames: ["products.view", "products.edit"]));
+});
+
+builder.Services.AddIBeamIdentityPermissionCatalog(catalog =>
+{
+    catalog.AddPermission(
+        "work.view",
+        resource: "Work",
+        description: "Open the work board.",
+        label: "View work",
+        category: "Work",
+        moduleKey: "work",
+        accessLevel: "view");
+
+    catalog.AddPermission(
+        "products.edit",
+        resource: "Products",
+        description: "Edit product records.",
+        label: "Edit products",
+        category: "Products",
+        moduleKey: "products",
+        accessLevel: "edit");
+});
+
+builder.Services.AddIBeamIdentityPermissionMappings(mappings =>
+{
+    mappings.AllowRolesForPermission("work.view", "Owner", "Administrator", "Work Viewer");
+    mappings.AllowRolesForPermission("products.edit", "Owner", "Administrator", "Product Manager");
+});
+```
+
+### Evaluate access imperatively
+
+```csharp
+public sealed class WorkBoardService
+{
+    private readonly IIBeamAccessControlService _access;
+
+    public WorkBoardService(IIBeamAccessControlService access)
+    {
+        _access = access;
+    }
+
+    public async Task<IReadOnlyList<WorkItemDto>> ListAsync(
+        ClaimsPrincipal user,
+        CancellationToken ct)
+    {
+        await _access.RequireModuleAccessAsync(
+            user,
+            moduleKey: "work",
+            minimumAccessLevel: "view",
+            ct);
+
+        return await LoadWorkItemsAsync(ct);
+    }
+}
+```
+
+### Build the current-user access context
+
+```csharp
+public sealed class AccessBootstrapService
+{
+    private readonly IIBeamAccessControlService _access;
+
+    public AccessBootstrapService(IIBeamAccessControlService access)
+    {
+        _access = access;
+    }
+
+    public Task<AccessContextDto> GetBootContextAsync(
+        ClaimsPrincipal user,
+        CancellationToken ct)
+    {
+        return _access.GetCurrentAccessContextAsync(user, tenantId: null, ct);
+    }
+}
+```
+
+The returned `AccessContextDto` contains role names, role IDs, resolved permissions, module access, resource grants, and convenience capabilities such as `CanManageUsers`, `CanManageRoles`, `CanManageAccess`, and `CanAssignOwner`.

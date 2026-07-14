@@ -65,11 +65,15 @@ Provider implementations should resolve auth identifiers through an indexed look
   - `ITenantMembershipStore`, `ITenantProvisioningService`, `IAuthSessionStore`
   - `ITenantRoleStore` for tenant-scoped role CRUD and assignment
   - `IPermissionAccessStore` for tenant permission-to-role mappings
+  - `IIBeamAccessGrantStore` for user, group, team, and API credential access grants
 - service contracts:
   - `ITenantRoleService`
   - `IRoleAccessAuthorizer`
   - `IPermissionAccessAuthorizer`
   - `IPermissionCatalogProvider`
+  - `IIBeamAccessControlService`
+  - `IIBeamAccessCatalogProvider`
+  - `IIBeamAccessRuleProvider`
 - options models (`JwtOptions`, `OtpOptions`, `OAuthOptions`, `FeatureOptions`, etc.)
 - lifecycle event contracts and default no-op implementations
 - role access attributes (service-safe, no MVC dependency):
@@ -105,6 +109,7 @@ Provider implementations should resolve auth identifiers through an indexed look
 - `UserTenants`: user-to-tenant membership index.
 - `TenantRoles`: tenant-scoped roles.
 - `PermissionRoleMaps`: tenant permission mapping to role names/ids.
+- `AccessGrants`: subject grants for modules and app resources.
 - `OtpChallenges`: OTP lifecycle records (destination, hash, attempts, expiry, consume state).
 - `AuthIdentifiers`: auth lookup bindings from email/SMS identifiers to canonical user ids.
 - `ExternalLogins`: OAuth provider-user links.
@@ -185,6 +190,7 @@ Azure Table providers currently resolve connection strings with fallback precede
 - `IBeam:Identity:EmailTemplates`
 - `IBeam:Identity:PermissionAccess`
 - `IBeam:Identity:RoleManagement`
+- `IBeam:Identity:AccessControl`
 
 ## Tenant Provisioning Policy
 
@@ -323,6 +329,11 @@ builder.Services.Configure<TenantProvisioningOptions>(options =>
 
 ```csharp
 builder.Services.AddIBeamIdentityApi(builder.Configuration);
+builder.Services.AddIBeamAccessControl(options =>
+{
+    options.Modules.AddRange(HubbslyModules.All);
+    options.ResourceCatalogProviders.Add<HubbslyAccessCatalogProvider>();
+});
 builder.Services.AddIBeamIdentityApiControllers();
 ```
 
@@ -415,4 +426,75 @@ await tenantRoles.EnsureTenantMembershipAndGrantRolesAsync(
         RoleNames: new[] { "Member" },
         SetAsDefault: true),
     ct);
+```
+
+### 8) Declare modules and dynamic resource catalogs
+
+```csharp
+using IBeam.Identity.Interfaces;
+using IBeam.Identity.Models;
+using IBeam.Identity.Services;
+
+builder.Services.AddIBeamAccessControl(options =>
+{
+    options.Modules.Add(new AccessModuleDefinition(
+        Key: "work",
+        Label: "Work",
+        Description: "Work board access.",
+        SupportedAccessLevels: ["view", "edit", "manage"],
+        ImpliedByRoleNames: ["Owner", "Administrator", "Work Viewer"],
+        ImpliedByPermissionNames: ["work.view"]));
+
+    options.ResourceCatalogProviders.Add<HubbslyAccessCatalogProvider>();
+});
+
+public sealed class HubbslyAccessCatalogProvider : IIBeamAccessCatalogProvider
+{
+    public Task<IReadOnlyList<AccessCatalogResource>> GetResourcesAsync(
+        Guid tenantId,
+        CancellationToken ct = default)
+    {
+        IReadOnlyList<AccessCatalogResource> resources =
+        [
+            new(
+                ResourceType: "product",
+                ResourceId: "24e4785d-d558-4511-a879-b70d5c88cd51",
+                Label: "Qurvia",
+                Description: "Remote patient monitoring product.",
+                SupportedAccessLevels: ["view", "edit", "manage"])
+        ];
+
+        return Task.FromResult(resources);
+    }
+}
+```
+
+### 9) Check access from domain services
+
+```csharp
+public sealed class ProductService
+{
+    private readonly IIBeamAccessControlService _access;
+
+    public ProductService(IIBeamAccessControlService access)
+    {
+        _access = access;
+    }
+
+    public async Task UpdateProductAsync(
+        ClaimsPrincipal user,
+        Guid productId,
+        UpdateProductRequest request,
+        CancellationToken ct)
+    {
+        await _access.RequireResourceAccessAsync(
+            user,
+            resourceType: "product",
+            resourceId: productId.ToString("D"),
+            minimumAccessLevel: "edit",
+            ct);
+
+        // Apply app-owned product update rules here.
+    }
+}
 ```

@@ -21,6 +21,13 @@ public sealed class PermissionCatalogEntry
 {
     public string? PermissionName { get; set; }
     public Guid? PermissionId { get; set; }
+    public string? Label { get; set; }
     public string? Resource { get; set; }
     public string? Description { get; set; }
+    public string? Category { get; set; }
+    public bool IsAssignable { get; set; } = true;
+    public string? ModuleKey { get; set; }
+    public string? ResourceType { get; set; }
+    public string? ResourceId { get; set; }
+    public string? AccessLevel { get; set; }
 }

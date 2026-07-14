@@ -9,13 +9,21 @@ public sealed class PermissionCatalogBuilder
     public PermissionCatalogBuilder AddPermission(
         string permissionName,
         string? resource = null,
-        string? description = null)
+        string? description = null,
+        string? label = null,
+        string? category = null,
+        string? moduleKey = null,
+        string? accessLevel = null)
     {
         _entries.Add(new PermissionCatalogEntry
         {
             PermissionName = permissionName,
             Resource = resource,
-            Description = description
+            Description = description,
+            Label = label,
+            Category = category,
+            ModuleKey = moduleKey,
+            AccessLevel = accessLevel
         });
         return this;
     }
@@ -23,13 +31,21 @@ public sealed class PermissionCatalogBuilder
     public PermissionCatalogBuilder AddPermission(
         Guid permissionId,
         string? resource = null,
-        string? description = null)
+        string? description = null,
+        string? label = null,
+        string? category = null,
+        string? moduleKey = null,
+        string? accessLevel = null)
     {
         _entries.Add(new PermissionCatalogEntry
         {
             PermissionId = permissionId,
             Resource = resource,
-            Description = description
+            Description = description,
+            Label = label,
+            Category = category,
+            ModuleKey = moduleKey,
+            AccessLevel = accessLevel
         });
         return this;
     }
