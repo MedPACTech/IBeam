@@ -16,10 +16,14 @@ public sealed record ApiCredentialRecord(
     DateTimeOffset? ExpiresUtc,
     DateTimeOffset? LastUsedUtc,
     string? LastUsedIp,
+    DateTimeOffset? RotatedUtc,
     DateTimeOffset? RevokedUtc,
     Guid? RevokedByUserId,
     string? RevocationReason,
-    bool IsDeleted)
+    bool IsDeleted,
+    string? Description = null,
+    string? AgentDisplayName = null,
+    IReadOnlyList<string>? AllowedAgentKeys = null)
 {
     public bool IsActive(DateTimeOffset now) =>
         !IsDeleted &&
@@ -40,10 +44,14 @@ public sealed record ApiCredentialInfo(
     DateTimeOffset? ExpiresUtc,
     DateTimeOffset? LastUsedUtc,
     string? LastUsedIp,
+    DateTimeOffset? RotatedUtc,
     DateTimeOffset? RevokedUtc,
     Guid? RevokedByUserId,
     string? RevocationReason,
-    bool IsDeleted)
+    bool IsDeleted,
+    string? Description = null,
+    string? AgentDisplayName = null,
+    IReadOnlyList<string>? AllowedAgentKeys = null)
 {
     public bool IsActive => !IsDeleted && RevokedUtc is null && (ExpiresUtc is null || ExpiresUtc > DateTimeOffset.UtcNow);
 
@@ -61,16 +69,23 @@ public sealed record ApiCredentialInfo(
             record.ExpiresUtc,
             record.LastUsedUtc,
             record.LastUsedIp,
+            record.RotatedUtc,
             record.RevokedUtc,
             record.RevokedByUserId,
             record.RevocationReason,
-            record.IsDeleted);
+            record.IsDeleted,
+            record.Description,
+            record.AgentDisplayName,
+            record.AllowedAgentKeys ?? Array.Empty<string>());
 }
 
 public sealed class CreateApiCredentialRequest
 {
     public string DisplayName { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public string? AgentKey { get; set; }
+    public string? AgentDisplayName { get; set; }
+    public List<string> AllowedAgentKeys { get; set; } = [];
     public List<string> RoleNames { get; set; } = [];
     public List<Guid> RoleIds { get; set; } = [];
     public DateTimeOffset? ExpiresUtc { get; set; }
@@ -82,10 +97,31 @@ public sealed class CreateApiCredentialResult
     public string ApiKey { get; set; } = string.Empty;
 }
 
+public sealed class UpdateApiCredentialRequest
+{
+    public string DisplayName { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? AgentKey { get; set; }
+    public string? AgentDisplayName { get; set; }
+    public List<string> AllowedAgentKeys { get; set; } = [];
+    public List<string> RoleNames { get; set; } = [];
+    public List<Guid> RoleIds { get; set; } = [];
+    public DateTimeOffset? ExpiresUtc { get; set; }
+}
+
 public sealed class UpdateApiCredentialRolesRequest
 {
     public List<string> RoleNames { get; set; } = [];
     public List<Guid> RoleIds { get; set; } = [];
+}
+
+public sealed class UpdateApiCredentialAccessRequest
+{
+    public List<string> RoleNames { get; set; } = [];
+    public List<Guid> RoleIds { get; set; } = [];
+    public List<string> ApiScopes { get; set; } = [];
+    public List<string> ToolScopes { get; set; } = [];
+    public List<string> AllowedAgentKeys { get; set; } = [];
 }
 
 public sealed record ApiCredentialRoleCatalogEntry(
@@ -96,6 +132,69 @@ public sealed record ApiCredentialRoleCatalogEntry(
     bool IsBuiltIn,
     bool IsPattern,
     bool IsAssignable);
+
+public sealed record ApiScopeCatalogItem(
+    string Key,
+    string DisplayName,
+    string Description,
+    string Category,
+    bool IsAssignable,
+    bool IsWildcardCapable,
+    string? RequiredParentScope = null,
+    string? ModuleKey = null,
+    string? ResourceType = null);
+
+public sealed record AgentCatalogItem(
+    string Key,
+    string DisplayName,
+    string? Description = null,
+    bool IsAssignable = true);
+
+public sealed record ApiCredentialContext(
+    Guid TenantId,
+    Guid CredentialId,
+    string CredentialName,
+    string? AgentKey,
+    bool IsActive,
+    IReadOnlyList<string> Roles,
+    IReadOnlyList<Guid> RoleIds);
+
+public sealed record ApiCredentialAccessContextDto(
+    string PrincipalType,
+    Guid TenantId,
+    Guid CredentialId,
+    string CredentialName,
+    string? AgentKey,
+    string? AgentDisplayName,
+    bool IsActive,
+    IReadOnlyList<string> Roles,
+    IReadOnlyList<Guid> RoleIds,
+    IReadOnlyList<string> Permissions,
+    IReadOnlyList<string> ApiScopes,
+    IReadOnlyList<string> Tools,
+    IReadOnlyList<string> AllowedAgentKeys,
+    IReadOnlyDictionary<string, IReadOnlyList<ApiCredentialResourceAccessDto>> Resources,
+    ApiCredentialAccessCapabilitiesDto Capabilities);
+
+public sealed record ApiCredentialResourceAccessDto(
+    string ResourceId,
+    string? Slug,
+    string AccessLevel,
+    string Source);
+
+public sealed record ApiCredentialAccessCapabilitiesDto(
+    bool CanUseMcp,
+    bool CanAccessWorkApi,
+    bool CanActAsRequestedAgent);
+
+public sealed record ApiCredentialAccessEvaluationContext(
+    Guid TenantId,
+    ApiCredentialInfo Credential,
+    ApiCredentialAccessContextDto AccessContext,
+    string? RequestedAgentKey,
+    string? ResourceType,
+    string? ResourceId,
+    string? MinimumAccessLevel);
 
 public sealed class RevokeApiCredentialRequest
 {

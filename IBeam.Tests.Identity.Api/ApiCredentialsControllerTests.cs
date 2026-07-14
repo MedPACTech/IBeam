@@ -119,12 +119,31 @@ public sealed class ApiCredentialsControllerTests
         Assert.AreEqual(StatusCodes.Status403Forbidden, ((ObjectResult)result).StatusCode);
     }
 
+    [TestMethod]
+    public async Task ScopeCatalog_ReturnsScopes_ForHumanTenantAdmin()
+    {
+        var sut = CreateController([
+            new Claim("tid", TenantId.ToString("D")),
+            new Claim("uid", UserId.ToString("D")),
+            new Claim("role", "admin")
+        ]);
+
+        var result = await sut.ScopeCatalog(TenantId, CancellationToken.None);
+
+        Assert.IsInstanceOfType<OkObjectResult>(result);
+        var entries = (IReadOnlyList<ApiScopeCatalogItem>)((OkObjectResult)result).Value!;
+        CollectionAssert.Contains(entries.Select(x => x.Key).ToList(), "work");
+        CollectionAssert.Contains(entries.Select(x => x.Key).ToList(), "mcp");
+    }
+
     private static ApiCredentialsController CreateController(IEnumerable<Claim> claims)
     {
         var controller = new ApiCredentialsController(
             new FakeApiCredentialService(),
             new FakeApiCredentialAuthenticator(),
-            new FakeApiCredentialRoleCatalogProvider())
+            new FakeApiCredentialRoleCatalogProvider(),
+            new FakeApiCredentialScopeCatalogProvider(),
+            new FakeApiCredentialAccessService())
         {
             ControllerContext = new ControllerContext
             {
@@ -161,6 +180,7 @@ public sealed class ApiCredentialsControllerTests
                     ExpiresUtc: null,
                     LastUsedUtc: null,
                     LastUsedIp: null,
+                    RotatedUtc: null,
                     RevokedUtc: null,
                     RevokedByUserId: null,
                     RevocationReason: null,
@@ -170,12 +190,63 @@ public sealed class ApiCredentialsControllerTests
         public Task<IReadOnlyList<ApiCredentialInfo>> ListAsync(Guid tenantId, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<ApiCredentialInfo>>(Array.Empty<ApiCredentialInfo>());
 
+        public Task<ApiCredentialInfo> GetAsync(Guid tenantId, Guid credentialId, CancellationToken ct = default)
+            => Task.FromResult(new ApiCredentialInfo(
+                Id: credentialId,
+                TenantId: tenantId,
+                DisplayName: "Worker",
+                AgentKey: "codex",
+                RoleNames: ["API", "api-scope:work", "tool:mcp"],
+                RoleIds: [],
+                KeyPrefix: "ibk_12345678",
+                CreatedUtc: DateTimeOffset.UtcNow,
+                CreatedByUserId: UserId,
+                ExpiresUtc: null,
+                LastUsedUtc: null,
+                LastUsedIp: null,
+                RotatedUtc: null,
+                RevokedUtc: null,
+                RevokedByUserId: null,
+                RevocationReason: null,
+                IsDeleted: false));
+
+        public Task<ApiCredentialInfo> UpdateAsync(Guid tenantId, Guid credentialId, UpdateApiCredentialRequest request, CancellationToken ct = default)
+            => GetAsync(tenantId, credentialId, ct);
+
         public Task<ApiCredentialInfo> UpdateRolesAsync(
             Guid tenantId,
             Guid credentialId,
             UpdateApiCredentialRolesRequest request,
             CancellationToken ct = default)
-            => throw new NotSupportedException();
+            => GetAsync(tenantId, credentialId, ct);
+
+        public Task<ApiCredentialAccessContextDto> GetAccessAsync(Guid tenantId, Guid credentialId, string? requestedAgentKey = null, CancellationToken ct = default)
+            => Task.FromResult(new ApiCredentialAccessContextDto(
+                AccessSubjectTypes.ApiCredential,
+                tenantId,
+                credentialId,
+                "Worker",
+                "codex",
+                "Codex",
+                true,
+                ["API"],
+                [],
+                [],
+                ["work"],
+                ["mcp"],
+                ["codex"],
+                new Dictionary<string, IReadOnlyList<ApiCredentialResourceAccessDto>>(),
+                new ApiCredentialAccessCapabilitiesDto(true, true, true)));
+
+        public Task<ApiCredentialAccessContextDto> UpdateAccessAsync(Guid tenantId, Guid credentialId, UpdateApiCredentialAccessRequest request, CancellationToken ct = default)
+            => GetAccessAsync(tenantId, credentialId, null, ct);
+
+        public Task<CreateApiCredentialResult> RotateAsync(Guid tenantId, Guid credentialId, CancellationToken ct = default)
+            => Task.FromResult(new CreateApiCredentialResult
+            {
+                ApiKey = "ibk_rotated",
+                Credential = GetAsync(tenantId, credentialId, ct).Result
+            });
 
         public Task<ApiCredentialInfo> RevokeAsync(
             Guid tenantId,
@@ -183,7 +254,10 @@ public sealed class ApiCredentialsControllerTests
             Guid? revokedByUserId,
             string? reason,
             CancellationToken ct = default)
-            => throw new NotSupportedException();
+            => GetAsync(tenantId, credentialId, ct);
+
+        public Task<ApiCredentialInfo> ActivateAsync(Guid tenantId, Guid credentialId, CancellationToken ct = default)
+            => GetAsync(tenantId, credentialId, ct);
     }
 
     private sealed class FakeApiCredentialAuthenticator : IApiCredentialAuthenticator
@@ -201,5 +275,52 @@ public sealed class ApiCredentialsControllerTests
                 new("tool:mcp", "MCP Tool Access", "Allows MCP tool access.", "mcp", true, false, true),
                 new("api-scope:work", "Work", "Allows Work tools.", "module", true, false, true)
             ]);
+    }
+
+    private sealed class FakeApiCredentialScopeCatalogProvider : IApiCredentialScopeCatalogProvider
+    {
+        public Task<IReadOnlyList<ApiScopeCatalogItem>> GetScopesAsync(Guid tenantId, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<ApiScopeCatalogItem>>(
+            [
+                new("work", "Work API", "Allows Work API access.", "module", true, true, ModuleKey: "work"),
+                new("mcp", "MCP Tools", "Allows MCP tool access.", "tool", true, false)
+            ]);
+    }
+
+    private sealed class FakeApiCredentialAccessService : IApiCredentialAccessService
+    {
+        public Task<ApiCredentialAccessContextDto> BuildAccessContextAsync(ApiCredentialInfo credential, string? requestedAgentKey = null, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
+        public Task<ApiCredentialContext?> GetCurrentApiCredentialAsync(ClaimsPrincipal principal, CancellationToken ct = default)
+            => Task.FromResult<ApiCredentialContext?>(null);
+
+        public Task<ApiCredentialAccessContextDto> GetCurrentAccessContextAsync(ClaimsPrincipal principal, string? requestedAgentKey = null, CancellationToken ct = default)
+            => Task.FromResult(new ApiCredentialAccessContextDto(
+                AccessSubjectTypes.ApiCredential,
+                TenantId,
+                Guid.NewGuid(),
+                "Worker",
+                "codex",
+                "Codex",
+                true,
+                ["API"],
+                [],
+                [],
+                ["work"],
+                ["mcp"],
+                ["codex"],
+                new Dictionary<string, IReadOnlyList<ApiCredentialResourceAccessDto>>(),
+                new ApiCredentialAccessCapabilitiesDto(true, true, true)));
+
+        public Task<bool> HasApiScopeAsync(ClaimsPrincipal principal, string moduleKey, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<bool> HasToolAccessAsync(ClaimsPrincipal principal, string toolKey, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<bool> CanActAsAgentAsync(ClaimsPrincipal principal, string agentKey, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<bool> CanCredentialActAsAgentAsync(Guid tenantId, Guid credentialId, string agentKey, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<bool> HasResourceAccessAsync(ClaimsPrincipal principal, string resourceType, string resourceId, string minimumAccessLevel = AccessLevels.View, CancellationToken ct = default) => Task.FromResult(true);
+        public Task RequireApiScopeAsync(ClaimsPrincipal principal, string moduleKey, CancellationToken ct = default) => Task.CompletedTask;
+        public Task RequireToolAccessAsync(ClaimsPrincipal principal, string toolKey, CancellationToken ct = default) => Task.CompletedTask;
+        public Task RequireAgentAccessAsync(ClaimsPrincipal principal, string agentKey, CancellationToken ct = default) => Task.CompletedTask;
+        public Task RequireResourceAccessAsync(ClaimsPrincipal principal, string resourceType, string resourceId, string minimumAccessLevel = AccessLevels.View, CancellationToken ct = default) => Task.CompletedTask;
     }
 }

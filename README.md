@@ -103,6 +103,71 @@ Configure plans under `IBeam:Licensing:Plans`, then use `ILicenseAuthorizer` or 
 - `IBeam.Identity.Repositories.AzureTable`: Azure Table-backed identity stores and schema bootstrap
 - `IBeam.Identity.Repositories.EntityFramework`: EF-backed identity store wiring (Sqlite currently active)
 
+## Unified Roles, Permissions, and Access Grants
+
+IBeam Identity can act as the source of truth for tenant roles, permission mappings, subject grants, module access, resource access, and the evaluated current-user access context.
+
+Host applications provide app-specific catalogs:
+
+- module keys such as `work`, `products`, `planning`, and `money`
+- permission names such as `users.manage`, `work.view`, and `products.edit`
+- resource types such as `product`, `project`, `contact`, and `record`
+- dynamic catalog providers that expose tenant resources to IBeam
+
+IBeam provides the shared model and endpoints:
+
+```csharp
+builder.Services.AddIBeamIdentityApi(builder.Configuration);
+builder.Services.AddIBeamAccessControl(options =>
+{
+    options.Modules.AddRange(HubbslyModules.All);
+    options.ResourceCatalogProviders.Add<HubbslyAccessCatalogProvider>();
+});
+builder.Services.AddIBeamIdentityApiControllers();
+
+app.MapIBeamAccessControlApi();
+```
+
+Core access-control endpoints:
+
+```http
+GET  /api/tenants/{tenantId}/permissions/catalog
+GET  /api/tenants/{tenantId}/permissions/mappings
+PUT  /api/tenants/{tenantId}/permissions/mappings/by-name
+
+GET  /api/tenants/{tenantId}/access-catalog
+GET  /api/tenants/{tenantId}/access-control/grants?subjectType=user&subjectId={userId}
+POST /api/tenants/{tenantId}/access-control/grants
+POST /api/tenants/{tenantId}/access-control/check
+GET  /api/access/me
+GET  /api/tenants/{tenantId}/access-control/me
+```
+
+Example grant:
+
+```json
+{
+  "subjectType": "user",
+  "subjectId": "be0b8ac1-bd87-4a70-96a2-f0cd8950d2e3",
+  "resourceType": "product",
+  "resourceId": "24e4785d-d558-4511-a879-b70d5c88cd51",
+  "accessLevel": "edit"
+}
+```
+
+Services can enforce access without duplicating app-owned role-permission tables:
+
+```csharp
+await access.RequireResourceAccessAsync(
+    User,
+    resourceType: "project",
+    resourceId: projectId.ToString("D"),
+    minimumAccessLevel: "edit",
+    ct);
+```
+
+See `IBeam.Identity.Api/README.md` for detailed setup, HTTP examples, current-user access context examples, API credential grants, dynamic resource catalog providers, and authorization policy examples.
+
 ## Tenant Roles and API Credentials
 
 IBeam Identity supports tenant-scoped roles and tenant-level API credentials. API credentials are

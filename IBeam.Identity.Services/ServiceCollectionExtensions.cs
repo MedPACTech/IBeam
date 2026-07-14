@@ -94,6 +94,9 @@ public static class ServiceCollectionExtensions
         services.AddOptions<PermissionAccessOptions>()
         .Bind(configuration.GetSection(PermissionAccessOptions.SectionName));
 
+        services.AddOptions<IBeamAccessControlOptions>()
+        .Bind(configuration.GetSection(IBeamAccessControlOptions.SectionName));
+
         services.AddOptions<ApiCredentialOptions>()
         .Bind(configuration.GetSection(ApiCredentialOptions.SectionName))
         .Validate(o =>
@@ -118,8 +121,12 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IAuthAttemptStore, InMemoryAuthAttemptStore>();
         services.AddScoped<IRoleAccessAuthorizer, RoleAccessAuthorizer>();
         services.TryAddScoped<IPermissionAccessStore, NoOpPermissionAccessStore>();
+        services.TryAddScoped<IIBeamAccessGrantStore, NoOpAccessGrantStore>();
+        services.TryAddScoped<IIBeamAccessCatalogOverrideStore, NoOpAccessCatalogOverrideStore>();
         services.AddScoped<IPermissionGrantResolver, PermissionGrantResolver>();
         services.AddScoped<IPermissionAccessAuthorizer, PermissionAccessAuthorizer>();
+        services.AddSingleton<IIBeamOperationCatalogProvider, OperationCatalogProvider>();
+        services.AddScoped<IIBeamAccessControlService, IBeamAccessControlService>();
         services.AddSingleton<IPermissionCatalogProvider, PermissionCatalogProvider>();
         services.AddScoped<ITokenService, JwtTokenService>();
         services.AddScoped<IApiCredentialKeyGenerator, ApiCredentialKeyGenerator>();
@@ -127,12 +134,56 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IApiCredentialRoleCatalogProvider, ApiCredentialRoleCatalogProvider>();
         services.AddScoped<IApiCredentialRoleAssignmentValidator, ApiCredentialRoleAssignmentValidator>();
         services.AddScoped<IApiCredentialPrincipalFactory, ApiCredentialPrincipalFactory>();
+        services.AddScoped<IApiCredentialScopeCatalogProvider, ApiCredentialScopeCatalogProvider>();
+        services.AddScoped<IApiCredentialAccessService, ApiCredentialAccessService>();
         services.AddScoped<IApiCredentialService, ApiCredentialService>();
         services.AddScoped<IApiCredentialAuthenticator, ApiCredentialAuthenticator>();
 
 
         // Note: IOtpChallengeStore, ISender, and other dependencies must be registered by the consumer or by repository/communications packages.
 
+        return services;
+    }
+
+    public static IServiceCollection AddIBeamApiCredentials(
+        this IServiceCollection services,
+        Action<ApiCredentialOptionsBuilder> configure)
+    {
+        services.Configure<ApiCredentialOptions>(options =>
+        {
+            var builder = new ApiCredentialOptionsBuilder(options);
+            configure(builder);
+        });
+
+        services.TryAddScoped<IApiCredentialScopeCatalogProvider, ApiCredentialScopeCatalogProvider>();
+        services.TryAddScoped<IApiCredentialAccessService, ApiCredentialAccessService>();
+        return services;
+    }
+
+    public static IServiceCollection AddIBeamAccessControl(
+        this IServiceCollection services,
+        Action<IBeamAccessControlOptions>? configure = null)
+    {
+        if (configure is not null)
+        {
+            services.Configure(configure);
+
+            var configured = new IBeamAccessControlOptions();
+            configure(configured);
+
+            foreach (var providerType in configured.ResourceCatalogProviders.Distinct())
+            {
+                services.TryAddEnumerable(ServiceDescriptor.Scoped(
+                    typeof(IIBeamAccessCatalogProvider),
+                    providerType));
+            }
+        }
+
+        services.TryAddScoped<IIBeamAccessGrantStore, NoOpAccessGrantStore>();
+        services.TryAddScoped<IIBeamAccessCatalogOverrideStore, NoOpAccessCatalogOverrideStore>();
+        services.TryAddScoped<IApiCredentialScopeCatalogProvider, ApiCredentialScopeCatalogProvider>();
+        services.TryAddSingleton<IIBeamOperationCatalogProvider, OperationCatalogProvider>();
+        services.TryAddScoped<IIBeamAccessControlService, IBeamAccessControlService>();
         return services;
     }
 

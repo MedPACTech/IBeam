@@ -65,11 +65,17 @@ Provider implementations should resolve auth identifiers through an indexed look
   - `ITenantMembershipStore`, `ITenantProvisioningService`, `IAuthSessionStore`
   - `ITenantRoleStore` for tenant-scoped role CRUD and assignment
   - `IPermissionAccessStore` for tenant permission-to-role mappings
+  - `IIBeamAccessGrantStore` for user, group, team, and API credential access grants
 - service contracts:
   - `ITenantRoleService`
   - `IRoleAccessAuthorizer`
   - `IPermissionAccessAuthorizer`
   - `IPermissionCatalogProvider`
+  - `IIBeamAccessControlService`
+  - `IIBeamAccessCatalogProvider`
+  - `IIBeamAccessCatalogItemProvider`
+  - `IIBeamAccessCatalogOverrideStore`
+  - `IIBeamAccessRuleProvider`
 - options models (`JwtOptions`, `OtpOptions`, `OAuthOptions`, `FeatureOptions`, etc.)
 - lifecycle event contracts and default no-op implementations
 - role access attributes (service-safe, no MVC dependency):
@@ -79,6 +85,9 @@ Provider implementations should resolve auth identifiers through an indexed look
 - dynamic permission attributes:
   - `[PermissionAccess("SavePatient")]`
   - `[PermissionAccessId("6c76f166-b130-4c80-bf7e-99d38ea1a75f")]`
+  - `[IBeamOperation("projects.delete")]`
+  - `[IBeamResourceAccess("project", "projectId", "manage")]`
+  - `[IBeamOperationTemplate("{permissionPrefix}.delete")]`
 
 ## Models vs Entities
 
@@ -105,6 +114,7 @@ Provider implementations should resolve auth identifiers through an indexed look
 - `UserTenants`: user-to-tenant membership index.
 - `TenantRoles`: tenant-scoped roles.
 - `PermissionRoleMaps`: tenant permission mapping to role names/ids.
+- `AccessGrants`: subject grants for modules and app resources.
 - `OtpChallenges`: OTP lifecycle records (destination, hash, attempts, expiry, consume state).
 - `AuthIdentifiers`: auth lookup bindings from email/SMS identifiers to canonical user ids.
 - `ExternalLogins`: OAuth provider-user links.
@@ -185,6 +195,7 @@ Azure Table providers currently resolve connection strings with fallback precede
 - `IBeam:Identity:EmailTemplates`
 - `IBeam:Identity:PermissionAccess`
 - `IBeam:Identity:RoleManagement`
+- `IBeam:Identity:AccessControl`
 
 ## Tenant Provisioning Policy
 
@@ -323,6 +334,11 @@ builder.Services.Configure<TenantProvisioningOptions>(options =>
 
 ```csharp
 builder.Services.AddIBeamIdentityApi(builder.Configuration);
+builder.Services.AddIBeamAccessControl(options =>
+{
+    options.Modules.AddRange(HubbslyModules.All);
+    options.ResourceCatalogProviders.Add<HubbslyAccessCatalogProvider>();
+});
 builder.Services.AddIBeamIdentityApiControllers();
 ```
 
@@ -415,4 +431,133 @@ await tenantRoles.EnsureTenantMembershipAndGrantRolesAsync(
         RoleNames: new[] { "Member" },
         SetAsDefault: true),
     ct);
+```
+
+### 8) Declare modules and dynamic resource catalogs
+
+```csharp
+using IBeam.Identity.Interfaces;
+using IBeam.Identity.Models;
+using IBeam.Identity.Services;
+
+builder.Services.AddIBeamAccessControl(options =>
+{
+    options.Modules.Add(new AccessModuleDefinition(
+        Key: "work",
+        Label: "Work",
+        Description: "Work board access.",
+        SupportedAccessLevels: ["view", "edit", "manage"],
+        ImpliedByRoleNames: ["Owner", "Administrator", "Work Viewer"],
+        ImpliedByPermissionNames: ["work.view"]));
+
+    options.ResourceCatalogProviders.Add<HubbslyAccessCatalogProvider>();
+});
+
+public sealed class HubbslyAccessCatalogProvider : IIBeamAccessCatalogProvider
+{
+    public Task<IReadOnlyList<AccessCatalogResource>> GetResourcesAsync(
+        Guid tenantId,
+        CancellationToken ct = default)
+    {
+        IReadOnlyList<AccessCatalogResource> resources =
+        [
+            new(
+                ResourceType: "product",
+                ResourceId: "24e4785d-d558-4511-a879-b70d5c88cd51",
+                Label: "Qurvia",
+                Description: "Remote patient monitoring product.",
+                SupportedAccessLevels: ["view", "edit", "manage"])
+        ];
+
+        return Task.FromResult(resources);
+    }
+}
+```
+
+The effective access catalog is layered from IBeam defaults, host configuration, host providers, and tenant DB additions or overrides. Use `IIBeamAccessCatalogProvider` for resource rows such as products and projects. Use `IIBeamAccessCatalogItemProvider` for non-resource catalog entries such as tenant-specific agents or integrations:
+
+```csharp
+public sealed class HubbslyAgentCatalogProvider : IIBeamAccessCatalogItemProvider
+{
+    public Task<IReadOnlyList<AccessCatalogItem>> GetCatalogItemsAsync(
+        Guid tenantId,
+        CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<AccessCatalogItem>>(
+        [
+            new(
+                Key: "codex",
+                Label: "Codex",
+                Description: "Coding and repository automation agent.",
+                Category: AccessCatalogCategories.Agent,
+                Source: AccessCatalogSources.HostProvider,
+                IsAssignable: true,
+                IsMutable: false,
+                IsEnabled: true,
+                SubjectTypes: [AccessSubjectTypes.ApiCredential])
+        ]);
+}
+```
+
+Tenant catalog additions and allowed overrides are persisted through `IIBeamAccessCatalogOverrideStore`; the Azure Table provider stores them in `AccessCatalogOverrides`. Assignments and grants remain separate and database-backed.
+
+Operation permissions are first-class catalog entries for business actions such as `projects.delete`, `work.move`, or `apiCredentials.rotate`. Use explicit service checks for enforcement and attributes for discovery:
+
+```csharp
+[IBeamOperation(
+    "projects.delete",
+    Label = "Delete Project",
+    Module = "products",
+    ResourceType = "project",
+    RequiredAccessLevel = "manage",
+    Category = "projects",
+    IsDangerous = true)]
+[IBeamResourceAccess("project", "projectId", "manage")]
+public async Task DeleteProjectAsync(Guid projectId, CancellationToken ct)
+{
+    await access.RequirePermissionAsync("projects.delete", ct);
+    await access.RequireResourceAccessAsync("project", projectId, "manage", ct);
+}
+```
+
+Generic inherited methods can use templates with the resource registry:
+
+```csharp
+options.Resources.Add<Project>("project", "projects", label: "Project", module: "products");
+
+[IBeamOperationTemplate("{permissionPrefix}.delete", Operation = "delete", IsDangerous = true)]
+[IBeamResourceAccessTemplate("{resourceKey}", "id", "manage")]
+public virtual Task DeleteAsync<T>(Guid id, CancellationToken ct = default)
+{
+    throw new NotImplementedException();
+}
+```
+
+### 9) Check access from domain services
+
+```csharp
+public sealed class ProductService
+{
+    private readonly IIBeamAccessControlService _access;
+
+    public ProductService(IIBeamAccessControlService access)
+    {
+        _access = access;
+    }
+
+    public async Task UpdateProductAsync(
+        ClaimsPrincipal user,
+        Guid productId,
+        UpdateProductRequest request,
+        CancellationToken ct)
+    {
+        await _access.RequireResourceAccessAsync(
+            user,
+            resourceType: "product",
+            resourceId: productId.ToString("D"),
+            minimumAccessLevel: "edit",
+            ct);
+
+        // Apply app-owned product update rules here.
+    }
+}
 ```

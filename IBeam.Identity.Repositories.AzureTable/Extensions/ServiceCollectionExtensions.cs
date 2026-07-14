@@ -91,6 +91,8 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
             services.AddScoped<ITenantMembershipStore, AzureTableTenantMembershipStore>();
             services.AddScoped<ITenantRoleStore, AzureTableTenantRoleStore>();
             services.AddScoped<IPermissionAccessStore, AzureTablePermissionAccessStore>();
+            services.AddScoped<IIBeamAccessGrantStore, AzureTableAccessGrantStore>();
+            services.AddScoped<IIBeamAccessCatalogOverrideStore, AzureTableAccessCatalogOverrideStore>();
             services.AddScoped<IOtpChallengeStore, AzureTableOtpChallengeStore>();
             services.AddScoped<ITenantProvisioningService, AzureTableTenantProvisioningService>();
             services.AddScoped<IExternalLoginStore, AzureTableExternalLoginStore>();

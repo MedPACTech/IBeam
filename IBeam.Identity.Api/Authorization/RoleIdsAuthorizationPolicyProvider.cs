@@ -6,6 +6,14 @@ namespace IBeam.Identity.Api.Authorization;
 public sealed class RoleIdsAuthorizationPolicyProvider : IAuthorizationPolicyProvider
 {
     public const string PolicyPrefix = "ibeam:roleids:";
+    public const string PermissionPolicyPrefix = "RequirePermission:";
+    public const string PermissionAliasPolicyPrefix = "Permission:";
+    public const string ModulePolicyPrefix = "RequireModule:";
+    public const string ResourcePolicyPrefix = "RequireResource:";
+    public const string ResourceAliasPolicyPrefix = "Resource:";
+    public const string ApiScopePolicyPrefix = "RequireApiScope:";
+    public const string ToolPolicyPrefix = "RequireTool:";
+    public const string AgentPolicyPrefix = "RequireAgent:";
 
     private readonly DefaultAuthorizationPolicyProvider _fallbackProvider;
 
@@ -22,8 +30,100 @@ public sealed class RoleIdsAuthorizationPolicyProvider : IAuthorizationPolicyPro
 
     public Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
     {
-        if (string.IsNullOrWhiteSpace(policyName) ||
-            !policyName.StartsWith(PolicyPrefix, StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(policyName))
+            return _fallbackProvider.GetPolicyAsync(policyName);
+
+        if (policyName.StartsWith(PermissionPolicyPrefix, StringComparison.OrdinalIgnoreCase) ||
+            policyName.StartsWith(PermissionAliasPolicyPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var prefixLength = policyName.StartsWith(PermissionPolicyPrefix, StringComparison.OrdinalIgnoreCase)
+                ? PermissionPolicyPrefix.Length
+                : PermissionAliasPolicyPrefix.Length;
+            var permissionName = policyName[prefixLength..].Trim();
+            if (permissionName.Length == 0)
+                return Task.FromResult<AuthorizationPolicy?>(null);
+
+            return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new RequirePermissionRequirement(permissionName))
+                .Build());
+        }
+
+        if (policyName.StartsWith(ModulePolicyPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = SplitPolicyParts(policyName[ModulePolicyPrefix.Length..]);
+            if (parts.Count == 0)
+                return Task.FromResult<AuthorizationPolicy?>(null);
+
+            return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new RequireModuleRequirement(parts[0], parts.ElementAtOrDefault(1) ?? "view"))
+                .Build());
+        }
+
+        if (policyName.StartsWith(ResourcePolicyPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = SplitPolicyParts(policyName[ResourcePolicyPrefix.Length..]);
+            if (parts.Count < 2)
+                return Task.FromResult<AuthorizationPolicy?>(null);
+
+            return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new RequireResourceRequirement(parts[0], parts[1], parts.ElementAtOrDefault(2) ?? "view"))
+                .Build());
+        }
+
+        if (policyName.StartsWith(ResourceAliasPolicyPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = SplitPolicyParts(policyName[ResourceAliasPolicyPrefix.Length..]);
+            if (parts.Count < 2)
+                return Task.FromResult<AuthorizationPolicy?>(null);
+
+            return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(parts.Count >= 3
+                    ? new RequireRouteResourceRequirement(parts[0], parts[2], parts[1])
+                    : new RequireRouteResourceRequirement(parts[0], parts[1]))
+                .Build());
+        }
+
+        if (policyName.StartsWith(ApiScopePolicyPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var moduleKey = policyName[ApiScopePolicyPrefix.Length..].Trim();
+            if (moduleKey.Length == 0)
+                return Task.FromResult<AuthorizationPolicy?>(null);
+
+            return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new RequireApiScopeRequirement(moduleKey))
+                .Build());
+        }
+
+        if (policyName.StartsWith(ToolPolicyPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var toolKey = policyName[ToolPolicyPrefix.Length..].Trim();
+            if (toolKey.Length == 0)
+                return Task.FromResult<AuthorizationPolicy?>(null);
+
+            return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new RequireToolRequirement(toolKey))
+                .Build());
+        }
+
+        if (policyName.StartsWith(AgentPolicyPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var agentKey = policyName[AgentPolicyPrefix.Length..].Trim();
+            if (agentKey.Length == 0)
+                return Task.FromResult<AuthorizationPolicy?>(null);
+
+            return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new RequireAgentRequirement(agentKey))
+                .Build());
+        }
+
+        if (!policyName.StartsWith(PolicyPrefix, StringComparison.OrdinalIgnoreCase))
             return _fallbackProvider.GetPolicyAsync(policyName);
 
         var csv = policyName[PolicyPrefix.Length..];
@@ -44,4 +144,10 @@ public sealed class RoleIdsAuthorizationPolicyProvider : IAuthorizationPolicyPro
 
         return Task.FromResult<AuthorizationPolicy?>(policy);
     }
+
+    private static IReadOnlyList<string> SplitPolicyParts(string value)
+        => value
+            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
 }

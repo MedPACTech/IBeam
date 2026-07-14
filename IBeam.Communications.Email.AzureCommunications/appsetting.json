@@ -2,10 +2,12 @@
   "IBeam": {
     "Communications": {
       "Email": {
-        "AzureCommunications": {
-          "ConnectionString": "endpoint=https://...;accesskey=...",
-          "DefaultFromAddress": "DoNotReply@yourdomain.com",
-          "DefaultFromDisplayName": "IBeam Notifications"
+        "Providers": {
+          "AzureCommunications": {
+            "ConnectionString": "endpoint=https://...;accesskey=...",
+            "DefaultFromAddress": "DoNotReply@yourdomain.com",
+            "DefaultFromDisplayName": "IBeam Notifications"
+          }
         }
       }
     }

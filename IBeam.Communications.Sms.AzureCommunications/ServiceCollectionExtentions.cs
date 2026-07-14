@@ -19,7 +19,9 @@ public static class ServiceCollectionExtensions
             {
                 o.ConnectionString = ResolveConnectionString(configuration, o.ConnectionString);
             })
-            .Validate(o => !string.IsNullOrWhiteSpace(o.ConnectionString), "ConnectionString is required.")
+            .Validate(
+                o => AzureCommunicationsSmsConnectionStringValidator.IsValid(o.ConnectionString),
+                AzureCommunicationsSmsConnectionStringValidator.FailureMessage)
             .ValidateOnStart();
 
         services.AddSingleton<ISmsService, AzureCommunicationsSmsService>();
@@ -45,9 +47,7 @@ public static class ServiceCollectionExtensions
             configuration.GetConnectionString("DefaultConnection"));
 
         if (string.IsNullOrWhiteSpace(resolved))
-            throw new InvalidOperationException(
-                "Azure Communications SMS connection string is required. Set provider ConnectionString, " +
-                "or IBeam:AzureCommunications, or IBeam:ConnectionString, or ConnectionStrings:AzureCommunications/IBeam/DefaultConnection.");
+            return string.Empty;
 
         return resolved!;
     }

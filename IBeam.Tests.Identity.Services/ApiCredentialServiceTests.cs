@@ -216,6 +216,78 @@ public sealed class ApiCredentialServiceTests
         Assert.IsFalse(pattern.IsAssignable);
     }
 
+    [TestMethod]
+    public async Task AccessService_NormalizesLegacyRoleStrings_AndCredentialGrants()
+    {
+        var fixture = CreateFixture();
+        var created = await fixture.Service.CreateAsync(
+            TenantId,
+            new CreateApiCredentialRequest
+            {
+                DisplayName = "Codex Work Agent",
+                AgentKey = "codex",
+                AllowedAgentKeys = ["codex"],
+                RoleNames = ["API", "api-scope:work", "tool:mcp", "api-agent:codex", "product:hubbsly", "project:*"]
+            },
+            Guid.NewGuid());
+
+        var grantStore = new InMemoryAccessGrantStore(
+        [
+            new AccessGrant(
+                Guid.NewGuid(),
+                TenantId,
+                AccessSubjectTypes.ApiCredential,
+                created.Credential.Id.ToString("D"),
+                "project",
+                "platform",
+                AccessLevels.Edit,
+                true,
+                DateTimeOffset.UtcNow)
+        ]);
+
+        var access = new ApiCredentialAccessService(
+            fixture.Store,
+            grantStore,
+            new FakePermissionCatalogProvider(),
+            new FakePermissionGrantResolver(),
+            Array.Empty<IApiCredentialAccessRuleProvider>());
+
+        var context = await access.BuildAccessContextAsync(created.Credential, "codex");
+
+        CollectionAssert.Contains(context.ApiScopes.ToList(), "work");
+        CollectionAssert.Contains(context.Tools.ToList(), "mcp");
+        CollectionAssert.Contains(context.AllowedAgentKeys.ToList(), "codex");
+        Assert.IsTrue(context.Capabilities.CanUseMcp);
+        Assert.IsTrue(context.Capabilities.CanAccessWorkApi);
+        Assert.IsTrue(context.Capabilities.CanActAsRequestedAgent);
+        Assert.IsTrue(context.Resources["product"].Any(x => x.ResourceId == "hubbsly"));
+        Assert.IsTrue(context.Resources["project"].Any(x => x.ResourceId == "*"));
+        Assert.IsTrue(context.Resources["project"].Any(x => x.ResourceId == "platform" && x.AccessLevel == AccessLevels.Edit));
+    }
+
+    [TestMethod]
+    public async Task RotateAsync_ReturnsNewRawSecret_AndActivateClearsRevocation()
+    {
+        var fixture = CreateFixture();
+        var created = await fixture.Service.CreateAsync(
+            TenantId,
+            new CreateApiCredentialRequest { DisplayName = "Worker", RoleNames = ["API"] },
+            Guid.NewGuid());
+
+        await fixture.Service.RevokeAsync(TenantId, created.Credential.Id, Guid.NewGuid(), "testing");
+        var rotated = await fixture.Service.RotateAsync(TenantId, created.Credential.Id);
+
+        Assert.AreNotEqual(created.ApiKey, rotated.ApiKey);
+        Assert.IsNull(rotated.Credential.RevokedUtc);
+        Assert.IsNotNull(rotated.Credential.RotatedUtc);
+
+        await fixture.Service.RevokeAsync(TenantId, created.Credential.Id, Guid.NewGuid(), "testing");
+        var activated = await fixture.Service.ActivateAsync(TenantId, created.Credential.Id);
+
+        Assert.IsNull(activated.RevokedUtc);
+        Assert.IsTrue(activated.IsActive);
+    }
+
     private static Fixture CreateFixture()
     {
         var options = Options.Create(new ApiCredentialOptions());
@@ -225,7 +297,7 @@ public sealed class ApiCredentialServiceTests
         var hasher = new ApiCredentialSecretHasher(options);
         var validator = new ApiCredentialRoleAssignmentValidator(roleStore, options);
         var principalFactory = new ApiCredentialPrincipalFactory(options);
-        var service = new ApiCredentialService(store, roleStore, validator, keyGenerator, hasher);
+        var service = new ApiCredentialService(store, roleStore, validator, keyGenerator, hasher, new FakeApiCredentialAccessService());
         var authenticator = new ApiCredentialAuthenticator(store, keyGenerator, hasher, principalFactory);
         return new Fixture(store, service, authenticator);
     }
@@ -271,6 +343,42 @@ public sealed class ApiCredentialServiceTests
             return Task.FromResult(updated);
         }
 
+        public Task<ApiCredentialRecord> UpdateAsync(ApiCredentialRecord credential, CancellationToken ct = default)
+        {
+            var current = _records[(credential.TenantId, credential.CredentialId)];
+            var updated = credential with
+            {
+                SecretHash = current.SecretHash,
+                KeyPrefix = current.KeyPrefix,
+                CreatedUtc = current.CreatedUtc,
+                CreatedByUserId = current.CreatedByUserId,
+                LastUsedUtc = current.LastUsedUtc,
+                LastUsedIp = current.LastUsedIp,
+                RotatedUtc = current.RotatedUtc
+            };
+            _records[(credential.TenantId, credential.CredentialId)] = updated;
+            return Task.FromResult(updated);
+        }
+
+        public Task<ApiCredentialRecord> RotateSecretAsync(
+            Guid tenantId,
+            Guid credentialId,
+            string secretHash,
+            DateTimeOffset rotatedUtc,
+            CancellationToken ct = default)
+        {
+            var updated = _records[(tenantId, credentialId)] with
+            {
+                SecretHash = secretHash,
+                RotatedUtc = rotatedUtc,
+                RevokedUtc = null,
+                RevokedByUserId = null,
+                RevocationReason = null
+            };
+            _records[(tenantId, credentialId)] = updated;
+            return Task.FromResult(updated);
+        }
+
         public Task<ApiCredentialRecord> RevokeAsync(
             Guid tenantId,
             Guid credentialId,
@@ -288,6 +396,18 @@ public sealed class ApiCredentialServiceTests
             return Task.FromResult(revoked);
         }
 
+        public Task<ApiCredentialRecord> ActivateAsync(Guid tenantId, Guid credentialId, CancellationToken ct = default)
+        {
+            var activated = _records[(tenantId, credentialId)] with
+            {
+                RevokedUtc = null,
+                RevokedByUserId = null,
+                RevocationReason = null
+            };
+            _records[(tenantId, credentialId)] = activated;
+            return Task.FromResult(activated);
+        }
+
         public Task TouchLastUsedAsync(
             Guid tenantId,
             Guid credentialId,
@@ -303,6 +423,105 @@ public sealed class ApiCredentialServiceTests
             _records[(tenantId, credentialId)] = touched;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class FakeApiCredentialAccessService : IApiCredentialAccessService
+    {
+        public Task<ApiCredentialAccessContextDto> BuildAccessContextAsync(ApiCredentialInfo credential, string? requestedAgentKey = null, CancellationToken ct = default)
+            => Task.FromResult(new ApiCredentialAccessContextDto(
+                AccessSubjectTypes.ApiCredential,
+                credential.TenantId,
+                credential.Id,
+                credential.DisplayName,
+                credential.AgentKey,
+                credential.AgentDisplayName,
+                credential.IsActive,
+                credential.RoleNames,
+                credential.RoleIds,
+                Array.Empty<string>(),
+                credential.RoleNames
+                    .Where(x => x.StartsWith("api-scope:", StringComparison.OrdinalIgnoreCase))
+                    .Select(x => x["api-scope:".Length..])
+                    .ToList(),
+                credential.RoleNames
+                    .Where(x => x.StartsWith("tool:", StringComparison.OrdinalIgnoreCase))
+                    .Select(x => x["tool:".Length..])
+                    .ToList(),
+                credential.AllowedAgentKeys ?? Array.Empty<string>(),
+                new Dictionary<string, IReadOnlyList<ApiCredentialResourceAccessDto>>(),
+                new ApiCredentialAccessCapabilitiesDto(false, false, true)));
+
+        public Task<ApiCredentialContext?> GetCurrentApiCredentialAsync(ClaimsPrincipal principal, CancellationToken ct = default)
+            => Task.FromResult<ApiCredentialContext?>(null);
+
+        public Task<ApiCredentialAccessContextDto> GetCurrentAccessContextAsync(ClaimsPrincipal principal, string? requestedAgentKey = null, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
+        public Task<bool> HasApiScopeAsync(ClaimsPrincipal principal, string moduleKey, CancellationToken ct = default)
+            => Task.FromResult(false);
+
+        public Task<bool> HasToolAccessAsync(ClaimsPrincipal principal, string toolKey, CancellationToken ct = default)
+            => Task.FromResult(false);
+
+        public Task<bool> CanActAsAgentAsync(ClaimsPrincipal principal, string agentKey, CancellationToken ct = default)
+            => Task.FromResult(false);
+
+        public Task<bool> CanCredentialActAsAgentAsync(Guid tenantId, Guid credentialId, string agentKey, CancellationToken ct = default)
+            => Task.FromResult(false);
+
+        public Task<bool> HasResourceAccessAsync(ClaimsPrincipal principal, string resourceType, string resourceId, string minimumAccessLevel = AccessLevels.View, CancellationToken ct = default)
+            => Task.FromResult(false);
+
+        public Task RequireApiScopeAsync(ClaimsPrincipal principal, string moduleKey, CancellationToken ct = default)
+            => Task.CompletedTask;
+
+        public Task RequireToolAccessAsync(ClaimsPrincipal principal, string toolKey, CancellationToken ct = default)
+            => Task.CompletedTask;
+
+        public Task RequireAgentAccessAsync(ClaimsPrincipal principal, string agentKey, CancellationToken ct = default)
+            => Task.CompletedTask;
+
+        public Task RequireResourceAccessAsync(ClaimsPrincipal principal, string resourceType, string resourceId, string minimumAccessLevel = AccessLevels.View, CancellationToken ct = default)
+            => Task.CompletedTask;
+    }
+
+    private sealed class InMemoryAccessGrantStore : IIBeamAccessGrantStore
+    {
+        private readonly IReadOnlyList<AccessGrant> _grants;
+
+        public InMemoryAccessGrantStore(IReadOnlyList<AccessGrant> grants)
+        {
+            _grants = grants;
+        }
+
+        public Task<IReadOnlyList<AccessGrant>> GetGrantsAsync(Guid tenantId, string? subjectType = null, string? subjectId = null, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<AccessGrant>>(
+                _grants
+                    .Where(x => x.TenantId == tenantId)
+                    .Where(x => string.IsNullOrWhiteSpace(subjectType) || string.Equals(x.SubjectType, subjectType, StringComparison.OrdinalIgnoreCase))
+                    .Where(x => string.IsNullOrWhiteSpace(subjectId) || string.Equals(x.SubjectId, subjectId, StringComparison.OrdinalIgnoreCase))
+                    .ToList());
+
+        public Task<AccessGrant?> GetGrantAsync(Guid tenantId, Guid grantId, CancellationToken ct = default)
+            => Task.FromResult(_grants.FirstOrDefault(x => x.TenantId == tenantId && x.GrantId == grantId));
+
+        public Task<AccessGrant> UpsertGrantAsync(Guid tenantId, Guid? grantId, string subjectType, string subjectId, string resourceType, string resourceId, string accessLevel, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
+        public Task DeleteGrantAsync(Guid tenantId, Guid grantId, CancellationToken ct = default)
+            => throw new NotSupportedException();
+    }
+
+    private sealed class FakePermissionCatalogProvider : IPermissionCatalogProvider
+    {
+        public Task<IReadOnlyList<ExposedPermission>> GetExposedPermissionsAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<ExposedPermission>>(Array.Empty<ExposedPermission>());
+    }
+
+    private sealed class FakePermissionGrantResolver : IBeam.Identity.Services.Authorization.IPermissionGrantResolver
+    {
+        public Task<PermissionGrantSet> ResolveAsync(Guid tenantId, IReadOnlyList<string> permissionNames, IReadOnlyList<Guid> permissionIds, CancellationToken ct = default)
+            => Task.FromResult(PermissionGrantSet.Empty);
     }
 
     private sealed class FakeTenantRoleStore : ITenantRoleStore

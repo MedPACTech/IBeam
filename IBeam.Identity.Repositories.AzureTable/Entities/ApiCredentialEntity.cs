@@ -13,7 +13,10 @@ internal sealed class ApiCredentialEntity : ITableEntity
     public string CredentialId { get; set; } = default!;
     public string TenantId { get; set; } = default!;
     public string DisplayName { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public string? AgentKey { get; set; }
+    public string? AgentDisplayName { get; set; }
+    public string AllowedAgentKeysCsv { get; set; } = string.Empty;
     public string KeyPrefix { get; set; } = string.Empty;
     public string SecretHash { get; set; } = string.Empty;
     public string RoleNamesCsv { get; set; } = string.Empty;
@@ -23,6 +26,7 @@ internal sealed class ApiCredentialEntity : ITableEntity
     public DateTimeOffset? ExpiresUtc { get; set; }
     public DateTimeOffset? LastUsedUtc { get; set; }
     public string? LastUsedIp { get; set; }
+    public DateTimeOffset? RotatedUtc { get; set; }
     public DateTimeOffset? RevokedUtc { get; set; }
     public string? RevokedByUserId { get; set; }
     public string? RevocationReason { get; set; }

@@ -29,6 +29,8 @@ public sealed class AzureTableIdentityOptions
     public string AuthSessionsTableName { get; set; } = "AuthSessions";
     public string ApiCredentialsTableName { get; set; } = "ApiCredentials";
     public string PermissionRoleMapsTableName { get; set; } = "PermissionRoleMaps";
+    public string AccessGrantsTableName { get; set; } = "AccessGrants";
+    public string AccessCatalogOverridesTableName { get; set; } = "AccessCatalogOverrides";
     public string AuthAttemptsTableName { get; set; } = "AuthAttempts";
     public string SystemLogsTableName { get; set; } = "SystemLogs";
     public string SystemErrorsTableName { get; set; } = "SystemErrors";
@@ -82,6 +84,14 @@ public sealed class AzureTableIdentityOptions
     // PermissionRoleMaps: PK = "TEN|{tenantId}", RK = "NAM|{hash}" or "ID|{permissionId}"
     public string PermissionRoleMapsPk(Guid tenantId) => $"TEN|{tenantId:D}";
 
+    // AccessGrants: PK = "TEN|{tenantId}", RK = "GRA|{grantId}"
+    public string AccessGrantsPk(Guid tenantId) => $"TEN|{tenantId:D}";
+    public string AccessGrantsRk(Guid grantId) => $"GRA|{grantId:D}";
+
+    // AccessCatalogOverrides: PK = "TEN|{tenantId}", RK = "CAT|{catalogItemId}"
+    public string AccessCatalogOverridesPk(Guid tenantId) => $"TEN|{tenantId:D}";
+    public string AccessCatalogOverridesRk(Guid catalogItemId) => $"CAT|{catalogItemId:D}";
+
     // ApiCredentials: PK = "TEN|{tenantId}", RK = "CRED|{credentialId}"
     public string ApiCredentialsPk(Guid tenantId) => $"TEN|{tenantId:D}";
     public string ApiCredentialsRk(Guid credentialId) => $"CRED|{credentialId:D}";
@@ -113,6 +123,8 @@ public sealed class AzureTableIdentityOptions
         AuthSessionsTableName = NormalizeOrDefault(AuthSessionsTableName, "AuthSessions");
         ApiCredentialsTableName = NormalizeOrDefault(ApiCredentialsTableName, "ApiCredentials");
         PermissionRoleMapsTableName = NormalizeOrDefault(PermissionRoleMapsTableName, "PermissionRoleMaps");
+        AccessGrantsTableName = NormalizeOrDefault(AccessGrantsTableName, "AccessGrants");
+        AccessCatalogOverridesTableName = NormalizeOrDefault(AccessCatalogOverridesTableName, "AccessCatalogOverrides");
         AuthAttemptsTableName = NormalizeOrDefault(AuthAttemptsTableName, "AuthAttempts");
         SystemLogsTableName = NormalizeOrDefault(SystemLogsTableName, "SystemLogs");
         SystemErrorsTableName = NormalizeOrDefault(SystemErrorsTableName, "SystemErrors");
@@ -132,6 +144,8 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(AuthSessionsTableName, nameof(AuthSessionsTableName));
         ValidateTableName(ApiCredentialsTableName, nameof(ApiCredentialsTableName));
         ValidateTableName(PermissionRoleMapsTableName, nameof(PermissionRoleMapsTableName));
+        ValidateTableName(AccessGrantsTableName, nameof(AccessGrantsTableName));
+        ValidateTableName(AccessCatalogOverridesTableName, nameof(AccessCatalogOverridesTableName));
         ValidateTableName(AuthAttemptsTableName, nameof(AuthAttemptsTableName));
         ValidateTableName(SystemLogsTableName, nameof(SystemLogsTableName));
         ValidateTableName(SystemErrorsTableName, nameof(SystemErrorsTableName));
@@ -154,6 +168,8 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(FullTableName(AuthSessionsTableName), nameof(TablePrefix) + "+" + nameof(AuthSessionsTableName));
         ValidateTableName(FullTableName(ApiCredentialsTableName), nameof(TablePrefix) + "+" + nameof(ApiCredentialsTableName));
         ValidateTableName(FullTableName(PermissionRoleMapsTableName), nameof(TablePrefix) + "+" + nameof(PermissionRoleMapsTableName));
+        ValidateTableName(FullTableName(AccessGrantsTableName), nameof(TablePrefix) + "+" + nameof(AccessGrantsTableName));
+        ValidateTableName(FullTableName(AccessCatalogOverridesTableName), nameof(TablePrefix) + "+" + nameof(AccessCatalogOverridesTableName));
         ValidateTableName(FullTableName(AuthAttemptsTableName), nameof(TablePrefix) + "+" + nameof(AuthAttemptsTableName));
         ValidateTableName(FullTableName(SystemLogsTableName), nameof(TablePrefix) + "+" + nameof(SystemLogsTableName));
         ValidateTableName(FullTableName(SystemErrorsTableName), nameof(TablePrefix) + "+" + nameof(SystemErrorsTableName));
