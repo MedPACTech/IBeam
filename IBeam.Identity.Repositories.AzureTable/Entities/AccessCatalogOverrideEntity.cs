@@ -26,6 +26,10 @@ internal sealed class AccessCatalogOverrideEntity : ITableEntity
     public string? ParentResourceId { get; set; }
     public string? SupportedAccessLevelsCsv { get; set; }
     public int? Rank { get; set; }
+    public string? ModuleKey { get; set; }
+    public string? RequiredAccessLevel { get; set; }
+    public bool IsDangerous { get; set; }
+    public string? IdParameter { get; set; }
     public string Status { get; set; } = "Active";
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }

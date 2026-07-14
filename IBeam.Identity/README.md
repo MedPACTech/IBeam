@@ -85,6 +85,9 @@ Provider implementations should resolve auth identifiers through an indexed look
 - dynamic permission attributes:
   - `[PermissionAccess("SavePatient")]`
   - `[PermissionAccessId("6c76f166-b130-4c80-bf7e-99d38ea1a75f")]`
+  - `[IBeamOperation("projects.delete")]`
+  - `[IBeamResourceAccess("project", "projectId", "manage")]`
+  - `[IBeamOperationTemplate("{permissionPrefix}.delete")]`
 
 ## Models vs Entities
 
@@ -496,6 +499,38 @@ public sealed class HubbslyAgentCatalogProvider : IIBeamAccessCatalogItemProvide
 ```
 
 Tenant catalog additions and allowed overrides are persisted through `IIBeamAccessCatalogOverrideStore`; the Azure Table provider stores them in `AccessCatalogOverrides`. Assignments and grants remain separate and database-backed.
+
+Operation permissions are first-class catalog entries for business actions such as `projects.delete`, `work.move`, or `apiCredentials.rotate`. Use explicit service checks for enforcement and attributes for discovery:
+
+```csharp
+[IBeamOperation(
+    "projects.delete",
+    Label = "Delete Project",
+    Module = "products",
+    ResourceType = "project",
+    RequiredAccessLevel = "manage",
+    Category = "projects",
+    IsDangerous = true)]
+[IBeamResourceAccess("project", "projectId", "manage")]
+public async Task DeleteProjectAsync(Guid projectId, CancellationToken ct)
+{
+    await access.RequirePermissionAsync("projects.delete", ct);
+    await access.RequireResourceAccessAsync("project", projectId, "manage", ct);
+}
+```
+
+Generic inherited methods can use templates with the resource registry:
+
+```csharp
+options.Resources.Add<Project>("project", "projects", label: "Project", module: "products");
+
+[IBeamOperationTemplate("{permissionPrefix}.delete", Operation = "delete", IsDangerous = true)]
+[IBeamResourceAccessTemplate("{resourceKey}", "id", "manage")]
+public virtual Task DeleteAsync<T>(Guid id, CancellationToken ct = default)
+{
+    throw new NotImplementedException();
+}
+```
 
 ### 9) Check access from domain services
 

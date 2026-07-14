@@ -33,6 +33,10 @@ public sealed class NoOpAccessCatalogOverrideStore : IIBeamAccessCatalogOverride
             request.ParentResourceId,
             request.SupportedAccessLevels,
             request.Rank,
+            request.ModuleKey,
+            request.RequiredAccessLevel,
+            request.IsDangerous,
+            request.IdParameter,
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow));
 

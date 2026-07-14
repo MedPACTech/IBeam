@@ -80,6 +80,29 @@ public sealed class AccessControlController : ControllerBase
         return Ok(overrides);
     }
 
+    [HttpGet("/api/tenants/{tenantId:guid}/access-catalog/operations")]
+    public async Task<IActionResult> GetOperationCatalog(
+        Guid tenantId,
+        [FromQuery] string? module,
+        [FromQuery] string? resourceType,
+        [FromQuery] bool? isDangerous,
+        CancellationToken ct)
+    {
+        if (!TryAuthorizeTenantRoleAdmin(tenantId, out var forbidden))
+            return forbidden;
+
+        var operations = await _access.GetOperationCatalogAsync(tenantId, ct);
+        operations = operations
+            .Where(x => string.IsNullOrWhiteSpace(module) ||
+                        string.Equals(x.ModuleKey, module.Trim(), StringComparison.OrdinalIgnoreCase))
+            .Where(x => string.IsNullOrWhiteSpace(resourceType) ||
+                        string.Equals(x.ResourceType, resourceType.Trim(), StringComparison.OrdinalIgnoreCase))
+            .Where(x => isDangerous is null || x.IsDangerous == isDangerous.Value)
+            .ToList();
+
+        return Ok(operations);
+    }
+
     [HttpPost("/api/tenants/{tenantId:guid}/access-catalog/overrides")]
     public async Task<IActionResult> CreateAccessCatalogOverride(
         Guid tenantId,
@@ -241,26 +264,26 @@ public sealed class AccessControlController : ControllerBase
 
             if (!string.IsNullOrWhiteSpace(req.AgentKey) &&
                 !context.Capabilities.CanActAsRequestedAgent)
-                return new AccessDecision(false, "agent", $"Credential cannot act as agent '{req.AgentKey}'.", req.AccessLevel);
+                return new AccessDecision(false, "agent", $"Credential cannot act as agent '{req.AgentKey}'.", EffectiveAccessLevel(req));
 
             if (!string.IsNullOrWhiteSpace(req.Module) &&
                 !ContainsWildcardOrValue(context.ApiScopes, req.Module))
-                return new AccessDecision(false, "api-scope", $"API scope '{req.Module}' is required.", req.AccessLevel);
+                return new AccessDecision(false, "api-scope", $"API scope '{req.Module}' is required.", EffectiveAccessLevel(req));
 
             if (!string.IsNullOrWhiteSpace(req.Permission) &&
                 !context.Permissions.Contains(req.Permission.Trim(), StringComparer.OrdinalIgnoreCase))
-                return new AccessDecision(false, "permission", $"Permission '{req.Permission}' is required.", req.AccessLevel);
+                return new AccessDecision(false, "permission", $"Permission '{req.Permission}' is required.", EffectiveAccessLevel(req));
 
             if (!string.IsNullOrWhiteSpace(req.ResourceType) &&
                 !string.IsNullOrWhiteSpace(req.ResourceId) &&
-                !HasCredentialResourceAccess(context, req.ResourceType, req.ResourceId, req.AccessLevel))
-                return new AccessDecision(false, "resource", null, req.AccessLevel);
+                !HasCredentialResourceAccess(context, req.ResourceType, req.ResourceId, EffectiveAccessLevel(req)))
+                return new AccessDecision(false, "resource", null, EffectiveAccessLevel(req));
 
-            return new AccessDecision(true, "apiCredential", null, req.AccessLevel);
+            return new AccessDecision(true, "apiCredential", null, EffectiveAccessLevel(req));
         }
         catch (IdentityNotFoundException ex)
         {
-            return new AccessDecision(false, "not_found", ex.Message, req.AccessLevel);
+            return new AccessDecision(false, "not_found", ex.Message, EffectiveAccessLevel(req));
         }
     }
 
@@ -339,6 +362,7 @@ public sealed class AccessControlController : ControllerBase
         return new AccessCatalogDto(
             roles,
             permissions,
+            FilterItems(catalog.Operations, subjectType, category),
             modules,
             apiScopes,
             tools,
@@ -353,6 +377,11 @@ public sealed class AccessControlController : ControllerBase
                 .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                 .ToList());
     }
+
+    private static string EffectiveAccessLevel(AccessCheckRequest request)
+        => string.IsNullOrWhiteSpace(request.MinimumAccessLevel)
+            ? request.AccessLevel
+            : request.MinimumAccessLevel.Trim();
 
     private static IReadOnlyList<AccessCatalogItem> FilterItems(
         IReadOnlyList<AccessCatalogItem> items,

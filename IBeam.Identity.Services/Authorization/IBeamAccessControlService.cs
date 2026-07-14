@@ -20,6 +20,7 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
     private readonly IIBeamAccessGrantStore _grants;
     private readonly IIBeamAccessCatalogOverrideStore _catalogOverrides;
     private readonly IPermissionCatalogProvider _catalog;
+    private readonly IIBeamOperationCatalogProvider _operationCatalog;
     private readonly IApiCredentialScopeCatalogProvider _apiScopeCatalog;
     private readonly IPermissionGrantResolver _permissionGrantResolver;
     private readonly IOptionsMonitor<IBeamAccessControlOptions> _options;
@@ -32,6 +33,7 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
         IIBeamAccessGrantStore grants,
         IIBeamAccessCatalogOverrideStore catalogOverrides,
         IPermissionCatalogProvider catalog,
+        IIBeamOperationCatalogProvider operationCatalog,
         IApiCredentialScopeCatalogProvider apiScopeCatalog,
         IPermissionGrantResolver permissionGrantResolver,
         IOptionsMonitor<IBeamAccessControlOptions> options,
@@ -43,6 +45,7 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
         _grants = grants ?? throw new ArgumentNullException(nameof(grants));
         _catalogOverrides = catalogOverrides ?? throw new ArgumentNullException(nameof(catalogOverrides));
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        _operationCatalog = operationCatalog ?? throw new ArgumentNullException(nameof(operationCatalog));
         _apiScopeCatalog = apiScopeCatalog ?? throw new ArgumentNullException(nameof(apiScopeCatalog));
         _permissionGrantResolver = permissionGrantResolver ?? throw new ArgumentNullException(nameof(permissionGrantResolver));
         _options = options ?? throw new ArgumentNullException(nameof(options));
@@ -198,6 +201,7 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
         return new AccessCatalogDto(
             Roles: ItemsForCategory(items, AccessCatalogCategories.Role),
             Permissions: ItemsForCategory(items, AccessCatalogCategories.Permission),
+            Operations: ItemsForCategory(items, AccessCatalogCategories.Operation),
             Modules: ItemsForCategory(items, AccessCatalogCategories.Module),
             ApiScopes: ItemsForCategory(items, AccessCatalogCategories.ApiScope),
             Tools: ItemsForCategory(items, AccessCatalogCategories.Tool),
@@ -211,6 +215,14 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                 .ToList());
+    }
+
+    public Task<IReadOnlyList<AccessOperationCatalogItem>> GetOperationCatalogAsync(Guid tenantId, CancellationToken ct = default)
+    {
+        if (tenantId == Guid.Empty)
+            throw new IdentityValidationException("tenantId is required.");
+
+        return _operationCatalog.GetOperationsAsync(tenantId, ct);
     }
 
     public Task<IReadOnlyList<AccessCatalogOverride>> GetAccessCatalogOverridesAsync(Guid tenantId, CancellationToken ct = default)
@@ -250,7 +262,11 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
             ParentResourceType = NormalizeOptional(request.ParentResourceType),
             ParentResourceId = NormalizeOptional(request.ParentResourceId),
             SupportedAccessLevels = NormalizeList(request.SupportedAccessLevels).ToList(),
-            Rank = request.Rank
+            Rank = request.Rank,
+            ModuleKey = NormalizeOptional(request.ModuleKey),
+            RequiredAccessLevel = NormalizeOptional(request.RequiredAccessLevel),
+            IsDangerous = request.IsDangerous,
+            IdParameter = NormalizeOptional(request.IdParameter)
         };
 
         if (catalogItemId is null)
@@ -334,7 +350,27 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
                 SubjectTypes: [AccessSubjectTypes.User],
                 ResourceType: x.ResourceType,
                 ResourceId: x.ResourceId,
-                SupportedAccessLevels: string.IsNullOrWhiteSpace(x.AccessLevel) ? null : [x.AccessLevel.Trim()])));
+                SupportedAccessLevels: string.IsNullOrWhiteSpace(x.AccessLevel) ? null : [x.AccessLevel.Trim()],
+                ModuleKey: x.ModuleKey,
+                RequiredAccessLevel: x.AccessLevel)));
+
+        var operations = await _operationCatalog.GetOperationsAsync(tenantId, ct).ConfigureAwait(false);
+        items.AddRange(operations.Select(x => new AccessCatalogItem(
+            x.Key,
+            x.Label,
+            x.Description,
+            AccessCatalogCategories.Operation,
+            NormalizeOperationSource(x.Source),
+            x.IsAssignable,
+            false,
+            true,
+            SubjectTypes: [AccessSubjectTypes.User, AccessSubjectTypes.ApiCredential],
+            ResourceType: x.ResourceType,
+            SupportedAccessLevels: string.IsNullOrWhiteSpace(x.RequiredAccessLevel) ? null : [x.RequiredAccessLevel],
+            ModuleKey: x.ModuleKey,
+            RequiredAccessLevel: x.RequiredAccessLevel,
+            IsDangerous: x.IsDangerous,
+            IdParameter: x.IdParameter)));
 
         var apiScopes = await _apiScopeCatalog.GetScopesAsync(tenantId, ct).ConfigureAwait(false);
         items.AddRange(apiScopes.Select(x => new AccessCatalogItem(
@@ -434,7 +470,11 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
                     x.ParentResourceType,
                     x.ParentResourceId,
                     x.SupportedAccessLevels,
-                    x.Rank);
+                    x.Rank,
+                    x.ModuleKey,
+                    x.RequiredAccessLevel,
+                    x.IsDangerous,
+                    x.IdParameter);
             }));
         }
 
@@ -541,8 +581,8 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
 
         if (directGrants.Any(x =>
             IsActiveMatch(x, request.ResourceType, request.ResourceId) &&
-            MeetsMinimumAccess(x.AccessLevel, request.AccessLevel)))
-            return new AccessDecision(true, "grant", null, request.AccessLevel);
+            MeetsMinimumAccess(x.AccessLevel, EffectiveAccessLevel(request))))
+            return new AccessDecision(true, "grant", null, EffectiveAccessLevel(request));
 
         var context = new AccessEvaluationContext(
             tenantId,
@@ -551,7 +591,7 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
             requestedSubjectId,
             NormalizeRequired(request.ResourceType, "resourceType"),
             NormalizeRequired(request.ResourceId, "resourceId"),
-            NormalizeRequired(request.AccessLevel, "accessLevel"),
+            NormalizeRequired(EffectiveAccessLevel(request), "accessLevel"),
             Array.Empty<string>(),
             Array.Empty<Guid>(),
             Array.Empty<string>(),
@@ -565,8 +605,13 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
                 return allowedDecision;
         }
 
-        return new AccessDecision(false, "none", null, request.AccessLevel);
+        return new AccessDecision(false, "none", null, EffectiveAccessLevel(request));
     }
+
+    private static string EffectiveAccessLevel(AccessCheckRequest request)
+        => string.IsNullOrWhiteSpace(request.MinimumAccessLevel)
+            ? request.AccessLevel
+            : request.MinimumAccessLevel.Trim();
 
     private static IReadOnlyList<AccessCatalogItem> ItemsForCategory(
         IReadOnlyList<AccessCatalogItem> items,
@@ -616,12 +661,13 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
         {
             AccessCatalogCategories.Role => 0,
             AccessCatalogCategories.Permission => 1,
-            AccessCatalogCategories.Module => 2,
-            AccessCatalogCategories.ApiScope => 3,
-            AccessCatalogCategories.Tool => 4,
-            AccessCatalogCategories.Agent => 5,
-            AccessCatalogCategories.Resource => 6,
-            AccessCatalogCategories.AccessLevel => 7,
+            AccessCatalogCategories.Operation => 2,
+            AccessCatalogCategories.Module => 3,
+            AccessCatalogCategories.ApiScope => 4,
+            AccessCatalogCategories.Tool => 5,
+            AccessCatalogCategories.Agent => 6,
+            AccessCatalogCategories.Resource => 7,
+            AccessCatalogCategories.AccessLevel => 8,
             _ => 100
         };
 
@@ -633,8 +679,17 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
             AccessCatalogSources.HostProvider => 2,
             AccessCatalogSources.TenantDb => 3,
             AccessCatalogSources.TenantOverride => 4,
+            "attribute" => 2,
+            "attribute:template" => 2,
             _ => 1
         };
+
+    private static string NormalizeOperationSource(string? source)
+        => string.IsNullOrWhiteSpace(source)
+            ? AccessCatalogSources.HostProvider
+            : source.StartsWith("attribute", StringComparison.OrdinalIgnoreCase)
+                ? AccessCatalogSources.HostProvider
+                : source.Trim();
 
     private static string CatalogIdentity(AccessCatalogItem item)
         => CatalogIdentity(item.Category, item.Key);

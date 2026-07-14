@@ -14,6 +14,11 @@ public sealed record RequireResourceRequirement(
     string ResourceId,
     string AccessLevel = AccessLevels.View) : IAuthorizationRequirement;
 
+public sealed record RequireRouteResourceRequirement(
+    string ResourceType,
+    string AccessLevel = AccessLevels.View,
+    string? RouteParameter = null) : IAuthorizationRequirement;
+
 public sealed record RequireApiScopeRequirement(string ModuleKey) : IAuthorizationRequirement;
 
 public sealed record RequireToolRequirement(string ToolKey) : IAuthorizationRequirement;

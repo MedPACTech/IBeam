@@ -44,6 +44,7 @@ public static class ServiceCollectionExtensions
 
         services.AddMemoryCache();
         services.AddHttpClient();
+        services.AddHttpContextAccessor();
         services.AddDataProtection();
 
         var jwt = configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
@@ -127,6 +128,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAuthorizationPolicyProvider, RoleIdsAuthorizationPolicyProvider>();
         services.AddScoped<IAuthorizationHandler, RequireRoleIdsAuthorizationHandler>();
         services.AddScoped<IAuthorizationHandler, AccessControlAuthorizationHandler>();
+        services.TryAddScoped<IIBeamCurrentAccessControlService, IBeamCurrentAccessControlService>();
 
         return services;
     }

@@ -125,6 +125,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IIBeamAccessCatalogOverrideStore, NoOpAccessCatalogOverrideStore>();
         services.AddScoped<IPermissionGrantResolver, PermissionGrantResolver>();
         services.AddScoped<IPermissionAccessAuthorizer, PermissionAccessAuthorizer>();
+        services.AddSingleton<IIBeamOperationCatalogProvider, OperationCatalogProvider>();
         services.AddScoped<IIBeamAccessControlService, IBeamAccessControlService>();
         services.AddSingleton<IPermissionCatalogProvider, PermissionCatalogProvider>();
         services.AddScoped<ITokenService, JwtTokenService>();
@@ -181,6 +182,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IIBeamAccessGrantStore, NoOpAccessGrantStore>();
         services.TryAddScoped<IIBeamAccessCatalogOverrideStore, NoOpAccessCatalogOverrideStore>();
         services.TryAddScoped<IApiCredentialScopeCatalogProvider, ApiCredentialScopeCatalogProvider>();
+        services.TryAddSingleton<IIBeamOperationCatalogProvider, OperationCatalogProvider>();
         services.TryAddScoped<IIBeamAccessControlService, IBeamAccessControlService>();
         return services;
     }

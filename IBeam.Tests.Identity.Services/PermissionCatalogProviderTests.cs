@@ -44,6 +44,7 @@ public sealed class PermissionCatalogProviderTests
         Assert.IsTrue(all.Any(x => x.PermissionName == "Catalog.Config.Only" && x.Source == "configuration:catalog"));
         Assert.IsTrue(all.Any(x => x.PermissionName == "Mapping.Config.Only" && x.Source == "configuration:mapping"));
         Assert.IsTrue(all.Any(x => x.PermissionName == "PermissionCatalogProviderTests.Method.Save"));
+        Assert.IsTrue(all.Any(x => x.PermissionName == "PermissionCatalogProviderTests.Operation.Delete" && x.Source == "attribute:operation"));
         Assert.IsTrue(all.Any(x => x.PermissionId == PermissionId));
     }
 
@@ -53,5 +54,9 @@ public sealed class PermissionCatalogProviderTests
     {
         [PermissionAccess("PermissionCatalogProviderTests.Method.Save")]
         public void Save() { }
+
+        [IBeamOperation("PermissionCatalogProviderTests.Operation.Delete", Label = "Delete test operation", IsDangerous = true)]
+        [IBeamResourceAccess("test", "testId", "manage")]
+        public void Delete(Guid testId) { }
     }
 }

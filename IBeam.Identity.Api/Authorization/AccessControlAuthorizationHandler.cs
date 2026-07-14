@@ -1,6 +1,7 @@
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Exceptions;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 
 namespace IBeam.Identity.Api.Authorization;
 
@@ -43,6 +44,12 @@ public sealed class AccessControlAuthorizationHandler :
                     if (await _access.HasResourceAccessAsync(context.User, resource.ResourceType, resource.ResourceId, resource.AccessLevel).ConfigureAwait(false))
                         context.Succeed(requirement);
                     break;
+                case RequireRouteResourceRequirement routeResource:
+                    var resourceId = ResolveRouteResourceId(context.Resource, routeResource);
+                    if (!string.IsNullOrWhiteSpace(resourceId) &&
+                        await _access.HasResourceAccessAsync(context.User, routeResource.ResourceType, resourceId, routeResource.AccessLevel).ConfigureAwait(false))
+                        context.Succeed(requirement);
+                    break;
                 case RequireApiScopeRequirement apiScope:
                     if (await TryEvaluateCredentialAsync(() => _apiCredentialAccess.HasApiScopeAsync(context.User, apiScope.ModuleKey)).ConfigureAwait(false))
                         context.Succeed(requirement);
@@ -69,5 +76,28 @@ public sealed class AccessControlAuthorizationHandler :
         {
             return false;
         }
+    }
+
+    private static string? ResolveRouteResourceId(object? resource, RequireRouteResourceRequirement requirement)
+    {
+        if (resource is not HttpContext httpContext)
+            return null;
+
+        var candidates = new[]
+        {
+            requirement.RouteParameter,
+            $"{requirement.ResourceType}Id",
+            "resourceId",
+            "id"
+        };
+
+        foreach (var candidate in candidates.Where(x => !string.IsNullOrWhiteSpace(x)))
+        {
+            if (httpContext.Request.RouteValues.TryGetValue(candidate!, out var value) &&
+                !string.IsNullOrWhiteSpace(value?.ToString()))
+                return value.ToString();
+        }
+
+        return null;
     }
 }

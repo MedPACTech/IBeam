@@ -107,6 +107,10 @@ public sealed class IBeamAccessControlServiceTests
             "hubbsly",
             [AccessLevels.View, AccessLevels.Edit],
             null,
+            null,
+            null,
+            false,
+            null,
             DateTimeOffset.UtcNow);
 
         var sut = CreateSut(
@@ -133,6 +137,7 @@ public sealed class IBeamAccessControlServiceTests
         Assert.IsTrue(catalog.Roles.Any(x => x.Key == "Owner" && x.Source == AccessCatalogSources.IBeamDefault));
         Assert.IsTrue(catalog.Modules.Any(x => x.Key == "work" && x.Source == AccessCatalogSources.HostConfig));
         Assert.IsTrue(catalog.ApiScopes.Any(x => x.Key == "work"));
+        Assert.IsTrue(catalog.Operations.Any(x => x.Key == "projects.delete" && x.IsDangerous));
         Assert.IsTrue(catalog.Agents.Any(x => x.Key == "atlas"));
         Assert.IsTrue(catalog.Resources.Any(x =>
             x.Key == "project:platform" &&
@@ -158,11 +163,13 @@ public sealed class IBeamAccessControlServiceTests
                     ImpliedByPermissionNames: ["work.view"])
             ]
         };
+        options.Resources.Add<TestProject>("project", "projects", label: "Project", module: "products");
 
         return new IBeamAccessControlService(
             new FakeAccessGrantStore(grants ?? Array.Empty<AccessGrant>()),
             new FakeAccessCatalogOverrideStore(catalogOverrides ?? Array.Empty<AccessCatalogOverride>()),
             catalog ?? new FakePermissionCatalogProvider(Array.Empty<ExposedPermission>()),
+            new OperationCatalogProvider(new StaticOptionsMonitor<IBeamAccessControlOptions>(options)),
             new FakeApiCredentialScopeCatalogProvider(),
             permissionResolver ?? CreatePermissionResolver(PermissionGrantSet.Empty).Object,
             new StaticOptionsMonitor<IBeamAccessControlOptions>(options),
@@ -280,6 +287,30 @@ public sealed class IBeamAccessControlServiceTests
 
         public Task<IReadOnlyList<ExposedPermission>> GetExposedPermissionsAsync(CancellationToken ct = default)
             => Task.FromResult(_permissions);
+    }
+
+    private sealed class TestProject
+    {
+    }
+
+    private sealed class OperationFixture
+    {
+        [IBeam.Identity.Authorization.IBeamOperation(
+            "projects.delete",
+            Label = "Delete Project",
+            Module = "products",
+            ResourceType = "project",
+            RequiredAccessLevel = AccessLevels.Manage,
+            Category = "projects",
+            IsDangerous = true)]
+        public Task DeleteProjectAsync(Guid projectId, CancellationToken ct = default) => Task.CompletedTask;
+
+        [IBeam.Identity.Authorization.IBeamOperationTemplate(
+            "{permissionPrefix}.delete",
+            Operation = "delete",
+            IsDangerous = true)]
+        [IBeam.Identity.Authorization.IBeamResourceAccessTemplate("{resourceKey}", "id", AccessLevels.Manage)]
+        public Task DeleteAsync<T>(Guid id, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class StaticOptionsMonitor<T> : IOptionsMonitor<T>

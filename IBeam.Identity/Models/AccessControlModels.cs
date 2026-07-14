@@ -35,6 +35,7 @@ public static class AccessCatalogCategories
 {
     public const string Role = "role";
     public const string Permission = "permission";
+    public const string Operation = "operation";
     public const string Module = "module";
     public const string ApiScope = "apiScope";
     public const string Tool = "tool";
@@ -86,11 +87,31 @@ public sealed record AccessCatalogItem(
     string? ParentResourceType = null,
     string? ParentResourceId = null,
     IReadOnlyList<string>? SupportedAccessLevels = null,
-    int? Rank = null);
+    int? Rank = null,
+    string? ModuleKey = null,
+    string? RequiredAccessLevel = null,
+    bool IsDangerous = false,
+    string? IdParameter = null);
+
+public sealed record AccessOperationCatalogItem(
+    string Key,
+    string Label,
+    string? Description,
+    string? ModuleKey,
+    string? ResourceType,
+    string? RequiredAccessLevel,
+    string Category,
+    bool IsAssignable,
+    bool IsDangerous,
+    string Source,
+    string? DeclaringType = null,
+    string? MethodName = null,
+    string? IdParameter = null);
 
 public sealed record AccessCatalogDto(
     IReadOnlyList<AccessCatalogItem> Roles,
     IReadOnlyList<AccessCatalogItem> Permissions,
+    IReadOnlyList<AccessCatalogItem> Operations,
     IReadOnlyList<AccessCatalogItem> Modules,
     IReadOnlyList<AccessCatalogItem> ApiScopes,
     IReadOnlyList<AccessCatalogItem> Tools,
@@ -116,6 +137,10 @@ public sealed record AccessCatalogOverride(
     string? ParentResourceId = null,
     IReadOnlyList<string>? SupportedAccessLevels = null,
     int? Rank = null,
+    string? ModuleKey = null,
+    string? RequiredAccessLevel = null,
+    bool IsDangerous = false,
+    string? IdParameter = null,
     DateTimeOffset? CreatedAt = null,
     DateTimeOffset? UpdatedAt = null);
 
@@ -135,6 +160,10 @@ public sealed class UpsertAccessCatalogOverrideRequest
     public string? ParentResourceId { get; set; }
     public List<string> SupportedAccessLevels { get; set; } = [];
     public int? Rank { get; set; }
+    public string? ModuleKey { get; set; }
+    public string? RequiredAccessLevel { get; set; }
+    public bool IsDangerous { get; set; }
+    public string? IdParameter { get; set; }
 }
 
 public sealed record AccessGrant(
@@ -157,7 +186,8 @@ public sealed record AccessCheckRequest(
     string AccessLevel = AccessLevels.View,
     string? Module = null,
     string? Permission = null,
-    string? AgentKey = null);
+    string? AgentKey = null,
+    string? MinimumAccessLevel = null);
 
 public sealed record AccessDecision(
     bool IsAllowed,

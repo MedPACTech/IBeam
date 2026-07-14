@@ -960,6 +960,159 @@ Example response item:
 }
 ```
 
+### Operation Permissions
+
+Operation permissions protect business actions. They complement module and resource access:
+
+```text
+Module access: can enter this area?
+Resource access: can access this specific thing?
+Operation permission: can perform this action?
+```
+
+For service code, the clearest enforcement model is still explicit:
+
+```csharp
+public sealed class ProjectService
+{
+    private readonly IIBeamCurrentAccessControlService _access;
+    private readonly IProjectRepository _projects;
+
+    public ProjectService(
+        IIBeamCurrentAccessControlService access,
+        IProjectRepository projects)
+    {
+        _access = access;
+        _projects = projects;
+    }
+
+    public async Task<bool> DeleteProjectAsync(Guid projectId, CancellationToken ct = default)
+    {
+        await _access.RequirePermissionAsync("projects.delete", ct);
+        await _access.RequireResourceAccessAsync("project", projectId, "manage", ct);
+
+        return await _projects.DeleteAsync(projectId, ct);
+    }
+}
+```
+
+Attributes are available for discovery and optional policy/interceptor scenarios:
+
+```csharp
+using IBeam.Identity.Authorization;
+using IBeam.Identity.Models;
+
+public sealed class ProjectService
+{
+    [IBeamOperation(
+        "projects.delete",
+        Label = "Delete Project",
+        Description = "Allows deleting projects.",
+        Module = "products",
+        ResourceType = "project",
+        RequiredAccessLevel = AccessLevels.Manage,
+        Category = "projects",
+        IsDangerous = true)]
+    [IBeamResourceAccess("project", "projectId", AccessLevels.Manage)]
+    public Task<bool> DeleteProjectAsync(Guid projectId, CancellationToken ct = default)
+    {
+        // Keep explicit checks here unless the host app opts into automatic enforcement.
+        throw new NotImplementedException();
+    }
+}
+```
+
+Generic service bases can use templates with the resource registry:
+
+```csharp
+builder.Services.AddIBeamAccessControl(options =>
+{
+    options.Resources.Add<Project>(
+        resourceKey: "project",
+        permissionPrefix: "projects",
+        label: "Project",
+        module: "products");
+
+    options.Resources.Add<Product>(
+        resourceKey: "product",
+        permissionPrefix: "products",
+        label: "Product",
+        module: "products");
+});
+
+public abstract class CrudService
+{
+    [IBeamOperationTemplate("{permissionPrefix}.delete", Operation = "delete", IsDangerous = true)]
+    [IBeamResourceAccessTemplate("{resourceKey}", "id", AccessLevels.Manage)]
+    public virtual Task DeleteAsync<T>(Guid id, CancellationToken ct = default)
+    {
+        throw new NotImplementedException();
+    }
+}
+```
+
+The operation catalog endpoint exposes discovered operation metadata:
+
+```http
+GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-catalog/operations
+GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-catalog/operations?module=products
+GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-catalog/operations?resourceType=project
+GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-catalog/operations?isDangerous=true
+Authorization: Bearer {ownerOrAdminTenantToken}
+```
+
+Example item:
+
+```json
+{
+  "key": "projects.delete",
+  "label": "Delete Project",
+  "description": "Allows deleting projects.",
+  "moduleKey": "products",
+  "resourceType": "project",
+  "requiredAccessLevel": "manage",
+  "category": "projects",
+  "isAssignable": true,
+  "isDangerous": true,
+  "source": "attribute",
+  "declaringType": "Hubbsly.Services.ProjectService",
+  "methodName": "DeleteProjectAsync",
+  "idParameter": "projectId"
+}
+```
+
+Operation permissions also appear in the effective access catalog under `operations`, and the same permission mapping model assigns them to roles.
+
+Controllers can use dynamic policies:
+
+```csharp
+[Authorize(Policy = "Permission:projects.delete")]
+[Authorize(Policy = "Resource:project:manage")]
+public Task<IActionResult> DeleteAsync(Guid projectId)
+{
+    throw new NotImplementedException();
+}
+```
+
+`Resource:project:manage` resolves route values named `projectId`, `resourceId`, or `id`. Use `Resource:project:projectId:manage` to name the route parameter explicitly.
+
+Unified access checks can require both operation permission and resource access:
+
+```http
+POST /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-control/check
+Authorization: Bearer {tenantScopedAccessToken}
+Content-Type: application/json
+
+{
+  "subjectType": "user",
+  "subjectId": "be0b8ac1-bd87-4a70-96a2-f0cd8950d2e3",
+  "permission": "projects.delete",
+  "resourceType": "project",
+  "resourceId": "24e4785d-d558-4511-a879-b70d5c88cd51",
+  "minimumAccessLevel": "manage"
+}
+```
+
 ### Role and Permission Setup Flow
 
 Create tenant roles:

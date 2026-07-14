@@ -13,6 +13,11 @@ public interface IIBeamAccessCatalogItemProvider
     Task<IReadOnlyList<AccessCatalogItem>> GetCatalogItemsAsync(Guid tenantId, CancellationToken ct = default);
 }
 
+public interface IIBeamOperationCatalogProvider
+{
+    Task<IReadOnlyList<AccessOperationCatalogItem>> GetOperationsAsync(Guid tenantId, CancellationToken ct = default);
+}
+
 public interface IIBeamAccessRuleProvider
 {
     Task<IReadOnlyList<AccessDecision>> EvaluateAsync(AccessEvaluationContext context, CancellationToken ct = default);
@@ -67,9 +72,21 @@ public interface IIBeamAccessControlService
     Task RequireResourceAccessAsync(ClaimsPrincipal principal, string resourceType, string resourceId, string minimumAccessLevel = AccessLevels.View, CancellationToken ct = default);
 
     Task<AccessCatalogDto> GetAccessCatalogAsync(Guid tenantId, CancellationToken ct = default);
+    Task<IReadOnlyList<AccessOperationCatalogItem>> GetOperationCatalogAsync(Guid tenantId, CancellationToken ct = default);
     Task<IReadOnlyList<AccessCatalogOverride>> GetAccessCatalogOverridesAsync(Guid tenantId, CancellationToken ct = default);
     Task<AccessCatalogOverride> UpsertAccessCatalogOverrideAsync(Guid tenantId, Guid? catalogItemId, UpsertAccessCatalogOverrideRequest request, CancellationToken ct = default);
     Task DeleteAccessCatalogOverrideAsync(Guid tenantId, Guid catalogItemId, CancellationToken ct = default);
     Task<AccessContextDto> GetCurrentAccessContextAsync(ClaimsPrincipal principal, Guid? tenantId = null, CancellationToken ct = default);
     Task<AccessDecision> CheckAccessAsync(ClaimsPrincipal principal, Guid tenantId, AccessCheckRequest request, CancellationToken ct = default);
+}
+
+public interface IIBeamCurrentAccessControlService
+{
+    Task<bool> HasPermissionAsync(string permissionKey, CancellationToken ct = default);
+    Task<bool> HasResourceAccessAsync(string resourceType, string resourceId, string minimumAccessLevel = AccessLevels.View, CancellationToken ct = default);
+    Task<bool> HasResourceAccessAsync(string resourceType, Guid resourceId, string minimumAccessLevel = AccessLevels.View, CancellationToken ct = default);
+
+    Task RequirePermissionAsync(string permissionKey, CancellationToken ct = default);
+    Task RequireResourceAccessAsync(string resourceType, string resourceId, string minimumAccessLevel = AccessLevels.View, CancellationToken ct = default);
+    Task RequireResourceAccessAsync(string resourceType, Guid resourceId, string minimumAccessLevel = AccessLevels.View, CancellationToken ct = default);
 }

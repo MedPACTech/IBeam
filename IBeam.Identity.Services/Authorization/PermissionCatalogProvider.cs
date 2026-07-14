@@ -67,6 +67,23 @@ public sealed class PermissionCatalogProvider : IPermissionCatalogProvider
                         list.Add(new ExposedPermission(name, null, "attribute:method", methodResource));
                     }
 
+                    foreach (var operation in GetOperationPermissions(method))
+                    {
+                        list.Add(new ExposedPermission(
+                            operation.Key,
+                            null,
+                            operation.Source,
+                            methodResource,
+                            operation.Description,
+                            operation.Label,
+                            operation.Category,
+                            operation.IsAssignable,
+                            operation.ModuleKey,
+                            operation.ResourceType,
+                            null,
+                            operation.RequiredAccessLevel));
+                    }
+
                     foreach (var id in GetPermissionIds(method))
                     {
                         list.Add(new ExposedPermission(null, id, "attribute:method", methodResource));
@@ -177,4 +194,59 @@ public sealed class PermissionCatalogProvider : IPermissionCatalogProvider
             return Array.Empty<Guid>();
         }
     }
+
+    private static IEnumerable<OperationPermissionDescriptor> GetOperationPermissions(MemberInfo member)
+    {
+        try
+        {
+            var resource = member
+                .GetCustomAttributes<IBeamResourceAccessAttribute>(inherit: true)
+                .FirstOrDefault();
+
+            var operations = member
+                .GetCustomAttributes<IBeamOperationAttribute>(inherit: true)
+                .Where(x => !string.IsNullOrWhiteSpace(x.Key))
+                .Select(x => new OperationPermissionDescriptor(
+                    x.Key.Trim(),
+                    string.IsNullOrWhiteSpace(x.Label) ? null : x.Label.Trim(),
+                    string.IsNullOrWhiteSpace(x.Description) ? null : x.Description.Trim(),
+                    string.IsNullOrWhiteSpace(x.Category) ? null : x.Category.Trim(),
+                    x.IsAssignable,
+                    string.IsNullOrWhiteSpace(x.Module) ? null : x.Module.Trim(),
+                    string.IsNullOrWhiteSpace(x.ResourceType) ? resource?.ResourceType : x.ResourceType.Trim(),
+                    string.IsNullOrWhiteSpace(x.RequiredAccessLevel) ? resource?.AccessLevel : x.RequiredAccessLevel.Trim(),
+                    "attribute:operation"));
+
+            var permissions = member
+                .GetCustomAttributes<IBeamPermissionAttribute>(inherit: true)
+                .Where(x => !string.IsNullOrWhiteSpace(x.Key))
+                .Select(x => new OperationPermissionDescriptor(
+                    x.Key.Trim(),
+                    string.IsNullOrWhiteSpace(x.Label) ? null : x.Label.Trim(),
+                    string.IsNullOrWhiteSpace(x.Description) ? null : x.Description.Trim(),
+                    string.IsNullOrWhiteSpace(x.Category) ? null : x.Category.Trim(),
+                    x.IsAssignable,
+                    null,
+                    resource?.ResourceType,
+                    resource?.AccessLevel,
+                    "attribute:permission"));
+
+            return operations.Concat(permissions).ToList();
+        }
+        catch
+        {
+            return Array.Empty<OperationPermissionDescriptor>();
+        }
+    }
+
+    private sealed record OperationPermissionDescriptor(
+        string Key,
+        string? Label,
+        string? Description,
+        string? Category,
+        bool IsAssignable,
+        string? ModuleKey,
+        string? ResourceType,
+        string? RequiredAccessLevel,
+        string Source);
 }

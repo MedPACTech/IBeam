@@ -123,6 +123,10 @@ public sealed class AzureTableAccessCatalogOverrideStore : IIBeamAccessCatalogOv
             entity.ParentResourceId = NormalizeOptional(request.ParentResourceId);
             entity.SupportedAccessLevelsCsv = SerializeCsv(request.SupportedAccessLevels);
             entity.Rank = request.Rank;
+            entity.ModuleKey = NormalizeOptional(request.ModuleKey);
+            entity.RequiredAccessLevel = NormalizeOptional(request.RequiredAccessLevel);
+            entity.IsDangerous = request.IsDangerous;
+            entity.IdParameter = NormalizeOptional(request.IdParameter);
             entity.Status = "Active";
             entity.UpdatedAt = now;
 
@@ -188,6 +192,10 @@ public sealed class AzureTableAccessCatalogOverrideStore : IIBeamAccessCatalogOv
             entity.ParentResourceId,
             ParseCsv(entity.SupportedAccessLevelsCsv),
             entity.Rank,
+            entity.ModuleKey,
+            entity.RequiredAccessLevel,
+            entity.IsDangerous,
+            entity.IdParameter,
             entity.CreatedAt,
             entity.UpdatedAt);
 

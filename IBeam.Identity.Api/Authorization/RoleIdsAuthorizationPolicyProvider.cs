@@ -7,8 +7,10 @@ public sealed class RoleIdsAuthorizationPolicyProvider : IAuthorizationPolicyPro
 {
     public const string PolicyPrefix = "ibeam:roleids:";
     public const string PermissionPolicyPrefix = "RequirePermission:";
+    public const string PermissionAliasPolicyPrefix = "Permission:";
     public const string ModulePolicyPrefix = "RequireModule:";
     public const string ResourcePolicyPrefix = "RequireResource:";
+    public const string ResourceAliasPolicyPrefix = "Resource:";
     public const string ApiScopePolicyPrefix = "RequireApiScope:";
     public const string ToolPolicyPrefix = "RequireTool:";
     public const string AgentPolicyPrefix = "RequireAgent:";
@@ -31,9 +33,13 @@ public sealed class RoleIdsAuthorizationPolicyProvider : IAuthorizationPolicyPro
         if (string.IsNullOrWhiteSpace(policyName))
             return _fallbackProvider.GetPolicyAsync(policyName);
 
-        if (policyName.StartsWith(PermissionPolicyPrefix, StringComparison.OrdinalIgnoreCase))
+        if (policyName.StartsWith(PermissionPolicyPrefix, StringComparison.OrdinalIgnoreCase) ||
+            policyName.StartsWith(PermissionAliasPolicyPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            var permissionName = policyName[PermissionPolicyPrefix.Length..].Trim();
+            var prefixLength = policyName.StartsWith(PermissionPolicyPrefix, StringComparison.OrdinalIgnoreCase)
+                ? PermissionPolicyPrefix.Length
+                : PermissionAliasPolicyPrefix.Length;
+            var permissionName = policyName[prefixLength..].Trim();
             if (permissionName.Length == 0)
                 return Task.FromResult<AuthorizationPolicy?>(null);
 
@@ -64,6 +70,20 @@ public sealed class RoleIdsAuthorizationPolicyProvider : IAuthorizationPolicyPro
             return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .AddRequirements(new RequireResourceRequirement(parts[0], parts[1], parts.ElementAtOrDefault(2) ?? "view"))
+                .Build());
+        }
+
+        if (policyName.StartsWith(ResourceAliasPolicyPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = SplitPolicyParts(policyName[ResourceAliasPolicyPrefix.Length..]);
+            if (parts.Count < 2)
+                return Task.FromResult<AuthorizationPolicy?>(null);
+
+            return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(parts.Count >= 3
+                    ? new RequireRouteResourceRequirement(parts[0], parts[2], parts[1])
+                    : new RequireRouteResourceRequirement(parts[0], parts[1]))
                 .Build());
         }
 
