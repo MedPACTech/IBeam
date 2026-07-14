@@ -1,3 +1,4 @@
+using IBeam.Api.Abstractions;
 using IBeam.Communications.Abstractions;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
@@ -133,18 +134,89 @@ public sealed class IdentityCommunicationAdapterTests
     }
 
     [TestMethod]
-    public async Task SendAsync_SmsWithoutSmsService_ThrowsInvalidOperation()
+    public async Task SendAsync_SmsWithoutSmsService_PersistsSystemErrorAndThrowsConfigurationException()
     {
         var services = new ServiceCollection();
+        var sink = new RecordingApiErrorSink();
+        services.AddSingleton<IApiErrorSink>(sink);
         var adapter = new IdentityCommunicationAdapter(services.BuildServiceProvider());
 
-        await AssertThrowsAsync<InvalidOperationException>(() =>
+        await AssertThrowsAsync<SmsConfigurationException>(() =>
             adapter.SendAsync(new IdentitySenderMessage
             {
                 Channel = SenderChannel.Sms,
                 Destination = "+15555550123",
                 Body = "test"
             }));
+
+        var error = AssertSingleSystemError(sink);
+        Assert.AreEqual("IdentityCommunicationAdapter", error.Source);
+        Assert.AreEqual("IdentityCommunication/Sms", error.Path);
+        StringAssert.Contains(error.Message, "SMS service is not configured.");
+    }
+
+    [TestMethod]
+    public async Task SendAsync_EmailProviderFailure_PersistsSystemErrorAndRethrows()
+    {
+        var email = new Mock<IEmailService>(MockBehavior.Strict);
+        email.Setup(x => x.SendAsync(
+                "abram.cookson@outlook.com",
+                It.IsAny<string>(),
+                null,
+                "body",
+                null,
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new EmailProviderException("TestEmail", "Provider failed.", true, "503"));
+
+        var sink = new RecordingApiErrorSink();
+        var services = new ServiceCollection();
+        services.AddSingleton(email.Object);
+        services.AddSingleton<IApiErrorSink>(sink);
+
+        var adapter = new IdentityCommunicationAdapter(services.BuildServiceProvider());
+
+        await AssertThrowsAsync<EmailProviderException>(() =>
+            adapter.SendAsync(new IdentitySenderMessage
+            {
+                Channel = SenderChannel.Email,
+                Destination = "abram.cookson@outlook.com",
+                Body = "body",
+                Purpose = SenderPurpose.PasswordReset,
+                Metadata = new Dictionary<string, object> { ["traceId"] = "trace-123" }
+            }));
+
+        var error = AssertSingleSystemError(sink);
+        Assert.AreEqual("IdentityCommunicationAdapter", error.Source);
+        Assert.AreEqual("IdentityCommunication/Email", error.Path);
+        Assert.AreEqual("SEND", error.Method);
+        Assert.AreEqual("trace-123", error.TraceId);
+        StringAssert.Contains(error.Message, "Channel=Email");
+        StringAssert.Contains(error.Message, "Provider failed.");
+        StringAssert.Contains(error.Exception, nameof(EmailProviderException));
+        email.VerifyAll();
+    }
+
+    [TestMethod]
+    public async Task SendAsync_EmailServiceResolutionFailure_PersistsSystemErrorAndRethrows()
+    {
+        var sink = new RecordingApiErrorSink();
+        var services = new ServiceCollection();
+        services.AddSingleton<IEmailService>(_ => throw new EmailConfigurationException("Bad email connection string."));
+        services.AddSingleton<IApiErrorSink>(sink);
+
+        var adapter = new IdentityCommunicationAdapter(services.BuildServiceProvider());
+
+        await AssertThrowsAsync<EmailConfigurationException>(() =>
+            adapter.SendAsync(new IdentitySenderMessage
+            {
+                Channel = SenderChannel.Email,
+                Destination = "abram.cookson@outlook.com",
+                Body = "body"
+            }));
+
+        var error = AssertSingleSystemError(sink);
+        Assert.AreEqual("IdentityCommunication/Email", error.Path);
+        StringAssert.Contains(error.Message, "Bad email connection string.");
     }
 
     private static async Task<TException> AssertThrowsAsync<TException>(Func<Task> action)
@@ -159,6 +231,23 @@ public sealed class IdentityCommunicationAdapterTests
         catch (TException ex)
         {
             return ex;
+        }
+    }
+
+    private static ApiErrorRecord AssertSingleSystemError(RecordingApiErrorSink sink)
+    {
+        Assert.AreEqual(1, sink.Errors.Count);
+        return sink.Errors.Single();
+    }
+
+    private sealed class RecordingApiErrorSink : IApiErrorSink
+    {
+        public List<ApiErrorRecord> Errors { get; } = new();
+
+        public Task SaveAsync(ApiErrorRecord error, CancellationToken cancellationToken = default)
+        {
+            Errors.Add(error);
+            return Task.CompletedTask;
         }
     }
 }

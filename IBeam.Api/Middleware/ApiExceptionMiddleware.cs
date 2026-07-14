@@ -109,6 +109,11 @@ public sealed class ApiExceptionMiddleware
             return;
         }
 
+        if (ex.Data.Contains(SystemErrorLogKeys.AlreadyPersisted))
+        {
+            return;
+        }
+
         try
         {
             await _errorSink.SaveAsync(new ApiErrorRecord

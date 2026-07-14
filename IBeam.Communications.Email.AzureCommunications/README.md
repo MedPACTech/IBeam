@@ -11,8 +11,8 @@ This package is the production-ready ACS email transport for IBeam. It keeps you
 - `AzureCommunicationsEmailService : IEmailService`
 - `AzureCommunicationsEmailOptions`
 - DI registration via `AddIBeamAzureCommunicationsEmail(IConfiguration)`
-- deterministic connection string resolution with fallback order
-- startup validation for required connection string
+- startup validation for the Azure Communication Services connection string shape
+- provider exception context for failed ACS submissions and completed failed operations
 
 ## Dependencies
 
@@ -32,3 +32,12 @@ builder.Services.AddIBeamAzureCommunicationsEmail(builder.Configuration);
 
 Primary configuration section:
 - `IBeam:Communications:Email:Providers:AzureCommunications`
+
+Required setting:
+- `IBeam:Communications:Email:Providers:AzureCommunications:ConnectionString`
+
+The connection string must be an Azure Communication Services value in this shape:
+
+```text
+endpoint=https://<resource>.communication.azure.com/;accesskey=<key>
+```

@@ -10,7 +10,7 @@ namespace IBeam.Communications.Sms.AzureCommunications;
 
 public sealed class AzureCommunicationsSmsService : ISmsService
 {
-    private const string ProviderName = "AzureCommunicationServices";
+    private const string ProviderName = "AzureCommunicationsSms";
     private readonly SmsClient _client;
     private readonly SmsOptions _defaults;
 
@@ -21,8 +21,8 @@ public sealed class AzureCommunicationsSmsService : ISmsService
         var opt = providerOptions?.Value ?? throw new ArgumentNullException(nameof(providerOptions));
         _defaults = defaults?.Value ?? throw new ArgumentNullException(nameof(defaults));
 
-        if (string.IsNullOrWhiteSpace(opt.ConnectionString))
-            throw new SmsConfigurationException("Azure Communications SMS ConnectionString is required.");
+        if (!AzureCommunicationsSmsConnectionStringValidator.IsValid(opt.ConnectionString))
+            throw new SmsConfigurationException(AzureCommunicationsSmsConnectionStringValidator.FailureMessage);
 
         _client = new SmsClient(opt.ConnectionString);
     }
@@ -33,42 +33,61 @@ public sealed class AzureCommunicationsSmsService : ISmsService
 
         var from = SenderResolution.ResolveSmsFrom(options, message, _defaults);
         var body = message.Body.Trim();
+        var recipientAddresses = message.To
+            .Select(x => (x ?? string.Empty).Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
+        var context = SmsSendContext.Create(from, recipientAddresses, body);
 
         try
         {
-            foreach (var to in message.To.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim()))
+            foreach (var to in recipientAddresses)
             {
-                var resp = await _client.SendAsync(from: from, to: to, message: body, cancellationToken: ct);
+                var resp = await _client.SendAsync(from: from, to: to, message: body, cancellationToken: ct)
+                    .ConfigureAwait(false);
                 var result = resp.Value;
 
                 if (!result.Successful)
                 {
                     throw new SmsProviderException(
                         provider: ProviderName,
-                        message: string.IsNullOrWhiteSpace(result.ErrorMessage)
-                            ? "SMS provider reported failure."
-                            : result.ErrorMessage,
+                        message: BuildProviderMessage(
+                            context,
+                            "submission",
+                            "Azure Communications SMS send failed.",
+                            to,
+                            result.MessageId,
+                            result.HttpStatusCode,
+                            result.ErrorMessage),
                         isTransient: false,
                         providerCode: result.HttpStatusCode.ToString());
                 }
             }
         }
+        catch (SmsProviderException) { throw; }
         catch (RequestFailedException ex)
         {
-            throw TranslateAzureException(ex);
+            throw TranslateAzureException(ex, context);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             throw new SmsProviderException(
                 provider: ProviderName,
-                message: "Unexpected SMS provider error.",
+                message: BuildProviderMessage(
+                    context,
+                    "submission",
+                    "Unexpected Azure Communications SMS provider error.",
+                    recipient: null,
+                    messageId: null,
+                    httpStatusCode: null,
+                    providerErrorMessage: ex.Message),
                 isTransient: true,
                 providerCode: null,
                 inner: ex);
         }
     }
 
-    private static SmsProviderException TranslateAzureException(RequestFailedException ex)
+    private static SmsProviderException TranslateAzureException(RequestFailedException ex, SmsSendContext context)
     {
         var status = ex.Status;
         var transient = status == 429 || status >= 500;
@@ -86,9 +105,79 @@ public sealed class AzureCommunicationsSmsService : ISmsService
 
         return new SmsProviderException(
             provider: ProviderName,
-            message: friendly,
+            message: BuildProviderMessage(
+                context,
+                "submission",
+                friendly,
+                recipient: null,
+                messageId: null,
+                httpStatusCode: status,
+                providerErrorMessage: ex.Message),
             isTransient: transient,
             providerCode: ex.ErrorCode,
             inner: ex);
+    }
+
+    private static string BuildProviderMessage(
+        SmsSendContext context,
+        string stage,
+        string summary,
+        string? recipient,
+        string? messageId,
+        int? httpStatusCode,
+        string? providerErrorMessage)
+    {
+        var details = new List<string>
+        {
+            $"Provider={ProviderName}",
+            $"Stage={stage}",
+            $"Sender={context.SenderAddress}",
+            $"RecipientCount={context.RecipientCount}",
+            $"Recipients={context.Recipients}",
+            $"Body={context.BodyLabel}"
+        };
+
+        AddIfPresent(details, "Recipient", recipient);
+        AddIfPresent(details, "MessageId", messageId);
+        if (httpStatusCode.HasValue)
+            details.Add($"HttpStatus={httpStatusCode.Value}");
+        AddIfPresent(details, "ProviderErrorMessage", providerErrorMessage);
+
+        return $"{summary} {string.Join("; ", details)}";
+    }
+
+    private static void AddIfPresent(List<string> details, string name, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+            details.Add($"{name}={Sanitize(value)}");
+    }
+
+    private static string Sanitize(string value)
+        => string.Join(' ', value.Split(new[] { ' ', '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries));
+
+    private sealed record SmsSendContext(
+        string SenderAddress,
+        int RecipientCount,
+        string Recipients,
+        string BodyLabel)
+    {
+        public static SmsSendContext Create(string senderAddress, IReadOnlyCollection<string> recipients, string body)
+        {
+            var recipientLabel = recipients.Count == 0
+                ? "<none>"
+                : string.Join(",", recipients);
+
+            return new SmsSendContext(
+                senderAddress,
+                recipients.Count,
+                recipientLabel,
+                ToSafeLabel(body));
+        }
+
+        private static string ToSafeLabel(string body)
+        {
+            var label = Sanitize(body);
+            return label.Length <= 120 ? label : label[..120];
+        }
     }
 }

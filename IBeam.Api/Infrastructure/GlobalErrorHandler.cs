@@ -62,6 +62,12 @@ public sealed class GlobalErrorHandler : IHostedService
             return;
         }
 
+        if (ex.Data.Contains(SystemErrorLogKeys.AlreadyPersisted))
+        {
+            await TryPersistLogAsync(ex, source, cancellationToken);
+            return;
+        }
+
         try
         {
             await _errorSink.SaveAsync(new ApiErrorRecord
