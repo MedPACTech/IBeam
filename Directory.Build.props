@@ -18,6 +18,14 @@
     <None Include="$(MSBuildThisFileDirectory)docs\assets\ibeam-icon.png" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(IsPackable)' != 'false' and Exists('$(MSBuildThisFileDirectory).agent')">
+    <None Include="$(MSBuildThisFileDirectory).agent\**\*.*" Pack="true" PackagePath=".agent\%(RecursiveDir)%(Filename)%(Extension)" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(IsPackable)' != 'false' and Exists('$(MSBuildProjectDirectory)\.agent')">
+    <None Include="$(MSBuildProjectDirectory)\.agent\**\*.*" Pack="true" PackagePath=".agent\project\%(RecursiveDir)%(Filename)%(Extension)" Visible="false" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Nerdbank.GitVersioning" Version="3.9.50" PrivateAssets="all" />
   </ItemGroup>
