@@ -1,19 +1,63 @@
-# IBeam Project Agent Prompt
+# IBeam.Tests.Repositories.AzureTables Agent Prompt
 
-You are working inside one IBeam project/component. Preserve the framework boundaries:
+You are working inside `IBeam.Tests.Repositories.AzureTables`.
+
+Start with the root implementation guide at `.agent/implementation-guide.md`, then apply this package-specific guidance.
+
+## IBeam Architecture Rules
+
+Preserve the core IBeam boundary model:
 
 ```text
 API <-- DTO/model object --> Service <-- Entity --> Repository
 ```
 
-Keep API code thin. API endpoints should call services and use IBeam response/error helpers.
+API projects stay thin. APIs call services, capture service results, and use IBeam response/error helpers.
 
-Keep business logic in services. Services own permissions, rules, logging, audit, validation, orchestration, and error translation. Services should stay entity-focused and bind to one repository. A service may call another service for lookup data or rule evaluation, but avoid circular references.
+Services are the business boundary. Business logic, permissions, audit tags, validation, orchestration, logging, and error translation belong in services.
 
-Keep repositories focused on one entity. Repositories should not call other repositories, services, or APIs.
+Repositories are persistence boundaries for one entity. Repositories should not call APIs, services, or other repositories.
 
-Use stable operation names for service calls, such as `pricing.update`, `patients.discharge`, and `transactions.export`. Align operation names with audit and permission rules when possible.
+Use stable operation names for service calls when this project adds service-level behavior. Align operation names with audit and permission rules when possible.
 
-When adding features, prefer existing IBeam base classes, interfaces, dependency injection extensions, and test patterns. Keep package boundaries clean so teams can use IBeam services, logging, and access control without being forced into IBeam Identity.
+## Package Purpose
 
-Before changing code, inspect this project and the root `.agent/implementation-guide.md`.
+Test coverage for IBeam.Repositories.AzureTables.
+
+Layer role: `Test`.
+
+## Public Surface
+
+Keep the public surface focused on:
+
+- Focused unit and integration tests
+- Behavioral coverage for public contracts
+- Regression tests for bugs and schema-sensitive behavior
+
+When adding public types, make sure the owning layer is correct and update the README when registration, configuration, or consumer-facing behavior changes.
+
+## Implementation Rules
+
+- Test the behavior of IBeam.Repositories.AzureTables without moving product code into the test project.
+- Prefer deterministic unit tests; make real provider or external-service tests opt-in.
+- Keep tests aligned with the API <-- DTO/model object --> Service <-- Entity --> Repository boundary.
+- Name tests around expected behavior and failure modes, not implementation trivia.
+
+- Test externally visible behavior first, then edge cases and regressions.
+- Avoid shared mutable state between tests; use fresh fixtures/builders for each case.
+
+## Dependency Boundaries
+
+This test project may reference `IBeam.Repositories.AzureTables` and its required collaborators. Do not make production packages depend on test projects.
+
+Identity should remain optional unless this project is explicitly an Identity package. Bring-your-own-auth should remain possible for access-control-aware services.
+
+## Testing Guidance
+
+Use this project to prove the matching package behavior. Add tests here when changing public contracts, service rules, storage behavior, provider behavior, or bug fixes.
+
+Provider or infrastructure integration tests should be opt-in when they require real cloud resources, SMTP servers, SMS providers, databases, or local machine configuration.
+
+## Packaging
+
+The `.agent/prompt.md` file is included in the NuGet package by the repository-level packaging rules. Keep it useful for agents consuming the package from source or from the package artifact.
