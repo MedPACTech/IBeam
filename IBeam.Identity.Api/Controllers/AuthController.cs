@@ -51,6 +51,10 @@ public class AuthController : ControllerBase
         {
             return BadRequest(new { message = ex.Message, errors = ex.Errors });
         }
+        catch (IdentityUnauthorizedException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
     }
 
     [HttpPost("completeotp")]

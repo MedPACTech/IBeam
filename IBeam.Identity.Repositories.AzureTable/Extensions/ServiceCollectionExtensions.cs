@@ -9,6 +9,7 @@ using IBeam.Identity.Repositories.AzureTable.Stores;
 using IBeam.Identity.Repositories.AzureTable.Tenants;
 using IBeam.Identity.Repositories.AzureTable.Types;
 using IBeam.Api.Abstractions;
+using IBeam.Services.Logging.AzureTable;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,6 +58,15 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
 
             services.AddSingleton(tableClient);
             services.AddSingleton(identityConfig);
+            services.AddIBeamAzureTableSystemLogs(
+                configuration,
+                o =>
+                {
+                    o.StorageConnectionString = opts.StorageConnectionString;
+                    o.TablePrefix = opts.TablePrefix;
+                    o.TableName = opts.SystemLogsTableName;
+                },
+                registerAuditTrailSink: false);
 
             // ElCamino context (scoped)
             services.AddScoped<IdentityCloudContext>(sp =>
@@ -87,7 +97,6 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
             services.AddScoped<IIdentityTenantStore, AzureTableIdentityTenantStore>();
             services.AddScoped<IAuthAttemptStore, AzureTableAuthAttemptStore>();
             services.AddScoped<IApiErrorSink, AzureTableApiErrorSink>();
-            services.AddScoped<ISystemLogSink, AzureTableSystemLogSink>();
             services.AddScoped<ITenantMembershipStore, AzureTableTenantMembershipStore>();
             services.AddScoped<ITenantRoleStore, AzureTableTenantRoleStore>();
             services.AddScoped<IPermissionAccessStore, AzureTablePermissionAccessStore>();

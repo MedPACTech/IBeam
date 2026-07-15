@@ -2,6 +2,7 @@ using IBeam.Repositories.Abstractions;
 using IBeam.Repositories.Core;
 using IBeam.Services.Abstractions;
 using IBeam.Services.Core;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace IBeam.Tests.Services;
@@ -169,6 +170,87 @@ public sealed class BaseServiceTests
 
         audit.Verify(x => x.LogDelete(It.IsAny<TestEntity>()), Times.Once);
     }
+
+    [TestMethod]
+    public void Save_WhenServiceAuditEnabled_WritesConventionAction()
+    {
+        var repo = new Mock<IBaseRepository<TestEntity>>(MockBehavior.Strict);
+        var mapper = new TestMapper();
+        var sink = new Mock<IAuditTrailSink>(MockBehavior.Strict);
+        var service = new TestSyncService(
+            repo.Object,
+            mapper,
+            auditTrailSink: sink.Object,
+            auditOptionsMonitor: OptionsMonitor(new ServiceAuditOptions { Enabled = true }));
+
+        repo.Setup(x => x.Save(It.Is<TestEntity>(e => e.Name == "created")))
+            .Returns((TestEntity e) => e with { Id = Guid.NewGuid() });
+
+        sink.Setup(x => x.WriteTransactionAsync(It.Is<ServiceAuditTransaction>(t =>
+                t.Operation == ServiceAuditOperation.Create &&
+                t.Action == "test.create" &&
+                t.EntityName == "test" &&
+                t.OriginalJson == null &&
+                t.TransformedJson != null), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var saved = service.Save(new TestModel { Name = "created" });
+
+        Assert.AreNotEqual(Guid.Empty, saved.Id);
+        sink.Verify(x => x.WriteTransactionAsync(It.IsAny<ServiceAuditTransaction>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public void Save_WhenServiceAuditDisabledByServiceOption_DoesNotWriteAudit()
+    {
+        var repo = new Mock<IBaseRepository<TestEntity>>(MockBehavior.Strict);
+        var mapper = new TestMapper();
+        var sink = new Mock<IAuditTrailSink>(MockBehavior.Strict);
+        var options = new ServiceAuditOptions { Enabled = true };
+        options.Services[nameof(TestSyncService)] = new ServiceAuditServiceOptions { Enabled = false };
+        var service = new TestSyncService(
+            repo.Object,
+            mapper,
+            auditTrailSink: sink.Object,
+            auditOptionsMonitor: OptionsMonitor(options));
+
+        repo.Setup(x => x.Save(It.Is<TestEntity>(e => e.Name == "created")))
+            .Returns((TestEntity e) => e with { Id = Guid.NewGuid() });
+
+        service.Save(new TestModel { Name = "created" });
+
+        sink.Verify(x => x.WriteTransactionAsync(It.IsAny<ServiceAuditTransaction>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public void Archive_WhenServiceAuditEnabled_WritesBeforeAndAfter()
+    {
+        var id = Guid.NewGuid();
+        var repo = new Mock<IBaseRepository<TestEntity>>(MockBehavior.Strict);
+        var mapper = new TestMapper();
+        var sink = new Mock<IAuditTrailSink>(MockBehavior.Strict);
+        var service = new TestSyncService(
+            repo.Object,
+            mapper,
+            auditTrailSink: sink.Object,
+            auditOptionsMonitor: OptionsMonitor(new ServiceAuditOptions { Enabled = true }));
+
+        repo.SetupSequence(x => x.GetById(id, true, true))
+            .Returns(new TestEntity { Id = id, Name = "active" })
+            .Returns(new TestEntity { Id = id, Name = "archived" });
+        repo.Setup(x => x.Archive(id)).Returns(true);
+
+        sink.Setup(x => x.WriteTransactionAsync(It.Is<ServiceAuditTransaction>(t =>
+                t.Operation == ServiceAuditOperation.Archive &&
+                t.Action == "test.archive" &&
+                t.OriginalJson != null &&
+                t.TransformedJson != null), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        service.Archive(id);
+
+        sink.Verify(x => x.WriteTransactionAsync(It.IsAny<ServiceAuditTransaction>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
     private sealed class TestSyncService : BaseService<TestEntity, TestModel>
     {
         public int PreSaveCreateCalls { get; private set; }
@@ -182,10 +264,13 @@ public sealed class BaseServiceTests
         public TestSyncService(
             IBaseRepository<TestEntity> repository,
             IModelMapper<TestEntity, TestModel> mapper,
-            IAuditService? audit = null)
-            : base(repository, mapper, audit)
+            IAuditService? audit = null,
+            IAuditTrailSink? auditTrailSink = null,
+            IOptionsMonitor<ServiceAuditOptions>? auditOptionsMonitor = null)
+            : base(repository, mapper, audit, auditTrailSink: auditTrailSink, auditOptionsMonitor: auditOptionsMonitor)
         {
             AllowGetById = true;
+            AllowSave = true;
             AllowSaveAll = true;
             AllowArchive = true;
             AllowUnarchive = true;
@@ -271,6 +356,13 @@ public sealed class BaseServiceTests
         public Guid Id { get; set; }
         public bool IsDeleted { get; set; }
         public string Name { get; set; } = string.Empty;
+    }
+
+    private static IOptionsMonitor<ServiceAuditOptions> OptionsMonitor(ServiceAuditOptions options)
+    {
+        var monitor = new Mock<IOptionsMonitor<ServiceAuditOptions>>();
+        monitor.SetupGet(x => x.CurrentValue).Returns(options);
+        return monitor.Object;
     }
 }
 

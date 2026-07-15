@@ -8,8 +8,6 @@ using IBeam.Identity.Repositories.AzureTable.Options;
 using IBeam.Identity.Repositories.AzureTable.Types;
 using Microsoft.Extensions.Options;
 using System;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -158,14 +156,12 @@ public sealed class AzureTableOtpChallengeStore : IOtpChallengeStore
             ChallengeId = r.ChallengeId,
 
             Destination = r.Destination,
-            DestinationHash = HashDestination(r.Destination),
             Channel = r.Channel.ToString().ToLowerInvariant(),
             Purpose = r.Purpose.ToString(),
             TenantId = r.TenantId?.ToString("D"),
 
             // IMPORTANT: the Abstractions record appears to store hash (not plaintext)
             CodeHash = r.CodeHash,
-            CodeNonce = string.Empty,
 
             CreatedAt = DateTimeOffset.UtcNow,
             ExpiresAt = r.ExpiresAt,
@@ -177,13 +173,6 @@ public sealed class AzureTableOtpChallengeStore : IOtpChallengeStore
 
             // CreatedAt is provider-managed if abstraction doesn't include it
         };
-
-    private static string HashDestination(string destination)
-    {
-        var input = destination?.Trim() ?? string.Empty;
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(bytes);
-    }
 
     private static SenderChannel ParseChannel(string? channel, string destination)
     {
@@ -206,7 +195,6 @@ public sealed class AzureTableOtpChallengeStore : IOtpChallengeStore
             TenantId: string.IsNullOrWhiteSpace(e.TenantId) ? null : Guid.Parse(e.TenantId),
 
             CodeHash: e.CodeHash,
-            //CodeNonce: e.CodeNonce, // only if exists
 
             ExpiresAt: e.ExpiresAt,
             AttemptCount: e.AttemptCount,

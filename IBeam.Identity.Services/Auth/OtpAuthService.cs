@@ -14,12 +14,19 @@ namespace IBeam.Identity.Services.Auth;
 
 public sealed class OtpAuthService : IIdentityOtpAuthService
 {
+    private const string OtpAttemptMethod = "otp";
+    private const string OtpStartAttemptMethod = "otp-start";
+    private const string OtpIpAttemptMethod = "otp-ip";
+    private const string OtpStartIpAttemptMethod = "otp-start-ip";
+
     private readonly IIdentityUserStore _users;
     private readonly ITenantMembershipStore _tenants;
     private readonly ITenantProvisioningService _tenantProvisioning;
     private readonly ITokenService _tokens;
     private readonly IOtpService _otpService;
     private readonly IOtpChallengeStore _otpChallengeStore;
+    private readonly IAuthAttemptStore _attempts;
+    private readonly IAuthAttemptContextProvider _attemptContextProvider;
     private readonly IAuthEventPublisher _eventPublisher;
     private readonly IAuthLifecycleHook _lifecycleHook;
     private readonly IOptions<AuthEventOptions> _eventOptions;
@@ -50,6 +57,41 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             tokens,
             otpService,
             otpChallengeStore,
+            new Auth.Attempts.InMemoryAuthAttemptStore(),
+            new Auth.Attempts.NoOpAuthAttemptContextProvider(),
+            eventPublisher,
+            lifecycleHook,
+            eventOptions,
+            otpOptions,
+            tenantProvisioningOptions,
+            logger)
+    {
+    }
+
+    public OtpAuthService(
+        IIdentityUserStore users,
+        ITenantMembershipStore tenants,
+        ITenantProvisioningService tenantProvisioning,
+        ITokenService tokens,
+        IOtpService otpService,
+        IOtpChallengeStore otpChallengeStore,
+        IAuthAttemptStore attempts,
+        IAuthAttemptContextProvider attemptContextProvider,
+        IAuthEventPublisher eventPublisher,
+        IAuthLifecycleHook lifecycleHook,
+        IOptions<AuthEventOptions> eventOptions,
+        IOptions<OtpOptions> otpOptions,
+        IOptions<TenantProvisioningOptions> tenantProvisioningOptions,
+        ILogger<OtpAuthService> logger)
+        : this(
+            users,
+            tenants,
+            tenantProvisioning,
+            tokens,
+            otpService,
+            otpChallengeStore,
+            attempts,
+            attemptContextProvider,
             eventPublisher,
             lifecycleHook,
             eventOptions,
@@ -69,6 +111,8 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         ITokenService tokens,
         IOtpService otpService,
         IOtpChallengeStore otpChallengeStore,
+        IAuthAttemptStore attempts,
+        IAuthAttemptContextProvider attemptContextProvider,
         IAuthEventPublisher eventPublisher,
         IAuthLifecycleHook lifecycleHook,
         IOptions<AuthEventOptions> eventOptions,
@@ -85,6 +129,8 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
         _otpService = otpService ?? throw new ArgumentNullException(nameof(otpService));
         _otpChallengeStore = otpChallengeStore ?? throw new ArgumentNullException(nameof(otpChallengeStore));
+        _attempts = attempts ?? throw new ArgumentNullException(nameof(attempts));
+        _attemptContextProvider = attemptContextProvider ?? throw new ArgumentNullException(nameof(attemptContextProvider));
         _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
         _lifecycleHook = lifecycleHook ?? throw new ArgumentNullException(nameof(lifecycleHook));
         _eventOptions = eventOptions ?? throw new ArgumentNullException(nameof(eventOptions));
@@ -110,6 +156,8 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             tokens,
             otpService,
             otpChallengeStore,
+            new Auth.Attempts.InMemoryAuthAttemptStore(),
+            new Auth.Attempts.NoOpAuthAttemptContextProvider(),
             new NoOpAuthEventPublisher(),
             new NoOpAuthLifecycleHook(),
             Microsoft.Extensions.Options.Options.Create(new AuthEventOptions()),
@@ -124,6 +172,13 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         IdentityUtils.ThrowIfNullOrWhiteSpace(destination, nameof(destination));
 
         var (channel, normalized) = IdentityUtils.NormalizeDestination(destination);
+        var attemptContext = GetAttemptContext();
+        await EnsureOtpAttemptAllowedAsync(OtpAttemptMethod, normalized, ct).ConfigureAwait(false);
+        await EnsureOtpAttemptAllowedAsync(OtpStartAttemptMethod, normalized, ct).ConfigureAwait(false);
+        await EnsureOtpIpAllowedAsync(OtpIpAttemptMethod, attemptContext, ct).ConfigureAwait(false);
+        await EnsureOtpIpAllowedAsync(OtpStartIpAttemptMethod, attemptContext, ct).ConfigureAwait(false);
+        await RegisterOtpStartAttemptAsync(normalized, attemptContext, ct).ConfigureAwait(false);
+
         var existingUser = channel == SenderChannel.Email
             ? await _users.FindByEmailAsync(normalized, ct)
             : await _users.FindByPhoneAsync(normalized, ct);
@@ -203,6 +258,10 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
 
         var (channel, normalizedDestination) = IdentityUtils.NormalizeDestination(destination);
         var traceId = ResolveTraceId();
+        var attemptContext = GetAttemptContext(traceId);
+
+        await EnsureOtpAttemptAllowedAsync(OtpAttemptMethod, normalizedDestination, ct).ConfigureAwait(false);
+        await EnsureOtpIpAllowedAsync(OtpIpAttemptMethod, attemptContext, ct).ConfigureAwait(false);
 
         var loginAttempt = new LoginAttemptedEvent
         {
@@ -235,9 +294,18 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         var verifyResult = await _otpService.VerifyAsync(new OtpVerifyRequest(challengeId, code), ct);
         if (!verifyResult.Success)
         {
-            verifyResult = await TryResumeConsumedChallengeAsync(challengeId, ct).ConfigureAwait(false)
-                ?? await FailOtpVerificationAsync(challengeId, normalizedDestination, traceId, ct)
+            var resumed = await TryResumeConsumedChallengeAsync(challengeId, ct).ConfigureAwait(false);
+            if (resumed is null)
+            {
+                await RegisterOtpVerificationFailureAsync(normalizedDestination, attemptContext, ct)
                     .ConfigureAwait(false);
+                verifyResult = await FailOtpVerificationAsync(challengeId, normalizedDestination, traceId, ct)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                verifyResult = resumed;
+            }
         }
 
         var verified = new OtpVerifiedEvent
@@ -415,6 +483,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             await EnsureUserExtensionAsync(user, tenant.TenantId, UserExtensionOperations.Login, challengeId, challengeId, traceId, ct)
                 .ConfigureAwait(false);
             var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
+            await RegisterOtpSuccessAsync(normalizedDestination, attemptContext, ct).ConfigureAwait(false);
             await EmitLoginSucceededAsync("otp", user.UserId, tenant.TenantId, false, challengeId, traceId, ct);
             return AuthResultResponse.WithToken(token, createdNewUser);
         }
@@ -432,6 +501,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
                 await EnsureUserExtensionAsync(user, defaultTenant.TenantId, UserExtensionOperations.Login, challengeId, challengeId, traceId, ct)
                     .ConfigureAwait(false);
                 var token = await _tokens.CreateAccessTokenAsync(user.UserId, defaultTenant.TenantId, claims, ct);
+                await RegisterOtpSuccessAsync(normalizedDestination, attemptContext, ct).ConfigureAwait(false);
                 await EmitLoginSucceededAsync("otp", user.UserId, defaultTenant.TenantId, false, challengeId, traceId, ct);
                 return AuthResultResponse.WithToken(token, createdNewUser);
             }
@@ -440,6 +510,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         var preClaims = BuildBaseClaims(user);
         preClaims.Add(new ClaimItem("pt", "1"));
         var preToken = await _tokens.CreatePreTenantTokenAsync(user.UserId, preClaims, ct);
+        await RegisterOtpSuccessAsync(normalizedDestination, attemptContext, ct).ConfigureAwait(false);
         await EmitLoginSucceededAsync("otp", user.UserId, null, true, challengeId, traceId, ct);
         return AuthResultResponse.RequiresSelection(preToken.AccessToken, activeTenants, createdNewUser);
     }
@@ -653,7 +724,126 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             (hook, evt, token) => hook.OnLoginFailedAsync(evt, token),
             ct);
 
+        await DelayFailedOtpResponseAsync(ct).ConfigureAwait(false);
         throw new IdentityValidationException("OTP verification failed.");
+    }
+
+    private AuthAttemptContext GetAttemptContext(string? correlationId = null)
+    {
+        var context = _attemptContextProvider.GetCurrent();
+        if (!string.IsNullOrWhiteSpace(context.CorrelationId) || string.IsNullOrWhiteSpace(correlationId))
+            return context;
+
+        return context with { CorrelationId = correlationId };
+    }
+
+    private async Task EnsureOtpAttemptAllowedAsync(string method, string identifier, CancellationToken ct)
+    {
+        var options = _otpOptions.Value;
+        var enabled = method == OtpStartAttemptMethod
+            ? options.MaxChallengeRequests > 0
+            : options.MaxAttempts > 0;
+        if (!enabled)
+            return;
+
+        var state = await _attempts.GetStateAsync(method, identifier, ct).ConfigureAwait(false);
+        if (state.IsLocked(DateTimeOffset.UtcNow))
+        {
+            await DelayFailedOtpResponseAsync(ct).ConfigureAwait(false);
+            throw new IdentityUnauthorizedException("OTP verification failed.");
+        }
+    }
+
+    private async Task EnsureOtpIpAllowedAsync(string method, AuthAttemptContext context, CancellationToken ct)
+    {
+        var options = _otpOptions.Value;
+        var enabled = method == OtpStartIpAttemptMethod
+            ? options.MaxChallengeRequests > 0
+            : options.MaxFailedAttemptsPerIp > 0;
+        if (!enabled || string.IsNullOrWhiteSpace(context.IpAddress))
+            return;
+
+        var state = await _attempts.GetStateAsync(method, context.IpAddress!, ct).ConfigureAwait(false);
+        if (state.IsLocked(DateTimeOffset.UtcNow))
+        {
+            await DelayFailedOtpResponseAsync(ct).ConfigureAwait(false);
+            throw new IdentityUnauthorizedException("OTP verification failed.");
+        }
+    }
+
+    private async Task RegisterOtpStartAttemptAsync(string normalizedDestination, AuthAttemptContext context, CancellationToken ct)
+    {
+        var options = _otpOptions.Value;
+        if (options.MaxChallengeRequests <= 0)
+            return;
+
+        await _attempts.RegisterFailureAsync(
+            OtpStartAttemptMethod,
+            normalizedDestination,
+            options.MaxChallengeRequests,
+            TimeSpan.FromMinutes(options.ChallengeRequestLockoutMinutes),
+            ct,
+            options.TrackAttemptMetadata ? context : null).ConfigureAwait(false);
+
+        if (!string.IsNullOrWhiteSpace(context.IpAddress))
+        {
+            await _attempts.RegisterFailureAsync(
+                OtpStartIpAttemptMethod,
+                context.IpAddress!,
+                options.MaxChallengeRequests,
+                TimeSpan.FromMinutes(options.ChallengeRequestLockoutMinutes),
+                ct,
+                options.TrackAttemptMetadata ? context : null).ConfigureAwait(false);
+        }
+    }
+
+    private async Task RegisterOtpVerificationFailureAsync(string normalizedDestination, AuthAttemptContext context, CancellationToken ct)
+    {
+        var options = _otpOptions.Value;
+        if (options.MaxAttempts > 0)
+        {
+            await _attempts.RegisterFailureAsync(
+                OtpAttemptMethod,
+                normalizedDestination,
+                options.MaxAttempts,
+                TimeSpan.FromMinutes(options.LockoutMinutes),
+                ct,
+                options.TrackAttemptMetadata ? context : null).ConfigureAwait(false);
+        }
+
+        if (options.MaxFailedAttemptsPerIp > 0 && !string.IsNullOrWhiteSpace(context.IpAddress))
+        {
+            await _attempts.RegisterFailureAsync(
+                OtpIpAttemptMethod,
+                context.IpAddress!,
+                options.MaxFailedAttemptsPerIp,
+                TimeSpan.FromMinutes(options.IpLockoutMinutes),
+                ct,
+                options.TrackAttemptMetadata ? context : null).ConfigureAwait(false);
+        }
+    }
+
+    private async Task RegisterOtpSuccessAsync(string normalizedDestination, AuthAttemptContext context, CancellationToken ct)
+    {
+        var storeContext = _otpOptions.Value.TrackAttemptMetadata ? context : null;
+        await _attempts.RegisterSuccessAsync(OtpAttemptMethod, normalizedDestination, ct, storeContext)
+            .ConfigureAwait(false);
+        await _attempts.RegisterSuccessAsync(OtpStartAttemptMethod, normalizedDestination, ct, storeContext)
+            .ConfigureAwait(false);
+
+        if (!string.IsNullOrWhiteSpace(context.IpAddress))
+        {
+            await _attempts.RegisterSuccessAsync(OtpIpAttemptMethod, context.IpAddress!, ct, storeContext)
+                .ConfigureAwait(false);
+            await _attempts.RegisterSuccessAsync(OtpStartIpAttemptMethod, context.IpAddress!, ct, storeContext)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private Task DelayFailedOtpResponseAsync(CancellationToken ct)
+    {
+        var delay = _otpOptions.Value.FailureResponseDelayMilliseconds;
+        return delay > 0 ? Task.Delay(delay, ct) : Task.CompletedTask;
     }
 
     private Task<IdentityUser?> FindUserByDestinationAsync(

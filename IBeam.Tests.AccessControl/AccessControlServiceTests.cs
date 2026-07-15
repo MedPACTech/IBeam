@@ -1,8 +1,7 @@
 using IBeam.AccessControl;
 using IBeam.AccessControl.Services;
-using IBeam.Identity.Interfaces;
-using System.Text.Json;
 using Microsoft.Extensions.Options;
+using System.Security.Claims;
 
 [assembly: Parallelize(Scope = ExecutionScope.MethodLevel)]
 
@@ -314,50 +313,166 @@ public sealed class AccessControlServiceTests
     }
 
     [TestMethod]
-    public async Task ResourceAccessClaimsEnricher_EmitsActiveUserGrants()
+    public async Task PermissionRoleAuthorizer_AllowsMappedRoleId()
     {
-        var fixture = CreateFixture();
-        var userId = Guid.Parse("c52c07b9-f04d-5d49-ae72-2521a261f021");
-        var subject = new AccessSubject(AccessSubjectTypes.User, userId.ToString("D"));
-
-        await fixture.Service.GrantAccessAsync(
+        var roleId = Guid.Parse("7f15d8b5-0797-42ce-83b4-019dd9854a7f");
+        var store = new InMemoryPermissionRoleMapStore();
+        await store.UpsertByPermissionNameAsync(
             TenantId,
-            new GrantResourceAccessRequest
-            {
-                ResourceType = "product",
-                ResourceId = "qurvia",
-                Subject = subject,
-                AccessLevel = ResourceAccessLevels.Manage
-            });
+            "users.manage",
+            ["Administrator"],
+            [roleId]);
 
-        var revoked = await fixture.Service.GrantAccessAsync(
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new Claim("tid", TenantId.ToString("D")),
+                new Claim("role", "Member"),
+                new Claim("rid", roleId.ToString("D"))
+            ],
+            "test"));
+
+        var authorizer = new PermissionRoleAuthorizer(store);
+        var allowed = await authorizer.AuthorizeAsync(
             TenantId,
-            new GrantResourceAccessRequest
-            {
-                ResourceType = "project",
-                ResourceId = "project-1",
-                Subject = subject,
-                AccessLevel = ResourceAccessLevels.Delete
-            });
+            principal,
+            ["users.manage"],
+            []);
 
-        await fixture.Service.RevokeGrantAsync(TenantId, revoked.GrantId);
+        Assert.IsTrue(allowed);
+    }
 
-        var enricher = new ResourceAccessClaimsEnricher(
-            fixture.Service,
-            Options.Create(new AccessControlOptions()));
+    [TestMethod]
+    public async Task ServiceOperationAuthorizer_AllowsAndDeniesAccountingRole()
+    {
+        var store = new InMemoryServiceOperationPermissionStore();
+        var service = new ServiceOperationPermissionService(store);
+        var authorizer = CreateServiceOperationAuthorizer(store);
+        var principal = PrincipalWithRoles("Accounting");
 
-        var claims = await enricher.EnrichAsync(
-            new ClaimsEnrichmentContext(userId, TenantId, []));
+        await service.UpsertRuleAsync(TenantId, new UpsertServiceOperationPermissionRequest
+        {
+            Pattern = "pricing.*",
+            Effect = ServiceOperationPermissionEffects.Allow,
+            SubjectTypes = [AccessSubjectTypes.User],
+            RoleNames = ["Accounting"]
+        });
 
-        var claim = claims.Single(x => x.Type == ResourceAccessClaimTypes.ResourceAccess);
-        using var document = JsonDocument.Parse(claim.Value);
-        var grants = document.RootElement.GetProperty("grants");
+        await service.UpsertRuleAsync(TenantId, new UpsertServiceOperationPermissionRequest
+        {
+            Pattern = "sales.*",
+            Effect = ServiceOperationPermissionEffects.Deny,
+            SubjectTypes = [AccessSubjectTypes.User],
+            RoleNames = ["Accounting"]
+        });
 
-        Assert.AreEqual("json", claim.ValueType);
-        Assert.AreEqual(1, grants.GetArrayLength());
-        Assert.AreEqual("product", grants[0].GetProperty("resourceType").GetString());
-        Assert.AreEqual("qurvia", grants[0].GetProperty("resourceId").GetString());
-        Assert.AreEqual(ResourceAccessLevels.Manage, grants[0].GetProperty("accessLevel").GetString());
+        var pricing = await authorizer.AuthorizeAsync(new ServiceOperationAuthorizationRequest(
+            TenantId,
+            principal,
+            "pricing.update"));
+
+        var sales = await authorizer.AuthorizeAsync(new ServiceOperationAuthorizationRequest(
+            TenantId,
+            principal,
+            "sales.delete"));
+
+        Assert.IsTrue(pricing.Allowed);
+        Assert.IsFalse(sales.Allowed);
+    }
+
+    [TestMethod]
+    public async Task ServiceOperationAuthorizer_ExactDenyBeatsWildcardAllow()
+    {
+        var store = new InMemoryServiceOperationPermissionStore();
+        var service = new ServiceOperationPermissionService(store);
+        var authorizer = CreateServiceOperationAuthorizer(store);
+        var principal = PrincipalWithRoles("Accounting");
+
+        await service.UpsertRuleAsync(TenantId, new UpsertServiceOperationPermissionRequest
+        {
+            Pattern = "coupons.*",
+            Effect = ServiceOperationPermissionEffects.Allow,
+            RoleNames = ["Accounting"]
+        });
+
+        await service.UpsertRuleAsync(TenantId, new UpsertServiceOperationPermissionRequest
+        {
+            Pattern = "coupons.delete",
+            Effect = ServiceOperationPermissionEffects.Deny,
+            RoleNames = ["Accounting"]
+        });
+
+        var update = await authorizer.AuthorizeAsync(new ServiceOperationAuthorizationRequest(
+            TenantId,
+            principal,
+            "coupons.update"));
+
+        var delete = await authorizer.AuthorizeAsync(new ServiceOperationAuthorizationRequest(
+            TenantId,
+            principal,
+            "coupons.delete"));
+
+        Assert.IsTrue(update.Allowed);
+        Assert.IsFalse(delete.Allowed);
+        Assert.AreEqual("matched-deny-rule", delete.Reason);
+    }
+
+    [TestMethod]
+    public async Task ServiceOperationAuthorizer_ConfigEmergencyDenyOverridesStoredAllow()
+    {
+        var store = new InMemoryServiceOperationPermissionStore();
+        var service = new ServiceOperationPermissionService(store);
+        await service.UpsertRuleAsync(TenantId, new UpsertServiceOperationPermissionRequest
+        {
+            Pattern = "referralcodes.delete",
+            Effect = ServiceOperationPermissionEffects.Allow,
+            RoleNames = ["Accounting"]
+        });
+
+        var options = new ServiceOperationAuthorizationOptions { Enabled = true };
+        options.EmergencyOverrides.Add(new ServiceOperationPermissionRuleOptions
+        {
+            Pattern = "referralcodes.delete",
+            Effect = ServiceOperationPermissionEffects.Deny,
+            RoleNames = ["Accounting"]
+        });
+
+        var authorizer = CreateServiceOperationAuthorizer(store, options);
+        var result = await authorizer.AuthorizeAsync(new ServiceOperationAuthorizationRequest(
+            TenantId,
+            PrincipalWithRoles("Accounting"),
+            "referralcodes.delete"));
+
+        Assert.IsFalse(result.Allowed);
+        Assert.AreEqual(ServiceOperationPermissionSources.EmergencyConfiguration, result.MatchedRule?.Source);
+    }
+
+    [TestMethod]
+    public async Task ServiceOperationAuthorizer_DoesNotTreatAgentAsUser()
+    {
+        var store = new InMemoryServiceOperationPermissionStore();
+        var service = new ServiceOperationPermissionService(store);
+        var authorizer = CreateServiceOperationAuthorizer(store);
+
+        await service.UpsertRuleAsync(TenantId, new UpsertServiceOperationPermissionRequest
+        {
+            Pattern = "transactions.*",
+            Effect = ServiceOperationPermissionEffects.Allow,
+            SubjectTypes = [AccessSubjectTypes.User],
+            RoleNames = ["Accounting"]
+        });
+
+        var user = await authorizer.AuthorizeAsync(new ServiceOperationAuthorizationRequest(
+            TenantId,
+            PrincipalWithRoles("Accounting"),
+            "transactions.export"));
+
+        var agent = await authorizer.AuthorizeAsync(new ServiceOperationAuthorizationRequest(
+            TenantId,
+            PrincipalWithRoles("Accounting", ("subject_type", AccessSubjectTypes.Agent)),
+            "transactions.export"));
+
+        Assert.IsTrue(user.Allowed);
+        Assert.IsFalse(agent.Allowed);
     }
 
     private static Fixture CreateFixture(IResourceAccessHierarchyResolver? hierarchy = null)
@@ -373,9 +488,56 @@ public sealed class AccessControlServiceTests
         return new Fixture(service, authorizer);
     }
 
+    private static ServiceOperationAuthorizer CreateServiceOperationAuthorizer(
+        IServiceOperationPermissionStore store,
+        ServiceOperationAuthorizationOptions? options = null)
+    {
+        options ??= new ServiceOperationAuthorizationOptions { Enabled = true };
+        options.Validate();
+        return new ServiceOperationAuthorizer(
+            [
+                new ConfigServiceOperationPermissionRuleProvider(OptionsMonitor(options)),
+                new StoreServiceOperationPermissionRuleProvider(store)
+            ],
+            OptionsMonitor(options));
+    }
+
+    private static IOptionsMonitor<T> OptionsMonitor<T>(T options)
+        where T : class
+        => new TestOptionsMonitor<T>(options);
+
+    private static ClaimsPrincipal PrincipalWithRoles(
+        string roleName,
+        params (string Type, string Value)[] extraClaims)
+    {
+        var claims = new List<Claim>
+        {
+            new("tid", TenantId.ToString("D")),
+            new("role", roleName)
+        };
+
+        claims.AddRange(extraClaims.Select(x => new Claim(x.Type, x.Value)));
+
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, "test"));
+    }
+
     private sealed record Fixture(
         ResourceAccessService Service,
         ResourceAccessAuthorizer Authorizer);
+
+    private sealed class TestOptionsMonitor<T> : IOptionsMonitor<T>
+    {
+        public TestOptionsMonitor(T currentValue)
+        {
+            CurrentValue = currentValue;
+        }
+
+        public T CurrentValue { get; }
+
+        public T Get(string? name) => CurrentValue;
+
+        public IDisposable? OnChange(Action<T, string?> listener) => null;
+    }
 
     private sealed class TestResourceAccessHierarchyResolver : IResourceAccessHierarchyResolver
     {

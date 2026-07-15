@@ -194,10 +194,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                 .ToList();
 
             await EnsureMembershipAsync(
-                request.TenantId,
-                request.UserId,
-                request.TenantName,
-                request.SetAsDefault,
+                request,
                 ct).ConfigureAwait(false);
 
             return await UpdateMembershipRolesAsync(
@@ -361,7 +358,6 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
             RowKey = tenantId.ToString("D"),
             Name = name,
             NormalizedName = name.ToUpperInvariant(),
-            OwnerUserId = userId.ToString("D"),
             Status = "Active",
             CreatedAt = now
         };
@@ -402,12 +398,18 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         }
     }
 
-    private async Task EnsureMembershipAsync(Guid tenantId, Guid userId, string? tenantName, bool setAsDefault, CancellationToken ct)
+    private async Task EnsureMembershipAsync(TenantMembershipRoleBootstrapRequest request, CancellationToken ct)
     {
         var now = DateTimeOffset.UtcNow;
+        var tenantId = request.TenantId;
+        var userId = request.UserId;
         var userIdStr = userId.ToString("D");
         var tenantIdStr = tenantId.ToString("D");
+        var tenantName = request.TenantName;
+        var setAsDefault = request.SetAsDefault;
         var displayName = string.IsNullOrWhiteSpace(tenantName) ? null : tenantName.Trim();
+        var userDisplayName = NormalizeOptional(request.UserDisplayName);
+        var userEmail = NormalizeEmail(request.UserEmail);
 
         var tenantUsers = TenantUsersTable();
         var tenantUserPk = _opts.TenantUsersPk(tenantId);
@@ -422,6 +424,10 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
             tenantUser.Status = "Active";
             tenantUser.DisabledAt = null;
             tenantUser.DisabledReason = null;
+            if (!string.IsNullOrWhiteSpace(userDisplayName))
+                tenantUser.UserDisplayName = userDisplayName;
+            if (!string.IsNullOrWhiteSpace(userEmail))
+                tenantUser.Email = userEmail;
             await tenantUsers.UpdateEntityAsync(tenantUser, tenantUser.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
         }
         else
@@ -435,6 +441,8 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                     TenantId = tenantIdStr,
                     UserId = userIdStr,
                     Status = "Active",
+                    UserDisplayName = userDisplayName,
+                    Email = userEmail,
                     CreatedAt = now
                 }, ct).ConfigureAwait(false);
             }
@@ -451,6 +459,10 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                 tenantUser.Status = "Active";
                 tenantUser.DisabledAt = null;
                 tenantUser.DisabledReason = null;
+                if (!string.IsNullOrWhiteSpace(userDisplayName))
+                    tenantUser.UserDisplayName = userDisplayName;
+                if (!string.IsNullOrWhiteSpace(userEmail))
+                    tenantUser.Email = userEmail;
                 await tenantUsers.UpdateEntityAsync(tenantUser, tenantUser.ETag, TableUpdateMode.Replace, ct)
                     .ConfigureAwait(false);
             }
@@ -525,6 +537,12 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
 
     private Task<TenantRole> GetOrCreateRoleByNameAsync(Guid tenantId, string name, CancellationToken ct)
         => EnsureRoleByNameAsync(tenantId, name, isSystem: false, ct);
+
+    private static string? NormalizeOptional(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string? NormalizeEmail(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
 
     private async Task<TenantRole> EnsureRoleByNameAsync(Guid tenantId, string name, bool isSystem, CancellationToken ct)
     {

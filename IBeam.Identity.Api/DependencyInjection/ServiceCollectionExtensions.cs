@@ -41,6 +41,7 @@ public static class ServiceCollectionExtensions
         services.AddIBeamIdentityAuthOAuthService();
         services.TryAddScoped<IApiErrorSink, NoOpApiErrorSink>();
         services.TryAddScoped<ISystemLogSink, NoOpSystemLogSink>();
+        services.TryAddScoped<IAuthAttemptContextProvider, HttpAuthAttemptContextProvider>();
 
         services.AddMemoryCache();
         services.AddHttpClient();

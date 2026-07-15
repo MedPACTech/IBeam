@@ -123,6 +123,130 @@ public static class AccessControlEndpointRouteBuilderExtensions
             }
         });
 
+        group.MapGet("/tenants/{tenantId:guid}/access-control/service-permissions", async (
+            Guid tenantId,
+            IServiceOperationPermissionService permissions,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await permissions.ListRulesAsync(tenantId, ct).ConfigureAwait(false);
+                return Results.Ok(result);
+            }
+            catch (AccessControlException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
+        group.MapPost("/tenants/{tenantId:guid}/access-control/service-permissions", async (
+            Guid tenantId,
+            UpsertServiceOperationPermissionRequest request,
+            HttpContext httpContext,
+            IServiceOperationPermissionService permissions,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await permissions.UpsertRuleAsync(
+                    tenantId,
+                    request,
+                    ResolveUserId(httpContext.User),
+                    ct).ConfigureAwait(false);
+
+                return Results.Ok(result);
+            }
+            catch (AccessControlException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
+        group.MapPut("/tenants/{tenantId:guid}/access-control/service-permissions/{ruleId:guid}", async (
+            Guid tenantId,
+            Guid ruleId,
+            UpsertServiceOperationPermissionRequest request,
+            HttpContext httpContext,
+            IServiceOperationPermissionService permissions,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                request.RuleId = ruleId;
+                var result = await permissions.UpsertRuleAsync(
+                    tenantId,
+                    request,
+                    ResolveUserId(httpContext.User),
+                    ct).ConfigureAwait(false);
+
+                return Results.Ok(result);
+            }
+            catch (AccessControlException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
+        group.MapPost("/tenants/{tenantId:guid}/access-control/service-permissions/{ruleId:guid}/disable", async (
+            Guid tenantId,
+            Guid ruleId,
+            HttpContext httpContext,
+            IServiceOperationPermissionService permissions,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                await permissions.DisableRuleAsync(tenantId, ruleId, ResolveUserId(httpContext.User), ct)
+                    .ConfigureAwait(false);
+                return Results.NoContent();
+            }
+            catch (AccessControlException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
+        group.MapDelete("/tenants/{tenantId:guid}/access-control/service-permissions/{ruleId:guid}", async (
+            Guid tenantId,
+            Guid ruleId,
+            IServiceOperationPermissionService permissions,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                await permissions.DeleteRuleAsync(tenantId, ruleId, ct).ConfigureAwait(false);
+                return Results.NoContent();
+            }
+            catch (AccessControlException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
+        group.MapPost("/tenants/{tenantId:guid}/access-control/service-permissions/check", async (
+            Guid tenantId,
+            CheckServiceOperationAccessRequest request,
+            HttpContext httpContext,
+            IServiceOperationAuthorizer authorizer,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await authorizer.AuthorizeAsync(
+                    new ServiceOperationAuthorizationRequest(
+                        tenantId,
+                        httpContext.User,
+                        request.OperationName),
+                    ct).ConfigureAwait(false);
+
+                return Results.Ok(result);
+            }
+            catch (AccessControlException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
         return group;
     }
 

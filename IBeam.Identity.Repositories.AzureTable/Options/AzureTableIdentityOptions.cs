@@ -35,9 +35,6 @@ public sealed class AzureTableIdentityOptions
     public string SystemLogsTableName { get; set; } = "SystemLogs";
     public string SystemErrorsTableName { get; set; } = "SystemErrors";
 
-    // (Optional, only if you implement later)
-    public string? OtpAttemptsTableName { get; set; } = null;
-
     // ----- Table name helper -----
     public string FullTableName(string baseName)
         => $"{TablePrefix}{baseName}";
@@ -149,9 +146,6 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(AuthAttemptsTableName, nameof(AuthAttemptsTableName));
         ValidateTableName(SystemLogsTableName, nameof(SystemLogsTableName));
         ValidateTableName(SystemErrorsTableName, nameof(SystemErrorsTableName));
-
-        if (!string.IsNullOrWhiteSpace(OtpAttemptsTableName))
-            ValidateTableName(OtpAttemptsTableName!, nameof(OtpAttemptsTableName));
 
         // Validate full table names too (prefix+name must still be valid)
         ValidateTableName(FullTableName(IndexTableName), nameof(TablePrefix) + "+" + nameof(IndexTableName));

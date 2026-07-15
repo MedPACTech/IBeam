@@ -17,7 +17,6 @@ internal sealed class TenantEntity : ITableEntity
     public string Name { get; set; } = "";
     public string? NormalizedName { get; set; }        // e.g. Name.Trim().ToUpperInvariant()
 
-    public string? OwnerUserId { get; set; }           // optional
     public string Status { get; set; } = "Active";     // "Active" | "Disabled"
 
     public DateTimeOffset CreatedAt { get; set; }      // set explicitly on insert

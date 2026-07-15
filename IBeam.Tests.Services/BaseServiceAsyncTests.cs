@@ -2,6 +2,7 @@ using IBeam.Repositories.Abstractions;
 using IBeam.Repositories.Core;
 using IBeam.Services.Abstractions;
 using IBeam.Services.Core;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace IBeam.Tests.Services;
@@ -181,6 +182,43 @@ public sealed class BaseServiceAsyncTests
 
         audit.Verify(x => x.LogDeleteAsync(It.IsAny<TestEntity>(), It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [TestMethod]
+    public async Task SaveAsync_WhenServiceAuditEnabled_WritesConfiguredAction()
+    {
+        var repo = new Mock<IBaseRepositoryAsync<TestEntity>>(MockBehavior.Strict);
+        var mapper = new TestMapper();
+        var sink = new Mock<IAuditTrailSink>(MockBehavior.Strict);
+        var options = new ServiceAuditOptions { Enabled = true };
+        options.Services[nameof(TestAsyncService)] = new ServiceAuditServiceOptions
+        {
+            EntityName = "products",
+            Operations =
+            {
+                ["Create"] = new ServiceAuditOperationOptions { Action = "catalog.products.create" }
+            }
+        };
+
+        var service = new TestAsyncService(
+            repo.Object,
+            mapper,
+            auditTrailSink: sink.Object,
+            auditOptionsMonitor: OptionsMonitor(options));
+
+        repo.Setup(x => x.SaveAsync(It.Is<TestEntity>(e => e.Name == "created"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TestEntity e, CancellationToken _) => e with { Id = Guid.NewGuid() });
+
+        sink.Setup(x => x.WriteTransactionAsync(It.Is<ServiceAuditTransaction>(t =>
+                t.Operation == ServiceAuditOperation.Create &&
+                t.Action == "catalog.products.create" &&
+                t.EntityName == "products"), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var saved = await service.SaveAsync(new TestModel { Name = "created" });
+
+        Assert.AreNotEqual(Guid.Empty, saved.Id);
+        sink.Verify(x => x.WriteTransactionAsync(It.IsAny<ServiceAuditTransaction>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
     private static async Task<TException> AssertThrowsAsync<TException>(Func<Task> action)
         where TException : Exception
     {
@@ -230,10 +268,13 @@ public sealed class BaseServiceAsyncTests
         public TestAsyncService(
             IBaseRepositoryAsync<TestEntity> repository,
             IModelMapper<TestEntity, TestModel> mapper,
-            IAuditServiceAsync? audit = null)
-            : base(repository, mapper, audit)
+            IAuditServiceAsync? audit = null,
+            IAuditTrailSink? auditTrailSink = null,
+            IOptionsMonitor<ServiceAuditOptions>? auditOptionsMonitor = null)
+            : base(repository, mapper, audit, auditTrailSink: auditTrailSink, auditOptionsMonitor: auditOptionsMonitor)
         {
             AllowGetById = true;
+            AllowSave = true;
             AllowSaveAll = true;
             AllowArchive = true;
             AllowUnarchive = true;
@@ -309,6 +350,13 @@ public sealed class BaseServiceAsyncTests
         public Guid Id { get; set; }
         public bool IsDeleted { get; set; }
         public string Name { get; set; } = string.Empty;
+    }
+
+    private static IOptionsMonitor<ServiceAuditOptions> OptionsMonitor(ServiceAuditOptions options)
+    {
+        var monitor = new Mock<IOptionsMonitor<ServiceAuditOptions>>();
+        monitor.SetupGet(x => x.CurrentValue).Returns(options);
+        return monitor.Object;
     }
 }
 

@@ -40,6 +40,8 @@ namespace IBeam.Services.Abstractions
 
             services.AddScoped<IAuditTrailSink, NoOpAuditTrailSink>();
             services.AddScoped<IAuditActorProvider, NoOpAuditActorProvider>();
+            services.AddScoped<IAuditRequestContextProvider, NoOpAuditRequestContextProvider>();
+            services.AddScoped<IServiceOperationPrincipalProvider, NoOpServiceOperationPrincipalProvider>();
 
             return services;
         }

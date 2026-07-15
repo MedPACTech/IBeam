@@ -119,6 +119,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IIdentityUserExtensionCoordinator, NoOpIdentityUserExtensionCoordinator>();
         services.TryAddScoped<ITenantInfoResolver, TenantInfoResolver>();
         services.TryAddScoped<IAuthAttemptStore, InMemoryAuthAttemptStore>();
+        services.TryAddScoped<IAuthAttemptContextProvider, NoOpAuthAttemptContextProvider>();
         services.AddScoped<IRoleAccessAuthorizer, RoleAccessAuthorizer>();
         services.TryAddScoped<IPermissionAccessStore, NoOpPermissionAccessStore>();
         services.TryAddScoped<IIBeamAccessGrantStore, NoOpAccessGrantStore>();

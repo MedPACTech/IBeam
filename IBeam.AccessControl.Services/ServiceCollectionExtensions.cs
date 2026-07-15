@@ -1,4 +1,3 @@
-using IBeam.Identity.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -21,11 +20,41 @@ public static class AccessControlServiceCollectionExtensions
             .ValidateOnStart();
 
         services.TryAddSingleton<IResourceAccessStore, InMemoryResourceAccessStore>();
+        services.TryAddSingleton<IPermissionRoleMapStore, InMemoryPermissionRoleMapStore>();
         services.TryAddScoped<IResourceAccessHierarchyResolver, NoOpResourceAccessHierarchyResolver>();
         services.TryAddScoped<IResourceAccessService, ResourceAccessService>();
         services.TryAddScoped<IResourceAccessAuthorizer, ResourceAccessAuthorizer>();
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<IClaimsEnricher, ResourceAccessClaimsEnricher>());
+        services.TryAddScoped<IPermissionRoleMapService, PermissionRoleMapService>();
+        services.TryAddScoped<IPermissionRoleAuthorizer, PermissionRoleAuthorizer>();
+        services.AddIBeamServiceOperationAuthorization(configuration);
 
+        return services;
+    }
+
+    public static IServiceCollection AddIBeamServiceOperationAuthorization(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<ServiceOperationAuthorizationOptions>()
+            .Bind(configuration.GetSection(ServiceOperationAuthorizationOptions.SectionName))
+            .Validate(o =>
+            {
+                o.Validate();
+                return true;
+            })
+            .ValidateOnStart();
+
+        services.TryAddSingleton<IServiceOperationPermissionStore, InMemoryServiceOperationPermissionStore>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IServiceOperationPermissionRuleProvider, ConfigServiceOperationPermissionRuleProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IServiceOperationPermissionRuleProvider, StoreServiceOperationPermissionRuleProvider>());
+        services.TryAddScoped<IServiceOperationAuthorizer, ServiceOperationAuthorizer>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddIBeamServiceOperationPermissionManagement(this IServiceCollection services)
+    {
+        services.TryAddScoped<IServiceOperationPermissionService, ServiceOperationPermissionService>();
         return services;
     }
 }

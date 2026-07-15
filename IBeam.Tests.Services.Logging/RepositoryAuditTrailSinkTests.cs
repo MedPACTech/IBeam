@@ -81,15 +81,21 @@ public sealed class RepositoryAuditTrailSinkTests
             ServiceName = "PatientService",
             EntityName = "Patient",
             Operation = ServiceAuditOperation.Update,
+            Action = "patients.update",
             EntityId = Guid.NewGuid(),
             OriginalJson = "{\"a\":1}",
-            TransformedJson = "{\"a\":2}"
+            TransformedJson = "{\"a\":2}",
+            IpAddress = "127.0.0.1"
         };
 
         repo.Setup(x => x.SaveAsync(It.Is<ServiceAuditLogEntry>(e =>
                 !e.IsSelectRollup &&
                 e.ServiceName == "PatientService" &&
-                e.Operation == "Update"), It.IsAny<CancellationToken>()))
+                e.Operation == "Update" &&
+                e.Action == "patients.update" &&
+                e.BeforeJson == "{\"a\":1}" &&
+                e.AfterJson == "{\"a\":2}" &&
+                e.IpAddress == "127.0.0.1"), It.IsAny<CancellationToken>()))
             .ReturnsAsync((ServiceAuditLogEntry e, CancellationToken _) => e);
 
         await sink.WriteTransactionAsync(txn);

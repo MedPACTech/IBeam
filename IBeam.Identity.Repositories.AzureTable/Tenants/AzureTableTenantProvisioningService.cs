@@ -40,7 +40,8 @@ internal sealed class AzureTableTenantProvisioningService : ITenantProvisioningS
                 UserId: userId,
                 TenantName: tenantName,
                 RoleNames: ownerRoles,
-                SetAsDefault: true),
+                SetAsDefault: true,
+                UserEmail: email),
             ct).ConfigureAwait(false);
 
         return tenantId;

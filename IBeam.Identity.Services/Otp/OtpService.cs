@@ -92,7 +92,7 @@ public sealed class OtpService : IOtpService
         if (record.ExpiresAt <= now)
             return new OtpVerifyResult(false);
 
-        if (record.AttemptCount >= opts.MaxAttempts)
+        if (opts.MaxAttempts > 0 && record.AttemptCount >= opts.MaxAttempts)
             return new OtpVerifyResult(false);
 
         var providedHash = HashCode(request.Code.Trim(), opts.HashSalt);

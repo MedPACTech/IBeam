@@ -16,4 +16,16 @@ internal sealed class AuthAttemptEntity : ITableEntity
     public DateTimeOffset? LockedUntilUtc { get; set; }
     public DateTimeOffset? LastFailedAtUtc { get; set; }
     public DateTimeOffset? LastSucceededAtUtc { get; set; }
+    public string? LastFailedIp { get; set; }
+    public string? LastSucceededIp { get; set; }
+    public string? LastUserAgent { get; set; }
+    public string? LastDeviceId { get; set; }
+    public string? LastCountry { get; set; }
+    public string? LastRegion { get; set; }
+    public string? LastCity { get; set; }
+    public string? LastCorrelationId { get; set; }
+    public DateTimeOffset? LastUnlockedAtUtc { get; set; }
+    public string? UnlockedByUserId { get; set; }
+    public string? UnlockReason { get; set; }
+    public string? MetadataJson { get; set; }
 }

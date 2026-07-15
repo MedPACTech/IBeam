@@ -10,6 +10,8 @@ public sealed class ServiceSelectAuditRollup
 
     public ServiceAuditOperation Operation { get; set; }
 
+    public string Action { get; set; } = string.Empty;
+
     public Guid? TenantId { get; set; }
 
     public string? ActorId { get; set; }

@@ -4,7 +4,10 @@ using System.Security.Claims;
 
 namespace IBeam.Services.Logging;
 
-public sealed class HttpContextAuditActorProvider : IAuditActorProvider
+public sealed class HttpContextAuditActorProvider :
+    IAuditActorProvider,
+    IAuditRequestContextProvider,
+    IServiceOperationPrincipalProvider
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
 
@@ -25,4 +28,26 @@ public sealed class HttpContextAuditActorProvider : IAuditActorProvider
             ?? principal.FindFirstValue("sub")
             ?? principal.Identity?.Name;
     }
+
+    public AuditRequestContext GetContext()
+    {
+        var context = _httpContextAccessor.HttpContext;
+        if (context is null)
+        {
+            return new AuditRequestContext();
+        }
+
+        return new AuditRequestContext
+        {
+            CorrelationId = context.TraceIdentifier,
+            IpAddress = context.Connection.RemoteIpAddress?.ToString(),
+            UserAgent = context.Request.Headers["User-Agent"].ToString(),
+            DeviceId = context.Request.Headers.TryGetValue("X-Device-Id", out var deviceId)
+                ? deviceId.ToString()
+                : null
+        };
+    }
+
+    public ClaimsPrincipal? GetPrincipal()
+        => _httpContextAccessor.HttpContext?.User;
 }

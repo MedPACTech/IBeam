@@ -31,6 +31,8 @@ public static class ServiceCollectionExtensions
     {
         services.AddHttpContextAccessor();
         services.Replace(ServiceDescriptor.Scoped<IAuditActorProvider, HttpContextAuditActorProvider>());
+        services.Replace(ServiceDescriptor.Scoped<IAuditRequestContextProvider, HttpContextAuditActorProvider>());
+        services.Replace(ServiceDescriptor.Scoped<IServiceOperationPrincipalProvider, HttpContextAuditActorProvider>());
         return services;
     }
 }

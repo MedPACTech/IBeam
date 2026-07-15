@@ -17,11 +17,9 @@ internal sealed class OtpChallengeEntity : ITableEntity
     // Target
     public string Channel { get; set; } = default!;          // "sms" | "email"
     public string Destination { get; set; } = default!;      // phone/email normalized
-    public string DestinationHash { get; set; } = default!;  // stable hash for partitioning / lookups (optional but useful)
 
     // OTP secret (never store raw code)
-    public string CodeHash { get; set; } = default!;         // hash(code + nonce/salt)
-    public string CodeNonce { get; set; } = default!;        // random per challenge (or salt)
+    public string CodeHash { get; set; } = default!;         // hashed OTP/verification secret
 
     // Lifecycle
     public DateTimeOffset CreatedAt { get; set; }
@@ -32,7 +30,6 @@ internal sealed class OtpChallengeEntity : ITableEntity
     // Security / abuse controls
     public int AttemptCount { get; set; }
     public DateTimeOffset? LastAttemptAt { get; set; }
-    public DateTimeOffset? ResendAvailableAt { get; set; }
 
     public string? VerificationToken { get; set; }
     public DateTimeOffset? VerificationTokenExpiresAt { get; set; }

@@ -8,16 +8,21 @@ public sealed class TenantRoleService : ITenantRoleService
 {
     private readonly ITenantRoleStore _roles;
     private readonly ITenantExtensionCoordinator _tenantExtensions;
+    private readonly IIdentityUserStore? _users;
 
     public TenantRoleService(ITenantRoleStore roles)
         : this(roles, new NoOpTenantExtensionCoordinator())
     {
     }
 
-    public TenantRoleService(ITenantRoleStore roles, ITenantExtensionCoordinator tenantExtensions)
+    public TenantRoleService(
+        ITenantRoleStore roles,
+        ITenantExtensionCoordinator tenantExtensions,
+        IIdentityUserStore? users = null)
     {
         _roles = roles ?? throw new ArgumentNullException(nameof(roles));
         _tenantExtensions = tenantExtensions ?? throw new ArgumentNullException(nameof(tenantExtensions));
+        _users = users;
     }
 
     public Task<IReadOnlyList<TenantRole>> GetRolesAsync(Guid tenantId, CancellationToken ct = default)
@@ -63,7 +68,7 @@ public sealed class TenantRoleService : ITenantRoleService
         return _roles.GrantRolesAsync(tenantId, userId, roleIds, ct);
     }
 
-    public Task<UserTenantRoleAssignment> EnsureTenantMembershipAndGrantRolesAsync(TenantMembershipRoleBootstrapRequest request, CancellationToken ct = default)
+    public async Task<UserTenantRoleAssignment> EnsureTenantMembershipAndGrantRolesAsync(TenantMembershipRoleBootstrapRequest request, CancellationToken ct = default)
     {
         if (request is null)
             throw new ArgumentNullException(nameof(request));
@@ -75,6 +80,8 @@ public sealed class TenantRoleService : ITenantRoleService
         var normalizedRequest = request with
         {
             TenantName = string.IsNullOrWhiteSpace(request.TenantName) ? null : request.TenantName.Trim(),
+            UserDisplayName = string.IsNullOrWhiteSpace(request.UserDisplayName) ? null : request.UserDisplayName.Trim(),
+            UserEmail = string.IsNullOrWhiteSpace(request.UserEmail) ? null : request.UserEmail.Trim().ToLowerInvariant(),
             RoleIds = request.RoleIds?.Where(x => x != Guid.Empty).Distinct().ToList(),
             RoleNames = request.RoleNames?
                 .Select(NormalizeRoleName)
@@ -82,7 +89,37 @@ public sealed class TenantRoleService : ITenantRoleService
                 .ToList()
         };
 
-        return EnsureTenantMembershipAndGrantRolesCoreAsync(normalizedRequest, ct);
+        return await EnsureTenantMembershipAndGrantRolesCoreAsync(
+            await EnrichUserProjectionAsync(normalizedRequest, ct).ConfigureAwait(false),
+            ct).ConfigureAwait(false);
+    }
+
+    private async Task<TenantMembershipRoleBootstrapRequest> EnrichUserProjectionAsync(
+        TenantMembershipRoleBootstrapRequest request,
+        CancellationToken ct)
+    {
+        if (_users is null)
+            return request;
+
+        if (!string.IsNullOrWhiteSpace(request.UserDisplayName) &&
+            !string.IsNullOrWhiteSpace(request.UserEmail))
+        {
+            return request;
+        }
+
+        var user = await _users.FindByIdAsync(request.UserId, ct).ConfigureAwait(false);
+        if (user is null)
+            return request;
+
+        return request with
+        {
+            UserDisplayName = string.IsNullOrWhiteSpace(request.UserDisplayName)
+                ? user.DisplayName
+                : request.UserDisplayName,
+            UserEmail = string.IsNullOrWhiteSpace(request.UserEmail)
+                ? user.Email
+                : request.UserEmail
+        };
     }
 
     private async Task<UserTenantRoleAssignment> EnsureTenantMembershipAndGrantRolesCoreAsync(

@@ -8,11 +8,13 @@
   <VersionPrefix>2.0.0</VersionPrefix></PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.Data.Tables" Version="12.8.1" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.3" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\IBeam.Api\IBeam.Api.csproj" />
     <ProjectReference Include="..\IBeam.Services\IBeam.Services.csproj" />
     <ProjectReference Include="..\IBeam.Repositories\IBeam.Repositories.csproj" />
   </ItemGroup>
