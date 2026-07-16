@@ -69,6 +69,19 @@ See `CONTRIBUTING.md` for workflow and standards.
 - `IBeam.Ai.Services`: agent tool registry, authorization, and MCP service orchestration
 - `IBeam.Ai.Api`: ASP.NET Core endpoint wiring for IBeam AI agent and MCP tooling
 
+IBeam NuGet packages include package-specific AI guidance under `.agent/project/prompt.md`.
+To make that guidance available to an AI coding agent in an application that already uses
+an `.agent` directory, add this opt-in property to the application project or its
+`Directory.Build.props`:
+
+```xml
+<IBeamEnableAgentPrompts>true</IBeamEnableAgentPrompts>
+```
+
+The package prompt is then copied, only when missing, to
+`.agent/packages/<package-id>/prompt.md`. Existing application and package prompts are
+not overwritten.
+
 ### Licensing
 - `IBeam.Licensing`: core tenant licensing contracts and models
 - `IBeam.Licensing.Services`: plan catalog, tenant license, seat assignment, and entitlement services

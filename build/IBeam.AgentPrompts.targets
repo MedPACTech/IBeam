@@ -1,0 +1,30 @@
+<Project>
+  <PropertyGroup>
+    <_IBeamAgentPackageVersionDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))</_IBeamAgentPackageVersionDirectory>
+    <_IBeamAgentPackageId>$([System.IO.Path]::GetFileName($([System.IO.Path]::GetDirectoryName('$(_IBeamAgentPackageVersionDirectory)'))))</_IBeamAgentPackageId>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IBeamEnableAgentPrompts)' == 'true' and Exists('$(MSBuildProjectDirectory)/.agent')">
+    <_IBeamAgentPrompt Include="$(_IBeamAgentPackageVersionDirectory)/.agent/project/prompt.md"
+                       Condition="Exists('$(_IBeamAgentPackageVersionDirectory)/.agent/project/prompt.md')">
+      <Destination>$(MSBuildProjectDirectory)/.agent/packages/$(_IBeamAgentPackageId)/prompt.md</Destination>
+      <DestinationDirectory>$(MSBuildProjectDirectory)/.agent/packages/$(_IBeamAgentPackageId)</DestinationDirectory>
+    </_IBeamAgentPrompt>
+  </ItemGroup>
+
+  <Target Name="IBeamInstallAgentPrompts"
+          BeforeTargets="PrepareForBuild"
+          Condition="'$(IBeamEnableAgentPrompts)' == 'true' and Exists('$(MSBuildProjectDirectory)/.agent')">
+    <ItemGroup>
+      <_IBeamAgentPromptsToInstall Include="@(_IBeamAgentPrompt)"
+                                   Condition="!Exists('%(_IBeamAgentPrompt.Destination)')" />
+    </ItemGroup>
+    <MakeDir Directories="@(_IBeamAgentPromptsToInstall->'%(DestinationDirectory)')" />
+    <Copy SourceFiles="@(_IBeamAgentPromptsToInstall)"
+          DestinationFiles="@(_IBeamAgentPromptsToInstall->'%(Destination)')"
+          SkipUnchangedFiles="true" />
+    <Message Importance="High"
+             Text="IBeam agent guidance installed at @(_IBeamAgentPromptsToInstall->'%(Destination)', ', ')"
+             Condition="'@(_IBeamAgentPromptsToInstall)' != ''" />
+  </Target>
+</Project>

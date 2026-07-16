@@ -1,4 +1,8 @@
 <Project>
+  <ItemGroup Condition="'$(IsPackable)' != 'false' and Exists('$(MSBuildThisFileDirectory)build\IBeam.AgentPrompts.targets')">
+    <None Include="$(MSBuildThisFileDirectory)build\IBeam.AgentPrompts.targets" Pack="true" PackagePath="buildTransitive\$(PackageId).targets" Visible="false" />
+  </ItemGroup>
+
   <Target Name="ApplyReleasePackageVersion"
           AfterTargets="GetBuildVersion"
           BeforeTargets="GenerateNuspec;SupplyNuGetManifestVersion"
