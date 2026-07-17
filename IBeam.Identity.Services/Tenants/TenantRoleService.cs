@@ -1,14 +1,17 @@
 using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
+using IBeam.Services.Abstractions;
 
 namespace IBeam.Identity.Services.Tenants;
 
+[IBeamOperation("identity.tenantroles")]
 public sealed class TenantRoleService : ITenantRoleService
 {
     private readonly ITenantRoleStore _roles;
     private readonly ITenantExtensionCoordinator _tenantExtensions;
     private readonly IIdentityUserStore? _users;
+    private readonly IServiceOperationExecutor _operations;
 
     public TenantRoleService(ITenantRoleStore roles)
         : this(roles, new NoOpTenantExtensionCoordinator())
@@ -18,34 +21,68 @@ public sealed class TenantRoleService : ITenantRoleService
     public TenantRoleService(
         ITenantRoleStore roles,
         ITenantExtensionCoordinator tenantExtensions,
-        IIdentityUserStore? users = null)
+        IIdentityUserStore? users = null,
+        IServiceOperationExecutor? operations = null)
     {
         _roles = roles ?? throw new ArgumentNullException(nameof(roles));
         _tenantExtensions = tenantExtensions ?? throw new ArgumentNullException(nameof(tenantExtensions));
         _users = users;
+        _operations = operations ?? new ServiceOperationExecutor();
     }
 
+    [IBeamOperation("identity.tenantroles.list")]
     public Task<IReadOnlyList<TenantRole>> GetRolesAsync(Guid tenantId, CancellationToken ct = default)
+        => _operations.ExecuteAsync(
+            this,
+            token => GetRolesCoreAsync(tenantId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId },
+            ct);
+
+    private Task<IReadOnlyList<TenantRole>> GetRolesCoreAsync(Guid tenantId, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         return _roles.GetRolesAsync(tenantId, ct);
     }
 
+    [IBeamOperation("identity.tenantroles.get")]
     public Task<TenantRole?> GetRoleAsync(Guid tenantId, Guid roleId, CancellationToken ct = default)
+        => _operations.ExecuteAsync(
+            this,
+            token => GetRoleCoreAsync(tenantId, roleId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = roleId },
+            ct);
+
+    private Task<TenantRole?> GetRoleCoreAsync(Guid tenantId, Guid roleId, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateRoleId(roleId);
         return _roles.GetRoleAsync(tenantId, roleId, ct);
     }
 
+    [IBeamOperation("identity.tenantroles.create")]
     public Task<TenantRole> CreateRoleAsync(Guid tenantId, string name, CancellationToken ct = default)
+        => _operations.ExecuteAsync(
+            this,
+            token => CreateRoleCoreAsync(tenantId, name, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId },
+            ct);
+
+    private Task<TenantRole> CreateRoleCoreAsync(Guid tenantId, string name, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         var normalizedName = NormalizeRoleName(name);
         return _roles.CreateRoleAsync(tenantId, normalizedName, isSystem: false, ct);
     }
 
+    [IBeamOperation("identity.tenantroles.update")]
     public Task<TenantRole> UpdateRoleAsync(Guid tenantId, Guid roleId, string name, CancellationToken ct = default)
+        => _operations.ExecuteAsync(
+            this,
+            token => UpdateRoleCoreAsync(tenantId, roleId, name, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = roleId },
+            ct);
+
+    private Task<TenantRole> UpdateRoleCoreAsync(Guid tenantId, Guid roleId, string name, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateRoleId(roleId);
@@ -53,14 +90,30 @@ public sealed class TenantRoleService : ITenantRoleService
         return _roles.UpdateRoleAsync(tenantId, roleId, normalizedName, ct);
     }
 
+    [IBeamOperation("identity.tenantroles.delete")]
     public Task DeleteRoleAsync(Guid tenantId, Guid roleId, CancellationToken ct = default)
+        => _operations.ExecuteAsync(
+            this,
+            token => DeleteRoleCoreAsync(tenantId, roleId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = roleId },
+            ct);
+
+    private Task DeleteRoleCoreAsync(Guid tenantId, Guid roleId, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateRoleId(roleId);
         return _roles.DeleteRoleAsync(tenantId, roleId, ct);
     }
 
+    [IBeamOperation("identity.tenantroles.grant")]
     public Task<UserTenantRoleAssignment> GrantRolesAsync(Guid tenantId, Guid userId, IReadOnlyList<Guid> roleIds, CancellationToken ct = default)
+        => _operations.ExecuteAsync(
+            this,
+            token => GrantRolesCoreAsync(tenantId, userId, roleIds, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = userId },
+            ct);
+
+    private Task<UserTenantRoleAssignment> GrantRolesCoreAsync(Guid tenantId, Guid userId, IReadOnlyList<Guid> roleIds, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateUserId(userId);
@@ -68,7 +121,17 @@ public sealed class TenantRoleService : ITenantRoleService
         return _roles.GrantRolesAsync(tenantId, userId, roleIds, ct);
     }
 
+    [IBeamOperation("identity.tenantroles.bootstrap")]
     public async Task<UserTenantRoleAssignment> EnsureTenantMembershipAndGrantRolesAsync(TenantMembershipRoleBootstrapRequest request, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => EnsureTenantMembershipAndGrantRolesCoreWrapperAsync(request, token),
+            new ServiceOperationExecutionOptions { TenantId = request?.TenantId, EntityId = request?.UserId },
+            ct).ConfigureAwait(false);
+
+    private async Task<UserTenantRoleAssignment> EnsureTenantMembershipAndGrantRolesCoreWrapperAsync(
+        TenantMembershipRoleBootstrapRequest request,
+        CancellationToken ct)
     {
         if (request is null)
             throw new ArgumentNullException(nameof(request));
@@ -143,7 +206,15 @@ public sealed class TenantRoleService : ITenantRoleService
         return result;
     }
 
+    [IBeamOperation("identity.tenantroles.revoke")]
     public Task<UserTenantRoleAssignment> RevokeRolesAsync(Guid tenantId, Guid userId, IReadOnlyList<Guid> roleIds, CancellationToken ct = default)
+        => _operations.ExecuteAsync(
+            this,
+            token => RevokeRolesCoreAsync(tenantId, userId, roleIds, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = userId },
+            ct);
+
+    private Task<UserTenantRoleAssignment> RevokeRolesCoreAsync(Guid tenantId, Guid userId, IReadOnlyList<Guid> roleIds, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateUserId(userId);
@@ -151,7 +222,15 @@ public sealed class TenantRoleService : ITenantRoleService
         return _roles.RevokeRolesAsync(tenantId, userId, roleIds, ct);
     }
 
+    [IBeamOperation("identity.tenantroles.user.list")]
     public Task<IReadOnlyList<TenantRole>> GetRolesForUserAsync(Guid tenantId, Guid userId, CancellationToken ct = default)
+        => _operations.ExecuteAsync(
+            this,
+            token => GetRolesForUserCoreAsync(tenantId, userId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = userId },
+            ct);
+
+    private Task<IReadOnlyList<TenantRole>> GetRolesForUserCoreAsync(Guid tenantId, Guid userId, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateUserId(userId);

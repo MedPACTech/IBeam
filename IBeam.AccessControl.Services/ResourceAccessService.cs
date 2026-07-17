@@ -1,20 +1,38 @@
+using IBeam.Services.Abstractions;
+
 namespace IBeam.AccessControl.Services;
 
+[IBeamOperation("accesscontrol.resourceaccess")]
 public sealed class ResourceAccessService : IResourceAccessService
 {
     private readonly IResourceAccessStore _store;
+    private readonly IServiceOperationExecutor _operations;
 
-    public ResourceAccessService(IResourceAccessStore store)
+    public ResourceAccessService(IResourceAccessStore store, IServiceOperationExecutor? operations = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
+        _operations = operations ?? new ServiceOperationExecutor();
     }
 
+    [IBeamOperation("accesscontrol.resourceaccess.list")]
     public async Task<IReadOnlyList<ResourceAccessGrantInfo>> ListGrantsAsync(
         Guid tenantId,
         string? resourceType = null,
         string? resourceId = null,
         AccessSubject? subject = null,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => ListGrantsCoreAsync(tenantId, resourceType, resourceId, subject, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId },
+            ct).ConfigureAwait(false);
+
+    private async Task<IReadOnlyList<ResourceAccessGrantInfo>> ListGrantsCoreAsync(
+        Guid tenantId,
+        string? resourceType,
+        string? resourceId,
+        AccessSubject? subject,
+        CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         var grants = await _store.ListGrantsAsync(tenantId, ct).ConfigureAwait(false);
@@ -41,11 +59,23 @@ public sealed class ResourceAccessService : IResourceAccessService
         return query.Select(ResourceAccessGrantInfo.FromRecord).ToList();
     }
 
+    [IBeamOperation("accesscontrol.resourceaccess.grant")]
     public async Task<ResourceAccessGrantInfo> GrantAccessAsync(
         Guid tenantId,
         GrantResourceAccessRequest request,
         Guid? createdByUserId = null,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => GrantAccessCoreAsync(tenantId, request, createdByUserId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId },
+            ct).ConfigureAwait(false);
+
+    private async Task<ResourceAccessGrantInfo> GrantAccessCoreAsync(
+        Guid tenantId,
+        GrantResourceAccessRequest request,
+        Guid? createdByUserId,
+        CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ArgumentNullException.ThrowIfNull(request);
@@ -68,11 +98,23 @@ public sealed class ResourceAccessService : IResourceAccessService
         return ResourceAccessGrantInfo.FromRecord(await _store.UpsertGrantAsync(grant, ct).ConfigureAwait(false));
     }
 
+    [IBeamOperation("accesscontrol.resourceaccess.update")]
     public async Task<ResourceAccessGrantInfo> UpdateGrantAsync(
         Guid tenantId,
         Guid grantId,
         UpdateResourceAccessGrantRequest request,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => UpdateGrantCoreAsync(tenantId, grantId, request, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = grantId },
+            ct).ConfigureAwait(false);
+
+    private async Task<ResourceAccessGrantInfo> UpdateGrantCoreAsync(
+        Guid tenantId,
+        Guid grantId,
+        UpdateResourceAccessGrantRequest request,
+        CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateGrantId(grantId);
@@ -97,7 +139,15 @@ public sealed class ResourceAccessService : IResourceAccessService
         return ResourceAccessGrantInfo.FromRecord(await _store.UpsertGrantAsync(updated, ct).ConfigureAwait(false));
     }
 
+    [IBeamOperation("accesscontrol.resourceaccess.revoke")]
     public async Task RevokeGrantAsync(Guid tenantId, Guid grantId, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => RevokeGrantCoreAsync(tenantId, grantId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = grantId },
+            ct).ConfigureAwait(false);
+
+    private async Task RevokeGrantCoreAsync(Guid tenantId, Guid grantId, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateGrantId(grantId);

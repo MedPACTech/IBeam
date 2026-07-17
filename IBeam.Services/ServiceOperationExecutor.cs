@@ -85,13 +85,7 @@ public sealed class ServiceOperationExecutor : IServiceOperationExecutor
         {
             watch.Stop();
             await TryWriteOperationAuditAsync(resolved, false, watch.ElapsedMilliseconds, ex, ct).ConfigureAwait(false);
-
-            if (ex is ServiceException or UnauthorizedAccessException or AccessControlException)
-            {
-                throw;
-            }
-
-            throw new ServiceException(ex, resolved.MethodName ?? resolved.OperationName, resolved.ServiceName);
+            throw;
         }
     }
 
@@ -140,7 +134,7 @@ public sealed class ServiceOperationExecutor : IServiceOperationExecutor
             return;
         }
 
-        var tenantId = _tenantContext?.TenantId;
+        var tenantId = operation.TenantId ?? _tenantContext?.TenantId;
         if (!tenantId.HasValue || tenantId.Value == Guid.Empty)
         {
             throw new AccessControlException("tenantId is required for service operation authorization.");
@@ -183,7 +177,7 @@ public sealed class ServiceOperationExecutor : IServiceOperationExecutor
             Operation = operation.AuditOperation,
             Action = operation.AuditAction,
             EntityId = operation.EntityId,
-            TenantId = _tenantContext?.TenantId,
+            TenantId = operation.TenantId ?? _tenantContext?.TenantId,
             ActorId = _auditActorProvider.GetActorId(),
             CorrelationId = requestContext.CorrelationId,
             IpAddress = requestContext.IpAddress,
@@ -342,6 +336,7 @@ public sealed class ServiceOperationExecutor : IServiceOperationExecutor
             entityName,
             options.AuditOperation,
             options.EntityId,
+            options.TenantId,
             auditEnabled,
             permissionEnabled,
             permissions
@@ -426,6 +421,7 @@ public sealed class ServiceOperationExecutor : IServiceOperationExecutor
         string EntityName,
         ServiceAuditOperation AuditOperation,
         Guid? EntityId,
+        Guid? TenantId,
         bool AuditEnabled,
         bool PermissionEnabled,
         IReadOnlyList<string> PermissionNames,

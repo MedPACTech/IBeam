@@ -6,6 +6,7 @@ using IBeam.Identity.Options;
 using IBeam.Identity.Services.Tenants;
 using IBeam.Identity.Services.Users;
 using IBeam.Identity.Services.Utils;
+using IBeam.Services.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
@@ -36,6 +37,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
     private readonly ITenantExtensionCoordinator _tenantExtensions;
     private readonly IIdentityUserExtensionCoordinator _userExtensions;
     private readonly ILogger<OtpAuthService> _logger;
+    private readonly IServiceOperationExecutor _operations;
 
     public OtpAuthService(
         IIdentityUserStore users,
@@ -121,7 +123,8 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         ITenantInfoResolver tenantInfoResolver,
         ITenantExtensionCoordinator tenantExtensions,
         IIdentityUserExtensionCoordinator userExtensions,
-        ILogger<OtpAuthService> logger)
+        ILogger<OtpAuthService> logger,
+        IServiceOperationExecutor? operations = null)
     {
         _users = users ?? throw new ArgumentNullException(nameof(users));
         _tenants = tenants ?? throw new ArgumentNullException(nameof(tenants));
@@ -140,6 +143,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         _tenantExtensions = tenantExtensions ?? throw new ArgumentNullException(nameof(tenantExtensions));
         _userExtensions = userExtensions ?? throw new ArgumentNullException(nameof(userExtensions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _operations = operations ?? new ServiceOperationExecutor();
     }
 
     public OtpAuthService(
@@ -167,7 +171,19 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
     {
     }
 
+    [IBeamOperation("identity.auth.otp.start", Permission = false)]
     public async Task<OtpChallengeResult> StartOtpAsync(string destination, Guid? tenantId = null, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => StartOtpCoreAsync(destination, tenantId, token),
+            new ServiceOperationExecutionOptions
+            {
+                TenantId = tenantId,
+                PermissionEnabled = false
+            },
+            ct).ConfigureAwait(false);
+
+    private async Task<OtpChallengeResult> StartOtpCoreAsync(string destination, Guid? tenantId, CancellationToken ct)
     {
         IdentityUtils.ThrowIfNullOrWhiteSpace(destination, nameof(destination));
 
@@ -228,12 +244,25 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         return challenge;
     }
 
+    [IBeamOperation("identity.auth.otp.complete", Permission = false)]
     public async Task<AuthResultResponse> CompleteOtpAsync(
         string challengeId,
         string code,
         string destination,
         string? displayName = null,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => CompleteOtpCoreAsync(challengeId, code, destination, displayName, token),
+            new ServiceOperationExecutionOptions { PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task<AuthResultResponse> CompleteOtpCoreAsync(
+        string challengeId,
+        string code,
+        string destination,
+        string? displayName,
+        CancellationToken ct)
     {
         return await CompleteOtpInternalAsync(
             challengeId,

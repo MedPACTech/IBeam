@@ -25,6 +25,27 @@ public sealed class TenantRoleServiceTests
     }
 
     [TestMethod]
+    public async Task CreateRoleAsync_UsesServiceOperationExecutor()
+    {
+        var tenantId = Guid.NewGuid();
+        var executor = new RecordingServiceOperationExecutor();
+        var store = new Mock<ITenantRoleStore>(MockBehavior.Strict);
+        store.Setup(x => x.CreateRoleAsync(tenantId, "Provider Admin", false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TenantRole(tenantId, Guid.NewGuid(), "Provider Admin", false, true, DateTimeOffset.UtcNow));
+
+        var sut = new TenantRoleService(
+            store.Object,
+            new NoOpTenantExtensionCoordinator(),
+            operations: executor);
+
+        await sut.CreateRoleAsync(tenantId, "Provider Admin");
+
+        Assert.HasCount(1, executor.Calls);
+        Assert.AreEqual(nameof(TenantRoleService.CreateRoleAsync), executor.Calls[0].CallerMemberName);
+        Assert.AreEqual(tenantId, executor.Calls[0].Options?.TenantId);
+    }
+
+    [TestMethod]
     public async Task CreateRoleAsync_EmptyName_ThrowsValidation()
     {
         var sut = new TenantRoleService(Mock.Of<ITenantRoleStore>());

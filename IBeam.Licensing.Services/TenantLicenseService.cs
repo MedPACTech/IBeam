@@ -1,28 +1,56 @@
+using IBeam.Services.Abstractions;
+
 namespace IBeam.Licensing.Services;
 
+[IBeamOperation("licensing.licenses")]
 public sealed class TenantLicenseService : ITenantLicenseService
 {
     private readonly ILicensingStore _store;
     private readonly ILicensePlanCatalogProvider _plans;
+    private readonly IServiceOperationExecutor _operations;
 
-    public TenantLicenseService(ILicensingStore store, ILicensePlanCatalogProvider plans)
+    public TenantLicenseService(
+        ILicensingStore store,
+        ILicensePlanCatalogProvider plans,
+        IServiceOperationExecutor? operations = null)
     {
         _store = store;
         _plans = plans;
+        _operations = operations ?? new ServiceOperationExecutor();
     }
 
+    [IBeamOperation("licensing.licenses.list")]
     public async Task<IReadOnlyList<TenantLicenseInfo>> ListTenantLicensesAsync(Guid tenantId, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => ListTenantLicensesCoreAsync(tenantId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId },
+            ct).ConfigureAwait(false);
+
+    private async Task<IReadOnlyList<TenantLicenseInfo>> ListTenantLicensesCoreAsync(Guid tenantId, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         var licenses = await _store.ListLicensesAsync(tenantId, ct).ConfigureAwait(false);
         return licenses.Select(TenantLicenseInfo.FromRecord).ToList();
     }
 
+    [IBeamOperation("licensing.licenses.grant")]
     public async Task<TenantLicenseInfo> GrantLicenseAsync(
         Guid tenantId,
         GrantTenantLicenseRequest request,
         Guid? createdByUserId = null,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => GrantLicenseCoreAsync(tenantId, request, createdByUserId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId },
+            ct).ConfigureAwait(false);
+
+    private async Task<TenantLicenseInfo> GrantLicenseCoreAsync(
+        Guid tenantId,
+        GrantTenantLicenseRequest request,
+        Guid? createdByUserId,
+        CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         if (request is null)
@@ -64,11 +92,23 @@ public sealed class TenantLicenseService : ITenantLicenseService
         return TenantLicenseInfo.FromRecord(saved);
     }
 
+    [IBeamOperation("licensing.licenses.update")]
     public async Task<TenantLicenseInfo> UpdateLicenseAsync(
         Guid tenantId,
         Guid licenseId,
         UpdateTenantLicenseRequest request,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => UpdateLicenseCoreAsync(tenantId, licenseId, request, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = licenseId },
+            ct).ConfigureAwait(false);
+
+    private async Task<TenantLicenseInfo> UpdateLicenseCoreAsync(
+        Guid tenantId,
+        Guid licenseId,
+        UpdateTenantLicenseRequest request,
+        CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateLicenseId(licenseId);
@@ -101,7 +141,15 @@ public sealed class TenantLicenseService : ITenantLicenseService
         return TenantLicenseInfo.FromRecord(saved);
     }
 
+    [IBeamOperation("licensing.licenses.revoke")]
     public async Task RevokeLicenseAsync(Guid tenantId, Guid licenseId, string? reason, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => RevokeLicenseCoreAsync(tenantId, licenseId, reason, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = licenseId },
+            ct).ConfigureAwait(false);
+
+    private async Task RevokeLicenseCoreAsync(Guid tenantId, Guid licenseId, string? reason, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateLicenseId(licenseId);

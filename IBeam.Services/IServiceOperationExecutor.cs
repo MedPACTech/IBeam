@@ -43,6 +43,8 @@ public sealed class ServiceOperationExecutionOptions
 
     public Guid? EntityId { get; set; }
 
+    public Guid? TenantId { get; set; }
+
     public bool? AuditEnabled { get; set; }
 
     public bool? PermissionEnabled { get; set; }

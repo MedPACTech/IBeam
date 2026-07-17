@@ -1,9 +1,11 @@
 using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
+using IBeam.Services.Abstractions;
 
 namespace IBeam.Identity.Services.ApiCredentials;
 
+[IBeamOperation("identity.apicredentials")]
 public sealed class ApiCredentialService : IApiCredentialService
 {
     private readonly IApiCredentialStore _store;
@@ -12,6 +14,7 @@ public sealed class ApiCredentialService : IApiCredentialService
     private readonly IApiCredentialKeyGenerator _keyGenerator;
     private readonly IApiCredentialSecretHasher _hasher;
     private readonly IApiCredentialAccessService _access;
+    private readonly IServiceOperationExecutor _operations;
 
     public ApiCredentialService(
         IApiCredentialStore store,
@@ -19,7 +22,8 @@ public sealed class ApiCredentialService : IApiCredentialService
         IApiCredentialRoleAssignmentValidator roleValidator,
         IApiCredentialKeyGenerator keyGenerator,
         IApiCredentialSecretHasher hasher,
-        IApiCredentialAccessService access)
+        IApiCredentialAccessService access,
+        IServiceOperationExecutor? operations = null)
     {
         _store = store;
         _tenantRoles = tenantRoles;
@@ -27,13 +31,26 @@ public sealed class ApiCredentialService : IApiCredentialService
         _keyGenerator = keyGenerator;
         _hasher = hasher;
         _access = access;
+        _operations = operations ?? new ServiceOperationExecutor();
     }
 
+    [IBeamOperation("identity.apicredentials.create")]
     public async Task<CreateApiCredentialResult> CreateAsync(
         Guid tenantId,
         CreateApiCredentialRequest request,
         Guid? createdByUserId,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => CreateCoreAsync(tenantId, request, createdByUserId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId },
+            ct).ConfigureAwait(false);
+
+    private async Task<CreateApiCredentialResult> CreateCoreAsync(
+        Guid tenantId,
+        CreateApiCredentialRequest request,
+        Guid? createdByUserId,
+        CancellationToken ct)
     {
         if (request is null)
             throw new ArgumentNullException(nameof(request));
@@ -88,14 +105,30 @@ public sealed class ApiCredentialService : IApiCredentialService
         };
     }
 
+    [IBeamOperation("identity.apicredentials.list")]
     public async Task<IReadOnlyList<ApiCredentialInfo>> ListAsync(Guid tenantId, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => ListCoreAsync(tenantId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId },
+            ct).ConfigureAwait(false);
+
+    private async Task<IReadOnlyList<ApiCredentialInfo>> ListCoreAsync(Guid tenantId, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         var records = await _store.ListByTenantAsync(tenantId, ct).ConfigureAwait(false);
         return records.Select(ApiCredentialInfo.FromRecord).ToList();
     }
 
+    [IBeamOperation("identity.apicredentials.get")]
     public async Task<ApiCredentialInfo> GetAsync(Guid tenantId, Guid credentialId, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => GetCoreAsync(tenantId, credentialId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = credentialId },
+            ct).ConfigureAwait(false);
+
+    private async Task<ApiCredentialInfo> GetCoreAsync(Guid tenantId, Guid credentialId, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateCredentialId(credentialId);
@@ -106,11 +139,23 @@ public sealed class ApiCredentialService : IApiCredentialService
         return ApiCredentialInfo.FromRecord(record);
     }
 
+    [IBeamOperation("identity.apicredentials.update")]
     public async Task<ApiCredentialInfo> UpdateAsync(
         Guid tenantId,
         Guid credentialId,
         UpdateApiCredentialRequest request,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => UpdateCoreAsync(tenantId, credentialId, request, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = credentialId },
+            ct).ConfigureAwait(false);
+
+    private async Task<ApiCredentialInfo> UpdateCoreAsync(
+        Guid tenantId,
+        Guid credentialId,
+        UpdateApiCredentialRequest request,
+        CancellationToken ct)
     {
         if (request is null)
             throw new ArgumentNullException(nameof(request));
@@ -143,11 +188,23 @@ public sealed class ApiCredentialService : IApiCredentialService
         return ApiCredentialInfo.FromRecord(await _store.UpdateAsync(updated, ct).ConfigureAwait(false));
     }
 
+    [IBeamOperation("identity.apicredentials.roles.update")]
     public async Task<ApiCredentialInfo> UpdateRolesAsync(
         Guid tenantId,
         Guid credentialId,
         UpdateApiCredentialRolesRequest request,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => UpdateRolesCoreAsync(tenantId, credentialId, request, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = credentialId },
+            ct).ConfigureAwait(false);
+
+    private async Task<ApiCredentialInfo> UpdateRolesCoreAsync(
+        Guid tenantId,
+        Guid credentialId,
+        UpdateApiCredentialRolesRequest request,
+        CancellationToken ct)
     {
         if (request is null)
             throw new ArgumentNullException(nameof(request));
@@ -164,21 +221,45 @@ public sealed class ApiCredentialService : IApiCredentialService
         return ApiCredentialInfo.FromRecord(updated);
     }
 
+    [IBeamOperation("identity.apicredentials.access.get")]
     public async Task<ApiCredentialAccessContextDto> GetAccessAsync(
         Guid tenantId,
         Guid credentialId,
         string? requestedAgentKey = null,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => GetAccessCoreAsync(tenantId, credentialId, requestedAgentKey, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = credentialId },
+            ct).ConfigureAwait(false);
+
+    private async Task<ApiCredentialAccessContextDto> GetAccessCoreAsync(
+        Guid tenantId,
+        Guid credentialId,
+        string? requestedAgentKey,
+        CancellationToken ct)
     {
-        var credential = await GetAsync(tenantId, credentialId, ct).ConfigureAwait(false);
+        var credential = await GetCoreAsync(tenantId, credentialId, ct).ConfigureAwait(false);
         return await _access.BuildAccessContextAsync(credential, requestedAgentKey, ct).ConfigureAwait(false);
     }
 
+    [IBeamOperation("identity.apicredentials.access.update")]
     public async Task<ApiCredentialAccessContextDto> UpdateAccessAsync(
         Guid tenantId,
         Guid credentialId,
         UpdateApiCredentialAccessRequest request,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => UpdateAccessCoreAsync(tenantId, credentialId, request, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = credentialId },
+            ct).ConfigureAwait(false);
+
+    private async Task<ApiCredentialAccessContextDto> UpdateAccessCoreAsync(
+        Guid tenantId,
+        Guid credentialId,
+        UpdateApiCredentialAccessRequest request,
+        CancellationToken ct)
     {
         if (request is null)
             throw new ArgumentNullException(nameof(request));
@@ -213,10 +294,21 @@ public sealed class ApiCredentialService : IApiCredentialService
         return await _access.BuildAccessContextAsync(ApiCredentialInfo.FromRecord(updated), null, ct).ConfigureAwait(false);
     }
 
+    [IBeamOperation("identity.apicredentials.rotate")]
     public async Task<CreateApiCredentialResult> RotateAsync(
         Guid tenantId,
         Guid credentialId,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => RotateCoreAsync(tenantId, credentialId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = credentialId },
+            ct).ConfigureAwait(false);
+
+    private async Task<CreateApiCredentialResult> RotateCoreAsync(
+        Guid tenantId,
+        Guid credentialId,
+        CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateCredentialId(credentialId);
@@ -236,12 +328,25 @@ public sealed class ApiCredentialService : IApiCredentialService
         };
     }
 
+    [IBeamOperation("identity.apicredentials.revoke")]
     public async Task<ApiCredentialInfo> RevokeAsync(
         Guid tenantId,
         Guid credentialId,
         Guid? revokedByUserId,
         string? reason,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => RevokeCoreAsync(tenantId, credentialId, revokedByUserId, reason, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = credentialId },
+            ct).ConfigureAwait(false);
+
+    private async Task<ApiCredentialInfo> RevokeCoreAsync(
+        Guid tenantId,
+        Guid credentialId,
+        Guid? revokedByUserId,
+        string? reason,
+        CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateCredentialId(credentialId);
@@ -256,10 +361,21 @@ public sealed class ApiCredentialService : IApiCredentialService
         return ApiCredentialInfo.FromRecord(revoked);
     }
 
+    [IBeamOperation("identity.apicredentials.activate")]
     public async Task<ApiCredentialInfo> ActivateAsync(
         Guid tenantId,
         Guid credentialId,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => ActivateCoreAsync(tenantId, credentialId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = credentialId },
+            ct).ConfigureAwait(false);
+
+    private async Task<ApiCredentialInfo> ActivateCoreAsync(
+        Guid tenantId,
+        Guid credentialId,
+        CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateCredentialId(credentialId);

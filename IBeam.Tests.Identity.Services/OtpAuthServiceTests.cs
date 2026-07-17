@@ -19,6 +19,7 @@ public sealed class OtpAuthServiceTests
     public async Task StartOtpAsync_WithEmail_NormalizesAndCreatesLoginChallenge()
     {
         var otpService = new Mock<IOtpService>(MockBehavior.Strict);
+        var executor = new RecordingServiceOperationExecutor();
         otpService.Setup(x => x.CreateChallengeAsync(
                 It.Is<OtpChallengeRequest>(r =>
                     r.Channel == SenderChannel.Email &&
@@ -33,11 +34,26 @@ public sealed class OtpAuthServiceTests
             Mock.Of<ITenantProvisioningService>(),
             Mock.Of<ITokenService>(),
             otpService.Object,
-            Mock.Of<IOtpChallengeStore>());
+            Mock.Of<IOtpChallengeStore>(),
+            new IBeam.Identity.Services.Auth.Attempts.InMemoryAuthAttemptStore(),
+            new IBeam.Identity.Services.Auth.Attempts.NoOpAuthAttemptContextProvider(),
+            new NoOpAuthEventPublisher(),
+            new NoOpAuthLifecycleHook(),
+            Options.Create(new AuthEventOptions()),
+            Options.Create(new OtpOptions { AllowAutoProvisionForUnknownUser = true }),
+            Options.Create(new TenantProvisioningOptions()),
+            new IBeam.Identity.Services.Tenants.TenantInfoResolver(new IBeam.Identity.Services.Tenants.NoOpTenantMetadataProvider()),
+            new IBeam.Identity.Services.Tenants.NoOpTenantExtensionCoordinator(),
+            new IBeam.Identity.Services.Users.NoOpIdentityUserExtensionCoordinator(),
+            NullLogger<OtpAuthService>.Instance,
+            executor);
 
         var result = await sut.StartOtpAsync("  Abram.Cookson@Outlook.com ");
 
         Assert.AreEqual("otp-1", result.ChallengeId);
+        Assert.HasCount(1, executor.Calls);
+        Assert.AreEqual(nameof(OtpAuthService.StartOtpAsync), executor.Calls[0].CallerMemberName);
+        Assert.IsFalse(executor.Calls[0].Options?.PermissionEnabled);
         otpService.VerifyAll();
     }
 

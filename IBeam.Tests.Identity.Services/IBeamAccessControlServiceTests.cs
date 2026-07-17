@@ -138,6 +138,7 @@ public sealed class IBeamAccessControlServiceTests
         Assert.IsTrue(catalog.Modules.Any(x => x.Key == "work" && x.Source == AccessCatalogSources.HostConfig));
         Assert.IsTrue(catalog.ApiScopes.Any(x => x.Key == "work"));
         Assert.IsTrue(catalog.Operations.Any(x => x.Key == "projects.delete" && x.IsDangerous));
+        Assert.IsTrue(catalog.Operations.Any(x => x.Key == "patients.discharge" && x.Source == "services-attribute"));
         Assert.IsTrue(catalog.Agents.Any(x => x.Key == "atlas"));
         Assert.IsTrue(catalog.Resources.Any(x =>
             x.Key == "project:platform" &&
@@ -311,6 +312,9 @@ public sealed class IBeamAccessControlServiceTests
             IsDangerous = true)]
         [IBeam.Identity.Authorization.IBeamResourceAccessTemplate("{resourceKey}", "id", AccessLevels.Manage)]
         public Task DeleteAsync<T>(Guid id, CancellationToken ct = default) => Task.CompletedTask;
+
+        [IBeam.Services.Abstractions.IBeamOperation("patients.discharge")]
+        public Task DischargePatientAsync(Guid patientId, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class StaticOptionsMonitor<T> : IOptionsMonitor<T>

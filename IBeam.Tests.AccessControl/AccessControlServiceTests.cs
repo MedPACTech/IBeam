@@ -1,6 +1,8 @@
 using IBeam.AccessControl;
 using IBeam.AccessControl.Services;
 using Microsoft.Extensions.Options;
+using IBeam.Services.Abstractions;
+using System.Runtime.CompilerServices;
 using System.Security.Claims;
 
 [assembly: Parallelize(Scope = ExecutionScope.MethodLevel)]
@@ -475,6 +477,47 @@ public sealed class AccessControlServiceTests
         Assert.IsFalse(agent.Allowed);
     }
 
+    [TestMethod]
+    public async Task ResourceAccessService_GrantAccessAsync_UsesServiceOperationExecutor()
+    {
+        var store = new InMemoryResourceAccessStore();
+        var executor = new RecordingServiceOperationExecutor();
+        var service = new ResourceAccessService(store, executor);
+
+        await service.GrantAccessAsync(
+            TenantId,
+            new GrantResourceAccessRequest
+            {
+                ResourceType = "project",
+                ResourceId = "project-1",
+                Subject = new AccessSubject(AccessSubjectTypes.User, "user-1"),
+                AccessLevel = ResourceAccessLevels.View
+            });
+
+        Assert.HasCount(1, executor.Calls);
+        Assert.AreEqual(nameof(ResourceAccessService.GrantAccessAsync), executor.Calls[0].CallerMemberName);
+        Assert.AreEqual(TenantId, executor.Calls[0].Options?.TenantId);
+    }
+
+    [TestMethod]
+    public async Task ServiceOperationPermissionService_UpsertRuleAsync_UsesServiceOperationExecutor()
+    {
+        var store = new InMemoryServiceOperationPermissionStore();
+        var executor = new RecordingServiceOperationExecutor();
+        var service = new ServiceOperationPermissionService(store, executor);
+
+        await service.UpsertRuleAsync(TenantId, new UpsertServiceOperationPermissionRequest
+        {
+            Pattern = "pricing.*",
+            Effect = ServiceOperationPermissionEffects.Allow,
+            RoleNames = ["Accounting"]
+        });
+
+        Assert.HasCount(1, executor.Calls);
+        Assert.AreEqual(nameof(ServiceOperationPermissionService.UpsertRuleAsync), executor.Calls[0].CallerMemberName);
+        Assert.AreEqual(TenantId, executor.Calls[0].Options?.TenantId);
+    }
+
     private static Fixture CreateFixture(IResourceAccessHierarchyResolver? hierarchy = null)
     {
         var store = new InMemoryResourceAccessStore();
@@ -566,4 +609,57 @@ public sealed class AccessControlServiceTests
                     ? ancestors
                     : []);
     }
+
+    private sealed class RecordingServiceOperationExecutor : IServiceOperationExecutor
+    {
+        private readonly List<ServiceOperationCall> _calls = [];
+
+        public IReadOnlyList<ServiceOperationCall> Calls => _calls;
+
+        public async Task ExecuteAsync(
+            object serviceInstance,
+            Func<CancellationToken, Task> operation,
+            ServiceOperationExecutionOptions? options = null,
+            CancellationToken ct = default,
+            [CallerMemberName] string? callerMemberName = null)
+        {
+            _calls.Add(new ServiceOperationCall(callerMemberName, options));
+            await operation(ct).ConfigureAwait(false);
+        }
+
+        public async Task<TResult> ExecuteAsync<TResult>(
+            object serviceInstance,
+            Func<CancellationToken, Task<TResult>> operation,
+            ServiceOperationExecutionOptions? options = null,
+            CancellationToken ct = default,
+            [CallerMemberName] string? callerMemberName = null)
+        {
+            _calls.Add(new ServiceOperationCall(callerMemberName, options));
+            return await operation(ct).ConfigureAwait(false);
+        }
+
+        public void Execute(
+            object serviceInstance,
+            Action operation,
+            ServiceOperationExecutionOptions? options = null,
+            [CallerMemberName] string? callerMemberName = null)
+        {
+            _calls.Add(new ServiceOperationCall(callerMemberName, options));
+            operation();
+        }
+
+        public TResult Execute<TResult>(
+            object serviceInstance,
+            Func<TResult> operation,
+            ServiceOperationExecutionOptions? options = null,
+            [CallerMemberName] string? callerMemberName = null)
+        {
+            _calls.Add(new ServiceOperationCall(callerMemberName, options));
+            return operation();
+        }
+    }
+
+    private sealed record ServiceOperationCall(
+        string? CallerMemberName,
+        ServiceOperationExecutionOptions? Options);
 }

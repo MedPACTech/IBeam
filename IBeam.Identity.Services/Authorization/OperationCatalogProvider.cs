@@ -3,7 +3,10 @@ using IBeam.Identity.Authorization;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
+using IBeam.Services.Abstractions;
 using Microsoft.Extensions.Options;
+using IdentityOperationAttribute = IBeam.Identity.Authorization.IBeamOperationAttribute;
+using ServiceOperationAttribute = IBeam.Services.Abstractions.IBeamOperationAttribute;
 
 namespace IBeam.Identity.Services.Authorization;
 
@@ -63,6 +66,25 @@ public sealed class OperationCatalogProvider : IIBeamOperationCatalogProvider
                 IsAssignable: operation.IsAssignable,
                 IsDangerous: operation.IsDangerous,
                 Source: "attribute",
+                DeclaringType: descriptor.DeclaringType,
+                MethodName: descriptor.MethodName,
+                IdParameter: resource?.IdParameter));
+        }
+
+        foreach (var operation in descriptor.ServiceOperations)
+        {
+            var key = FirstNonEmpty(operation.PermissionName, operation.Name);
+            operations.Add(new AccessOperationCatalogItem(
+                Key: key.Trim(),
+                Label: HumanizePermission(key),
+                Description: null,
+                ModuleKey: CategoryFromKey(key),
+                ResourceType: resource?.ResourceType,
+                RequiredAccessLevel: resource?.AccessLevel,
+                Category: CategoryFromKey(key),
+                IsAssignable: operation.Permission,
+                IsDangerous: false,
+                Source: "services-attribute",
                 DeclaringType: descriptor.DeclaringType,
                 MethodName: descriptor.MethodName,
                 IdParameter: resource?.IdParameter));
@@ -166,13 +188,15 @@ public sealed class OperationCatalogProvider : IIBeamOperationCatalogProvider
             {
                 foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static))
                 {
-                    var operations = GetAttributes<IBeamOperationAttribute>(method).ToList();
+                    var operations = GetAttributes<IdentityOperationAttribute>(method).ToList();
+                    var serviceOperations = GetAttributes<ServiceOperationAttribute>(method).ToList();
                     var permissions = GetAttributes<IBeamPermissionAttribute>(method).ToList();
                     var resources = GetAttributes<IBeamResourceAccessAttribute>(method).ToList();
                     var operationTemplates = GetAttributes<IBeamOperationTemplateAttribute>(method).ToList();
                     var resourceTemplates = GetAttributes<IBeamResourceAccessTemplateAttribute>(method).ToList();
 
                     if (operations.Count == 0 &&
+                        serviceOperations.Count == 0 &&
                         permissions.Count == 0 &&
                         resources.Count == 0 &&
                         operationTemplates.Count == 0 &&
@@ -186,6 +210,7 @@ public sealed class OperationCatalogProvider : IIBeamOperationCatalogProvider
                         method.Name,
                         method.GetGenericArguments(),
                         operations,
+                        serviceOperations,
                         permissions,
                         resources,
                         operationTemplates,
@@ -280,7 +305,8 @@ public sealed class OperationCatalogProvider : IIBeamOperationCatalogProvider
         string DeclaringType,
         string MethodName,
         IReadOnlyList<Type> GenericArgumentTypes,
-        IReadOnlyList<IBeamOperationAttribute> Operations,
+        IReadOnlyList<IdentityOperationAttribute> Operations,
+        IReadOnlyList<ServiceOperationAttribute> ServiceOperations,
         IReadOnlyList<IBeamPermissionAttribute> Permissions,
         IReadOnlyList<IBeamResourceAccessAttribute> ResourceAccesses,
         IReadOnlyList<IBeamOperationTemplateAttribute> OperationTemplates,

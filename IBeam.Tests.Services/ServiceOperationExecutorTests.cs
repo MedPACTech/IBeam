@@ -82,9 +82,9 @@ public sealed class ServiceOperationExecutorTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var ex = await AssertThrowsAsync<ServiceException>(() => service.FailDischargeAsync(patientId));
+        var ex = await AssertThrowsAsync<InvalidOperationException>(() => service.FailDischargeAsync(patientId));
 
-        Assert.IsInstanceOfType<InvalidOperationException>(ex.InnerException);
+        Assert.AreEqual("No bed assigned.", ex.Message);
         sink.VerifyAll();
     }
 

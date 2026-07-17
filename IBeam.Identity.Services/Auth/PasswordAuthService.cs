@@ -6,6 +6,7 @@ using IBeam.Identity.Options;
 using IBeam.Identity.Services.Tenants;
 using IBeam.Identity.Services.Users;
 using IBeam.Identity.Services.Utils;
+using IBeam.Services.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
@@ -33,6 +34,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
     private readonly ITenantExtensionCoordinator _tenantExtensions;
     private readonly IIdentityUserExtensionCoordinator _userExtensions;
     private readonly ILogger<PasswordAuthService> _logger;
+    private readonly IServiceOperationExecutor _operations;
 
     public PasswordAuthService(
         IIdentityUserStore users,
@@ -87,7 +89,8 @@ public sealed class PasswordAuthService : IIdentityAuthService
         ITenantInfoResolver tenantInfoResolver,
         ITenantExtensionCoordinator tenantExtensions,
         IIdentityUserExtensionCoordinator userExtensions,
-        ILogger<PasswordAuthService> logger)
+        ILogger<PasswordAuthService> logger,
+        IServiceOperationExecutor? operations = null)
     {
         _users = users ?? throw new ArgumentNullException(nameof(users));
         _tenants = tenants ?? throw new ArgumentNullException(nameof(tenants));
@@ -106,6 +109,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         _tenantExtensions = tenantExtensions ?? throw new ArgumentNullException(nameof(tenantExtensions));
         _userExtensions = userExtensions ?? throw new ArgumentNullException(nameof(userExtensions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _operations = operations ?? new ServiceOperationExecutor();
     }
 
     public PasswordAuthService(
@@ -134,7 +138,15 @@ public sealed class PasswordAuthService : IIdentityAuthService
     {
     }
 
+    [IBeamOperation("identity.auth.password.register", Permission = false)]
     public async Task RegisterAsync(RegisterUserRequest request, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => RegisterCoreAsync(request, token),
+            new ServiceOperationExecutionOptions { PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task RegisterCoreAsync(RegisterUserRequest request, CancellationToken ct)
     {
         if (request is null) throw new ArgumentNullException(nameof(request));
         if (string.IsNullOrWhiteSpace(request.Email)) throw new IdentityValidationException("Email is required.");
@@ -171,7 +183,15 @@ public sealed class PasswordAuthService : IIdentityAuthService
             .ConfigureAwait(false);
     }
 
+    [IBeamOperation("identity.auth.password.login", Permission = false)]
     public async Task<AuthResultResponse> PasswordLoginAsync(PasswordLoginRequest request, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => PasswordLoginCoreAsync(request, token),
+            new ServiceOperationExecutionOptions { PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task<AuthResultResponse> PasswordLoginCoreAsync(PasswordLoginRequest request, CancellationToken ct)
     {
         if (request is null) throw new ArgumentNullException(nameof(request));
         if (string.IsNullOrWhiteSpace(request.Email)) throw new IdentityValidationException("Email is required.");
@@ -303,7 +323,15 @@ public sealed class PasswordAuthService : IIdentityAuthService
         return AuthResultResponse.RequiresSelection(pre.AccessToken, activeTenants);
     }
 
+    [IBeamOperation("identity.auth.password.2fa.setup.start", Permission = false)]
     public async Task<OtpChallengeResult> StartTwoFactorSetupAsync(Guid userId, string method, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => StartTwoFactorSetupCoreAsync(userId, method, token),
+            new ServiceOperationExecutionOptions { EntityId = userId, PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task<OtpChallengeResult> StartTwoFactorSetupCoreAsync(Guid userId, string method, CancellationToken ct)
     {
         if (userId == Guid.Empty)
             throw new IdentityValidationException("UserId is required.");
@@ -331,7 +359,15 @@ public sealed class PasswordAuthService : IIdentityAuthService
             ct);
     }
 
+    [IBeamOperation("identity.auth.password.2fa.setup.complete", Permission = false)]
     public async Task CompleteTwoFactorSetupAsync(Guid userId, string method, string challengeId, string code, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => CompleteTwoFactorSetupCoreAsync(userId, method, challengeId, code, token),
+            new ServiceOperationExecutionOptions { EntityId = userId, PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task CompleteTwoFactorSetupCoreAsync(Guid userId, string method, string challengeId, string code, CancellationToken ct)
     {
         if (userId == Guid.Empty)
             throw new IdentityValidationException("UserId is required.");
@@ -355,7 +391,15 @@ public sealed class PasswordAuthService : IIdentityAuthService
         await _users.SetTwoFactorAsync(user.UserId, enabled: true, preferredMethod: normalizedMethod, ct);
     }
 
+    [IBeamOperation("identity.auth.password.2fa.login.complete", Permission = false)]
     public async Task<AuthResultResponse> CompleteTwoFactorLoginAsync(string email, string challengeId, string code, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => CompleteTwoFactorLoginCoreAsync(email, challengeId, code, token),
+            new ServiceOperationExecutionOptions { PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task<AuthResultResponse> CompleteTwoFactorLoginCoreAsync(string email, string challengeId, string code, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(email))
             throw new IdentityValidationException("Email is required.");
@@ -376,7 +420,15 @@ public sealed class PasswordAuthService : IIdentityAuthService
         return await BuildAuthResultAsync(user, createdNewUser: false, ct);
     }
 
+    [IBeamOperation("identity.auth.password.2fa.disable", Permission = false)]
     public async Task DisableTwoFactorAsync(Guid userId, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => DisableTwoFactorCoreAsync(userId, token),
+            new ServiceOperationExecutionOptions { EntityId = userId, PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task DisableTwoFactorCoreAsync(Guid userId, CancellationToken ct)
     {
         if (userId == Guid.Empty)
             throw new IdentityValidationException("UserId is required.");
@@ -387,7 +439,15 @@ public sealed class PasswordAuthService : IIdentityAuthService
         await _users.SetTwoFactorAsync(user.UserId, enabled: false, preferredMethod: null, ct);
     }
 
+    [IBeamOperation("identity.auth.password.2fa.method.set", Permission = false)]
     public async Task SetPreferredTwoFactorMethodAsync(Guid userId, string method, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => SetPreferredTwoFactorMethodCoreAsync(userId, method, token),
+            new ServiceOperationExecutionOptions { EntityId = userId, PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task SetPreferredTwoFactorMethodCoreAsync(Guid userId, string method, CancellationToken ct)
     {
         if (userId == Guid.Empty)
             throw new IdentityValidationException("UserId is required.");
@@ -402,11 +462,23 @@ public sealed class PasswordAuthService : IIdentityAuthService
         await _users.SetTwoFactorAsync(user.UserId, enabled: true, preferredMethod: normalizedMethod, ct);
     }
 
+    [IBeamOperation("identity.auth.password.email.registration.start", Permission = false)]
     public async Task<RequestPasswordResetResponse> StartEmailPasswordRegistrationAsync(
         string email,
         string? displayName = null,
         string? resetUrlBase = null,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => StartEmailPasswordRegistrationCoreAsync(email, displayName, resetUrlBase, token),
+            new ServiceOperationExecutionOptions { PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task<RequestPasswordResetResponse> StartEmailPasswordRegistrationCoreAsync(
+        string email,
+        string? displayName,
+        string? resetUrlBase,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(email))
             throw new IdentityValidationException("Email is required.");
@@ -451,6 +523,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         return new RequestPasswordResetResponse(Accepted: true, ChallengeId: challengeId);
     }
 
+    [IBeamOperation("identity.auth.password.email.registration.complete", Permission = false)]
     public async Task<AuthResultResponse> CompleteEmailPasswordRegistrationAsync(
         string email,
         string challengeId,
@@ -458,6 +531,19 @@ public sealed class PasswordAuthService : IIdentityAuthService
         string newPassword,
         string? displayName = null,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => CompleteEmailPasswordRegistrationCoreAsync(email, challengeId, verificationToken, newPassword, displayName, token),
+            new ServiceOperationExecutionOptions { PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task<AuthResultResponse> CompleteEmailPasswordRegistrationCoreAsync(
+        string email,
+        string challengeId,
+        string verificationToken,
+        string newPassword,
+        string? displayName,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(email))
             throw new IdentityValidationException("Email is required.");
@@ -526,12 +612,25 @@ public sealed class PasswordAuthService : IIdentityAuthService
         return await BuildAuthResultAsync(user, createdNewUser, ct);
     }
 
+    [IBeamOperation("identity.auth.password.email.link.start", Permission = false)]
     public async Task<RequestPasswordResetResponse> StartEmailPasswordLinkAsync(
         Guid userId,
         string email,
         string? displayName = null,
         string? resetUrlBase = null,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => StartEmailPasswordLinkCoreAsync(userId, email, displayName, resetUrlBase, token),
+            new ServiceOperationExecutionOptions { EntityId = userId, PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task<RequestPasswordResetResponse> StartEmailPasswordLinkCoreAsync(
+        Guid userId,
+        string email,
+        string? displayName,
+        string? resetUrlBase,
+        CancellationToken ct)
     {
         if (userId == Guid.Empty)
             throw new IdentityValidationException("UserId is required.");
@@ -546,9 +645,10 @@ public sealed class PasswordAuthService : IIdentityAuthService
         if (existing is not null && existing.UserId != user.UserId)
             throw new IdentityValidationException("Email is already bound to another user.");
 
-        return await StartEmailPasswordRegistrationAsync(normalizedEmail, displayName ?? user.DisplayName, resetUrlBase, ct);
+        return await StartEmailPasswordRegistrationCoreAsync(normalizedEmail, displayName ?? user.DisplayName, resetUrlBase, ct);
     }
 
+    [IBeamOperation("identity.auth.password.email.link.complete", Permission = false)]
     public async Task CompleteEmailPasswordLinkAsync(
         Guid userId,
         string email,
@@ -556,6 +656,19 @@ public sealed class PasswordAuthService : IIdentityAuthService
         string verificationToken,
         string newPassword,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => CompleteEmailPasswordLinkCoreAsync(userId, email, challengeId, verificationToken, newPassword, token),
+            new ServiceOperationExecutionOptions { EntityId = userId, PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task CompleteEmailPasswordLinkCoreAsync(
+        Guid userId,
+        string email,
+        string challengeId,
+        string verificationToken,
+        string newPassword,
+        CancellationToken ct)
     {
         if (userId == Guid.Empty)
             throw new IdentityValidationException("UserId is required.");
@@ -593,7 +706,15 @@ public sealed class PasswordAuthService : IIdentityAuthService
         await _users.SetEmailConfirmedAsync(user.UserId, true, ct);
     }
 
+    [IBeamOperation("identity.auth.password.phone.link.start", Permission = false)]
     public async Task<OtpChallengeResult> StartPhoneLinkAsync(Guid userId, string phoneNumber, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => StartPhoneLinkCoreAsync(userId, phoneNumber, token),
+            new ServiceOperationExecutionOptions { EntityId = userId, PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task<OtpChallengeResult> StartPhoneLinkCoreAsync(Guid userId, string phoneNumber, CancellationToken ct)
     {
         if (userId == Guid.Empty)
             throw new IdentityValidationException("UserId is required.");
@@ -616,12 +737,25 @@ public sealed class PasswordAuthService : IIdentityAuthService
             ct);
     }
 
+    [IBeamOperation("identity.auth.password.phone.link.complete", Permission = false)]
     public async Task CompletePhoneLinkAsync(
         Guid userId,
         string phoneNumber,
         string challengeId,
         string code,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => CompletePhoneLinkCoreAsync(userId, phoneNumber, challengeId, code, token),
+            new ServiceOperationExecutionOptions { EntityId = userId, PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task CompletePhoneLinkCoreAsync(
+        Guid userId,
+        string phoneNumber,
+        string challengeId,
+        string code,
+        CancellationToken ct)
     {
         if (userId == Guid.Empty)
             throw new IdentityValidationException("UserId is required.");
@@ -648,11 +782,21 @@ public sealed class PasswordAuthService : IIdentityAuthService
         await _users.SetPhoneConfirmedAsync(user.UserId, true, ct);
     }
 
+    [IBeamOperation("identity.auth.password.tenant.select", Permission = false)]
     public async Task<AuthTokenResponse> SelectTenantAsync(string userId, SelectTenantRequest request, CancellationToken ct = default)
-        => await SelectTenantInternalAsync(userId, request, "select", ct);
+        => await _operations.ExecuteAsync(
+            this,
+            token => SelectTenantInternalAsync(userId, request, "select", token),
+            new ServiceOperationExecutionOptions { TenantId = request?.TenantId, PermissionEnabled = false },
+            ct).ConfigureAwait(false);
 
+    [IBeamOperation("identity.auth.password.tenant.switch", Permission = false)]
     public async Task<AuthTokenResponse> SwitchTenantAsync(string userId, SelectTenantRequest request, CancellationToken ct = default)
-        => await SelectTenantInternalAsync(userId, request, "switch", ct);
+        => await _operations.ExecuteAsync(
+            this,
+            token => SelectTenantInternalAsync(userId, request, "switch", token),
+            new ServiceOperationExecutionOptions { TenantId = request?.TenantId, PermissionEnabled = false },
+            ct).ConfigureAwait(false);
 
     private async Task<AuthTokenResponse> SelectTenantInternalAsync(
         string userId,
