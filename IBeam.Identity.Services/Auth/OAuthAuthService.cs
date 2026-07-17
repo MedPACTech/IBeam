@@ -9,6 +9,7 @@ using IBeam.Identity.Models;
 using IBeam.Identity.Options;
 using IBeam.Identity.Services.Tenants;
 using IBeam.Identity.Services.Users;
+using IBeam.Services.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
@@ -34,6 +35,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
     private readonly ITenantExtensionCoordinator _tenantExtensions;
     private readonly IIdentityUserExtensionCoordinator _userExtensions;
     private readonly ILogger<OAuthAuthService> _logger;
+    private readonly IServiceOperationExecutor _operations;
 
     public OAuthAuthService(
         IMemoryCache cache,
@@ -85,7 +87,8 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         ITenantInfoResolver tenantInfoResolver,
         ITenantExtensionCoordinator tenantExtensions,
         IIdentityUserExtensionCoordinator userExtensions,
-        ILogger<OAuthAuthService> logger)
+        ILogger<OAuthAuthService> logger,
+        IServiceOperationExecutor? operations = null)
     {
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
@@ -103,6 +106,7 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         _tenantExtensions = tenantExtensions ?? throw new ArgumentNullException(nameof(tenantExtensions));
         _userExtensions = userExtensions ?? throw new ArgumentNullException(nameof(userExtensions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _operations = operations ?? new ServiceOperationExecutor();
     }
 
     public OAuthAuthService(
@@ -131,10 +135,23 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
     {
     }
 
+    [IBeamOperation("identity.auth.oauth.start", Permission = false)]
     public Task<OAuthStartResponse> StartOAuthAsync(string provider, string redirectUri, CancellationToken ct = default)
-        => StartOAuthInternalAsync(provider, redirectUri, linkUserId: null);
+        => _operations.ExecuteAsync(
+            this,
+            _ => StartOAuthInternalAsync(provider, redirectUri, linkUserId: null),
+            new ServiceOperationExecutionOptions { PermissionEnabled = false },
+            ct);
 
+    [IBeamOperation("identity.auth.oauth.link.start", Permission = false)]
     public Task<OAuthStartResponse> StartOAuthLinkAsync(Guid userId, string provider, string redirectUri, CancellationToken ct = default)
+        => _operations.ExecuteAsync(
+            this,
+            token => StartOAuthLinkCoreAsync(userId, provider, redirectUri, token),
+            new ServiceOperationExecutionOptions { EntityId = userId, PermissionEnabled = false },
+            ct);
+
+    private Task<OAuthStartResponse> StartOAuthLinkCoreAsync(Guid userId, string provider, string redirectUri, CancellationToken ct)
     {
         if (userId == Guid.Empty)
             throw new IdentityValidationException("UserId is required.");
@@ -142,7 +159,15 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         return StartOAuthInternalAsync(provider, redirectUri, userId);
     }
 
+    [IBeamOperation("identity.auth.oauth.link", Permission = false)]
     public async Task LinkOAuthAsync(Guid userId, OAuthCallbackRequest request, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => LinkOAuthCoreAsync(userId, request, token),
+            new ServiceOperationExecutionOptions { EntityId = userId, PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task LinkOAuthCoreAsync(Guid userId, OAuthCallbackRequest request, CancellationToken ct)
     {
         if (userId == Guid.Empty)
             throw new IdentityValidationException("UserId is required.");
@@ -160,7 +185,15 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         await _externalLogins.LinkAsync(userId, normalizedProvider, externalUser.ProviderUserId, externalUser.Email, ct);
     }
 
+    [IBeamOperation("identity.auth.oauth.unlink", Permission = false)]
     public async Task UnlinkOAuthAsync(Guid userId, string provider, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => UnlinkOAuthCoreAsync(userId, provider, token),
+            new ServiceOperationExecutionOptions { EntityId = userId, PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task UnlinkOAuthCoreAsync(Guid userId, string provider, CancellationToken ct)
     {
         if (userId == Guid.Empty)
             throw new IdentityValidationException("UserId is required.");
@@ -171,7 +204,15 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         await _externalLogins.UnlinkAsync(userId, normalizedProvider, ct);
     }
 
+    [IBeamOperation("identity.auth.oauth.linked.list", Permission = false)]
     public async Task<IReadOnlyList<LinkedOAuthProvider>> GetLinkedProvidersAsync(Guid userId, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => GetLinkedProvidersCoreAsync(userId, token),
+            new ServiceOperationExecutionOptions { EntityId = userId, PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task<IReadOnlyList<LinkedOAuthProvider>> GetLinkedProvidersCoreAsync(Guid userId, CancellationToken ct)
     {
         if (userId == Guid.Empty)
             throw new IdentityValidationException("UserId is required.");
@@ -206,7 +247,15 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
         return Task.FromResult(new OAuthStartResponse(normalizedProvider, authorizationUrl, state, expiresAt));
     }
 
+    [IBeamOperation("identity.auth.oauth.complete", Permission = false)]
     public async Task<AuthResultResponse> CompleteOAuthAsync(OAuthCallbackRequest request, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => CompleteOAuthCoreAsync(request, token),
+            new ServiceOperationExecutionOptions { PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task<AuthResultResponse> CompleteOAuthCoreAsync(OAuthCallbackRequest request, CancellationToken ct)
     {
         var traceId = ResolveTraceId();
         var loginAttempt = new LoginAttemptedEvent

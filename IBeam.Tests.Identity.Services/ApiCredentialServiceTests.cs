@@ -44,6 +44,26 @@ public sealed class ApiCredentialServiceTests
     }
 
     [TestMethod]
+    public async Task CreateAsync_UsesServiceOperationExecutor()
+    {
+        var executor = new RecordingServiceOperationExecutor();
+        var fixture = CreateFixture(executor);
+
+        await fixture.Service.CreateAsync(
+            TenantId,
+            new CreateApiCredentialRequest
+            {
+                DisplayName = "Codex Work Service",
+                RoleNames = ["API"]
+            },
+            Guid.NewGuid());
+
+        Assert.HasCount(1, executor.Calls);
+        Assert.AreEqual(nameof(ApiCredentialService.CreateAsync), executor.Calls[0].CallerMemberName);
+        Assert.AreEqual(TenantId, executor.Calls[0].Options?.TenantId);
+    }
+
+    [TestMethod]
     public async Task AuthenticateAsync_ValidKey_EmitsCredentialPrincipal_AndTouchesLastUsed()
     {
         var fixture = CreateFixture();
@@ -288,7 +308,7 @@ public sealed class ApiCredentialServiceTests
         Assert.IsTrue(activated.IsActive);
     }
 
-    private static Fixture CreateFixture()
+    private static Fixture CreateFixture(RecordingServiceOperationExecutor? operations = null)
     {
         var options = Options.Create(new ApiCredentialOptions());
         var roleStore = new FakeTenantRoleStore();
@@ -297,7 +317,7 @@ public sealed class ApiCredentialServiceTests
         var hasher = new ApiCredentialSecretHasher(options);
         var validator = new ApiCredentialRoleAssignmentValidator(roleStore, options);
         var principalFactory = new ApiCredentialPrincipalFactory(options);
-        var service = new ApiCredentialService(store, roleStore, validator, keyGenerator, hasher, new FakeApiCredentialAccessService());
+        var service = new ApiCredentialService(store, roleStore, validator, keyGenerator, hasher, new FakeApiCredentialAccessService(), operations);
         var authenticator = new ApiCredentialAuthenticator(store, keyGenerator, hasher, principalFactory);
         return new Fixture(store, service, authenticator);
     }

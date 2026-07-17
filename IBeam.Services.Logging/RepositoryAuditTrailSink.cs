@@ -41,7 +41,11 @@ public sealed class RepositoryAuditTrailSink : IAuditTrailSink
             QuerySignature = null,
             FirstSeenUtc = transaction.OccurredUtc,
             LastSeenUtc = transaction.OccurredUtc,
-            Count = 1
+            Count = 1,
+            Succeeded = transaction.Succeeded,
+            ErrorType = transaction.ErrorType,
+            ErrorMessage = transaction.ErrorMessage,
+            DurationMs = transaction.DurationMs
         };
 
         await _repository.SaveAsync(entry, ct).ConfigureAwait(false);
@@ -75,7 +79,8 @@ public sealed class RepositoryAuditTrailSink : IAuditTrailSink
                 QuerySignature = rollup.QuerySignature,
                 FirstSeenUtc = rollup.FirstSeenUtc,
                 LastSeenUtc = rollup.LastSeenUtc,
-                Count = Math.Max(rollup.Count, 1)
+                Count = Math.Max(rollup.Count, 1),
+                Succeeded = true
             };
 
             await _repository.SaveAsync(entry, ct).ConfigureAwait(false);

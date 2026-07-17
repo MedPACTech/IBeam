@@ -8,6 +8,7 @@ using IBeam.Identity.Services.Authorization;
 using IBeam.Identity.Services.Tenants;
 using IBeam.Identity.Services.Tokens;
 using IBeam.Identity.Services.Users;
+using IBeam.Services.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -25,6 +26,8 @@ public static class ServiceCollectionExtensions
     /// <returns>The updated service collection.</returns>
     public static IServiceCollection AddIBeamIdentityServices(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddIBeamServicePolicies();
+        services.AddIBeamServiceAuditing(configuration);
 
         services.AddOptions<OtpOptions>()
         .Bind(configuration.GetSection(OtpOptions.SectionName))

@@ -1,6 +1,8 @@
 using IBeam.Licensing;
 using IBeam.Licensing.Services;
+using IBeam.Services.Abstractions;
 using Microsoft.Extensions.Options;
+using System.Runtime.CompilerServices;
 
 [assembly: Parallelize(Scope = ExecutionScope.MethodLevel)]
 
@@ -48,6 +50,22 @@ public sealed class LicensingServiceTests
     }
 
     [TestMethod]
+    public async Task GrantLicenseAsync_UsesServiceOperationExecutor()
+    {
+        var store = new InMemoryLicensingStore();
+        var executor = new RecordingServiceOperationExecutor();
+        var licenses = new TenantLicenseService(store, CreatePlanCatalog(), executor);
+
+        await licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest { PlanKey = "hubbsly-work" });
+
+        Assert.HasCount(1, executor.Calls);
+        Assert.AreEqual(nameof(TenantLicenseService.GrantLicenseAsync), executor.Calls[0].CallerMemberName);
+        Assert.AreEqual(TenantId, executor.Calls[0].Options?.TenantId);
+    }
+
+    [TestMethod]
     public async Task AssignSeatAsync_EnforcesSeatLimit()
     {
         var fixture = CreateFixture();
@@ -70,6 +88,26 @@ public sealed class LicensingServiceTests
                 TenantId,
                 license.LicenseId,
                 new AssignLicenseSeatRequest { Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-3") }));
+    }
+
+    [TestMethod]
+    public async Task AssignSeatAsync_UsesServiceOperationExecutor()
+    {
+        var store = new InMemoryLicensingStore();
+        var license = await new TenantLicenseService(store, CreatePlanCatalog())
+            .GrantLicenseAsync(TenantId, new GrantTenantLicenseRequest { PlanKey = "hubbsly-work" });
+        var executor = new RecordingServiceOperationExecutor();
+        var assignments = new LicenseSeatAssignmentService(store, executor);
+
+        await assignments.AssignSeatAsync(
+            TenantId,
+            license.LicenseId,
+            new AssignLicenseSeatRequest { Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1") });
+
+        Assert.HasCount(1, executor.Calls);
+        Assert.AreEqual(nameof(LicenseSeatAssignmentService.AssignSeatAsync), executor.Calls[0].CallerMemberName);
+        Assert.AreEqual(TenantId, executor.Calls[0].Options?.TenantId);
+        Assert.AreEqual(license.LicenseId, executor.Calls[0].Options?.EntityId);
     }
 
     [TestMethod]
@@ -211,4 +249,57 @@ public sealed class LicensingServiceTests
         TenantLicenseService Licenses,
         LicenseSeatAssignmentService Assignments,
         LicenseAuthorizer Authorizer);
+
+    private sealed class RecordingServiceOperationExecutor : IServiceOperationExecutor
+    {
+        private readonly List<ServiceOperationCall> _calls = [];
+
+        public IReadOnlyList<ServiceOperationCall> Calls => _calls;
+
+        public async Task ExecuteAsync(
+            object serviceInstance,
+            Func<CancellationToken, Task> operation,
+            ServiceOperationExecutionOptions? options = null,
+            CancellationToken ct = default,
+            [CallerMemberName] string? callerMemberName = null)
+        {
+            _calls.Add(new ServiceOperationCall(callerMemberName, options));
+            await operation(ct).ConfigureAwait(false);
+        }
+
+        public async Task<TResult> ExecuteAsync<TResult>(
+            object serviceInstance,
+            Func<CancellationToken, Task<TResult>> operation,
+            ServiceOperationExecutionOptions? options = null,
+            CancellationToken ct = default,
+            [CallerMemberName] string? callerMemberName = null)
+        {
+            _calls.Add(new ServiceOperationCall(callerMemberName, options));
+            return await operation(ct).ConfigureAwait(false);
+        }
+
+        public void Execute(
+            object serviceInstance,
+            Action operation,
+            ServiceOperationExecutionOptions? options = null,
+            [CallerMemberName] string? callerMemberName = null)
+        {
+            _calls.Add(new ServiceOperationCall(callerMemberName, options));
+            operation();
+        }
+
+        public TResult Execute<TResult>(
+            object serviceInstance,
+            Func<TResult> operation,
+            ServiceOperationExecutionOptions? options = null,
+            [CallerMemberName] string? callerMemberName = null)
+        {
+            _calls.Add(new ServiceOperationCall(callerMemberName, options));
+            return operation();
+        }
+    }
+
+    private sealed record ServiceOperationCall(
+        string? CallerMemberName,
+        ServiceOperationExecutionOptions? Options);
 }

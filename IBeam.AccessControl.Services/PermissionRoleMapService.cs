@@ -1,26 +1,51 @@
+using IBeam.Services.Abstractions;
+
 namespace IBeam.AccessControl.Services;
 
+[IBeamOperation("accesscontrol.permissionroles")]
 public sealed class PermissionRoleMapService : IPermissionRoleMapService
 {
     private readonly IPermissionRoleMapStore _store;
+    private readonly IServiceOperationExecutor _operations;
 
-    public PermissionRoleMapService(IPermissionRoleMapStore store)
+    public PermissionRoleMapService(IPermissionRoleMapStore store, IServiceOperationExecutor? operations = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
+        _operations = operations ?? new ServiceOperationExecutor();
     }
 
+    [IBeamOperation("accesscontrol.permissionroles.list")]
     public async Task<IReadOnlyList<PermissionRoleMapInfo>> ListMappingsAsync(Guid tenantId, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => ListMappingsCoreAsync(tenantId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId },
+            ct).ConfigureAwait(false);
+
+    private async Task<IReadOnlyList<PermissionRoleMapInfo>> ListMappingsCoreAsync(Guid tenantId, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         var records = await _store.ListMappingsAsync(tenantId, ct).ConfigureAwait(false);
         return records.Select(PermissionRoleMapInfo.FromRecord).ToList();
     }
 
+    [IBeamOperation("accesscontrol.permissionroles.upsert.name")]
     public async Task<PermissionRoleMapInfo> UpsertByPermissionNameAsync(
         Guid tenantId,
         string permissionName,
         UpsertPermissionRoleMapRequest request,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => UpsertByPermissionNameCoreAsync(tenantId, permissionName, request, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId },
+            ct).ConfigureAwait(false);
+
+    private async Task<PermissionRoleMapInfo> UpsertByPermissionNameCoreAsync(
+        Guid tenantId,
+        string permissionName,
+        UpsertPermissionRoleMapRequest request,
+        CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ArgumentNullException.ThrowIfNull(request);
@@ -34,11 +59,23 @@ public sealed class PermissionRoleMapService : IPermissionRoleMapService
         return PermissionRoleMapInfo.FromRecord(record);
     }
 
+    [IBeamOperation("accesscontrol.permissionroles.upsert.id")]
     public async Task<PermissionRoleMapInfo> UpsertByPermissionIdAsync(
         Guid tenantId,
         Guid permissionId,
         UpsertPermissionRoleMapRequest request,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => UpsertByPermissionIdCoreAsync(tenantId, permissionId, request, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = permissionId },
+            ct).ConfigureAwait(false);
+
+    private async Task<PermissionRoleMapInfo> UpsertByPermissionIdCoreAsync(
+        Guid tenantId,
+        Guid permissionId,
+        UpsertPermissionRoleMapRequest request,
+        CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidatePermissionId(permissionId);
@@ -53,13 +90,29 @@ public sealed class PermissionRoleMapService : IPermissionRoleMapService
         return PermissionRoleMapInfo.FromRecord(record);
     }
 
+    [IBeamOperation("accesscontrol.permissionroles.delete.name")]
     public Task DeleteByPermissionNameAsync(Guid tenantId, string permissionName, CancellationToken ct = default)
+        => _operations.ExecuteAsync(
+            this,
+            token => DeleteByPermissionNameCoreAsync(tenantId, permissionName, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId },
+            ct);
+
+    private Task DeleteByPermissionNameCoreAsync(Guid tenantId, string permissionName, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         return _store.DeleteByPermissionNameAsync(tenantId, NormalizePermissionName(permissionName), ct);
     }
 
+    [IBeamOperation("accesscontrol.permissionroles.delete.id")]
     public Task DeleteByPermissionIdAsync(Guid tenantId, Guid permissionId, CancellationToken ct = default)
+        => _operations.ExecuteAsync(
+            this,
+            token => DeleteByPermissionIdCoreAsync(tenantId, permissionId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = permissionId },
+            ct);
+
+    private Task DeleteByPermissionIdCoreAsync(Guid tenantId, Guid permissionId, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidatePermissionId(permissionId);

@@ -29,6 +29,50 @@ Unexpected failures and system-level errors should bubble out to the API excepti
   - `ServicePolicyOptions`
   - `IServiceOperationPolicyResolver`
   - `AddIBeamServicePolicies(...)`
+- custom service operation execution:
+  - `IBeamOperationAttribute`
+  - `IBeamAuditActionAttribute`
+  - `IBeamRequiresPermissionAttribute`
+  - `IServiceOperationExecutor`
+  - `ServiceOperationExecutionOptions`
+
+## Custom Service Operations
+
+Base CRUD methods already apply service operation authorization and audit logging. Custom service methods can use `IServiceOperationExecutor` to get the same behavior.
+
+```csharp
+[IBeamOperation("patients")]
+public sealed class PatientService
+{
+    private readonly IServiceOperationExecutor _operations;
+
+    public PatientService(IServiceOperationExecutor operations)
+    {
+        _operations = operations;
+    }
+
+    [IBeamOperation("patients.discharge")]
+    public Task DischargeAsync(Guid patientId, CancellationToken ct = default)
+    {
+        return _operations.ExecuteAsync(
+            this,
+            async token =>
+            {
+                // Custom business rules and repository/service calls live here.
+                await Task.CompletedTask;
+            },
+            new ServiceOperationExecutionOptions
+            {
+                EntityId = patientId
+            },
+            ct);
+    }
+}
+```
+
+The executor resolves the operation name from the method attribute, checks service-operation authorization when configured, writes audit transactions when auditing is enabled, captures request/actor/tenant context, and records success/failure metadata for debugging.
+
+Use `ServiceOperationExecutionOptions.OriginalData` and `TransformedData` when the custom method changes data and you can provide before/after entity snapshots. Prefer database entity shapes for those snapshots, not decorated outbound DTOs.
 
 ## Dependencies
 

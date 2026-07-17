@@ -43,6 +43,9 @@ When adding public types, make sure the owning layer is correct and update the R
 - Keep APIs and repositories from taking over service responsibilities.
 - Support overrides for CRUD operations and blocking unsupported operations.
 - Keep access-control and audit hooks generic so teams can use Identity or bring their own auth.
+- Base CRUD operations should continue to use the built-in `BaseService` / `BaseServiceAsync` authorization and audit pipeline.
+- Custom service methods should use `IServiceOperationExecutor` and operation attributes instead of hand-rolling permission checks or audit writes.
+- When adding a custom method example, show `[IBeamOperation("entity.action")]` plus `_operations.ExecuteAsync(this, ...)` so agents do not treat the attribute as self-enforcing metadata.
 
 - Prefer existing IBeam base service CRUD hooks before adding custom plumbing.
 - Services may call other services for lookup data or rule evaluation, but avoid circular dependencies.

@@ -14,6 +14,8 @@ Keep repositories focused on one entity. Repositories should not call other repo
 
 Use stable operation names for service calls, such as `pricing.update`, `patients.discharge`, and `transactions.export`. Align operation names with audit and permission rules when possible.
 
+For custom service methods, do not stop at adding `[IBeamOperation]`. Wrap the method body with `IServiceOperationExecutor` using `_operations.ExecuteAsync(this, ...)` or `_operations.Execute(this, ...)` so service-operation permissions, audit logging, actor/request context, success/failure metadata, and duration tracking are applied consistently.
+
 When adding features, prefer existing IBeam base classes, interfaces, dependency injection extensions, and test patterns. Keep package boundaries clean so teams can use IBeam services, logging, and access control without being forced into IBeam Identity.
 
 Before changing code, inspect this project and the root `.agent/implementation-guide.md`.

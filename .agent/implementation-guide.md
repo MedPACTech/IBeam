@@ -30,6 +30,8 @@ The API is a gateway. The service is the business boundary. The repository is th
 - Prefer base service CRUD operations and override hooks before inventing new CRUD plumbing.
 - Use IBeam operation names for service actions, for example `pricing.update`, `patients.discharge`, or `transactions.export`.
 - Keep permissions and audit action names aligned when possible.
+- Base CRUD services already apply service operation authorization and audit logging. For custom service methods, use `IServiceOperationExecutor` so `[IBeamOperation]`, `[IBeamAuditAction]`, and `[IBeamRequiresPermission]` are enforced consistently.
+- Wrap custom service method bodies with `_operations.ExecuteAsync(this, ...)` or `_operations.Execute(this, ...)`. Pass `ServiceOperationExecutionOptions` when you need entity IDs, before/after entity snapshots, custom audit actions, or explicit permission names.
 
 ## Repository Rules
 
@@ -48,6 +50,7 @@ The API is a gateway. The service is the business boundary. The repository is th
 ## Permissions and Audit
 
 - Use `IBeamOperationAttribute` to give service calls stable operation names.
+- Do not add `[IBeamOperation]` to a custom method without also routing execution through `IServiceOperationExecutor` or another approved service-operation pipeline.
 - Use service-operation permissions in `IBeam.AccessControl` for role/subject authorization.
 - Keep dynamic permission management optional. Apps may use config, scripts, DB stores, or API endpoints.
 - Use IBeam audit sinks for durable entity change history.
@@ -68,4 +71,3 @@ The API is a gateway. The service is the business boundary. The repository is th
 3. Follow the local package style.
 4. Add focused tests for behavior changes.
 5. Update docs when public behavior, configuration, or package registration changes.
-

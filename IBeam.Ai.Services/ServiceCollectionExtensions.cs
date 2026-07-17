@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using IBeam.Services.Abstractions;
 
 namespace IBeam.Ai;
 
@@ -9,6 +10,9 @@ public static class AiServicesServiceCollectionExtensions
         this IServiceCollection services,
         Action<AgentToolRegistryBuilder>? configureTools = null)
     {
+        services.AddIBeamServicePolicies();
+        services.AddIBeamServiceAuditing();
+
         var builder = new AgentToolRegistryBuilder();
         configureTools?.Invoke(builder);
 

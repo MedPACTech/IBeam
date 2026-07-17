@@ -1,27 +1,53 @@
+using IBeam.Services.Abstractions;
+
 namespace IBeam.Licensing.Services;
 
+[IBeamOperation("licensing.seats")]
 public sealed class LicenseSeatAssignmentService : ILicenseSeatAssignmentService
 {
     private readonly ILicensingStore _store;
+    private readonly IServiceOperationExecutor _operations;
 
-    public LicenseSeatAssignmentService(ILicensingStore store)
+    public LicenseSeatAssignmentService(ILicensingStore store, IServiceOperationExecutor? operations = null)
     {
         _store = store;
+        _operations = operations ?? new ServiceOperationExecutor();
     }
 
+    [IBeamOperation("licensing.seats.list")]
     public async Task<IReadOnlyList<LicenseSeatAssignmentInfo>> ListAssignmentsAsync(Guid tenantId, Guid licenseId, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => ListAssignmentsCoreAsync(tenantId, licenseId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = licenseId },
+            ct).ConfigureAwait(false);
+
+    private async Task<IReadOnlyList<LicenseSeatAssignmentInfo>> ListAssignmentsCoreAsync(Guid tenantId, Guid licenseId, CancellationToken ct)
     {
         TenantLicenseService.ValidateTenantId(tenantId);
         TenantLicenseService.ValidateLicenseId(licenseId);
         return await _store.ListAssignmentsAsync(tenantId, licenseId, ct).ConfigureAwait(false);
     }
 
+    [IBeamOperation("licensing.seats.assign")]
     public async Task<LicenseSeatAssignmentInfo> AssignSeatAsync(
         Guid tenantId,
         Guid licenseId,
         AssignLicenseSeatRequest request,
         Guid? createdByUserId = null,
         CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => AssignSeatCoreAsync(tenantId, licenseId, request, createdByUserId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = licenseId },
+            ct).ConfigureAwait(false);
+
+    private async Task<LicenseSeatAssignmentInfo> AssignSeatCoreAsync(
+        Guid tenantId,
+        Guid licenseId,
+        AssignLicenseSeatRequest request,
+        Guid? createdByUserId,
+        CancellationToken ct)
     {
         TenantLicenseService.ValidateTenantId(tenantId);
         TenantLicenseService.ValidateLicenseId(licenseId);
@@ -59,7 +85,15 @@ public sealed class LicenseSeatAssignmentService : ILicenseSeatAssignmentService
         return await _store.AddAssignmentAsync(assignment, ct).ConfigureAwait(false);
     }
 
+    [IBeamOperation("licensing.seats.revoke")]
     public Task RevokeSeatAsync(Guid tenantId, Guid licenseId, Guid assignmentId, CancellationToken ct = default)
+        => _operations.ExecuteAsync(
+            this,
+            token => RevokeSeatCoreAsync(tenantId, licenseId, assignmentId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = assignmentId },
+            ct);
+
+    private Task RevokeSeatCoreAsync(Guid tenantId, Guid licenseId, Guid assignmentId, CancellationToken ct)
     {
         TenantLicenseService.ValidateTenantId(tenantId);
         TenantLicenseService.ValidateLicenseId(licenseId);

@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IBeam.Licensing\IBeam.Licensing.csproj" />
+    <ProjectReference Include="..\IBeam.Services\IBeam.Services.csproj" />
   </ItemGroup>
 
   <ItemGroup>
