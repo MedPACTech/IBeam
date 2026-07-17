@@ -41,5 +41,12 @@ public sealed class ServiceAuditTransaction
         get => TransformedJson;
         set => TransformedJson = value;
     }
-}
 
+    public bool Succeeded { get; set; } = true;
+
+    public string? ErrorType { get; set; }
+
+    public string? ErrorMessage { get; set; }
+
+    public long? DurationMs { get; set; }
+}

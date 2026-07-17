@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IBeam.Services.Abstractions
 {
@@ -15,6 +16,7 @@ namespace IBeam.Services.Abstractions
                 services.Configure(configure);
 
             services.AddSingleton<IServiceOperationPolicyResolver, ServiceOperationPolicyResolver>();
+            services.TryAddScoped<IServiceOperationExecutor, ServiceOperationExecutor>();
             return services;
         }
 
@@ -38,10 +40,11 @@ namespace IBeam.Services.Abstractions
                 services.Configure(configure);
             }
 
-            services.AddScoped<IAuditTrailSink, NoOpAuditTrailSink>();
-            services.AddScoped<IAuditActorProvider, NoOpAuditActorProvider>();
-            services.AddScoped<IAuditRequestContextProvider, NoOpAuditRequestContextProvider>();
-            services.AddScoped<IServiceOperationPrincipalProvider, NoOpServiceOperationPrincipalProvider>();
+            services.TryAddScoped<IAuditTrailSink, NoOpAuditTrailSink>();
+            services.TryAddScoped<IAuditActorProvider, NoOpAuditActorProvider>();
+            services.TryAddScoped<IAuditRequestContextProvider, NoOpAuditRequestContextProvider>();
+            services.TryAddScoped<IServiceOperationPrincipalProvider, NoOpServiceOperationPrincipalProvider>();
+            services.TryAddScoped<IServiceOperationExecutor, ServiceOperationExecutor>();
 
             return services;
         }

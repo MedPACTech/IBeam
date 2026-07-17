@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using IBeam.Services.Abstractions;
 
 namespace IBeam.Licensing.Services;
 
@@ -10,6 +11,9 @@ public static class LicensingServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddIBeamServicePolicies();
+        services.AddIBeamServiceAuditing(configuration);
+
         services.AddOptions<LicensingOptions>()
             .Bind(configuration.GetSection(LicensingOptions.SectionName))
             .Validate(o =>

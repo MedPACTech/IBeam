@@ -21,6 +21,7 @@
     <ProjectReference Include="..\IBeam.Api\IBeam.Api.csproj" />
     <ProjectReference Include="..\IBeam.Communications\IBeam.Communications.csproj" />
     <ProjectReference Include="..\IBeam.Identity\IBeam.Identity.csproj" />
+    <ProjectReference Include="..\IBeam.Services\IBeam.Services.csproj" />
   </ItemGroup>
 
   <ItemGroup>

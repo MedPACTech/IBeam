@@ -10,6 +10,6 @@ public enum ServiceAuditOperation
     GetAll = 10,
     GetAllWithArchived = 11,
     GetById = 12,
-    GetByIds = 13
+    GetByIds = 13,
+    Custom = 100
 }
-

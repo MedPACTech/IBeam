@@ -51,4 +51,12 @@ public sealed class ServiceAuditLogEntry : IEntity
     public DateTimeOffset LastSeenUtc { get; set; }
 
     public int Count { get; set; }
+
+    public bool Succeeded { get; set; } = true;
+
+    public string? ErrorType { get; set; }
+
+    public string? ErrorMessage { get; set; }
+
+    public long? DurationMs { get; set; }
 }

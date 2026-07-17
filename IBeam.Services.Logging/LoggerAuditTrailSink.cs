@@ -15,7 +15,7 @@ public sealed class LoggerAuditTrailSink : IAuditTrailSink
     public Task WriteTransactionAsync(ServiceAuditTransaction transaction, CancellationToken ct = default)
     {
         _logger.LogInformation(
-            "IBeamAudit Transaction Service={Service} Entity={Entity} Operation={Operation} Action={Action} EntityId={EntityId} TenantId={TenantId} Actor={Actor} IpAddress={IpAddress}",
+            "IBeamAudit Transaction Service={Service} Entity={Entity} Operation={Operation} Action={Action} EntityId={EntityId} TenantId={TenantId} Actor={Actor} IpAddress={IpAddress} Succeeded={Succeeded} DurationMs={DurationMs} ErrorType={ErrorType}",
             transaction.ServiceName,
             transaction.EntityName,
             transaction.Operation,
@@ -23,7 +23,10 @@ public sealed class LoggerAuditTrailSink : IAuditTrailSink
             transaction.EntityId,
             transaction.TenantId,
             transaction.ActorId ?? "<none>",
-            transaction.IpAddress ?? "<none>");
+            transaction.IpAddress ?? "<none>",
+            transaction.Succeeded,
+            transaction.DurationMs,
+            transaction.ErrorType ?? "<none>");
 
         return Task.CompletedTask;
     }
