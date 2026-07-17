@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\IBeam.AccessControl.Repositories.AzureTable\IBeam.AccessControl.Repositories.AzureTable.csproj" />
     <ProjectReference Include="..\IBeam.AccessControl.Services\IBeam.AccessControl.Services.csproj" />
     <ProjectReference Include="..\IBeam.Identity\IBeam.Identity.csproj" />
   </ItemGroup>

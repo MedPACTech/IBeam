@@ -17,7 +17,8 @@ Configuration:
       "AzureTable": {
         "StorageConnectionString": "<connection-string>",
         "TablePrefix": "IBeam",
-        "ServiceOperationPermissionsTableName": "ServiceOperationPermissions"
+        "ServiceOperationPermissionsTableName": "ServiceOperationPermissions",
+        "CreateTablesIfNotExists": true
       }
     }
   }
@@ -25,4 +26,6 @@ Configuration:
 ```
 
 With the default `IBeam` prefix, the physical table is `IBeamServiceOperationPermissions`.
+
+`CreateTablesIfNotExists` defaults to `true`. Set it to `false` only when the service operation permissions table is created by external schema management.
 

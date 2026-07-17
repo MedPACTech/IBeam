@@ -1,5 +1,6 @@
 using IBeam.Identity.Repositories.AzureTable.Extensions;
 using IBeam.Identity.Repositories.AzureTable.Options;
+using IBeam.Services.Logging.AzureTable;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -73,6 +74,42 @@ public sealed class ConnectionStringCascadeTests
 
         var opts = provider.GetRequiredService<IOptions<AzureTableIdentityOptions>>().Value;
         Assert.AreEqual(@default, opts.StorageConnectionString);
+    }
+
+    [TestMethod]
+    public void AddIBeamIdentityAzureTable_DefaultsCreateTablesIfNotExistsToTrue()
+    {
+        var config = BuildConfig(new Dictionary<string, string?>
+        {
+            ["IBeam:Identity:AzureTable:StorageConnectionString"] = BuildAzureConnectionString("scopedacct")
+        });
+
+        var services = new ServiceCollection();
+        services.AddIBeamIdentityAzureTable(config);
+        using var provider = services.BuildServiceProvider();
+
+        var opts = provider.GetRequiredService<IOptions<AzureTableIdentityOptions>>().Value;
+        Assert.IsTrue(opts.CreateTablesIfNotExists);
+    }
+
+    [TestMethod]
+    public void AddIBeamIdentityAzureTable_BindsCreateTablesIfNotExistsFalse()
+    {
+        var config = BuildConfig(new Dictionary<string, string?>
+        {
+            ["IBeam:Identity:AzureTable:StorageConnectionString"] = BuildAzureConnectionString("scopedacct"),
+            ["IBeam:Identity:AzureTable:CreateTablesIfNotExists"] = "false"
+        });
+
+        var services = new ServiceCollection();
+        services.AddIBeamIdentityAzureTable(config);
+        using var provider = services.BuildServiceProvider();
+
+        var identityOptions = provider.GetRequiredService<IOptions<AzureTableIdentityOptions>>().Value;
+        var logOptions = provider.GetRequiredService<IOptions<AzureTableSystemLogOptions>>().Value;
+
+        Assert.IsFalse(identityOptions.CreateTablesIfNotExists);
+        Assert.IsFalse(logOptions.CreateTableIfNotExists);
     }
 
     private static IConfiguration BuildConfig(Dictionary<string, string?> values)

@@ -13,6 +13,9 @@ public sealed class AzureTableIdentityOptions
     // Prefix applied to ALL tables (ElCamino + custom)
     public string TablePrefix { get; set; } = string.Empty;
 
+    // Schema/bootstrap behavior
+    public bool CreateTablesIfNotExists { get; set; } = true;
+
     // --- ElCamino identity tables (match IdentityConfiguration) ---
     public string IndexTableName { get; set; } = "AspNetIndex";
     public string UserTableName { get; set; } = "AspNetUsers";

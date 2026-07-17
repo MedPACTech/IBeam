@@ -386,7 +386,10 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
             return suggestedUserId;
 
         var table = GetAuthIdentifiersTable();
-        await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+        if (_opts.CreateTablesIfNotExists)
+        {
+            await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+        }
 
         var entity = new AuthIdentifierEntity
         {
@@ -463,7 +466,10 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
             return;
 
         var table = GetAuthIdentifiersTable();
-        await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+        if (_opts.CreateTablesIfNotExists)
+        {
+            await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+        }
 
         var entity = new AuthIdentifierEntity
         {
@@ -484,7 +490,10 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
             return;
 
         var table = GetAuthIdentifiersTable();
-        await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+        if (_opts.CreateTablesIfNotExists)
+        {
+            await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+        }
 
         var entity = new AuthIdentifierEntity
         {

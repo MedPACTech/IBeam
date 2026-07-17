@@ -10,6 +10,8 @@ public sealed class AzureTableAccessControlOptions
 
     public string ServiceOperationPermissionsTableName { get; set; } = "ServiceOperationPermissions";
 
+    public bool CreateTablesIfNotExists { get; set; } = true;
+
     public string FullTableName(string tableName)
         => $"{TablePrefix}{tableName}";
 

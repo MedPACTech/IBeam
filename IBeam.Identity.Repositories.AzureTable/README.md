@@ -137,7 +137,8 @@ Single-tenant deployments can pin auth flows to an existing/configured tenant:
       },
       "AzureTable": {
         "StorageConnectionString": "UseDevelopmentStorage=true",
-        "TablePrefix": "WellderlyTest"
+        "TablePrefix": "WellderlyTest",
+        "CreateTablesIfNotExists": true
       }
     }
   }
@@ -178,6 +179,8 @@ In `RequireExistingTenant`, OTP/password/OAuth auth flows do not create `Tenants
 Physical table names are `{TablePrefix}{BaseTableName}`.
 
 If `IBeam:Identity:AzureTable:TablePrefix` is not set, the Azure Table identity provider uses an empty prefix and creates unprefixed tables such as `AspNetUsers`, `AuthIdentifiers`, `SystemLogs`, `SystemErrors`, and `Schema`.
+
+`IBeam:Identity:AzureTable:CreateTablesIfNotExists` controls whether the provider creates/ensures identity tables during startup and defensive write paths. The default is `true`. Set it to `false` only when tables are managed externally.
 
 When `TablePrefix` is set, operational tables are also prefixed:
 

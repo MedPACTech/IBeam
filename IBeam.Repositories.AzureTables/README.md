@@ -45,6 +45,8 @@ Repository table names are built from:
 
 This setting is separate from the identity Azure Table provider setting, `IBeam:Identity:AzureTable:TablePrefix`.
 
+`IBeam:Repositories:AzureTables:CreateTablesIfNotExists` controls whether repository tables are created on first use. The default is `true`.
+
 ## Connection String Cascade
 
 AzureTables provider resolves connection string with fallback precedence:

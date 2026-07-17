@@ -39,7 +39,11 @@ public sealed class AzureTableAuthAttemptStore : IAuthAttemptStore
         AuthAttemptContext? context = null)
     {
         var table = Table();
-        await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+        if (_opts.CreateTablesIfNotExists)
+        {
+            await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+        }
+
         var now = DateTimeOffset.UtcNow;
 
         var response = await table.GetEntityIfExistsAsync<AuthAttemptEntity>(Partition(method), Row(identifier), cancellationToken: ct).ConfigureAwait(false);
@@ -70,7 +74,10 @@ public sealed class AzureTableAuthAttemptStore : IAuthAttemptStore
         AuthAttemptContext? context = null)
     {
         var table = Table();
-        await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+        if (_opts.CreateTablesIfNotExists)
+        {
+            await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+        }
 
         var now = DateTimeOffset.UtcNow;
         var entity = new AuthAttemptEntity
@@ -99,7 +106,11 @@ public sealed class AzureTableAuthAttemptStore : IAuthAttemptStore
         AuthAttemptContext? context = null)
     {
         var table = Table();
-        await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+        if (_opts.CreateTablesIfNotExists)
+        {
+            await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+        }
+
         var now = DateTimeOffset.UtcNow;
 
         var response = await table.GetEntityIfExistsAsync<AuthAttemptEntity>(Partition(method), Row(identifier), cancellationToken: ct)

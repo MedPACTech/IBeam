@@ -94,7 +94,10 @@ public sealed class AzureTableExternalLoginStore : IExternalLoginStore
                 throw new IdentityValidationException("This external login is already linked to another user.");
 
             var table = GetTable();
-            await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+            if (_opts.CreateTablesIfNotExists)
+            {
+                await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+            }
 
             var entity = new ExternalLoginEntity
             {

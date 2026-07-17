@@ -20,7 +20,10 @@ public sealed class AzureTableApiErrorSink : IApiErrorSink
     public async Task SaveAsync(ApiErrorRecord error, CancellationToken cancellationToken = default)
     {
         var table = _serviceClient.GetTableClient(_opts.FullTableName(_opts.SystemErrorsTableName));
-        await table.CreateIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
+        if (_opts.CreateTablesIfNotExists)
+        {
+            await table.CreateIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
+        }
 
         var now = error.Timestamp == default ? DateTimeOffset.UtcNow : error.Timestamp;
         var entity = new SystemErrorEntity

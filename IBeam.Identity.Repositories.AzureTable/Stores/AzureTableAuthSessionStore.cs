@@ -24,7 +24,11 @@ public sealed class AzureTableAuthSessionStore : IAuthSessionStore
         try
         {
             var table = GetTable();
-            await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+            if (_opts.CreateTablesIfNotExists)
+            {
+                await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+            }
+
             await table.UpsertEntityAsync(ToRefreshHashEntity(record), TableUpdateMode.Replace, ct).ConfigureAwait(false);
             await table.UpsertEntityAsync(ToUserSessionEntity(record), TableUpdateMode.Replace, ct).ConfigureAwait(false);
         }

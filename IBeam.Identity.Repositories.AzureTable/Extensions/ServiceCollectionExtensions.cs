@@ -65,6 +65,7 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
                     o.StorageConnectionString = opts.StorageConnectionString;
                     o.TablePrefix = opts.TablePrefix;
                     o.TableName = opts.SystemLogsTableName;
+                    o.CreateTableIfNotExists = opts.CreateTablesIfNotExists;
                 },
                 registerAuditTrailSink: false);
 
