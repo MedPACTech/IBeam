@@ -36,6 +36,7 @@ Unexpected exceptions and system-level failures should bubble to `ApiExceptionMi
 - Base route: `api/[controller]`
 - `GetById` enabled by default
 - Other operations disabled by default (`GetAll`, `GetByIds`, `Post`, `Put`, `Delete`)
+- Cursor and offset/page-number paging are disabled by default
 - Strongly-typed async service contracts (no `dynamic`)
 
 ### Service Contracts
@@ -44,11 +45,46 @@ Implement the contracts you need in your service:
 
 - `IGetAllService<TEntity>`
 - `IGetAllWithArchivedService<TEntity>`
+- `IGetAllCursorPagedService<TEntity>`
+- `IGetAllOffsetPagedService<TEntity>`
 - `IGetByIdService<TEntity, TKey>`
 - `IGetByIdsService<TEntity, TKey>`
 - `ICreateService<TEntity>`
 - `IUpdateService<TEntity>`
 - `IDeleteService<TKey>`
+
+### Paging
+
+`GetAll` supports unpaged, cursor-paged, and offset/page-number-paged execution. Paging is opt-in through controller flags and matching service contracts.
+
+Cursor paging:
+
+```http
+GET /api/patients?pageSize=25
+GET /api/patients?pageSize=25&continuationToken=opaque-token
+```
+
+Requires:
+
+- `AllowGetAllCursorPaged` => `true`
+- `IGetAllCursorPagedService<TEntity>`
+
+Returns `ApiCursorPagedResponse<T>` with `pageSize` and `continuationToken`.
+
+Offset/page-number paging:
+
+```http
+GET /api/patients?pageNumber=2&pageSize=25
+```
+
+Requires:
+
+- `AllowGetAllOffsetPaged` => `true`
+- `IGetAllOffsetPagedService<TEntity>`
+
+Returns `ApiOffsetPagedResponse<T>` with `pageNumber`, `pageSize`, and `totalCount`.
+
+Do not combine `pageNumber` and `continuationToken`; the base controller returns `400 Bad Request`.
 
 ### Example
 
@@ -91,3 +127,13 @@ If you want `201 Created`, override:
 
 - Unexpected exceptions should bubble to `ApiExceptionMiddleware` for centralized handling.
 - If an enabled action is missing the required service contract, an `InvalidOperationException` is thrown to fail fast with clear diagnostics.
+
+## Extended Docs And Agent Guidance
+
+- AI prompt: [`.agent/prompt.md`](./.agent/prompt.md)
+- Root implementation guide: [`../.agent/implementation-guide.md`](../.agent/implementation-guide.md)
+- Service logging and audit: [`../docs/service-logging-and-audit.md`](../docs/service-logging-and-audit.md)
+- Service operation permissions: [`../docs/service-operation-permissions.md`](../docs/service-operation-permissions.md)
+- Consuming API migration prompt: [`../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md`](../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
+
+Agents should keep API controllers as gateways. Business logic, permissions, rules, logging, and expected error classification belong in the service layer.
