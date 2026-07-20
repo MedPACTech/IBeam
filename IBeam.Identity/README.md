@@ -245,6 +245,15 @@ Default mode is `AutoCreateTenantForNewUser`, which preserves the original works
 
 IBeam owns `IdentityTenant` for identity/auth concerns, while an application can own its app/domain tenant entity such as `Tenant`, `Organization`, `Workspace`, `Practice`, or `Business`.
 
+In many consuming applications, plain tables named `Users` and `Tenants` are not IBeam's packaged identity tables. They are app-owned extension/domain tables that should be linked to IBeam identity records:
+
+| App Table | IBeam Link | Owns |
+|---|---|---|
+| `Users`, `AppUsers`, or `Profiles` | `UserId`, and often `TenantId + UserId` | Profile fields, preferences, handles, onboarding, avatar, app display state. |
+| `Tenants`, `Organizations`, or `Workspaces` | `TenantId` | Slug, branding, billing/provider fields, address, lifecycle flags, app metadata. |
+
+Do not treat extension tables as a request to add app fields to IBeam's packaged identity tables or auth DTOs. IBeam can coordinate creation/sync of extension rows, but the consuming app owns the schema, validation, update APIs, repositories, and migration scripts for those rows.
+
 `IdentityTenant` stays minimal:
 
 - `TenantId`
@@ -385,6 +394,98 @@ services.AddIBeamIdentityUserExtension<AppUserProfile, AppUserProfileStore>();
 ```
 
 The extension hook ensures the profile row exists during identity lifecycle flows. The consuming app should still expose its own typed profile service/API for user-editable fields such as `GamerTag`, `Theme`, and `SocialHandle`, because IBeam does not know the app's validation, privacy, or storage rules for those fields.
+
+Typical end-to-end flow for updating a profile field:
+
+```text
+PUT /api/me/profile/gamertag
+        |
+        v
+MeProfileController
+        |
+        v
+UserProfileService.UpdateGamerTagAsync(...)
+        |
+        v
+IUserProfileRepository.SaveAsync(...)
+        |
+        v
+App-owned table: Users or AppUsers
+PartitionKey = TENANT|{tenantId:D}
+RowKey       = USER|{userId:D}
+```
+
+Example request DTO:
+
+```csharp
+public sealed record UpdateGamerTagRequest(string GamerTag);
+```
+
+Example response DTO:
+
+```csharp
+public sealed record AppUserProfileDto(
+    Guid UserId,
+    Guid? TenantId,
+    string? DisplayName,
+    string? GamerTag,
+    string? Theme,
+    string? SocialHandle);
+```
+
+Example app service:
+
+```csharp
+[IBeamOperation("users.profile")]
+public sealed class UserProfileService
+{
+    private readonly IUserProfileRepository _profiles;
+
+    public UserProfileService(IUserProfileRepository profiles)
+    {
+        _profiles = profiles;
+    }
+
+    [IBeamOperation("users.profile.updateGamertag")]
+    public async Task<AppUserProfileDto> UpdateGamerTagAsync(
+        Guid tenantId,
+        Guid userId,
+        string gamerTag,
+        CancellationToken ct = default)
+    {
+        var profile = await _profiles.GetAsync(tenantId, userId, ct)
+            ?? throw new InvalidOperationException("User profile was not found.");
+
+        profile.GamerTag = gamerTag.Trim();
+        profile.UpdatedUtc = DateTimeOffset.UtcNow;
+
+        var saved = await _profiles.SaveAsync(profile, ct);
+
+        return new AppUserProfileDto(
+            saved.UserId,
+            saved.TenantId,
+            saved.DisplayName,
+            saved.GamerTag,
+            saved.Theme,
+            saved.SocialHandle);
+    }
+}
+```
+
+Example Azure Table shape for the app-owned profile row:
+
+| Field | Purpose |
+|---|---|
+| `PartitionKey` | `TENANT|{tenantId:D}` for tenant-scoped profile data. |
+| `RowKey` | `USER|{userId:D}` for point lookup by IBeam user id. |
+| `TenantId` | Tenant scope for tenant-specific profile values. |
+| `UserId` | Stable IBeam identity user id. |
+| `DisplayName` | App display name, optionally synced from IBeam identity context. |
+| `GamerTag` | App-owned profile field. |
+| `Theme` | App-owned preference, such as `dark-mode`. |
+| `SocialHandle` | App-owned social/contact display field. |
+| `CreatedUtc` | Profile row creation timestamp. |
+| `UpdatedUtc` | Profile row update timestamp. |
 
 For single-tenant deployments, use `UseDefaultTenant` with an explicit tenant ID. Auth requests that omit tenant ID use this configured default; IBeam does not infer it from environment name or storage account.
 
@@ -673,5 +774,6 @@ public async Task UpdateProductAsync(
 - Service logging and audit: [`../docs/service-logging-and-audit.md`](../docs/service-logging-and-audit.md)
 - Service operation permissions: [`../docs/service-operation-permissions.md`](../docs/service-operation-permissions.md)
 - Consuming API migration prompt: [`../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md`](../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
+- Identity extension scan prompt: [`../IBeam.AI.Enablement/examples/identity-extension-scan-prompt.md`](../IBeam.AI.Enablement/examples/identity-extension-scan-prompt.md)
 
 Agents should treat Identity as auth/account infrastructure and keep application domain behavior in the consuming application's services.

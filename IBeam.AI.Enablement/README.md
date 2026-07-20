@@ -17,6 +17,7 @@ This project gives AI coding agents the context they need to:
 2. Paste [`examples/builder-onboarding-prompt.md`](examples/builder-onboarding-prompt.md) into your AI tool.
 3. Use [`examples/builder-onboarding-prompt-quick.md`](examples/builder-onboarding-prompt-quick.md) for a shorter version.
 4. For existing APIs that need the newer permission/audit patterns, use [`examples/consuming-api-migration-prompt.md`](examples/consuming-api-migration-prompt.md).
+5. For apps with app-owned `Users`, `Tenants`, profile, organization, or workspace tables, use [`examples/identity-extension-scan-prompt.md`](examples/identity-extension-scan-prompt.md).
 
 ## Core Architecture Reminder
 
@@ -50,6 +51,7 @@ API <-- DTO object --> Service <-- Entity --> Repository
 | [`examples/builder-onboarding-prompt.md`](examples/builder-onboarding-prompt.md) | Full onboarding prompt. |
 | [`examples/builder-onboarding-prompt-quick.md`](examples/builder-onboarding-prompt-quick.md) | Short onboarding prompt. |
 | [`examples/consuming-api-migration-prompt.md`](examples/consuming-api-migration-prompt.md) | Migration prompt for existing consuming APIs. |
+| [`examples/identity-extension-scan-prompt.md`](examples/identity-extension-scan-prompt.md) | Scan prompt for validating app-owned user/tenant extension tables and DTOs. |
 
 ## Recommended Usage Flow
 
