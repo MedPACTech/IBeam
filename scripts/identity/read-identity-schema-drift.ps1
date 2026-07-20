@@ -7,7 +7,6 @@ param(
     [string] $UserTenantsTableName = "UserTenants",
     [string] $OtpChallengesTableName = "OtpChallenges",
     [string] $AuthAttemptsTableName = "AuthAttempts",
-    [string] $PermissionRoleMapsTableName = "PermissionRoleMaps",
     [string] $ApiCredentialsTableName = "ApiCredentials",
     [int] $SampleSize = 10,
     [string] $OutputPath,
@@ -380,7 +379,6 @@ $tables = [ordered]@{
     UserTenants = "$TablePrefix$UserTenantsTableName"
     OtpChallenges = "$TablePrefix$OtpChallengesTableName"
     AuthAttempts = "$TablePrefix$AuthAttemptsTableName"
-    PermissionRoleMaps = "$TablePrefix$PermissionRoleMapsTableName"
     ApiCredentials = "$TablePrefix$ApiCredentialsTableName"
 }
 
@@ -390,7 +388,6 @@ $expectedColumns = @{
     UserTenants = @("PartitionKey", "RowKey", "Timestamp", "UserId", "TenantId", "Status", "CreatedAt", "DisabledAt", "DisabledReason", "TenantDisplayName", "RolesCsv", "RoleIdsCsv", "IsDefault", "LastSelectedAt")
     OtpChallenges = @("PartitionKey", "RowKey", "Timestamp", "ChallengeId", "TenantId", "Purpose", "Channel", "Destination", "CodeHash", "CreatedAt", "ExpiresAt", "IsConsumed", "ConsumedAt", "AttemptCount", "LastAttemptAt", "VerificationToken", "VerificationTokenExpiresAt")
     AuthAttempts = @("PartitionKey", "RowKey", "Timestamp", "Method", "Identifier", "FailedAttempts", "LockedUntilUtc", "LastFailedAtUtc", "LastSucceededAtUtc", "LastFailedIp", "LastSucceededIp", "LastUserAgent", "LastDeviceId", "LastCountry", "LastRegion", "LastCity", "LastCorrelationId", "LastUnlockedAtUtc", "UnlockedByUserId", "UnlockReason", "MetadataJson")
-    PermissionRoleMaps = @("PartitionKey", "RowKey", "Timestamp", "TenantId", "PermissionName", "PermissionId", "RoleNamesCsv", "RoleIdsCsv", "Status", "UpdatedAt")
     ApiCredentials = @("PartitionKey", "RowKey", "Timestamp", "TenantId", "CredentialId", "DisplayName", "AgentKey", "KeyPrefix", "SecretHash", "RoleNamesCsv", "RoleIdsCsv", "CreatedUtc", "CreatedByUserId", "ExpiresUtc", "LastUsedUtc", "LastUsedIp", "RotatedUtc", "RevokedUtc", "RevokedByUserId", "RevocationReason", "IsDeleted")
 }
 
@@ -439,11 +436,6 @@ if ($loaded.OtpChallenges.Exists) {
 
 if ($loaded.AuthAttempts.Exists) {
     $findings += Measure-UnknownColumns $tables.AuthAttempts $loaded.AuthAttempts.Entities $expectedColumns.AuthAttempts $SampleSize
-}
-
-if ($loaded.PermissionRoleMaps.Exists) {
-    $findings += Measure-RoleNameLegacyUsage $tables.PermissionRoleMaps $loaded.PermissionRoleMaps.Entities $SampleSize
-    $findings += Measure-UnknownColumns $tables.PermissionRoleMaps $loaded.PermissionRoleMaps.Entities $expectedColumns.PermissionRoleMaps $SampleSize
 }
 
 if ($loaded.ApiCredentials.Exists) {

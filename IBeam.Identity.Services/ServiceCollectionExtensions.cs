@@ -1,3 +1,5 @@
+using IBeam.AccessControl;
+using IBeam.AccessControl.Services;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Events;
 using IBeam.Identity.Services.Otp;
@@ -124,8 +126,12 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IAuthAttemptStore, InMemoryAuthAttemptStore>();
         services.TryAddScoped<IAuthAttemptContextProvider, NoOpAuthAttemptContextProvider>();
         services.AddScoped<IRoleAccessAuthorizer, RoleAccessAuthorizer>();
-        services.TryAddScoped<IPermissionAccessStore, NoOpPermissionAccessStore>();
-        services.TryAddScoped<IIBeamAccessGrantStore, NoOpAccessGrantStore>();
+        services.TryAddSingleton<IPermissionRoleMapStore, InMemoryPermissionRoleMapStore>();
+        services.TryAddSingleton<IResourceAccessStore, InMemoryResourceAccessStore>();
+        services.TryAddScoped<IPermissionRoleMapService, PermissionRoleMapService>();
+        services.TryAddScoped<IResourceAccessService, ResourceAccessService>();
+        services.TryAddScoped<IResourceAccessAuthorizer, ResourceAccessAuthorizer>();
+        services.TryAddScoped<IResourceAccessHierarchyResolver, NoOpResourceAccessHierarchyResolver>();
         services.TryAddScoped<IIBeamAccessCatalogOverrideStore, NoOpAccessCatalogOverrideStore>();
         services.AddScoped<IPermissionGrantResolver, PermissionGrantResolver>();
         services.AddScoped<IPermissionAccessAuthorizer, PermissionAccessAuthorizer>();
@@ -183,7 +189,12 @@ public static class ServiceCollectionExtensions
             }
         }
 
-        services.TryAddScoped<IIBeamAccessGrantStore, NoOpAccessGrantStore>();
+        services.TryAddSingleton<IPermissionRoleMapStore, InMemoryPermissionRoleMapStore>();
+        services.TryAddSingleton<IResourceAccessStore, InMemoryResourceAccessStore>();
+        services.TryAddScoped<IPermissionRoleMapService, PermissionRoleMapService>();
+        services.TryAddScoped<IResourceAccessService, ResourceAccessService>();
+        services.TryAddScoped<IResourceAccessAuthorizer, ResourceAccessAuthorizer>();
+        services.TryAddScoped<IResourceAccessHierarchyResolver, NoOpResourceAccessHierarchyResolver>();
         services.TryAddScoped<IIBeamAccessCatalogOverrideStore, NoOpAccessCatalogOverrideStore>();
         services.TryAddScoped<IApiCredentialScopeCatalogProvider, ApiCredentialScopeCatalogProvider>();
         services.TryAddSingleton<IIBeamOperationCatalogProvider, OperationCatalogProvider>();

@@ -23,6 +23,12 @@ app.MapIBeamAccessControl("/api", authorizationPolicy: "AccessControlAdmin");
 Service operation permission endpoints:
 
 ```http
+GET    /api/tenants/{tenantId}/access-control/permission-maps
+PUT    /api/tenants/{tenantId}/access-control/permission-maps/by-name/{permissionName}
+PUT    /api/tenants/{tenantId}/access-control/permission-maps/by-id/{permissionId}
+DELETE /api/tenants/{tenantId}/access-control/permission-maps/by-name/{permissionName}
+DELETE /api/tenants/{tenantId}/access-control/permission-maps/by-id/{permissionId}
+
 GET    /api/tenants/{tenantId}/access-control/service-permissions
 POST   /api/tenants/{tenantId}/access-control/service-permissions
 PUT    /api/tenants/{tenantId}/access-control/service-permissions/{ruleId}

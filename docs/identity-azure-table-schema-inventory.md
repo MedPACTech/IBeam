@@ -41,8 +41,6 @@ Each custom table also has Azure Table infrastructure fields:
 | `ExternalLoginsTableName` | `ExternalLogins` | `ExternalLogins` | `IBeamExternalLogins` |
 | `AuthSessionsTableName` | `AuthSessions` | `AuthSessions` | `IBeamAuthSessions` |
 | `ApiCredentialsTableName` | `ApiCredentials` | `ApiCredentials` | `IBeamApiCredentials` |
-| `PermissionRoleMapsTableName` | `PermissionRoleMaps` | `PermissionRoleMaps` | `IBeamPermissionRoleMaps` |
-| `AccessGrantsTableName` | `AccessGrants` | `AccessGrants` | `IBeamAccessGrants` |
 | `AccessCatalogOverridesTableName` | `AccessCatalogOverrides` | `AccessCatalogOverrides` | `IBeamAccessCatalogOverrides` |
 | `AuthAttemptsTableName` | `AuthAttempts` | `AuthAttempts` | `IBeamAuthAttempts` |
 | `SystemLogsTableName` | `SystemLogs` | `SystemLogs` | `IBeamSystemLogs` |
@@ -216,6 +214,9 @@ Keys:
 
 ## IBeamPermissionRoleMaps
 
+Moved: this table is now owned by `IBeam.AccessControl.Repositories.AzureTable`, not `IBeam.Identity.Repositories.AzureTable`.
+It remains listed here only for historical schema inventory.
+
 Purpose: tenant permission-to-role mapping. This answers "which roles grant this permission?"
 
 Keys:
@@ -235,6 +236,9 @@ Keys:
 | `UpdatedAt` | Last mapping update timestamp. | Returned in mapping model. |
 
 ## IBeamAccessGrants
+
+Moved: this table is now owned by `IBeam.AccessControl.Repositories.AzureTable`, not `IBeam.Identity.Repositories.AzureTable`.
+It remains listed here only for historical schema inventory.
 
 Purpose: tenant resource access grants for subject/resource/access-level checks.
 

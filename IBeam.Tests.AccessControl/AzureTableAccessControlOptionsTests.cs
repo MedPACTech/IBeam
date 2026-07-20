@@ -16,6 +16,9 @@ public sealed class AzureTableAccessControlOptionsTests
         options.Validate();
 
         Assert.IsTrue(options.CreateTablesIfNotExists);
+        Assert.AreEqual("AccessGrants", options.ResourceAccessGrantsTableName);
+        Assert.AreEqual("PermissionRoleMaps", options.PermissionRoleMapsTableName);
+        Assert.AreEqual("ServiceOperationPermissions", options.ServiceOperationPermissionsTableName);
     }
 
     [TestMethod]

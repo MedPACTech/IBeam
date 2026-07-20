@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\IBeam.AccessControl.Services\IBeam.AccessControl.Services.csproj" />
     <ProjectReference Include="..\IBeam.Api\IBeam.Api.csproj" />
     <ProjectReference Include="..\IBeam.Communications\IBeam.Communications.csproj" />
     <ProjectReference Include="..\IBeam.Identity\IBeam.Identity.csproj" />

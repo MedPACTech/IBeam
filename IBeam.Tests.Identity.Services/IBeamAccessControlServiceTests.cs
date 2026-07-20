@@ -5,6 +5,10 @@ using IBeam.Identity.Options;
 using IBeam.Identity.Services.Authorization;
 using Microsoft.Extensions.Options;
 using Moq;
+using AccessControlSubject = IBeam.AccessControl.AccessSubject;
+using IResourceAccessStore = IBeam.AccessControl.IResourceAccessStore;
+using ResourceAccessGrantRecord = IBeam.AccessControl.ResourceAccessGrantRecord;
+using ResourceAccessGrantStatuses = IBeam.AccessControl.ResourceAccessGrantStatuses;
 
 namespace IBeam.Tests.Identity.Services;
 
@@ -18,16 +22,19 @@ public sealed class IBeamAccessControlServiceTests
     [TestMethod]
     public async Task HasModuleAccessAsync_AllowsExplicitSubjectGrant()
     {
-        var grant = new AccessGrant(
+        var grant = new ResourceAccessGrantRecord(
             Guid.NewGuid(),
             TenantId,
-            AccessSubjectTypes.User,
-            UserId,
             AccessResourceTypes.Module,
             "work",
+            new AccessControlSubject(AccessSubjectTypes.User, UserId),
             AccessLevels.View,
-            true,
-            DateTimeOffset.UtcNow);
+            ResourceAccessGrantStatuses.Active,
+            DateTimeOffset.UtcNow,
+            null,
+            null,
+            null,
+            new Dictionary<string, string>());
 
         var sut = CreateSut(grants: [grant]);
         var principal = BuildPrincipal(new Claim("role", "Application"));
@@ -40,18 +47,21 @@ public sealed class IBeamAccessControlServiceTests
     [TestMethod]
     public async Task GetCurrentAccessContextAsync_MergesRolePermissionsAndGrants()
     {
-        var grant = new AccessGrant(
+        var grant = new ResourceAccessGrantRecord(
             Guid.NewGuid(),
             TenantId,
-            AccessSubjectTypes.User,
-            UserId,
             "project",
             "project-1",
+            new AccessControlSubject(AccessSubjectTypes.User, UserId),
             AccessLevels.Edit,
-            true,
-            DateTimeOffset.UtcNow);
+            ResourceAccessGrantStatuses.Active,
+            DateTimeOffset.UtcNow,
+            null,
+            null,
+            null,
+            new Dictionary<string, string>());
 
-        var permissionResolver = CreatePermissionResolver(new PermissionGrantSet(["Application"], []));
+        var permissionResolver = CreatePermissionResolver(new IBeam.AccessControl.PermissionGrantSet(["Application"], []));
         var catalog = new FakePermissionCatalogProvider(
         [
             new ExposedPermission(
@@ -147,7 +157,7 @@ public sealed class IBeamAccessControlServiceTests
     }
 
     private static IBeamAccessControlService CreateSut(
-        IReadOnlyList<AccessGrant>? grants = null,
+        IReadOnlyList<ResourceAccessGrantRecord>? grants = null,
         IReadOnlyList<AccessCatalogOverride>? catalogOverrides = null,
         IPermissionCatalogProvider? catalog = null,
         IPermissionGrantResolver? permissionResolver = null,
@@ -167,12 +177,12 @@ public sealed class IBeamAccessControlServiceTests
         options.Resources.Add<TestProject>("project", "projects", label: "Project", module: "products");
 
         return new IBeamAccessControlService(
-            new FakeAccessGrantStore(grants ?? Array.Empty<AccessGrant>()),
+            new FakeAccessGrantStore(grants ?? Array.Empty<ResourceAccessGrantRecord>()),
             new FakeAccessCatalogOverrideStore(catalogOverrides ?? Array.Empty<AccessCatalogOverride>()),
             catalog ?? new FakePermissionCatalogProvider(Array.Empty<ExposedPermission>()),
             new OperationCatalogProvider(new StaticOptionsMonitor<IBeamAccessControlOptions>(options)),
             new FakeApiCredentialScopeCatalogProvider(),
-            permissionResolver ?? CreatePermissionResolver(PermissionGrantSet.Empty).Object,
+            permissionResolver ?? CreatePermissionResolver(IBeam.AccessControl.PermissionGrantSet.Empty).Object,
             new StaticOptionsMonitor<IBeamAccessControlOptions>(options),
             Array.Empty<IIBeamAccessCatalogProvider>(),
             catalogItemProviders ?? Array.Empty<IIBeamAccessCatalogItemProvider>(),
@@ -180,7 +190,7 @@ public sealed class IBeamAccessControlServiceTests
             Array.Empty<IIBeamAccessRuleProvider>());
     }
 
-    private static Mock<IPermissionGrantResolver> CreatePermissionResolver(PermissionGrantSet grants)
+    private static Mock<IPermissionGrantResolver> CreatePermissionResolver(IBeam.AccessControl.PermissionGrantSet grants)
     {
         var resolver = new Mock<IPermissionGrantResolver>(MockBehavior.Strict);
         resolver.Setup(x => x.ResolveAsync(
@@ -203,29 +213,23 @@ public sealed class IBeamAccessControlServiceTests
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "unit-test"));
     }
 
-    private sealed class FakeAccessGrantStore : IIBeamAccessGrantStore
+    private sealed class FakeAccessGrantStore : IResourceAccessStore
     {
-        private readonly IReadOnlyList<AccessGrant> _grants;
+        private readonly IReadOnlyList<ResourceAccessGrantRecord> _grants;
 
-        public FakeAccessGrantStore(IReadOnlyList<AccessGrant> grants)
+        public FakeAccessGrantStore(IReadOnlyList<ResourceAccessGrantRecord> grants)
         {
             _grants = grants;
         }
 
-        public Task<IReadOnlyList<AccessGrant>> GetGrantsAsync(Guid tenantId, string? subjectType = null, string? subjectId = null, CancellationToken ct = default)
-        {
-            var grants = _grants
-                .Where(x => x.TenantId == tenantId)
-                .Where(x => string.IsNullOrWhiteSpace(subjectType) || string.Equals(x.SubjectType, subjectType, StringComparison.OrdinalIgnoreCase))
-                .Where(x => string.IsNullOrWhiteSpace(subjectId) || string.Equals(x.SubjectId, subjectId, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            return Task.FromResult<IReadOnlyList<AccessGrant>>(grants);
-        }
+        public Task<IReadOnlyList<ResourceAccessGrantRecord>> ListGrantsAsync(Guid tenantId, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<ResourceAccessGrantRecord>>(
+                _grants.Where(x => x.TenantId == tenantId).ToList());
 
-        public Task<AccessGrant?> GetGrantAsync(Guid tenantId, Guid grantId, CancellationToken ct = default)
+        public Task<ResourceAccessGrantRecord?> GetGrantAsync(Guid tenantId, Guid grantId, CancellationToken ct = default)
             => Task.FromResult(_grants.FirstOrDefault(x => x.TenantId == tenantId && x.GrantId == grantId));
 
-        public Task<AccessGrant> UpsertGrantAsync(Guid tenantId, Guid? grantId, string subjectType, string subjectId, string resourceType, string resourceId, string accessLevel, CancellationToken ct = default)
+        public Task<ResourceAccessGrantRecord> UpsertGrantAsync(ResourceAccessGrantRecord grant, CancellationToken ct = default)
             => throw new NotSupportedException();
 
         public Task DeleteGrantAsync(Guid tenantId, Guid grantId, CancellationToken ct = default)

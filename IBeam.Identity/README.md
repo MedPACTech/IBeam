@@ -64,8 +64,6 @@ Provider implementations should resolve auth identifiers through an indexed look
   - `IIdentityUserStore`, `IOtpChallengeStore`, `IExternalLoginStore`
   - `ITenantMembershipStore`, `ITenantProvisioningService`, `IAuthSessionStore`
   - `ITenantRoleStore` for tenant-scoped role CRUD and assignment
-  - `IPermissionAccessStore` for tenant permission-to-role mappings
-  - `IIBeamAccessGrantStore` for user, group, team, and API credential access grants
 - service contracts:
   - `ITenantRoleService`
   - `IRoleAccessAuthorizer`
@@ -113,8 +111,6 @@ Provider implementations should resolve auth identifiers through an indexed look
 - `TenantUsers`: tenant-to-user membership index.
 - `UserTenants`: user-to-tenant membership index.
 - `TenantRoles`: tenant-scoped roles.
-- `PermissionRoleMaps`: tenant permission mapping to role names/ids.
-- `AccessGrants`: subject grants for modules and app resources.
 - `OtpChallenges`: OTP lifecycle records (destination, hash, attempts, expiry, consume state).
 - `AuthIdentifiers`: auth lookup bindings from email/SMS identifiers to canonical user ids.
 - `ExternalLogins`: OAuth provider-user links.
@@ -122,6 +118,8 @@ Provider implementations should resolve auth identifiers through an indexed look
 - `SystemLogs`: operational log sink records.
 - `SystemErrors`: operational API error sink records.
 - `Schema`: schema version marker for bootstrap.
+
+Access-control persistence for permission maps, resource grants, and service-operation rules is owned by `IBeam.AccessControl`.
 
 ## Table Naming and Prefixing
 

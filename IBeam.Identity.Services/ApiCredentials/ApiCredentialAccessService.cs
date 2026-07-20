@@ -3,20 +3,22 @@ using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Services.Authorization;
+using IResourceAccessStore = IBeam.AccessControl.IResourceAccessStore;
+using ResourceAccessGrantRecord = IBeam.AccessControl.ResourceAccessGrantRecord;
 
 namespace IBeam.Identity.Services.ApiCredentials;
 
 public sealed class ApiCredentialAccessService : IApiCredentialAccessService
 {
     private readonly IApiCredentialStore _credentials;
-    private readonly IIBeamAccessGrantStore _grants;
+    private readonly IResourceAccessStore _grants;
     private readonly IPermissionCatalogProvider _permissionCatalog;
     private readonly IPermissionGrantResolver _permissionGrantResolver;
     private readonly IEnumerable<IApiCredentialAccessRuleProvider> _ruleProviders;
 
     public ApiCredentialAccessService(
         IApiCredentialStore credentials,
-        IIBeamAccessGrantStore grants,
+        IResourceAccessStore grants,
         IPermissionCatalogProvider permissionCatalog,
         IPermissionGrantResolver permissionGrantResolver,
         IEnumerable<IApiCredentialAccessRuleProvider> ruleProviders)
@@ -76,12 +78,7 @@ public sealed class ApiCredentialAccessService : IApiCredentialAccessService
         CancellationToken ct = default)
     {
         var normalized = NormalizeRoleStrings(credential);
-        var grants = await _grants
-            .GetGrantsAsync(
-                credential.TenantId,
-                AccessSubjectTypes.ApiCredential,
-                credential.Id.ToString("D"),
-                ct)
+        var grants = await GetCredentialGrantsAsync(credential.TenantId, credential.Id, ct)
             .ConfigureAwait(false);
 
         var resources = BuildResourceAccess(normalized.Resources, grants);
@@ -290,7 +287,7 @@ public sealed class ApiCredentialAccessService : IApiCredentialAccessService
 
     private static Dictionary<string, IReadOnlyList<ApiCredentialResourceAccessDto>> BuildResourceAccess(
         IReadOnlyDictionary<string, IReadOnlyList<ApiCredentialResourceAccessDto>> roleResources,
-        IReadOnlyList<AccessGrant> grants)
+        IReadOnlyList<ResourceAccessGrantRecord> grants)
     {
         var working = new Dictionary<string, List<ApiCredentialResourceAccessDto>>(StringComparer.OrdinalIgnoreCase);
 
@@ -299,7 +296,7 @@ public sealed class ApiCredentialAccessService : IApiCredentialAccessService
             working[group.Key] = group.Value.ToList();
         }
 
-        foreach (var grant in grants.Where(x => x.IsActive))
+        foreach (var grant in grants.Where(x => x.IsActive(DateTimeOffset.UtcNow)))
         {
             if (!working.TryGetValue(grant.ResourceType, out var list))
             {
@@ -421,6 +418,19 @@ public sealed class ApiCredentialAccessService : IApiCredentialAccessService
             "*" => 100,
             _ => 0
         };
+
+    private async Task<IReadOnlyList<ResourceAccessGrantRecord>> GetCredentialGrantsAsync(
+        Guid tenantId,
+        Guid credentialId,
+        CancellationToken ct)
+    {
+        var grants = await _grants.ListGrantsAsync(tenantId, ct).ConfigureAwait(false);
+        var subjectId = credentialId.ToString("D");
+        return grants
+            .Where(x => string.Equals(x.Subject.SubjectType, AccessSubjectTypes.ApiCredential, StringComparison.OrdinalIgnoreCase))
+            .Where(x => string.Equals(x.Subject.SubjectId, subjectId, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
 
     private static bool IsApiCredentialPrincipal(ClaimsPrincipal principal)
         => principal?.Identity?.IsAuthenticated == true &&

@@ -4,6 +4,8 @@ using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
 using Microsoft.Extensions.Options;
+using ResourceAccessGrantRecord = IBeam.AccessControl.ResourceAccessGrantRecord;
+using IResourceAccessStore = IBeam.AccessControl.IResourceAccessStore;
 
 namespace IBeam.Identity.Services.Authorization;
 
@@ -17,7 +19,7 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
         "user_id"
     ];
 
-    private readonly IIBeamAccessGrantStore _grants;
+    private readonly IResourceAccessStore _grants;
     private readonly IIBeamAccessCatalogOverrideStore _catalogOverrides;
     private readonly IPermissionCatalogProvider _catalog;
     private readonly IIBeamOperationCatalogProvider _operationCatalog;
@@ -30,7 +32,7 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
     private readonly IEnumerable<IIBeamAccessRuleProvider> _ruleProviders;
 
     public IBeamAccessControlService(
-        IIBeamAccessGrantStore grants,
+        IResourceAccessStore grants,
         IIBeamAccessCatalogOverrideStore catalogOverrides,
         IPermissionCatalogProvider catalog,
         IIBeamOperationCatalogProvider operationCatalog,
@@ -122,8 +124,7 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
         if (subject.SubjectId.Length == 0)
             return false;
 
-        var directGrants = await _grants
-            .GetGrantsAsync(tenantId, subject.SubjectType, subject.SubjectId, ct)
+        var directGrants = await GetGrantsForSubjectAsync(tenantId, subject.SubjectType, subject.SubjectId, ct)
             .ConfigureAwait(false);
 
         if (directGrants.Any(x =>
@@ -508,8 +509,7 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
         var roleNames = GetRoleNames(principal).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
         var roleIds = GetRoleIds(principal).OrderBy(x => x).ToList();
         var permissions = await ResolveGrantedPermissionNamesAsync(principal, resolvedTenantId, ct).ConfigureAwait(false);
-        var directGrants = await _grants
-            .GetGrantsAsync(resolvedTenantId, subject.SubjectType, subject.SubjectId, ct)
+        var directGrants = await GetGrantsForSubjectAsync(resolvedTenantId, subject.SubjectType, subject.SubjectId, ct)
             .ConfigureAwait(false);
 
         var modules = BuildModuleContext(
@@ -519,7 +519,7 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
             directGrants,
             HasUnrestrictedAccess(principal, ownerOnly: false));
         var resources = directGrants
-            .Where(x => x.IsActive && !IsModuleResource(x))
+            .Where(x => IsActive(x) && !IsModuleResource(x))
             .GroupBy(x => x.ResourceType, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 x => x.Key,
@@ -575,8 +575,7 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
             return new AccessDecision(true, "role", "Caller has unrestricted tenant access.", request.AccessLevel);
         }
 
-        var directGrants = await _grants
-            .GetGrantsAsync(tenantId, requestedSubjectType, requestedSubjectId, ct)
+        var directGrants = await GetGrantsForSubjectAsync(tenantId, requestedSubjectType, requestedSubjectId, ct)
             .ConfigureAwait(false);
 
         if (directGrants.Any(x =>
@@ -711,7 +710,7 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
         IReadOnlyList<string> roleNames,
         IReadOnlyList<Guid> roleIds,
         IReadOnlyList<string> permissionNames,
-        IReadOnlyList<AccessGrant> grants,
+        IReadOnlyList<ResourceAccessGrantRecord> grants,
         bool hasUnrestrictedAccess)
     {
         var modules = new Dictionary<string, AccessContextModuleDto>(StringComparer.OrdinalIgnoreCase);
@@ -722,7 +721,7 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
                 AddOrUpgrade(modules, module.Key, BestDefinedAccessLevel(module), "role");
         }
 
-        foreach (var grant in grants.Where(x => x.IsActive && IsModuleResource(x)))
+        foreach (var grant in grants.Where(x => IsActive(x) && IsModuleResource(x)))
         {
             AddOrUpgrade(modules, grant.ResourceId, grant.AccessLevel, "grant");
         }
@@ -883,7 +882,7 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
             .Any(roleNames.Contains);
     }
 
-    private static bool MatchesRoleGrant(ClaimsPrincipal principal, PermissionGrantSet grants)
+    private static bool MatchesRoleGrant(ClaimsPrincipal principal, IBeam.AccessControl.PermissionGrantSet grants)
     {
         var roleNames = GetRoleNames(principal);
         var roleIds = GetRoleIds(principal);
@@ -892,12 +891,28 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
                grants.RoleIds.Any(roleIds.Contains);
     }
 
-    private static bool IsActiveMatch(AccessGrant grant, string resourceType, string resourceId)
-        => grant.IsActive &&
+    private async Task<IReadOnlyList<ResourceAccessGrantRecord>> GetGrantsForSubjectAsync(
+        Guid tenantId,
+        string subjectType,
+        string subjectId,
+        CancellationToken ct)
+    {
+        var grants = await _grants.ListGrantsAsync(tenantId, ct).ConfigureAwait(false);
+        return grants
+            .Where(x => string.Equals(x.Subject.SubjectType, subjectType, StringComparison.OrdinalIgnoreCase))
+            .Where(x => string.Equals(x.Subject.SubjectId, subjectId, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private static bool IsActiveMatch(ResourceAccessGrantRecord grant, string resourceType, string resourceId)
+        => IsActive(grant) &&
            string.Equals(grant.ResourceType, resourceType.Trim(), StringComparison.OrdinalIgnoreCase) &&
            string.Equals(grant.ResourceId, resourceId.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsModuleResource(AccessGrant grant)
+    private static bool IsActive(ResourceAccessGrantRecord grant)
+        => grant.IsActive(DateTimeOffset.UtcNow);
+
+    private static bool IsModuleResource(ResourceAccessGrantRecord grant)
         => string.Equals(grant.ResourceType, AccessResourceTypes.Module, StringComparison.OrdinalIgnoreCase);
 
     private static Guid ResolveTenantId(ClaimsPrincipal principal)

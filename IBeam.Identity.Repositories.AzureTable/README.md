@@ -16,10 +16,10 @@ This package connects identity orchestration to Azure Table persistence. It wire
   - auth identifier lookup bindings
   - tenants and memberships
   - tenant roles and user-role assignments
-  - permission role-mapping store (`IPermissionAccessStore`)
   - OTP challenges
   - external logins
   - auth sessions
+  - API credentials
 - schema management services:
   - `IIdentitySchemaManager`
   - hosted schema bootstrap
@@ -27,6 +27,7 @@ This package connects identity orchestration to Azure Table persistence. It wire
 ## Dependencies
 
 - Internal packages:
+  - `IBeam.AccessControl.Repositories.AzureTable`
   - `IBeam.Identity.Services`
 - External packages:
   - `ElCamino.AspNetCore.Identity.AzureTable`
@@ -168,11 +169,12 @@ In `RequireExistingTenant`, OTP/password/OAuth auth flows do not create `Tenants
 - `AuthIdentifiers`: email/SMS auth lookup bindings to `UserId`.
 - `Tenants`, `TenantUsers`, `UserTenants`, `Roles`: tenant and role membership.
 - `ApiCredentials`: tenant API credential records with hashed secrets and role/scope assignments.
-- `PermissionRoleMaps`: tenant permission-to-role bindings.
 - `OtpChallenges`: OTP challenge state.
 - `ExternalLogins`: OAuth provider-user links.
 - `AuthSessions`, `AuthAttempts`: session and lockout state.
 - `SystemLogs`, `SystemErrors`, `Schema`: operational records.
+
+Access-control tables such as `AccessGrants`, `PermissionRoleMaps`, and `ServiceOperationPermissions` are owned by `IBeam.AccessControl.Repositories.AzureTable`, not the Identity schema manager.
 
 ## Table Naming and Prefix Defaults
 

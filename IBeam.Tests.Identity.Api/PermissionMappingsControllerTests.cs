@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using IBeam.AccessControl;
 using IBeam.Identity.Api.Controllers;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
@@ -75,7 +76,7 @@ public sealed class PermissionMappingsControllerTests
     [TestMethod]
     public async Task UpsertById_Succeeds_InHybridMode()
     {
-        var store = new FakePermissionAccessStore();
+        var mappings = new FakePermissionRoleMapService();
         var sut = CreateController(
             roleOptions: new RoleManagementOptions
             {
@@ -83,7 +84,7 @@ public sealed class PermissionMappingsControllerTests
                 AllowTenantPermissionMapMutation = true
             },
             permissionOptions: new PermissionAccessOptions(),
-            store: store);
+            mappings: mappings);
 
         var result = await sut.UpsertById(
             TenantId,
@@ -91,18 +92,18 @@ public sealed class PermissionMappingsControllerTests
             CancellationToken.None);
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
-        Assert.AreEqual(1, store.Maps.Count);
-        Assert.AreEqual(PermissionId, store.Maps[0].PermissionId);
+        Assert.AreEqual(1, mappings.Maps.Count);
+        Assert.AreEqual(PermissionId, mappings.Maps[0].PermissionId);
     }
 
     private static PermissionMappingsController CreateController(
         RoleManagementOptions roleOptions,
         PermissionAccessOptions permissionOptions,
-        IPermissionAccessStore? store = null,
+        IPermissionRoleMapService? mappings = null,
         IReadOnlyList<ExposedPermission>? catalog = null)
     {
         var controller = new PermissionMappingsController(
-            store ?? new FakePermissionAccessStore(),
+            mappings ?? new FakePermissionRoleMapService(),
             new FakePermissionCatalogProvider(catalog ?? Array.Empty<ExposedPermission>()),
             new StaticOptionsSnapshot<RoleManagementOptions>(roleOptions),
             new StaticOptionsSnapshot<PermissionAccessOptions>(permissionOptions));
@@ -148,27 +149,38 @@ public sealed class PermissionMappingsControllerTests
             => Task.FromResult(_catalog);
     }
 
-    private sealed class FakePermissionAccessStore : IPermissionAccessStore
+    private sealed class FakePermissionRoleMapService : IPermissionRoleMapService
     {
-        public List<PermissionRoleMap> Maps { get; } = [];
+        public List<PermissionRoleMapInfo> Maps { get; } = [];
 
-        public Task<PermissionGrantSet> ResolveGrantsAsync(Guid tenantId, IReadOnlyList<string> permissionNames, IReadOnlyList<Guid> permissionIds, CancellationToken ct = default)
-            => Task.FromResult(PermissionGrantSet.Empty);
+        public Task<IReadOnlyList<PermissionRoleMapInfo>> ListMappingsAsync(Guid tenantId, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<PermissionRoleMapInfo>>(Maps);
 
-        public Task<IReadOnlyList<PermissionRoleMap>> GetMappingsAsync(Guid tenantId, CancellationToken ct = default)
-            => Task.FromResult<IReadOnlyList<PermissionRoleMap>>(Maps);
-
-        public Task<PermissionRoleMap> UpsertByPermissionNameAsync(Guid tenantId, string permissionName, IReadOnlyList<string> roleNames, IReadOnlyList<Guid> roleIds, CancellationToken ct = default)
+        public Task<PermissionRoleMapInfo> UpsertByPermissionNameAsync(Guid tenantId, string permissionName, UpsertPermissionRoleMapRequest request, CancellationToken ct = default)
         {
-            var map = new PermissionRoleMap(tenantId, permissionName, null, roleNames, roleIds, true, DateTimeOffset.UtcNow);
+            var map = new PermissionRoleMapInfo(
+                tenantId,
+                permissionName,
+                null,
+                request.RoleNames,
+                request.RoleIds,
+                PermissionRoleMapStatuses.Active,
+                DateTimeOffset.UtcNow);
             Maps.RemoveAll(x => string.Equals(x.PermissionName, permissionName, StringComparison.OrdinalIgnoreCase));
             Maps.Add(map);
             return Task.FromResult(map);
         }
 
-        public Task<PermissionRoleMap> UpsertByPermissionIdAsync(Guid tenantId, Guid permissionId, IReadOnlyList<string> roleNames, IReadOnlyList<Guid> roleIds, CancellationToken ct = default)
+        public Task<PermissionRoleMapInfo> UpsertByPermissionIdAsync(Guid tenantId, Guid permissionId, UpsertPermissionRoleMapRequest request, CancellationToken ct = default)
         {
-            var map = new PermissionRoleMap(tenantId, null, permissionId, roleNames, roleIds, true, DateTimeOffset.UtcNow);
+            var map = new PermissionRoleMapInfo(
+                tenantId,
+                null,
+                permissionId,
+                request.RoleNames,
+                request.RoleIds,
+                PermissionRoleMapStatuses.Active,
+                DateTimeOffset.UtcNow);
             Maps.RemoveAll(x => x.PermissionId == permissionId);
             Maps.Add(map);
             return Task.FromResult(map);

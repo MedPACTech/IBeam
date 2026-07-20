@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.6.0 - 2026-07-20
+
+### Breaking
+- AccessControl is now the canonical path for resource grants, permission-role maps, and service-operation permission rules. Identity-owned access-control implementations are considered legacy and should be re-engineered to consume `IBeam.AccessControl` instead of maintaining parallel stores and models.
+- Legacy Identity access-control compatibility is intentionally deferred to a later version because current IBeam consumers are internal.
+- `IBeam.Identity.Repositories.AzureTable` no longer owns or creates `AccessGrants` or `PermissionRoleMaps`; those tables are owned by `IBeam.AccessControl.Repositories.AzureTable`.
+- API credential resource grants now use the canonical AccessControl subject type `api-credential`.
+
+### Added
+- Added Azure Table stores in `IBeam.AccessControl.Repositories.AzureTable` for:
+  - `IResourceAccessStore`
+  - `IPermissionRoleMapStore`
+  - `IServiceOperationPermissionStore`
+- Added standalone AccessControl API endpoints for permission-role map management under `/api/tenants/{tenantId}/access-control/permission-maps`.
+
 ## 2.0.68 - 2026-06-22
 
 ### Fixed

@@ -1,5 +1,5 @@
+using IBeam.AccessControl;
 using IBeam.Identity.Interfaces;
-using IBeam.Identity.Models;
 using IBeam.Identity.Options;
 using Microsoft.Extensions.Options;
 
@@ -17,11 +17,11 @@ public interface IPermissionGrantResolver
 public sealed class PermissionGrantResolver : IPermissionGrantResolver
 {
     private readonly IOptionsMonitor<PermissionAccessOptions> _options;
-    private readonly IPermissionAccessStore _store;
+    private readonly IPermissionRoleMapStore _store;
 
     public PermissionGrantResolver(
         IOptionsMonitor<PermissionAccessOptions> options,
-        IPermissionAccessStore store)
+        IPermissionRoleMapStore store)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _store = store ?? throw new ArgumentNullException(nameof(store));

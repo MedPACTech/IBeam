@@ -5,6 +5,9 @@ using IBeam.Identity.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using GrantResourceAccessRequest = IBeam.AccessControl.GrantResourceAccessRequest;
+using IResourceAccessService = IBeam.AccessControl.IResourceAccessService;
+using UpdateResourceAccessGrantRequest = IBeam.AccessControl.UpdateResourceAccessGrantRequest;
 
 namespace IBeam.Identity.Api.Controllers;
 
@@ -17,18 +20,18 @@ public sealed class AccessControlController : ControllerBase
     private readonly IIBeamAccessControlService _access;
     private readonly IApiCredentialAccessService _apiCredentialAccess;
     private readonly IApiCredentialService _apiCredentials;
-    private readonly IIBeamAccessGrantStore _grants;
+    private readonly IResourceAccessService _resourceAccess;
 
     public AccessControlController(
         IIBeamAccessControlService access,
         IApiCredentialAccessService apiCredentialAccess,
         IApiCredentialService apiCredentials,
-        IIBeamAccessGrantStore grants)
+        IResourceAccessService resourceAccess)
     {
         _access = access;
         _apiCredentialAccess = apiCredentialAccess;
         _apiCredentials = apiCredentials;
-        _grants = grants;
+        _resourceAccess = resourceAccess;
     }
 
     [HttpGet("/api/access/me")]
@@ -164,26 +167,26 @@ public sealed class AccessControlController : ControllerBase
         if (!TryAuthorizeTenantRoleAdmin(tenantId, out var forbidden))
             return forbidden;
 
-        var grants = await _grants.GetGrantsAsync(tenantId, subjectType, subjectId, ct);
+        var subject = !string.IsNullOrWhiteSpace(subjectType) || !string.IsNullOrWhiteSpace(subjectId)
+            ? new IBeam.AccessControl.AccessSubject(subjectType ?? string.Empty, subjectId ?? string.Empty)
+            : null;
+
+        var grants = await _resourceAccess.ListGrantsAsync(tenantId, subject: subject, ct: ct);
         return Ok(grants);
     }
 
     [HttpPost("/api/tenants/{tenantId:guid}/access-control/grants")]
-    public async Task<IActionResult> CreateGrant(Guid tenantId, [FromBody] UpsertAccessGrantRequest req, CancellationToken ct)
+    public async Task<IActionResult> CreateGrant(Guid tenantId, [FromBody] GrantResourceAccessRequest req, CancellationToken ct)
     {
         if (!TryAuthorizeTenantRoleAdmin(tenantId, out var forbidden))
             return forbidden;
 
         try
         {
-            var grant = await _grants.UpsertGrantAsync(
+            var grant = await _resourceAccess.GrantAccessAsync(
                 tenantId,
-                grantId: null,
-                req.SubjectType,
-                req.SubjectId,
-                req.ResourceType,
-                req.ResourceId,
-                req.AccessLevel,
+                req,
+                ResolveUserId(User),
                 ct);
 
             return Ok(grant);
@@ -198,7 +201,7 @@ public sealed class AccessControlController : ControllerBase
     public async Task<IActionResult> UpdateGrant(
         Guid tenantId,
         Guid grantId,
-        [FromBody] UpsertAccessGrantRequest req,
+        [FromBody] UpdateResourceAccessGrantRequest req,
         CancellationToken ct)
     {
         if (!TryAuthorizeTenantRoleAdmin(tenantId, out var forbidden))
@@ -206,15 +209,7 @@ public sealed class AccessControlController : ControllerBase
 
         try
         {
-            var grant = await _grants.UpsertGrantAsync(
-                tenantId,
-                grantId,
-                req.SubjectType,
-                req.SubjectId,
-                req.ResourceType,
-                req.ResourceId,
-                req.AccessLevel,
-                ct);
+            var grant = await _resourceAccess.UpdateGrantAsync(tenantId, grantId, req, ct);
 
             return Ok(grant);
         }
@@ -230,7 +225,7 @@ public sealed class AccessControlController : ControllerBase
         if (!TryAuthorizeTenantRoleAdmin(tenantId, out var forbidden))
             return forbidden;
 
-        await _grants.DeleteGrantAsync(tenantId, grantId, ct);
+        await _resourceAccess.RevokeGrantAsync(tenantId, grantId, ct);
         return Accepted();
     }
 
@@ -279,7 +274,7 @@ public sealed class AccessControlController : ControllerBase
                 !HasCredentialResourceAccess(context, req.ResourceType, req.ResourceId, EffectiveAccessLevel(req)))
                 return new AccessDecision(false, "resource", null, EffectiveAccessLevel(req));
 
-            return new AccessDecision(true, "apiCredential", null, EffectiveAccessLevel(req));
+            return new AccessDecision(true, AccessSubjectTypes.ApiCredential, null, EffectiveAccessLevel(req));
         }
         catch (IdentityNotFoundException ex)
         {
@@ -316,6 +311,15 @@ public sealed class AccessControlController : ControllerBase
             User.FindFirstValue("api_agent_key"),
             User.FindFirstValue("apiAgentKey"),
             User.FindFirstValue("apiAgentId"));
+
+    private static Guid? ResolveUserId(ClaimsPrincipal user)
+    {
+        var raw = user.FindFirstValue("uid") ??
+                  user.FindFirstValue(ClaimTypes.NameIdentifier) ??
+                  user.FindFirstValue("sub");
+
+        return Guid.TryParse(raw, out var parsed) && parsed != Guid.Empty ? parsed : null;
+    }
 
     private static string? FirstNonEmpty(params string?[] values)
         => values.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))?.Trim();
@@ -395,13 +399,4 @@ public sealed class AccessControlController : ControllerBase
                         x.SubjectTypes.Count == 0 ||
                         x.SubjectTypes.Any(s => string.Equals(s, subjectType.Trim(), StringComparison.OrdinalIgnoreCase)))
             .ToList();
-}
-
-public sealed class UpsertAccessGrantRequest
-{
-    public string SubjectType { get; set; } = AccessSubjectTypes.User;
-    public string SubjectId { get; set; } = string.Empty;
-    public string ResourceType { get; set; } = AccessResourceTypes.Module;
-    public string ResourceId { get; set; } = string.Empty;
-    public string AccessLevel { get; set; } = AccessLevels.View;
 }

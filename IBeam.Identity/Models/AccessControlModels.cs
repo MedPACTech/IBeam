@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using IBeam.AccessControl;
 
 namespace IBeam.Identity.Models;
 
@@ -7,7 +8,7 @@ public static class AccessSubjectTypes
     public const string User = "user";
     public const string Group = "group";
     public const string Team = "team";
-    public const string ApiCredential = "apiCredential";
+    public const string ApiCredential = "api-credential";
 }
 
 public static class AccessResourceTypes
@@ -206,7 +207,7 @@ public sealed record AccessEvaluationContext(
     IReadOnlyList<string> RoleNames,
     IReadOnlyList<Guid> RoleIds,
     IReadOnlyList<string> PermissionNames,
-    IReadOnlyList<AccessGrant> Grants);
+    IReadOnlyList<ResourceAccessGrantRecord> Grants);
 
 public sealed record AccessContextDto(
     string UserId,

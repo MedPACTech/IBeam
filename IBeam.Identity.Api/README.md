@@ -372,7 +372,7 @@ Authorization: Bearer {tenantScopedAccessToken}
 Content-Type: application/json
 
 {
-  "subjectType": "apiCredential",
+  "subjectType": "api-credential",
   "subjectId": "1dff7a6a-545a-4790-aec1-37f5c5182fb1",
   "module": "work",
   "permission": "work.update",
@@ -395,7 +395,7 @@ Authorization: Bearer {ownerOrAdminTenantToken}
 Content-Type: application/json
 
 {
-  "subjectType": "apiCredential",
+  "subjectType": "api-credential",
   "subjectId": "1dff7a6a-545a-4790-aec1-37f5c5182fb1",
   "resourceType": "project",
   "resourceId": "24e4785d-d558-4511-a879-b70d5c88cd51",
@@ -427,7 +427,7 @@ Example response:
 
 ```json
 {
-  "principalType": "apiCredential",
+  "principalType": "api-credential",
   "tenantId": "225925cc-995e-4584-a63b-4f2cb4f38f6f",
   "credentialId": "1dff7a6a-545a-4790-aec1-37f5c5182fb1",
   "credentialName": "Codex Work Agent",
@@ -487,7 +487,7 @@ tenant_id = {tenantId}
 sub = {credentialId}
 uid = {credentialId}
 api_subject_type = credential
-principal_type = apiCredential
+principal_type = api-credential
 api_credential_id = {credentialId}
 api_credential_name = {displayName}
 agent_key = {agentKey}
@@ -703,7 +703,7 @@ Optional filters:
 
 ```http
 GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-catalog?subjectType=user
-GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-catalog?subjectType=apiCredential
+GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-catalog?subjectType=api-credential
 GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-catalog?category=resource
 ```
 
@@ -757,7 +757,7 @@ Example response:
       "isAssignable": true,
       "isMutable": false,
       "isEnabled": true,
-      "subjectTypes": ["user", "apiCredential"],
+      "subjectTypes": ["user", "api-credential"],
       "resourceType": "module",
       "resourceId": "work",
       "supportedAccessLevels": ["view", "edit", "manage"]
@@ -773,7 +773,7 @@ Example response:
       "isAssignable": true,
       "isMutable": false,
       "isEnabled": true,
-      "subjectTypes": ["apiCredential"],
+      "subjectTypes": ["api-credential"],
       "resourceId": "work"
     }
   ],
@@ -786,7 +786,7 @@ Example response:
       "isAssignable": true,
       "isMutable": false,
       "isEnabled": true,
-      "subjectTypes": ["apiCredential"]
+      "subjectTypes": ["api-credential"]
     }
   ],
   "agents": [],
@@ -799,7 +799,7 @@ Example response:
       "isAssignable": true,
       "isMutable": false,
       "isEnabled": true,
-      "subjectTypes": ["user", "apiCredential"],
+      "subjectTypes": ["user", "api-credential"],
       "resourceType": "project",
       "resourceId": "24e4785d-d558-4511-a879-b70d5c88cd51",
       "parentResourceType": "product",
@@ -847,7 +847,7 @@ Content-Type: application/json
   "isAssignable": true,
   "isMutable": true,
   "isEnabled": true,
-  "subjectTypes": ["apiCredential"]
+  "subjectTypes": ["api-credential"]
 }
 ```
 
@@ -1180,7 +1180,7 @@ Content-Type: application/json
 
 ### Subject Grant Examples
 
-Subject grants are generic so the model can support users, groups, teams, and API credentials. The current built-in subjects are strings such as `user` and `apiCredential`.
+Subject grants are generic so the model can support users, groups, teams, and API credentials. The current built-in subjects are strings such as `user` and `api-credential`.
 
 Grant a module to a user:
 
@@ -1325,7 +1325,7 @@ Example response:
 
 ### API Credential Grants
 
-API credentials remain separate from normal human role assignment UI. A host can grant access to an API credential by using `subjectType = "apiCredential"` and the credential ID as `subjectId`.
+API credentials remain separate from normal human role assignment UI. A host can grant access to an API credential by using `subjectType = "api-credential"` and the credential ID as `subjectId`.
 
 ```http
 POST /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-control/grants
@@ -1333,7 +1333,7 @@ Authorization: Bearer {ownerOrAdminTenantToken}
 Content-Type: application/json
 
 {
-  "subjectType": "apiCredential",
+  "subjectType": "api-credential",
   "subjectId": "1dff7a6a-545a-4790-aec1-37f5c5182fb1",
   "resourceType": "module",
   "resourceId": "work",

@@ -1,7 +1,7 @@
 using Azure;
 using Azure.Data.Tables;
 
-namespace IBeam.Identity.Repositories.AzureTable.Entities;
+namespace IBeam.AccessControl.Repositories.AzureTable;
 
 internal sealed class PermissionRoleMapEntity : ITableEntity
 {
@@ -10,11 +10,11 @@ internal sealed class PermissionRoleMapEntity : ITableEntity
     public DateTimeOffset? Timestamp { get; set; }
     public ETag ETag { get; set; }
 
-    public string TenantId { get; set; } = default!;
+    public Guid TenantId { get; set; }
     public string? PermissionName { get; set; }
-    public string? PermissionId { get; set; }
+    public Guid? PermissionId { get; set; }
     public string RoleNamesCsv { get; set; } = string.Empty;
     public string RoleIdsCsv { get; set; } = string.Empty;
-    public string Status { get; set; } = "Active";
-    public DateTimeOffset UpdatedAt { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public DateTimeOffset UpdatedUtc { get; set; }
 }

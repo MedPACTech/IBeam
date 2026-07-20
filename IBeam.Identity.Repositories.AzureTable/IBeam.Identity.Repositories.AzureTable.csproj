@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\IBeam.AccessControl.Repositories.AzureTable\IBeam.AccessControl.Repositories.AzureTable.csproj" />
     <ProjectReference Include="..\IBeam.Identity.Services\IBeam.Identity.Services.csproj" />
     <ProjectReference Include="..\IBeam.Api\IBeam.Api.csproj" />
     <ProjectReference Include="..\IBeam.Services.Logging\IBeam.Services.Logging.csproj" />
