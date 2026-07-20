@@ -303,6 +303,89 @@ When configured, IBeam invokes the user extension store during user creation and
 
 IBeam does not expose built-in profile extension routes and does not persist app-specific user profile fields. For Hubbsly-style apps, the app-owned `Users` table should be keyed by selected IBeam `TenantId` plus IBeam `UserId`.
 
+#### User profile data example
+
+For profile details such as gamer tag, theme, avatar URL, social media handle, onboarding flags, or user preferences, do not add fields to the packaged IBeam identity user table. Keep those fields in an app-owned entity and bind it back to the IBeam identity with `UserId`, and optionally `TenantId` when the value is tenant-specific.
+
+Example app-owned profile entity:
+
+```csharp
+public sealed class AppUserProfile : IIdentityUserProfileExtension
+{
+    public Guid UserId { get; set; }
+    public Guid? TenantId { get; set; }
+
+    public string DisplayName { get; set; } = string.Empty;
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+
+    public string? GamerTag { get; set; }
+    public string? Theme { get; set; }
+    public string? SocialHandle { get; set; }
+    public DateTimeOffset CreatedUtc { get; set; }
+    public DateTimeOffset UpdatedUtc { get; set; }
+}
+```
+
+Example extension store:
+
+```csharp
+public sealed class AppUserProfileStore : IIdentityUserExtensionStore<AppUserProfile>
+{
+    public Task<AppUserProfile?> FindByUserIdAsync(
+        Guid userId,
+        Guid? tenantId,
+        CancellationToken ct = default)
+    {
+        // Look up the app-owned profile row by UserId and optional TenantId.
+        throw new NotImplementedException();
+    }
+
+    public Task<AppUserProfile> CreateAsync(
+        IdentityUser identityUser,
+        UserExtensionContext context,
+        CancellationToken ct = default)
+    {
+        var profile = new AppUserProfile
+        {
+            UserId = identityUser.UserId,
+            TenantId = context.TenantId,
+            DisplayName = context.DisplayName ?? string.Empty,
+            FirstName = context.FirstName ?? string.Empty,
+            LastName = context.LastName ?? string.Empty,
+            Theme = "dark-mode",
+            CreatedUtc = DateTimeOffset.UtcNow,
+            UpdatedUtc = DateTimeOffset.UtcNow
+        };
+
+        // Save the app-owned profile row.
+        throw new NotImplementedException();
+    }
+
+    public Task<AppUserProfile> UpdateFromIdentityUserAsync(
+        AppUserProfile profile,
+        IdentityUser identityUser,
+        UserExtensionContext context,
+        CancellationToken ct = default)
+    {
+        profile.DisplayName = context.DisplayName ?? profile.DisplayName;
+        profile.UpdatedUtc = DateTimeOffset.UtcNow;
+
+        // Save identity-owned display/contact sync without overwriting app-owned preferences.
+        throw new NotImplementedException();
+    }
+}
+```
+
+Register it in the consuming app:
+
+```csharp
+services.AddIBeamIdentityServices(configuration);
+services.AddIBeamIdentityUserExtension<AppUserProfile, AppUserProfileStore>();
+```
+
+The extension hook ensures the profile row exists during identity lifecycle flows. The consuming app should still expose its own typed profile service/API for user-editable fields such as `GamerTag`, `Theme`, and `SocialHandle`, because IBeam does not know the app's validation, privacy, or storage rules for those fields.
+
 For single-tenant deployments, use `UseDefaultTenant` with an explicit tenant ID. Auth requests that omit tenant ID use this configured default; IBeam does not infer it from environment name or storage account.
 
 ```json
