@@ -1,6 +1,7 @@
 using Azure.Data.Tables;
 using ElCamino.AspNetCore.Identity.AzureTable;
 using ElCamino.AspNetCore.Identity.AzureTable.Model;
+using IBeam.AccessControl.Repositories.AzureTable;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Schema;
 using IBeam.Identity.Repositories.AzureTable.Options;
@@ -65,6 +66,7 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
                     o.StorageConnectionString = opts.StorageConnectionString;
                     o.TablePrefix = opts.TablePrefix;
                     o.TableName = opts.SystemLogsTableName;
+                    o.CreateTableIfNotExists = opts.CreateTablesIfNotExists;
                 },
                 registerAuditTrailSink: false);
 
@@ -99,8 +101,7 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
             services.AddScoped<IApiErrorSink, AzureTableApiErrorSink>();
             services.AddScoped<ITenantMembershipStore, AzureTableTenantMembershipStore>();
             services.AddScoped<ITenantRoleStore, AzureTableTenantRoleStore>();
-            services.AddScoped<IPermissionAccessStore, AzureTablePermissionAccessStore>();
-            services.AddScoped<IIBeamAccessGrantStore, AzureTableAccessGrantStore>();
+            services.AddIBeamAccessControlAzureTableStores(configuration);
             services.AddScoped<IIBeamAccessCatalogOverrideStore, AzureTableAccessCatalogOverrideStore>();
             services.AddScoped<IOtpChallengeStore, AzureTableOtpChallengeStore>();
             services.AddScoped<ITenantProvisioningService, AzureTableTenantProvisioningService>();

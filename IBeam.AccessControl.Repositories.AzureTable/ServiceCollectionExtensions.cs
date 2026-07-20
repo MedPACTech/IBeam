@@ -32,6 +32,8 @@ public static class AzureTableAccessControlServiceCollectionExtensions
             return new TableServiceClient(options.StorageConnectionString);
         });
 
+        services.Replace(ServiceDescriptor.Singleton<IResourceAccessStore, AzureTableResourceAccessStore>());
+        services.Replace(ServiceDescriptor.Singleton<IPermissionRoleMapStore, AzureTablePermissionRoleMapStore>());
         services.Replace(ServiceDescriptor.Singleton<IServiceOperationPermissionStore, AzureTableServiceOperationPermissionStore>());
         return services;
     }

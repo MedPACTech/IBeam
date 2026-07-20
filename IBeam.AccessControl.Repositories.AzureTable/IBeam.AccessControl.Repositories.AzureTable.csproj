@@ -8,7 +8,7 @@
     <PackageId>IBeam.AccessControl.Repositories.AzureTable</PackageId>
     <Authors>MedPAC Technologies</Authors>
     <Company>MedPAC Technologies</Company>
-    <PackageDescription>Azure Table Storage stores for IBeam access-control service operation permissions.</PackageDescription>
+    <PackageDescription>Azure Table Storage stores for IBeam access-control resource grants, permission maps, and service operation permissions.</PackageDescription>
     <RepositoryUrl>https://github.com/MedPACTech/IBeam</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <VersionPrefix>2.0.0</VersionPrefix>

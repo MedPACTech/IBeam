@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using IBeam.AccessControl;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
@@ -16,18 +17,18 @@ public sealed class PermissionMappingsController : ControllerBase
 {
     private static readonly string[] ManageRoleClaims = ["owner", "administrator", "admin"];
 
-    private readonly IPermissionAccessStore _store;
+    private readonly IPermissionRoleMapService _mappings;
     private readonly IPermissionCatalogProvider _catalog;
     private readonly IOptionsSnapshot<RoleManagementOptions> _roleOptions;
     private readonly IOptionsSnapshot<PermissionAccessOptions> _permissionOptions;
 
     public PermissionMappingsController(
-        IPermissionAccessStore store,
+        IPermissionRoleMapService mappings,
         IPermissionCatalogProvider catalog,
         IOptionsSnapshot<RoleManagementOptions> roleOptions,
         IOptionsSnapshot<PermissionAccessOptions> permissionOptions)
     {
-        _store = store;
+        _mappings = mappings;
         _catalog = catalog;
         _roleOptions = roleOptions;
         _permissionOptions = permissionOptions;
@@ -52,8 +53,8 @@ public sealed class PermissionMappingsController : ControllerBase
         var mode = _roleOptions.Value.PermissionMode;
 
         var repositoryMappings = IsRepositoryEnabled(mode)
-            ? await _store.GetMappingsAsync(tenantId, ct)
-            : Array.Empty<PermissionRoleMap>();
+            ? await _mappings.ListMappingsAsync(tenantId, ct)
+            : Array.Empty<PermissionRoleMapInfo>();
 
         var configurationMappings = _permissionOptions.Value.Mappings
             .Where(x => x is not null)
@@ -78,8 +79,8 @@ public sealed class PermissionMappingsController : ControllerBase
                 PermissionId = x.PermissionId,
                 RoleNames = x.RoleNames.ToList(),
                 RoleIds = x.RoleIds.ToList(),
-                UpdatedAt = x.UpdatedAt,
-                IsActive = x.IsActive
+                UpdatedAt = x.UpdatedUtc,
+                IsActive = string.Equals(x.Status, PermissionRoleMapStatuses.Active, StringComparison.OrdinalIgnoreCase)
             })
             .ToList();
 
@@ -100,11 +101,15 @@ public sealed class PermissionMappingsController : ControllerBase
         if (TryRejectMutation(out var rejection))
             return rejection;
 
-        var map = await _store.UpsertByPermissionNameAsync(
+        var map = await _mappings.UpsertByPermissionNameAsync(
             tenantId,
             req.PermissionName,
-            req.RoleNames,
-            req.RoleIds,
+            new UpsertPermissionRoleMapRequest
+            {
+                PermissionName = req.PermissionName,
+                RoleNames = req.RoleNames,
+                RoleIds = req.RoleIds
+            },
             ct);
 
         return Ok(map);
@@ -119,11 +124,15 @@ public sealed class PermissionMappingsController : ControllerBase
         if (TryRejectMutation(out var rejection))
             return rejection;
 
-        var map = await _store.UpsertByPermissionIdAsync(
+        var map = await _mappings.UpsertByPermissionIdAsync(
             tenantId,
             req.PermissionId,
-            req.RoleNames,
-            req.RoleIds,
+            new UpsertPermissionRoleMapRequest
+            {
+                PermissionId = req.PermissionId,
+                RoleNames = req.RoleNames,
+                RoleIds = req.RoleIds
+            },
             ct);
 
         return Ok(map);
@@ -138,7 +147,7 @@ public sealed class PermissionMappingsController : ControllerBase
         if (TryRejectMutation(out var rejection))
             return rejection;
 
-        await _store.DeleteByPermissionNameAsync(tenantId, permissionName, ct);
+        await _mappings.DeleteByPermissionNameAsync(tenantId, permissionName, ct);
         return Accepted();
     }
 
@@ -151,7 +160,7 @@ public sealed class PermissionMappingsController : ControllerBase
         if (TryRejectMutation(out var rejection))
             return rejection;
 
-        await _store.DeleteByPermissionIdAsync(tenantId, permissionId, ct);
+        await _mappings.DeleteByPermissionIdAsync(tenantId, permissionId, ct);
         return Accepted();
     }
 

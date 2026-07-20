@@ -275,7 +275,7 @@ var allowed = await accessControl.HasResourceAccessAsync(
 IBeam evaluates resource access in this general order:
 
 1. Resolve tenant from the principal.
-2. Resolve subject as `user` or `apiCredential`.
+2. Resolve subject as `user` or `api-credential`.
 3. Allow owner/admin unrestricted access if configured.
 4. Check direct access grants.
 5. Resolve permissions implied by role mappings.

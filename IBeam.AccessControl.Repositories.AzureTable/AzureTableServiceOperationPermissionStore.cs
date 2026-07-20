@@ -93,7 +93,11 @@ public sealed class AzureTableServiceOperationPermissionStore : IServiceOperatio
     private async Task<TableClient> GetTableAsync(CancellationToken ct)
     {
         var table = _serviceClient.GetTableClient(_options.FullTableName(_options.ServiceOperationPermissionsTableName));
-        await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+        if (_options.CreateTablesIfNotExists)
+        {
+            await table.CreateIfNotExistsAsync(ct).ConfigureAwait(false);
+        }
+
         return table;
     }
 

@@ -1,8 +1,8 @@
 using System.Reflection;
 using System.Security.Claims;
+using IBeam.AccessControl;
 using IBeam.Identity.Authorization;
 using IBeam.Identity.Interfaces;
-using IBeam.Identity.Models;
 using IBeam.Identity.Options;
 using IBeam.Identity.Services.Authorization;
 using Microsoft.Extensions.Options;
@@ -99,7 +99,7 @@ public sealed class PermissionAccessAuthorizerTests
             It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    private static PermissionAccessAuthorizer CreateSut(PermissionAccessOptions options, IPermissionAccessStore store)
+    private static PermissionAccessAuthorizer CreateSut(PermissionAccessOptions options, IPermissionRoleMapStore store)
     {
         var monitor = new Mock<IOptionsMonitor<PermissionAccessOptions>>(MockBehavior.Strict);
         monitor.SetupGet(x => x.CurrentValue).Returns(options);
@@ -108,9 +108,9 @@ public sealed class PermissionAccessAuthorizerTests
         return new PermissionAccessAuthorizer(new RoleAccessAuthorizer(), resolver);
     }
 
-    private static Mock<IPermissionAccessStore> CreateStoreMock(PermissionGrantSet grants)
+    private static Mock<IPermissionRoleMapStore> CreateStoreMock(PermissionGrantSet grants)
     {
-        var store = new Mock<IPermissionAccessStore>(MockBehavior.Strict);
+        var store = new Mock<IPermissionRoleMapStore>(MockBehavior.Strict);
         store.Setup(x => x.ResolveGrantsAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<IReadOnlyList<string>>(),

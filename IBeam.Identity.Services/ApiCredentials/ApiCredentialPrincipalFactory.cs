@@ -31,7 +31,7 @@ public sealed class ApiCredentialPrincipalFactory : IApiCredentialPrincipalFacto
             new("uid", credentialId),
             new("api_credential_id", credentialId),
             new("api_credential_name", credential.DisplayName),
-            new("principal_type", "apiCredential"),
+            new("principal_type", AccessSubjectTypes.ApiCredential),
             new("api_subject_type", "credential")
         };
 

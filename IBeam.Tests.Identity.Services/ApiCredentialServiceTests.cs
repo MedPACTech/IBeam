@@ -5,6 +5,10 @@ using IBeam.Identity.Models;
 using IBeam.Identity.Options;
 using IBeam.Identity.Services.ApiCredentials;
 using Microsoft.Extensions.Options;
+using AccessControlSubject = IBeam.AccessControl.AccessSubject;
+using IResourceAccessStore = IBeam.AccessControl.IResourceAccessStore;
+using ResourceAccessGrantRecord = IBeam.AccessControl.ResourceAccessGrantRecord;
+using ResourceAccessGrantStatuses = IBeam.AccessControl.ResourceAccessGrantStatuses;
 
 namespace IBeam.Tests.Identity.Services;
 
@@ -253,16 +257,19 @@ public sealed class ApiCredentialServiceTests
 
         var grantStore = new InMemoryAccessGrantStore(
         [
-            new AccessGrant(
+            new ResourceAccessGrantRecord(
                 Guid.NewGuid(),
                 TenantId,
-                AccessSubjectTypes.ApiCredential,
-                created.Credential.Id.ToString("D"),
                 "project",
                 "platform",
+                new AccessControlSubject(AccessSubjectTypes.ApiCredential, created.Credential.Id.ToString("D")),
                 AccessLevels.Edit,
-                true,
-                DateTimeOffset.UtcNow)
+                ResourceAccessGrantStatuses.Active,
+                DateTimeOffset.UtcNow,
+                null,
+                null,
+                null,
+                new Dictionary<string, string>())
         ]);
 
         var access = new ApiCredentialAccessService(
@@ -505,27 +512,23 @@ public sealed class ApiCredentialServiceTests
             => Task.CompletedTask;
     }
 
-    private sealed class InMemoryAccessGrantStore : IIBeamAccessGrantStore
+    private sealed class InMemoryAccessGrantStore : IResourceAccessStore
     {
-        private readonly IReadOnlyList<AccessGrant> _grants;
+        private readonly IReadOnlyList<ResourceAccessGrantRecord> _grants;
 
-        public InMemoryAccessGrantStore(IReadOnlyList<AccessGrant> grants)
+        public InMemoryAccessGrantStore(IReadOnlyList<ResourceAccessGrantRecord> grants)
         {
             _grants = grants;
         }
 
-        public Task<IReadOnlyList<AccessGrant>> GetGrantsAsync(Guid tenantId, string? subjectType = null, string? subjectId = null, CancellationToken ct = default)
-            => Task.FromResult<IReadOnlyList<AccessGrant>>(
-                _grants
-                    .Where(x => x.TenantId == tenantId)
-                    .Where(x => string.IsNullOrWhiteSpace(subjectType) || string.Equals(x.SubjectType, subjectType, StringComparison.OrdinalIgnoreCase))
-                    .Where(x => string.IsNullOrWhiteSpace(subjectId) || string.Equals(x.SubjectId, subjectId, StringComparison.OrdinalIgnoreCase))
-                    .ToList());
+        public Task<IReadOnlyList<ResourceAccessGrantRecord>> ListGrantsAsync(Guid tenantId, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<ResourceAccessGrantRecord>>(
+                _grants.Where(x => x.TenantId == tenantId).ToList());
 
-        public Task<AccessGrant?> GetGrantAsync(Guid tenantId, Guid grantId, CancellationToken ct = default)
+        public Task<ResourceAccessGrantRecord?> GetGrantAsync(Guid tenantId, Guid grantId, CancellationToken ct = default)
             => Task.FromResult(_grants.FirstOrDefault(x => x.TenantId == tenantId && x.GrantId == grantId));
 
-        public Task<AccessGrant> UpsertGrantAsync(Guid tenantId, Guid? grantId, string subjectType, string subjectId, string resourceType, string resourceId, string accessLevel, CancellationToken ct = default)
+        public Task<ResourceAccessGrantRecord> UpsertGrantAsync(ResourceAccessGrantRecord grant, CancellationToken ct = default)
             => throw new NotSupportedException();
 
         public Task DeleteGrantAsync(Guid tenantId, Guid grantId, CancellationToken ct = default)
@@ -540,8 +543,8 @@ public sealed class ApiCredentialServiceTests
 
     private sealed class FakePermissionGrantResolver : IBeam.Identity.Services.Authorization.IPermissionGrantResolver
     {
-        public Task<PermissionGrantSet> ResolveAsync(Guid tenantId, IReadOnlyList<string> permissionNames, IReadOnlyList<Guid> permissionIds, CancellationToken ct = default)
-            => Task.FromResult(PermissionGrantSet.Empty);
+        public Task<IBeam.AccessControl.PermissionGrantSet> ResolveAsync(Guid tenantId, IReadOnlyList<string> permissionNames, IReadOnlyList<Guid> permissionIds, CancellationToken ct = default)
+            => Task.FromResult(IBeam.AccessControl.PermissionGrantSet.Empty);
     }
 
     private sealed class FakeTenantRoleStore : ITenantRoleStore

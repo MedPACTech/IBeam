@@ -36,6 +36,12 @@ internal sealed class AzureTableIdentitySchemaManager : IIdentitySchemaManager
 
     public async Task ApplyAsync(CancellationToken ct = default)
     {
+        if (!_opts.CreateTablesIfNotExists)
+        {
+            _logger.LogInformation("AzureTable identity schema ensure skipped because CreateTablesIfNotExists is disabled.");
+            return;
+        }
+
         // 1) ElCamino Identity tables (explicit, no builder type needed)
         // IdentityConfiguration already contains the table names used by ElCamino.
         await _serviceClient.CreateTableIfNotExistsAsync($"{_identityConfig.TablePrefix}{_identityConfig.UserTableName}", ct)
@@ -120,8 +126,6 @@ internal sealed class AzureTableIdentitySchemaManager : IIdentitySchemaManager
         yield return $"{_opts.TablePrefix}{_opts.ExternalLoginsTableName}";
         yield return $"{_opts.TablePrefix}{_opts.AuthSessionsTableName}";
         yield return $"{_opts.TablePrefix}{_opts.ApiCredentialsTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.PermissionRoleMapsTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.AccessGrantsTableName}";
         yield return $"{_opts.TablePrefix}{_opts.AccessCatalogOverridesTableName}";
         yield return $"{_opts.TablePrefix}{_opts.AuthAttemptsTableName}";
         yield return $"{_opts.TablePrefix}{_opts.SystemErrorsTableName}";

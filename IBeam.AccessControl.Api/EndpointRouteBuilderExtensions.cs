@@ -123,6 +123,94 @@ public static class AccessControlEndpointRouteBuilderExtensions
             }
         });
 
+        group.MapGet("/tenants/{tenantId:guid}/access-control/permission-maps", async (
+            Guid tenantId,
+            IPermissionRoleMapService mappings,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await mappings.ListMappingsAsync(tenantId, ct).ConfigureAwait(false);
+                return Results.Ok(result);
+            }
+            catch (AccessControlException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
+        group.MapPut("/tenants/{tenantId:guid}/access-control/permission-maps/by-name/{permissionName}", async (
+            Guid tenantId,
+            string permissionName,
+            UpsertPermissionRoleMapRequest request,
+            IPermissionRoleMapService mappings,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await mappings.UpsertByPermissionNameAsync(tenantId, permissionName, request, ct)
+                    .ConfigureAwait(false);
+                return Results.Ok(result);
+            }
+            catch (AccessControlException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
+        group.MapPut("/tenants/{tenantId:guid}/access-control/permission-maps/by-id/{permissionId:guid}", async (
+            Guid tenantId,
+            Guid permissionId,
+            UpsertPermissionRoleMapRequest request,
+            IPermissionRoleMapService mappings,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await mappings.UpsertByPermissionIdAsync(tenantId, permissionId, request, ct)
+                    .ConfigureAwait(false);
+                return Results.Ok(result);
+            }
+            catch (AccessControlException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
+        group.MapDelete("/tenants/{tenantId:guid}/access-control/permission-maps/by-name/{permissionName}", async (
+            Guid tenantId,
+            string permissionName,
+            IPermissionRoleMapService mappings,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                await mappings.DeleteByPermissionNameAsync(tenantId, permissionName, ct).ConfigureAwait(false);
+                return Results.NoContent();
+            }
+            catch (AccessControlException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
+        group.MapDelete("/tenants/{tenantId:guid}/access-control/permission-maps/by-id/{permissionId:guid}", async (
+            Guid tenantId,
+            Guid permissionId,
+            IPermissionRoleMapService mappings,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                await mappings.DeleteByPermissionIdAsync(tenantId, permissionId, ct).ConfigureAwait(false);
+                return Results.NoContent();
+            }
+            catch (AccessControlException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
         group.MapGet("/tenants/{tenantId:guid}/access-control/service-permissions", async (
             Guid tenantId,
             IServiceOperationPermissionService permissions,

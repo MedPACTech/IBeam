@@ -55,16 +55,14 @@ var allowed = await permissionRoleAuthorizer.AuthorizeAsync(
 
 ## What Still Lives Under Identity
 
-The richer current implementation remains in `IBeam.Identity.*`:
+Identity now consumes AccessControl for permission-map and resource-grant persistence. The remaining Identity-specific access pieces are:
 
-- Azure Table storage for `IBeamPermissionRoleMaps`
-- Azure Table storage for `IBeamAccessGrants`
 - `IIBeamAccessControlService`
 - API credential authentication and credential-specific access context
-- Identity API controllers for permission mappings, grants, API credentials, and role management
+- Identity API controllers for access catalog, API credentials, and role management
 
-This is intentionally not fully moved in one pass. The immediate extraction establishes core contracts and services
-without breaking the existing Identity-based implementation.
+`IIBeamAccessControlService` still lives under Identity because it composes tenant membership claims, Identity permission
+catalogs, API credential scope catalogs, access catalog overrides, module definitions, and host rule providers.
 
 ## Package Boundary Fixed
 
@@ -74,20 +72,34 @@ The previous `ResourceAccessClaimsEnricher` was Identity-specific because it imp
 That kind of JWT enrichment should live in an Identity integration package, not in the core access-control service
 package.
 
+## Breaking Change Direction
+
+Starting with the next internal version, AccessControl is the canonical owner of permission maps, resource grants,
+service-operation rules, and their persistence. Identity should consume AccessControl rather than keep parallel models,
+stores, and authorization logic.
+
+Because IBeam consumers are currently internal, this cleanup may break previous Identity-owned access-control contracts.
+Legacy compatibility should wait until a later public compatibility version.
+
+## Completed Extraction Steps
+
+1. Added a non-Identity Azure Table implementation for core access control:
+   - `IBeam.AccessControl.Repositories.AzureTable`
+   - `IResourceAccessStore`
+   - `IPermissionRoleMapStore`
+   - `IServiceOperationPermissionStore`
+2. Added standalone AccessControl API endpoints for permission-role map management.
+
 ## Next Extraction Steps
 
-1. Add a non-Identity Azure Table implementation for core access control.
-   - `IBeam.AccessControl.Repositories.AzureTable`
-   - Stores for resource grants and permission role maps.
-2. Move or adapter-wrap `IBeam.Identity.Repositories.AzureTable` access-control stores so both old and new interfaces
-   can use the same tables during transition.
-3. Move `IIBeamAccessControlService` concepts into `IBeam.AccessControl.Services`, or create a new service equivalent
+1. Move `IIBeamAccessControlService` concepts into `IBeam.AccessControl.Services`, or create a new service equivalent
    that combines permission maps, resource grants, module definitions, and rule providers.
-4. Keep Identity-specific pieces as integrations:
+2. Keep Identity-specific pieces as integrations:
    - token claims enrichment
    - API credential authentication
    - user/tenant membership role assignment
-5. Preserve backward-compatible Identity APIs until downstream teams can migrate.
+3. Replace remaining Identity-owned access-control APIs with thin adapters over AccessControl. Backward-compatible Identity APIs are
+   intentionally deferred until a later legacy-support version.
 
 ## Core Service Pattern Review
 

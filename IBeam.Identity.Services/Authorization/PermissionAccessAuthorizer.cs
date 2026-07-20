@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Security.Claims;
+using IBeam.AccessControl;
 using IBeam.Identity.Authorization;
 using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;

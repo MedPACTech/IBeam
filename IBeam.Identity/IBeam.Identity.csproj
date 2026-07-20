@@ -9,6 +9,11 @@
 
 
   <ItemGroup>
+    <ProjectReference Include="..\IBeam.AccessControl\IBeam.AccessControl.csproj" />
+  </ItemGroup>
+
+
+  <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>

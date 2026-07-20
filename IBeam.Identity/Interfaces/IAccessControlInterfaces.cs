@@ -37,29 +37,6 @@ public interface IIBeamAccessCatalogOverrideStore
     Task DeleteOverrideAsync(Guid tenantId, Guid catalogItemId, CancellationToken ct = default);
 }
 
-public interface IIBeamAccessGrantStore
-{
-    Task<IReadOnlyList<AccessGrant>> GetGrantsAsync(
-        Guid tenantId,
-        string? subjectType = null,
-        string? subjectId = null,
-        CancellationToken ct = default);
-
-    Task<AccessGrant?> GetGrantAsync(Guid tenantId, Guid grantId, CancellationToken ct = default);
-
-    Task<AccessGrant> UpsertGrantAsync(
-        Guid tenantId,
-        Guid? grantId,
-        string subjectType,
-        string subjectId,
-        string resourceType,
-        string resourceId,
-        string accessLevel,
-        CancellationToken ct = default);
-
-    Task DeleteGrantAsync(Guid tenantId, Guid grantId, CancellationToken ct = default);
-}
-
 public interface IIBeamAccessControlService
 {
     Task<bool> HasRoleAsync(ClaimsPrincipal principal, string roleName, CancellationToken ct = default);
