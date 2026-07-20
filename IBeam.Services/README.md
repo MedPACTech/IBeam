@@ -1,44 +1,69 @@
-﻿# IBeam.Services
+# IBeam.Services
 
-Core service-layer abstractions and base implementations for IBeam.
+`IBeam.Services` contains the core service-layer abstractions, base CRUD services, operation metadata, audit hooks, and policy execution primitives used across IBeam.
 
-## Narrative Introduction
+```powershell
+dotnet add package IBeam.Services
+```
 
-This package sits between application workflows and repository providers. It standardizes service behavior with reusable base classes, mapping abstractions, auditing hooks, and policy-based operation controls so teams can implement domain services consistently.
+## When To Use This
 
-## Service Ownership
+- You are building an IBeam service around one entity.
+- You want base CRUD behavior with override points.
+- You need service-operation tags such as `[IBeamOperation("patients.discharge")]`.
+- You want permissions, auditing, validation, and error behavior to stay in the service layer.
+- You are using your own authentication system but still want IBeam service policy and audit patterns.
 
-Services are the home for application behavior. A controller should be a transport adapter: accept HTTP input, call a service, and shape the HTTP response. Business rules, policy checks, validation decisions, auditing/logging, and expected error classification belong in the service layer.
+## What This Package Contains
 
-Expected failures should be raised by services with user-safe messages so controllers can return friendly responses. Examples include validation failures, disabled operations, missing records, authorization/policy failures, and domain conflicts.
+| Area | Type(s) | Purpose |
+|---|---|---|
+| Base services | `BaseService<TEntity,TModel>`, `BaseServiceAsync<TEntity,TModel>` | Reusable CRUD framework over repositories and model mappers. |
+| Service contracts | `IBaseService<TEntity,TModel>`, `IBaseServiceAsync<TEntity,TModel>` | Common service operations for apps and APIs. |
+| Mapping | `IModelMapper<TEntity,TModel>` | Keeps entity/model conversion behind a small abstraction. |
+| Operation metadata | `IBeamOperationAttribute`, `IBeamAuditActionAttribute`, `IBeamRequiresPermissionAttribute` | Names service calls for authorization, auditing, and debugging. |
+| Operation execution | `IServiceOperationExecutor`, `ServiceOperationExecutionOptions` | Wraps custom methods with the same policy/audit behavior as base CRUD methods. |
+| Policy resolution | `IServiceOperationPolicyResolver`, `ServicePolicyOptions` | Enables or disables CRUD operations per service. |
+| Audit hooks | `IAuditTrailSink`, `IAuditActorProvider`, `IAuditRequestContextProvider` | Captures who changed what, where, and when. |
 
-Unexpected failures and system-level errors should bubble out to the API exception pipeline. They should not expose internal details to the caller. When an `IApiErrorSink` is configured, the API layer persists those operational details to the system error store; with the Azure Table provider, that is the `SystemErrors` table.
+## Architecture Fit
 
-## Features and Components
+```text
+API <-- DTO/model object --> Service <-- Entity --> Repository
+```
 
-- abstractions in `IBeam.Services.Abstractions`:
-  - `IBaseService<TEntity,TModel>`
-  - `IBaseServiceAsync<TEntity,TModel>`
-  - `IModelMapper<TEntity,TModel>`
-  - audit interfaces (`IAuditService*`, `IEntityAuditService*`)
-- core implementations in `IBeam.Services.Core`:
-  - `BaseService<TEntity,TModel>`
-  - `BaseServiceAsync<TEntity,TModel>`
-- service operation policy system:
-  - `ServiceOperationPolicyAttribute`
-  - `ServicePolicyOptions`
-  - `IServiceOperationPolicyResolver`
-  - `AddIBeamServicePolicies(...)`
-- custom service operation execution:
-  - `IBeamOperationAttribute`
-  - `IBeamAuditActionAttribute`
-  - `IBeamRequiresPermissionAttribute`
-  - `IServiceOperationExecutor`
-  - `ServiceOperationExecutionOptions`
+The service layer is the gatekeeper in IBeam. Controllers should bind requests and return responses. Repositories should persist one entity. Services should own business rules, permission checks, logging/auditing decisions, validation, error classification, and cross-service coordination.
+
+## Base CRUD Pattern
+
+```csharp
+[IBeamOperation("products")]
+public sealed class ProductsService : BaseServiceAsync<ProductEntity, ProductDto>
+{
+    public ProductsService(
+        IBaseRepositoryAsync<ProductEntity> repository,
+        IModelMapper<ProductEntity, ProductDto> mapper)
+        : base(repository, mapper)
+    {
+    }
+
+    protected override Task ValidateSaveAsync(ProductEntity entity, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(entity.Name))
+        {
+            throw new InvalidOperationException("Product name is required.");
+        }
+
+        return Task.CompletedTask;
+    }
+}
+```
+
+Base CRUD methods already flow through IBeam service policy and audit behavior when configured.
 
 ## Custom Service Operations
 
-Base CRUD methods already apply service operation authorization and audit logging. Custom service methods can use `IServiceOperationExecutor` to get the same behavior.
+Custom methods should use `IServiceOperationExecutor` so auditing, permission evaluation, request context, actor context, and failure metadata are consistent.
 
 ```csharp
 [IBeamOperation("patients")]
@@ -58,7 +83,7 @@ public sealed class PatientService
             this,
             async token =>
             {
-                // Custom business rules and repository/service calls live here.
+                // Business rules and repository/service calls live here.
                 await Task.CompletedTask;
             },
             new ServiceOperationExecutionOptions
@@ -70,20 +95,95 @@ public sealed class PatientService
 }
 ```
 
-The executor resolves the operation name from the method attribute, checks service-operation authorization when configured, writes audit transactions when auditing is enabled, captures request/actor/tenant context, and records success/failure metadata for debugging.
+Use `OriginalData` and `TransformedData` when a custom method changes data and you can provide before/after entity snapshots. Prefer database entity shapes, not decorated outbound DTOs.
 
-Use `ServiceOperationExecutionOptions.OriginalData` and `TransformedData` when the custom method changes data and you can provide before/after entity snapshots. Prefer database entity shapes for those snapshots, not decorated outbound DTOs.
+## Service Policy Configuration
 
-## Dependencies
+Configuration section: `IBeam:Services:Policies`
 
-- Internal packages:
-  - `IBeam.Repositories`
-  - `IBeam.Utilities`
-- External packages:
-  - `AutoMapper`
-  - `Microsoft.Extensions.Options`
+```json
+{
+  "IBeam": {
+    "Services": {
+      "Policies": {
+        "Services": {
+          "ProductsService": {
+            "GetAll": true,
+            "Save": true,
+            "Delete": false
+          }
+        }
+      }
+    }
+  }
+}
+```
 
-## Additional Docs
+Use service policies to disable risky operations without changing code, such as blocking deletes during an incident.
 
-- `README.abstractions.md`: contract quick reference
-- `README.core.md`: policy and configuration details
+## Audit Configuration
+
+Configuration section: `IBeam:Services:Audit`
+
+```json
+{
+  "IBeam": {
+    "Services": {
+      "Audit": {
+        "Enabled": true,
+        "DefaultMode": "AuditWrites",
+        "EnableSelectAudits": false,
+        "SelectMode": "DailyRollup",
+        "CaptureBefore": true,
+        "CaptureAfter": true,
+        "FailOnAuditError": false,
+        "Services": {
+          "ProductsService": {
+            "EntityName": "products",
+            "Operations": {
+              "Save": {
+                "Action": "products.save"
+              },
+              "Delete": {
+                "Action": "products.delete"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+The audit hierarchy is broad default first, then service override, then operation override. That lets teams audit most services by default while turning specific services or methods off.
+
+## Data Storage
+
+This package does not create audit tables by itself. It defines the audit contracts and execution hooks. Use `IBeam.Services.Logging` to write audit transactions to `ILogger`, repositories, or Azure Table Storage.
+
+## Extended Docs And Agent Guidance
+
+- AI prompt: [`.agent/prompt.md`](./.agent/prompt.md)
+- Root implementation guide: [`../.agent/implementation-guide.md`](../.agent/implementation-guide.md)
+- Service logging and audit: [`../docs/service-logging-and-audit.md`](../docs/service-logging-and-audit.md)
+- Service operation permissions: [`../docs/service-operation-permissions.md`](../docs/service-operation-permissions.md)
+- Roles, permissions, and grants: [`../docs/roles-permissions-and-grants.md`](../docs/roles-permissions-and-grants.md)
+- Consuming API migration prompt: [`../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md`](../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
+
+Agents should make the service method the named operation boundary and keep API/repository layers thin.
+
+## Troubleshooting
+
+| Problem | Likely Cause | Fix |
+|---|---|---|
+| Custom method is not audited | Method bypasses `IServiceOperationExecutor` | Wrap the custom method body with the executor. |
+| Operation name is missing | `[IBeamOperation]` not applied | Add class and/or method operation attributes. |
+| Delete/save is unexpectedly blocked | Service policy disabled the operation | Check `IBeam:Services:Policies`. |
+| Audit contains decorated DTOs | API response model was passed as audit data | Pass entity/database-shaped snapshots instead. |
+
+## Version Notes
+
+- Targets `net10.0`.
+- Designed for both IBeam Identity and bring-your-own authentication.
+- Package version is assigned by the repository release workflow.
