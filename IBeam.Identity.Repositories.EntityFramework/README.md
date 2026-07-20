@@ -71,3 +71,14 @@ EF identity store registration resolves connection string with fallback preceden
 9. `ConnectionStrings:DefaultConnection`
 
 This aligns EF identity provider behavior with the broader IBeam repository fallback pattern.
+
+## Extended Docs And Agent Guidance
+
+- AI prompt: [`.agent/prompt.md`](./.agent/prompt.md)
+- Root implementation guide: [`../.agent/implementation-guide.md`](../.agent/implementation-guide.md)
+- Identity contracts: [`../IBeam.Identity/README.md`](../IBeam.Identity/README.md)
+- Azure Table schema inventory for parity checks: [`../docs/identity-azure-table-schema-inventory.md`](../docs/identity-azure-table-schema-inventory.md)
+- Roles, permissions, and grants: [`../docs/roles-permissions-and-grants.md`](../docs/roles-permissions-and-grants.md)
+- Service logging and audit: [`../docs/service-logging-and-audit.md`](../docs/service-logging-and-audit.md)
+
+Agents should use the Azure Table schema inventory as a parity checklist when extending the EF provider, while preserving EF-native relational design.

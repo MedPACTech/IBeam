@@ -131,6 +131,27 @@ Examples:
 - `TablePrefix = "IBeam"` + `AspNetUsers` => `IBeamAspNetUsers`
 - `TablePrefix = "Acme"` + `TenantUsers` => `AcmeTenantUsers`
 
+Some consuming applications configure the ElCamino base table names to use `Identity` instead of
+`AspNet`. For those hosts, use:
+
+```json
+{
+  "IBeam": {
+    "Identity": {
+      "AzureTable": {
+        "TablePrefix": "IBeam",
+        "UserTableName": "IdentityUsers",
+        "RoleTableName": "IdentityRoles",
+        "IndexTableName": "IdentityIndex"
+      }
+    }
+  }
+}
+```
+
+That produces physical tables such as `IBeamIdentityUsers`, `IBeamIdentityRoles`, and
+`IBeamIdentityIndex`.
+
 This applies to both ElCamino and custom IBeam identity tables.
 
 If `IBeam:Identity:AzureTable:TablePrefix` is unset, the provider uses an empty prefix. IBeam does not derive a prefix from the environment name, application name, or connection string. Environment-specific names such as `WellderlyTest` must be configured explicitly as `TablePrefix`.
@@ -542,7 +563,7 @@ public sealed class ProductService
         _access = access;
     }
 
-    public async Task UpdateProductAsync(
+public async Task UpdateProductAsync(
         ClaimsPrincipal user,
         Guid productId,
         UpdateProductRequest request,
@@ -559,3 +580,15 @@ public sealed class ProductService
     }
 }
 ```
+
+## Extended Docs And Agent Guidance
+
+- AI prompt: [`.agent/prompt.md`](./.agent/prompt.md)
+- Root implementation guide: [`../.agent/implementation-guide.md`](../.agent/implementation-guide.md)
+- Azure Table schema inventory: [`../docs/identity-azure-table-schema-inventory.md`](../docs/identity-azure-table-schema-inventory.md)
+- Roles, permissions, and grants: [`../docs/roles-permissions-and-grants.md`](../docs/roles-permissions-and-grants.md)
+- Service logging and audit: [`../docs/service-logging-and-audit.md`](../docs/service-logging-and-audit.md)
+- Service operation permissions: [`../docs/service-operation-permissions.md`](../docs/service-operation-permissions.md)
+- Consuming API migration prompt: [`../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md`](../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
+
+Agents should treat Identity as auth/account infrastructure and keep application domain behavior in the consuming application's services.
