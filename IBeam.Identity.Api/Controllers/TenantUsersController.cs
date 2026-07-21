@@ -17,15 +17,21 @@ public sealed class TenantUsersController : ControllerBase
 {
     private readonly ITenantMembershipStore _memberships;
     private readonly ITenantRoleService _roles;
+    private readonly ITenantUserDirectoryService _directory;
+    private readonly ITenantUserProvisioningService _provisioning;
     private readonly IOptionsSnapshot<IBeamAccessControlOptions> _accessOptions;
 
     public TenantUsersController(
         ITenantMembershipStore memberships,
         ITenantRoleService roles,
+        ITenantUserDirectoryService directory,
+        ITenantUserProvisioningService provisioning,
         IOptionsSnapshot<IBeamAccessControlOptions> accessOptions)
     {
         _memberships = memberships ?? throw new ArgumentNullException(nameof(memberships));
         _roles = roles ?? throw new ArgumentNullException(nameof(roles));
+        _directory = directory ?? throw new ArgumentNullException(nameof(directory));
+        _provisioning = provisioning ?? throw new ArgumentNullException(nameof(provisioning));
         _accessOptions = accessOptions ?? throw new ArgumentNullException(nameof(accessOptions));
     }
 
@@ -57,6 +63,31 @@ public sealed class TenantUsersController : ControllerBase
             return forbidden;
 
         return Ok(await _memberships.GetUsersForTenantAsync(tenantId, ct).ConfigureAwait(false));
+    }
+
+    [HttpGet("tenants/{tenantId:guid}/user-directory")]
+    public async Task<IActionResult> GetTenantUserDirectory(
+        Guid tenantId,
+        [FromQuery] bool includePending = false,
+        [FromQuery] bool includeDisabled = false,
+        [FromQuery] bool pendingOnly = false,
+        CancellationToken ct = default)
+    {
+        if (!TryAuthorizeTenantAdmin(tenantId, out var forbidden))
+            return forbidden;
+
+        try
+        {
+            return Ok(await _directory.ListAsync(
+                    tenantId,
+                    new TenantUserDirectoryRequest(includePending, includeDisabled, pendingOnly),
+                    ct)
+                .ConfigureAwait(false));
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
     }
 
     [HttpGet("tenants/{tenantId:guid}/users/{userId:guid}")]
@@ -95,6 +126,28 @@ public sealed class TenantUsersController : ControllerBase
         catch (IdentityValidationException ex)
         {
             return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
+    [HttpPost("tenants/{tenantId:guid}/users/provision")]
+    public async Task<IActionResult> ProvisionTenantUser(Guid tenantId, [FromBody] ProvisionTenantUserRequest request, CancellationToken ct)
+    {
+        if (!TryAuthorizeTenantAdmin(tenantId, out var forbidden))
+            return forbidden;
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+
+        try
+        {
+            return Ok(await _provisioning.ProvisionAsync(tenantId, request, userId, ct).ConfigureAwait(false));
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+        catch (IdentityUnauthorizedException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
         }
     }
 

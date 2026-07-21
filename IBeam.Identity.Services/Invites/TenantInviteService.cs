@@ -88,11 +88,20 @@ public sealed class TenantInviteService : ITenantInviteService
 
     [IBeamOperation("identity.tenantinvites.list")]
     public async Task<IReadOnlyList<TenantInviteInfo>> ListInvitesAsync(Guid tenantId, CancellationToken ct = default)
+        => await ListInvitesAsync(tenantId, null, ct).ConfigureAwait(false);
+
+    [IBeamOperation("identity.tenantinvites.list")]
+    public async Task<IReadOnlyList<TenantInviteInfo>> ListInvitesAsync(Guid tenantId, TenantInviteListRequest? request, CancellationToken ct = default)
         => await _operations.ExecuteAsync(
             this,
-            async token => (await _invites.ListForTenantAsync(tenantId, token).ConfigureAwait(false))
-                .Select(TenantInviteInfo.FromRecord)
-                .ToList(),
+            async token =>
+            {
+                var invites = (await _invites.ListForTenantAsync(tenantId, token).ConfigureAwait(false))
+                    .Select(TenantInviteInfo.FromRecord)
+                    .ToList();
+
+                return ApplyListFilter(invites, request, DateTimeOffset.UtcNow);
+            },
             new ServiceOperationExecutionOptions { TenantId = tenantId },
             ct).ConfigureAwait(false);
 
@@ -183,7 +192,8 @@ public sealed class TenantInviteService : ITenantInviteService
             RedirectUrl: NormalizeOptional(request.RedirectUrl),
             CorrelationId: correlationId,
             CausationId: causationId,
-            Metadata: NormalizeMetadata(request.Metadata));
+            Metadata: NormalizeMetadata(request.Metadata),
+            RequirePasswordSetup: request.RequirePasswordSetup);
 
         await PublishInviteEventAsync(new TenantInviteCreateRequestedEvent
         {
@@ -314,7 +324,8 @@ public sealed class TenantInviteService : ITenantInviteService
             invite.ExpiresUtc,
             invite.Status,
             invite.ProfileHints,
-            invite.RedirectUrl);
+            invite.RedirectUrl,
+            invite.RequirePasswordSetup);
     }
 
     private async Task<TenantInviteAcceptResult> AcceptInviteCoreAsync(
@@ -521,6 +532,16 @@ public sealed class TenantInviteService : ITenantInviteService
             var existing = await _users.FindByEmailAsync(invite.NormalizedDestination, ct).ConfigureAwait(false);
             if (existing is not null)
             {
+                if (invite.RequirePasswordSetup)
+                {
+                    if (string.IsNullOrWhiteSpace(request.Password))
+                        throw new IdentityValidationException("Password is required.");
+
+                    await _users.SetPasswordAsync(existing.UserId, request.Password, ct).ConfigureAwait(false);
+                    await _users.SetEmailConfirmedAsync(existing.UserId, true, ct).ConfigureAwait(false);
+                    return (existing with { EmailConfirmed = true }, false);
+                }
+
                 if (string.IsNullOrWhiteSpace(request.Password) ||
                     !await _users.ValidatePasswordAsync(invite.NormalizedDestination, request.Password, ct).ConfigureAwait(false))
                 {
@@ -873,6 +894,63 @@ public sealed class TenantInviteService : ITenantInviteService
                 Metadata = NormalizeMetadata(x.Metadata)
             })
             .ToList() ?? [];
+
+    private static IReadOnlyList<TenantInviteInfo> ApplyListFilter(
+        IReadOnlyList<TenantInviteInfo> invites,
+        TenantInviteListRequest? request,
+        DateTimeOffset now)
+    {
+        if (request is null)
+            return invites;
+
+        var status = NormalizeOptional(request.Status)?.ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(status) && !IsKnownStatus(status))
+            throw new IdentityValidationException("Status must be pending, sent, expired, redeemed, or revoked.");
+
+        var filtered = invites.Select(x => x with { Status = ResolveEffectiveStatus(x, now) });
+
+        if (request.ActiveOnly)
+        {
+            filtered = filtered.Where(IsActiveInvite);
+        }
+        else
+        {
+            if (request.IncludeExpired == false)
+                filtered = filtered.Where(x => !string.Equals(x.Status, TenantInviteStatuses.Expired, StringComparison.OrdinalIgnoreCase));
+            if (request.IncludeRedeemed == false)
+                filtered = filtered.Where(x => !string.Equals(x.Status, TenantInviteStatuses.Redeemed, StringComparison.OrdinalIgnoreCase));
+            if (request.IncludeRevoked == false)
+                filtered = filtered.Where(x => !string.Equals(x.Status, TenantInviteStatuses.Revoked, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+            filtered = filtered.Where(x => string.Equals(x.Status, status, StringComparison.OrdinalIgnoreCase));
+
+        return filtered.ToList();
+    }
+
+    private static string ResolveEffectiveStatus(TenantInviteInfo invite, DateTimeOffset now)
+    {
+        if (invite.ExpiresUtc <= now &&
+            (string.Equals(invite.Status, TenantInviteStatuses.Pending, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(invite.Status, TenantInviteStatuses.Sent, StringComparison.OrdinalIgnoreCase)))
+        {
+            return TenantInviteStatuses.Expired;
+        }
+
+        return invite.Status;
+    }
+
+    private static bool IsActiveInvite(TenantInviteInfo invite)
+        => string.Equals(invite.Status, TenantInviteStatuses.Pending, StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(invite.Status, TenantInviteStatuses.Sent, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsKnownStatus(string status)
+        => string.Equals(status, TenantInviteStatuses.Pending, StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(status, TenantInviteStatuses.Sent, StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(status, TenantInviteStatuses.Expired, StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(status, TenantInviteStatuses.Redeemed, StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(status, TenantInviteStatuses.Revoked, StringComparison.OrdinalIgnoreCase);
 
     private static IReadOnlyDictionary<string, string> NormalizeMetadata(IReadOnlyDictionary<string, string>? metadata)
         => metadata?

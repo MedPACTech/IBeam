@@ -57,4 +57,5 @@ public static class UserExtensionOperations
     public const string Created = "created";
     public const string Login = "login";
     public const string Selected = "selected";
+    public const string AdminProvisioned = "admin-provisioned";
 }

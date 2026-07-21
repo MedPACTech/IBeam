@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.9.0 - 2026-07-21
+
+### Added
+- Added tenant invite list filtering for status, active-only pending invites, and audit-friendly include/exclude switches for expired, redeemed, and revoked invite records.
+- Added a combined tenant user directory endpoint that can return active tenant users, pending invite rows, disabled users, or pending-only invite views for admin user-management screens.
+- Added tenant admin user provisioning APIs and services to create or link identity users, attach tenant memberships, grant roles, apply access grants, invoke user extension hooks, and optionally send setup invites.
+- Added password setup invite support so provisioned email/password users can set their own password through invite acceptance.
+
+### Changed
+- Tenant invite listing now supports effective expiration filtering without purging invite records.
+- User extension context now includes the `admin-provisioned` operation for consuming apps that create or update app-owned profile rows during admin provisioning.
+- Identity API documentation now describes invite filtering, user directory, admin provisioning, password setup, and the IBeam/app profile data boundary.
+
+### Tests
+- Added service and API coverage for invite filtering, user directory composition, admin provisioning, and password setup invite acceptance.
+
 ## 2.6.0 - 2026-07-20
 
 ### Breaking

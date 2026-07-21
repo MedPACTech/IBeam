@@ -167,7 +167,8 @@ public sealed class AzureTableTenantInviteStore : ITenantInviteStore
             RedirectUrl = invite.RedirectUrl,
             CorrelationId = invite.CorrelationId,
             CausationId = invite.CausationId,
-            MetadataJson = Serialize(invite.Metadata)
+            MetadataJson = Serialize(invite.Metadata),
+            RequirePasswordSetup = invite.RequirePasswordSetup
         };
 
     private static TenantInviteRecord ToRecord(TenantInviteEntity entity)
@@ -202,7 +203,8 @@ public sealed class AzureTableTenantInviteStore : ITenantInviteStore
             entity.RedirectUrl,
             entity.CorrelationId,
             entity.CausationId,
-            Deserialize<Dictionary<string, string>>(entity.MetadataJson));
+            Deserialize<Dictionary<string, string>>(entity.MetadataJson),
+            entity.RequirePasswordSetup);
     }
 
     private static Guid? ParseNullableGuid(string? value)

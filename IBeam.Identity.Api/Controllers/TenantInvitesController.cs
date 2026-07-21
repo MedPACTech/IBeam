@@ -50,12 +50,33 @@ public sealed class TenantInvitesController : ControllerBase
 
     [Authorize]
     [HttpGet("tenants/{tenantId:guid}/invites")]
-    public async Task<IActionResult> ListInvites(Guid tenantId, CancellationToken ct)
+    public async Task<IActionResult> ListInvites(
+        Guid tenantId,
+        [FromQuery] string? status = null,
+        [FromQuery] bool activeOnly = false,
+        [FromQuery] bool? includeExpired = null,
+        [FromQuery] bool? includeRedeemed = null,
+        [FromQuery] bool? includeRevoked = null,
+        CancellationToken ct = default)
     {
         if (!TryAuthorizeTenantAdmin(tenantId, out var forbidden))
             return forbidden;
 
-        return Ok(await _invites.ListInvitesAsync(tenantId, ct).ConfigureAwait(false));
+        try
+        {
+            var request = string.IsNullOrWhiteSpace(status) &&
+                          !activeOnly &&
+                          !includeExpired.HasValue &&
+                          !includeRedeemed.HasValue &&
+                          !includeRevoked.HasValue
+                ? null
+                : new TenantInviteListRequest(status, activeOnly, includeExpired, includeRedeemed, includeRevoked);
+            return Ok(await _invites.ListInvitesAsync(tenantId, request, ct).ConfigureAwait(false));
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
     }
 
     [Authorize]

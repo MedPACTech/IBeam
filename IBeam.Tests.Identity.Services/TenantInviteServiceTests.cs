@@ -138,7 +138,138 @@ public sealed class TenantInviteServiceTests
         tokens.VerifyAll();
     }
 
+    [TestMethod]
+    public async Task ListInvitesAsync_ActiveOnly_ReturnsOnlyUnexpiredPendingOrSent()
+    {
+        var tenantId = Guid.NewGuid();
+        var invitedBy = Guid.NewGuid();
+        var store = new InMemoryTenantInviteStore();
+        var sut = CreateService(store: store, tenantId: tenantId);
+
+        var active = await sut.CreateInviteAsync(
+            tenantId,
+            new TenantInviteCreateRequest(TenantInviteDestinationTypes.Email, Email: "active@example.com"),
+            invitedBy);
+        var expired = await sut.CreateInviteAsync(
+            tenantId,
+            new TenantInviteCreateRequest(TenantInviteDestinationTypes.Email, Email: "expired@example.com"),
+            invitedBy);
+        var redeemed = await sut.CreateInviteAsync(
+            tenantId,
+            new TenantInviteCreateRequest(TenantInviteDestinationTypes.Email, Email: "redeemed@example.com"),
+            invitedBy);
+        var revoked = await sut.CreateInviteAsync(
+            tenantId,
+            new TenantInviteCreateRequest(TenantInviteDestinationTypes.Email, Email: "revoked@example.com"),
+            invitedBy);
+
+        await UpdateInviteAsync(store, tenantId, expired.Invite.InviteId, x => x with { ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(-1) });
+        await UpdateInviteAsync(store, tenantId, redeemed.Invite.InviteId, x => x with { Status = TenantInviteStatuses.Redeemed });
+        await UpdateInviteAsync(store, tenantId, revoked.Invite.InviteId, x => x with { Status = TenantInviteStatuses.Revoked });
+
+        var list = await sut.ListInvitesAsync(tenantId, new TenantInviteListRequest(ActiveOnly: true));
+
+        Assert.HasCount(1, list);
+        Assert.AreEqual(active.Invite.InviteId, list[0].InviteId);
+    }
+
+    [TestMethod]
+    public async Task ListInvitesAsync_StatusExpired_UsesEffectiveExpiration()
+    {
+        var tenantId = Guid.NewGuid();
+        var invitedBy = Guid.NewGuid();
+        var store = new InMemoryTenantInviteStore();
+        var sut = CreateService(store: store, tenantId: tenantId);
+
+        var expired = await sut.CreateInviteAsync(
+            tenantId,
+            new TenantInviteCreateRequest(TenantInviteDestinationTypes.Email, Email: "expired@example.com"),
+            invitedBy);
+
+        await UpdateInviteAsync(store, tenantId, expired.Invite.InviteId, x => x with { ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(-1) });
+
+        var list = await sut.ListInvitesAsync(tenantId, new TenantInviteListRequest(Status: TenantInviteStatuses.Expired));
+
+        Assert.HasCount(1, list);
+        Assert.AreEqual(TenantInviteStatuses.Expired, list[0].Status);
+    }
+
+    [TestMethod]
+    public async Task AcceptInviteAsync_EmailPasswordSetup_SetsPasswordForExistingUser()
+    {
+        var tenantId = Guid.NewGuid();
+        var invitedBy = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var roleId = Guid.NewGuid();
+        var user = new IdentityUser(userId, "invited@example.com", false, DisplayName: "Existing User");
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var roles = new Mock<ITenantRoleService>(MockBehavior.Strict);
+        var memberships = new Mock<ITenantMembershipStore>(MockBehavior.Strict);
+        var extensions = new Mock<IIdentityUserExtensionCoordinator>(MockBehavior.Strict);
+        var tokens = new Mock<ITokenService>(MockBehavior.Strict);
+
+        users.Setup(x => x.FindByEmailAsync("invited@example.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        users.Setup(x => x.SetPasswordAsync(userId, "new-password", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        users.Setup(x => x.SetEmailConfirmedAsync(userId, true, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        roles.Setup(x => x.EnsureTenantMembershipAndGrantRolesAsync(
+                It.Is<TenantMembershipRoleBootstrapRequest>(r => r.TenantId == tenantId && r.UserId == userId),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UserTenantRoleAssignment(
+                tenantId,
+                userId,
+                [new TenantRole(tenantId, roleId, "Member", false, true, DateTimeOffset.UtcNow)]));
+
+        memberships.Setup(x => x.GetTenantForUserAsync(userId, tenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TenantInfo(tenantId, "Workspace", ["Member"], true, [roleId]));
+
+        extensions.Setup(x => x.EnsureExtensionAsync(
+                It.Is<IdentityUser>(u => u.UserId == userId),
+                It.Is<UserExtensionContext>(c => c.Operation == "invite-accepted" && c.TenantId == tenantId),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        tokens.Setup(x => x.CreateAccessTokenAsync(
+                userId,
+                tenantId,
+                It.IsAny<IReadOnlyList<ClaimItem>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TokenResult("jwt", DateTimeOffset.UtcNow.AddHours(1), []));
+
+        var sut = CreateService(
+            users: users.Object,
+            roles: roles.Object,
+            memberships: memberships.Object,
+            extensions: extensions.Object,
+            tokens: tokens.Object,
+            tenantId: tenantId);
+
+        var created = await sut.CreateInviteAsync(
+            tenantId,
+            new TenantInviteCreateRequest(
+                TenantInviteDestinationTypes.Email,
+                Email: "invited@example.com",
+                RoleNames: ["Member"],
+                RequirePasswordSetup: true),
+            invitedBy);
+
+        var accepted = await sut.AcceptInviteAsync(
+            new TenantInviteAcceptRequest(
+                InviteToken: created.InviteToken,
+                Mode: TenantInviteAcceptModes.EmailPassword,
+                Password: "new-password"));
+
+        Assert.IsFalse(accepted.CreatedNewUser);
+        Assert.AreEqual(userId, accepted.User.UserId);
+        users.Verify(x => x.ValidatePasswordAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        users.VerifyAll();
+    }
+
     private static TenantInviteService CreateService(
+        InMemoryTenantInviteStore? store = null,
         RecordingIdentitySender? sender = null,
         IIdentityUserStore? users = null,
         ITenantRoleService? roles = null,
@@ -153,7 +284,7 @@ public sealed class TenantInviteServiceTests
             .ReturnsAsync(new IdentityTenant(effectiveTenantId, "Workspace", "WORKSPACE"));
 
         return new TenantInviteService(
-            new InMemoryTenantInviteStore(),
+            store ?? new InMemoryTenantInviteStore(),
             tenants.Object,
             users ?? Mock.Of<IIdentityUserStore>(MockBehavior.Strict),
             roles ?? Mock.Of<ITenantRoleService>(MockBehavior.Strict),
@@ -169,6 +300,17 @@ public sealed class TenantInviteServiceTests
             new NoOpAuthEventPublisher(),
             Options.Create(new AuthEventOptions()),
             NullLogger<TenantInviteService>.Instance);
+    }
+
+    private static async Task UpdateInviteAsync(
+        InMemoryTenantInviteStore store,
+        Guid tenantId,
+        Guid inviteId,
+        Func<TenantInviteRecord, TenantInviteRecord> update)
+    {
+        var invite = await store.GetAsync(tenantId, inviteId);
+        Assert.IsNotNull(invite);
+        await store.UpdateAsync(update(invite));
     }
 
     private sealed class RecordingIdentitySender : IIdentityCommunicationSender

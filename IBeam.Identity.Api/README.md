@@ -356,6 +356,122 @@ Acceptance validates the invite token, verifies the invited destination, resolve
 
 Host applications should override `ITenantInviteUrlBuilder` and `ITenantInviteMessageFactory` when they need branded templates, product-specific URLs, or richer template models. IBeam does not own custom invite screens, billing/license policy, or app-specific profile fields.
 
+### Invite Filtering
+
+Tenant invite list responses remain audit-friendly by default. Add query parameters when building pending-user or invite management screens:
+
+```http
+GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/invites?activeOnly=true
+Authorization: Bearer {ownerOrAdminTenantToken}
+```
+
+`activeOnly=true` returns only effectively active `pending` or `sent` invites. Invites whose stored status is `pending` or `sent` but whose `expiresUtc` is in the past are treated as `expired` for filtering.
+
+```http
+GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/invites?status=sent
+GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/invites?status=expired
+GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/invites?includeExpired=false&includeRedeemed=false&includeRevoked=false
+```
+
+Filtering does not purge invite records. Expired, redeemed, and revoked rows remain available for audit/history unless excluded by the query.
+
+### Tenant User Directory
+
+Use the directory endpoint when an admin UI needs active members and pending invites in one list:
+
+```http
+GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/user-directory?includePending=true
+Authorization: Bearer {ownerOrAdminTenantToken}
+```
+
+```json
+[
+  {
+    "kind": "user",
+    "tenantId": "225925cc-995e-4584-a63b-4f2cb4f38f6f",
+    "userId": "be0b8ac1-bd87-4a70-96a2-f0cd8950d2e3",
+    "email": "ada@example.com",
+    "displayName": "Ada Lovelace",
+    "status": "active",
+    "roleIds": [],
+    "roleNames": ["Member"]
+  },
+  {
+    "kind": "invite",
+    "tenantId": "225925cc-995e-4584-a63b-4f2cb4f38f6f",
+    "inviteId": "d8ecb5eb-5299-4071-9e55-d3590b9b9ea0",
+    "email": "grace@example.com",
+    "displayName": "Grace Hopper",
+    "status": "sent",
+    "roleIds": [],
+    "roleNames": ["Member"],
+    "expiresUtc": "2026-08-01T00:00:00Z"
+  }
+]
+```
+
+Directory query options:
+
+```http
+GET /api/tenants/{tenantId}/user-directory
+GET /api/tenants/{tenantId}/user-directory?includePending=true
+GET /api/tenants/{tenantId}/user-directory?includeDisabled=true
+GET /api/tenants/{tenantId}/user-directory?pendingOnly=true
+```
+
+Pending invite rows expose IBeam identity hints only: email or phone, display name, first name, last name, roles, status, and expiry.
+
+### Admin Provision Tenant User
+
+Use provisioning when an owner/admin needs to create or link an identity user before the person accepts an invite or logs in:
+
+```http
+POST /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/users/provision
+Authorization: Bearer {ownerOrAdminTenantToken}
+Content-Type: application/json
+
+{
+  "email": "ada@example.com",
+  "displayName": "Ada Lovelace",
+  "firstName": "Ada",
+  "lastName": "Lovelace",
+  "roleNames": ["Member"],
+  "setAsDefaultTenant": true,
+  "sendInvite": true,
+  "requirePasswordSetup": true,
+  "redirectUrl": "https://app.example.com/invites/accept",
+  "profileMetadata": {
+    "source": "admin-users"
+  }
+}
+```
+
+The provisioning service normalizes the email/phone, finds or creates the IBeam identity user, links the tenant membership, grants roles, applies optional access grants, invokes the user extension coordinator with `Operation = "admin-provisioned"`, and optionally sends a setup invite.
+
+When `sendInvite=true`, IBeam creates a normal tenant invite carrying the same identity hints and role intent. When `requirePasswordSetup=true`, accepting that invite with `mode = "email-password"` sets the password through IBeam instead of requiring an admin-known password.
+
+```http
+POST /api/invites/accept
+Content-Type: application/json
+
+{
+  "inviteToken": "{inviteToken}",
+  "mode": "email-password",
+  "password": "new secure password",
+  "displayName": "Ada Lovelace",
+  "firstName": "Ada",
+  "lastName": "Lovelace"
+}
+```
+
+For new provisioned email/password users, IBeam creates the identity without a usable password until setup is completed. Admins should not set or know the employee's final password.
+
+### Profile Data Boundary
+
+IBeam stores identity, auth, tenant membership, tenant roles, invite lifecycle, and access grants. It may carry profile hints such as display name, first name, last name, and limited metadata through extension hooks.
+
+Consuming apps own extended profile data such as address, title, department, employee metadata, preferences, and app state. Use `IIdentityUserExtensionCoordinator`/`UserExtensionContext` to create or update app-owned profile rows during user creation, login, tenant selection, invite acceptance, and admin provisioning. Anonymous invite preview must not expose sensitive app-specific profile metadata.
+
 ## API Credential Role Catalog
 
 API credential role names are machine/agent scopes assigned directly to API credentials. They are

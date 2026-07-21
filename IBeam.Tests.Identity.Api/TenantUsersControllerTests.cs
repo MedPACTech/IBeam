@@ -89,6 +89,8 @@ public sealed class TenantUsersControllerTests
         var controller = new TenantUsersController(
             memberships ?? new FakeTenantMembershipStore(),
             roles ?? new FakeTenantRoleService(),
+            new FakeTenantUserDirectoryService(),
+            new FakeTenantUserProvisioningService(),
             new StaticOptionsSnapshot<IBeamAccessControlOptions>(accessOptions ?? new IBeamAccessControlOptions()));
 
         var claims = new List<Claim>
@@ -189,5 +191,28 @@ public sealed class TenantUsersControllerTests
                 IsSystem: false,
                 IsActive: true,
                 CreatedAt: DateTimeOffset.UtcNow);
+    }
+
+    private sealed class FakeTenantUserDirectoryService : ITenantUserDirectoryService
+    {
+        public Task<IReadOnlyList<TenantUserDirectoryItem>> ListAsync(
+            Guid tenantId,
+            TenantUserDirectoryRequest? request = null,
+            CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<TenantUserDirectoryItem>>([]);
+    }
+
+    private sealed class FakeTenantUserProvisioningService : ITenantUserProvisioningService
+    {
+        public Task<ProvisionTenantUserResult> ProvisionAsync(
+            Guid tenantId,
+            ProvisionTenantUserRequest request,
+            Guid provisionedByUserId,
+            CancellationToken ct = default)
+            => Task.FromResult(new ProvisionTenantUserResult(
+                new IdentityUser(UserId, request.Email, false, request.PhoneNumber),
+                new TenantInfo(tenantId, string.Empty, [], true),
+                [],
+                CreatedNewUser: true));
     }
 }

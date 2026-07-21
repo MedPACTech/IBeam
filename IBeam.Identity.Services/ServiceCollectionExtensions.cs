@@ -120,6 +120,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITenantSelectionService, TenantSelectionService>();
         services.AddScoped<ITenantRoleService, TenantRoleService>();
         services.AddScoped<ITenantInviteService, TenantInviteService>();
+        services.AddScoped<ITenantUserDirectoryService, TenantUserDirectoryService>();
+        services.AddScoped<ITenantUserProvisioningService, TenantUserProvisioningService>();
         services.TryAddScoped<ITenantInviteStore, InMemoryTenantInviteStore>();
         services.TryAddScoped<ITenantInviteUrlBuilder, DefaultTenantInviteUrlBuilder>();
         services.TryAddScoped<ITenantInviteMessageFactory, DefaultTenantInviteMessageFactory>();

@@ -37,4 +37,5 @@ public sealed class TenantInviteEntity : ITableEntity
     public string? CausationId { get; set; }
     public string? MetadataJson { get; set; }
     public string? ProfileMetadataJson { get; set; }
+    public bool RequirePasswordSetup { get; set; }
 }

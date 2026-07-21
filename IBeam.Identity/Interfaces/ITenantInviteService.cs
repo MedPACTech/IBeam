@@ -11,6 +11,7 @@ public interface ITenantInviteService
         CancellationToken ct = default);
 
     Task<IReadOnlyList<TenantInviteInfo>> ListInvitesAsync(Guid tenantId, CancellationToken ct = default);
+    Task<IReadOnlyList<TenantInviteInfo>> ListInvitesAsync(Guid tenantId, TenantInviteListRequest? request, CancellationToken ct = default);
     Task<TenantInviteInfo?> GetInviteAsync(Guid tenantId, Guid inviteId, CancellationToken ct = default);
     Task<TenantInviteCreatedResult> ResendInviteAsync(Guid tenantId, Guid inviteId, Guid resentByUserId, CancellationToken ct = default);
     Task<TenantInviteInfo> RevokeInviteAsync(Guid tenantId, Guid inviteId, Guid revokedByUserId, string? reason = null, CancellationToken ct = default);

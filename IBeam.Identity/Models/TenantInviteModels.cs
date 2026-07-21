@@ -51,7 +51,15 @@ public sealed record TenantInviteCreateRequest(
     string? RedirectUrl = null,
     IReadOnlyDictionary<string, string>? Metadata = null,
     string? CorrelationId = null,
-    string? CausationId = null);
+    string? CausationId = null,
+    bool RequirePasswordSetup = false);
+
+public sealed record TenantInviteListRequest(
+    string? Status = null,
+    bool ActiveOnly = false,
+    bool? IncludeExpired = null,
+    bool? IncludeRedeemed = null,
+    bool? IncludeRevoked = null);
 
 public sealed record TenantInviteAcceptRequest(
     string? InviteToken = null,
@@ -92,7 +100,8 @@ public sealed record TenantInviteRecord(
     string? RedirectUrl = null,
     string? CorrelationId = null,
     string? CausationId = null,
-    IReadOnlyDictionary<string, string>? Metadata = null)
+    IReadOnlyDictionary<string, string>? Metadata = null,
+    bool RequirePasswordSetup = false)
 {
     public bool IsRedeemable(DateTimeOffset now)
         => (string.Equals(Status, TenantInviteStatuses.Pending, StringComparison.OrdinalIgnoreCase) ||
@@ -121,7 +130,8 @@ public sealed record TenantInviteInfo(
     bool SetAsDefaultTenant,
     IReadOnlyList<TenantInviteAccessGrantRequest> AccessGrants,
     string? RedirectUrl,
-    IReadOnlyDictionary<string, string> Metadata)
+    IReadOnlyDictionary<string, string> Metadata,
+    bool RequirePasswordSetup = false)
 {
     public static TenantInviteInfo FromRecord(TenantInviteRecord record)
         => new(
@@ -145,7 +155,8 @@ public sealed record TenantInviteInfo(
             record.SetAsDefaultTenant,
             record.AccessGrants?.ToList() ?? [],
             record.RedirectUrl,
-            record.Metadata?.ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase) ?? []);
+            record.Metadata?.ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase) ?? [],
+            record.RequirePasswordSetup);
 }
 
 public sealed record TenantInviteCreatedResult(
@@ -161,7 +172,8 @@ public sealed record TenantInvitePreview(
     DateTimeOffset ExpiresUtc,
     string Status,
     TenantInviteProfileHints? ProfileHints,
-    string? RedirectUrl);
+    string? RedirectUrl,
+    bool RequirePasswordSetup = false);
 
 public sealed record TenantInviteAcceptResult(
     TenantInviteInfo Invite,
