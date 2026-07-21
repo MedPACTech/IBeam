@@ -410,6 +410,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         var displayName = string.IsNullOrWhiteSpace(tenantName) ? null : tenantName.Trim();
         var userDisplayName = NormalizeOptional(request.UserDisplayName);
         var userEmail = NormalizeEmail(request.UserEmail);
+        var userPhoneNumber = NormalizeOptional(request.UserPhoneNumber);
 
         var tenantUsers = TenantUsersTable();
         var tenantUserPk = _opts.TenantUsersPk(tenantId);
@@ -428,6 +429,8 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                 tenantUser.UserDisplayName = userDisplayName;
             if (!string.IsNullOrWhiteSpace(userEmail))
                 tenantUser.Email = userEmail;
+            if (!string.IsNullOrWhiteSpace(userPhoneNumber))
+                tenantUser.PhoneNumber = userPhoneNumber;
             await tenantUsers.UpdateEntityAsync(tenantUser, tenantUser.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
         }
         else
@@ -443,6 +446,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                     Status = "Active",
                     UserDisplayName = userDisplayName,
                     Email = userEmail,
+                    PhoneNumber = userPhoneNumber,
                     CreatedAt = now
                 }, ct).ConfigureAwait(false);
             }
@@ -463,6 +467,8 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                     tenantUser.UserDisplayName = userDisplayName;
                 if (!string.IsNullOrWhiteSpace(userEmail))
                     tenantUser.Email = userEmail;
+                if (!string.IsNullOrWhiteSpace(userPhoneNumber))
+                    tenantUser.PhoneNumber = userPhoneNumber;
                 await tenantUsers.UpdateEntityAsync(tenantUser, tenantUser.ETag, TableUpdateMode.Replace, ct)
                     .ConfigureAwait(false);
             }

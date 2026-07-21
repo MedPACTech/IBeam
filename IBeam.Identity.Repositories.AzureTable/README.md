@@ -78,7 +78,7 @@ The Azure Table provider will:
 - ensure the tenant row exists
 - ensure default tenant roles exist
 - ensure requested role names exist
-- ensure `TenantUsers` membership exists
+- ensure `TenantUsers` membership exists, including identity-user display/email/phone projection when available
 - ensure `UserTenants` reverse membership exists
 - grant requested role IDs and role names
 

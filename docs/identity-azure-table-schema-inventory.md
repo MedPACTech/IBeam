@@ -90,6 +90,7 @@ which extends ElCamino `IdentityUser` with `PreferredTwoFactorMethod`.
 | `EmailConfirmed` | Whether email has been verified. | Set after email verification/password registration flow. |
 | `PhoneNumber` | Normalized phone number. | Used by SMS auth and `FindByPhoneAsync`; mirrored into `IBeamAuthIdentifiers`. |
 | `PhoneNumberConfirmed` | Whether phone has been verified. | Set after phone verification flow. |
+| `DisplayName` | Optional user display name. | Returned in `IdentityUser.DisplayName`; source-of-truth profile value for tenant-user projections. |
 | `PasswordHash` | ASP.NET Identity password hash. | Verified in password login; updated by set/reset password flows. |
 | `SecurityStamp` | ASP.NET Identity security stamp. | Updated when password changes. |
 | `ConcurrencyStamp` | ASP.NET Identity concurrency token. | Provider-managed optimistic concurrency at identity layer. |
@@ -163,8 +164,9 @@ Legacy comments and parsers also reference `TEN#{tenantId}` / `USR#{userId}`.
 | `CreatedAt` | Membership creation timestamp. | Returned in tenant-user APIs. |
 | `DisabledAt` | When membership was disabled. | Set by disable membership flow and returned in API model. |
 | `DisabledReason` | Optional disable reason. | Set by disable membership flow and returned in API model. |
-| `UserDisplayName` | Optional denormalized user display name. | Populated when user details are available during tenant-user linking/bootstrap and returned in `TenantUserInfo`. |
-| `Email` | Optional denormalized user email. | Populated when user details are available during tenant-user linking/bootstrap and returned in `TenantUserInfo`. |
+| `UserDisplayName` | Optional denormalized user display name. | Populated from `IdentityUser.DisplayName` when user details are available during tenant-user linking/bootstrap and returned as `TenantUserInfo.DisplayName`. |
+| `Email` | Optional denormalized user email. | Populated from `IdentityUser.Email` when user details are available during tenant-user linking/bootstrap and returned in `TenantUserInfo.Email`. |
+| `PhoneNumber` | Optional denormalized user phone number. | Populated from `IdentityUser.PhoneNumber` when user details are available during tenant-user linking/bootstrap and returned in `TenantUserInfo.PhoneNumber`. |
 | `RolesCsv` | Comma-separated role names assigned to the user in this tenant. | Still active: returned as role names, updated on grants/revokes/renames, and used as fallback when `RoleIdsCsv` is absent. Legacy but not removable without migration. |
 | `RoleIdsCsv` | Comma-separated tenant role ids assigned to the user. | Canonical role assignment field used by `GetRolesForUserAsync`, grant/revoke, and role rename/delete synchronization. |
 

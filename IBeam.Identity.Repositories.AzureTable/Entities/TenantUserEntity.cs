@@ -24,6 +24,7 @@ internal sealed class TenantUserEntity : ITableEntity
     // Display / lookup helpers (optional but very practical)
     public string? UserDisplayName { get; set; }
     public string? Email { get; set; }                       // normalized lower-case
+    public string? PhoneNumber { get; set; }
 
     // Authorization
     public string RolesCsv { get; set; } = "";

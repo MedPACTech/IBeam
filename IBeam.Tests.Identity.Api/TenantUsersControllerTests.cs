@@ -38,7 +38,10 @@ public sealed class TenantUsersControllerTests
             {
                 UserId = UserId,
                 RoleNames = ["Editor"],
-                SetAsDefault = true
+                SetAsDefault = true,
+                DisplayName = "Ada Lovelace",
+                Email = "ada@example.com",
+                PhoneNumber = "+16145551212"
             },
             CancellationToken.None);
 
@@ -48,6 +51,9 @@ public sealed class TenantUsersControllerTests
         Assert.AreEqual(UserId, roles.LastBootstrapRequest.UserId);
         CollectionAssert.Contains(roles.LastBootstrapRequest.RoleNames!.ToList(), "Editor");
         Assert.IsTrue(roles.LastBootstrapRequest.SetAsDefault);
+        Assert.AreEqual("Ada Lovelace", roles.LastBootstrapRequest.UserDisplayName);
+        Assert.AreEqual("ada@example.com", roles.LastBootstrapRequest.UserEmail);
+        Assert.AreEqual("+16145551212", roles.LastBootstrapRequest.UserPhoneNumber);
     }
 
     [TestMethod]

@@ -293,6 +293,8 @@ When configured, IBeam hydrates the app-owned tenant extension during tenant cre
 
 `ITenantMetadataProvider` lets an app project app-owned metadata back into IBeam tenant displays. For example, a Hubbsly provider can return `DisplayName = Tenant.DisplayName` and `IsActive = Tenant.IsActive && !Tenant.IsDeleted`; IBeam then uses that metadata when returning tenant selections and before issuing tenant-scoped tokens.
 
+Tenant-user profile fields are projections from `IdentityUser`, not separate tenant-owned profile data. `TenantUserInfo` exposes `DisplayName`, `Email`, and `PhoneNumber` so tenant user lists align with `IdentityUser.DisplayName`, `IdentityUser.Email`, and `IdentityUser.PhoneNumber`.
+
 ### User extensions
 
 IBeam owns identity/security primitives only: identity user id, login identifiers, verification/auth state, passwords, OTP, sessions, refresh tokens, tenant membership, and role/token claims. Applications own extended user profile data such as display name, first and last name, preferences, onboarding state, and tenant-scoped profile metadata.

@@ -145,6 +145,7 @@ public sealed class TenantRoleService : ITenantRoleService
             TenantName = string.IsNullOrWhiteSpace(request.TenantName) ? null : request.TenantName.Trim(),
             UserDisplayName = string.IsNullOrWhiteSpace(request.UserDisplayName) ? null : request.UserDisplayName.Trim(),
             UserEmail = string.IsNullOrWhiteSpace(request.UserEmail) ? null : request.UserEmail.Trim().ToLowerInvariant(),
+            UserPhoneNumber = string.IsNullOrWhiteSpace(request.UserPhoneNumber) ? null : request.UserPhoneNumber.Trim(),
             RoleIds = request.RoleIds?.Where(x => x != Guid.Empty).Distinct().ToList(),
             RoleNames = request.RoleNames?
                 .Select(NormalizeRoleName)
@@ -165,7 +166,8 @@ public sealed class TenantRoleService : ITenantRoleService
             return request;
 
         if (!string.IsNullOrWhiteSpace(request.UserDisplayName) &&
-            !string.IsNullOrWhiteSpace(request.UserEmail))
+            !string.IsNullOrWhiteSpace(request.UserEmail) &&
+            !string.IsNullOrWhiteSpace(request.UserPhoneNumber))
         {
             return request;
         }
@@ -181,7 +183,10 @@ public sealed class TenantRoleService : ITenantRoleService
                 : request.UserDisplayName,
             UserEmail = string.IsNullOrWhiteSpace(request.UserEmail)
                 ? user.Email
-                : request.UserEmail
+                : request.UserEmail,
+            UserPhoneNumber = string.IsNullOrWhiteSpace(request.UserPhoneNumber)
+                ? user.PhoneNumber
+                : request.UserPhoneNumber
         };
     }
 

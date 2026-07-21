@@ -85,8 +85,9 @@ public sealed class TenantUsersController : ControllerBase
                     request.RoleIds,
                     request.RoleNames,
                     request.SetAsDefault,
-                    request.UserDisplayName,
-                    request.Email),
+                    request.DisplayName ?? request.UserDisplayName,
+                    request.Email,
+                    request.PhoneNumber),
                 ct).ConfigureAwait(false);
 
             return Ok(result);
@@ -159,8 +160,10 @@ public sealed class LinkTenantUserRequest
     public List<Guid>? RoleIds { get; set; }
     public List<string>? RoleNames { get; set; }
     public bool SetAsDefault { get; set; }
+    public string? DisplayName { get; set; }
     public string? UserDisplayName { get; set; }
     public string? Email { get; set; }
+    public string? PhoneNumber { get; set; }
 }
 
 public sealed class DisableTenantUserRequest

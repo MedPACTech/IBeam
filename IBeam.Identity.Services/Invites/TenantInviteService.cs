@@ -707,7 +707,8 @@ public sealed class TenantInviteService : ITenantInviteService
                     RoleNames: roleNames,
                     SetAsDefault: setAsDefault,
                     UserDisplayName: displayName,
-                    UserEmail: user.Email),
+                    UserEmail: user.Email,
+                    UserPhoneNumber: user.PhoneNumber),
                 ct).ConfigureAwait(false);
         }
 

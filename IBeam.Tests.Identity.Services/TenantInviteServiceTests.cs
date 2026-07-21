@@ -48,7 +48,7 @@ public sealed class TenantInviteServiceTests
         var invitedBy = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var roleId = Guid.NewGuid();
-        var user = new IdentityUser(userId, "invited@example.com", true, DisplayName: "Existing User");
+        var user = new IdentityUser(userId, "invited@example.com", true, PhoneNumber: "+16145551212", DisplayName: "Existing User");
         var sender = new RecordingIdentitySender();
         var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
         var roles = new Mock<ITenantRoleService>(MockBehavior.Strict);
@@ -66,7 +66,8 @@ public sealed class TenantInviteServiceTests
                     r.RoleNames!.SequenceEqual(new[] { "Member" }) &&
                     r.SetAsDefault &&
                     r.UserDisplayName == "Invite Name" &&
-                    r.UserEmail == "invited@example.com"),
+                    r.UserEmail == "invited@example.com" &&
+                    r.UserPhoneNumber == "+16145551212"),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UserTenantRoleAssignment(
                 tenantId,
