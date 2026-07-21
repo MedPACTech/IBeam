@@ -15,6 +15,7 @@ internal sealed class TenantRoleEntity : ITableEntity
     public string RoleId { get; set; } = default!;
     public string Name { get; set; } = string.Empty;
     public string NormalizedName { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public bool IsSystem { get; set; }
     public string Status { get; set; } = "Active";
     public DateTimeOffset CreatedAt { get; set; }

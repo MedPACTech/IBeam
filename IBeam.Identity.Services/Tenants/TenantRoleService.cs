@@ -60,34 +60,36 @@ public sealed class TenantRoleService : ITenantRoleService
     }
 
     [IBeamOperation("identity.tenantroles.create")]
-    public Task<TenantRole> CreateRoleAsync(Guid tenantId, string name, CancellationToken ct = default)
+    public Task<TenantRole> CreateRoleAsync(Guid tenantId, string name, CancellationToken ct = default, string? description = null)
         => _operations.ExecuteAsync(
             this,
-            token => CreateRoleCoreAsync(tenantId, name, token),
+            token => CreateRoleCoreAsync(tenantId, name, description, token),
             new ServiceOperationExecutionOptions { TenantId = tenantId },
             ct);
 
-    private Task<TenantRole> CreateRoleCoreAsync(Guid tenantId, string name, CancellationToken ct)
+    private Task<TenantRole> CreateRoleCoreAsync(Guid tenantId, string name, string? description, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         var normalizedName = NormalizeRoleName(name);
-        return _roles.CreateRoleAsync(tenantId, normalizedName, isSystem: false, ct);
+        var normalizedDescription = NormalizeRoleDescription(description);
+        return _roles.CreateRoleAsync(tenantId, normalizedName, isSystem: false, ct, normalizedDescription);
     }
 
     [IBeamOperation("identity.tenantroles.update")]
-    public Task<TenantRole> UpdateRoleAsync(Guid tenantId, Guid roleId, string name, CancellationToken ct = default)
+    public Task<TenantRole> UpdateRoleAsync(Guid tenantId, Guid roleId, string name, CancellationToken ct = default, string? description = null)
         => _operations.ExecuteAsync(
             this,
-            token => UpdateRoleCoreAsync(tenantId, roleId, name, token),
+            token => UpdateRoleCoreAsync(tenantId, roleId, name, description, token),
             new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = roleId },
             ct);
 
-    private Task<TenantRole> UpdateRoleCoreAsync(Guid tenantId, Guid roleId, string name, CancellationToken ct)
+    private Task<TenantRole> UpdateRoleCoreAsync(Guid tenantId, Guid roleId, string name, string? description, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateRoleId(roleId);
         var normalizedName = NormalizeRoleName(name);
-        return _roles.UpdateRoleAsync(tenantId, roleId, normalizedName, ct);
+        var normalizedDescription = NormalizeRoleDescription(description);
+        return _roles.UpdateRoleAsync(tenantId, roleId, normalizedName, ct, normalizedDescription);
     }
 
     [IBeamOperation("identity.tenantroles.delete")]
@@ -288,6 +290,18 @@ public sealed class TenantRoleService : ITenantRoleService
         var value = name.Trim();
         if (value.Length < 2 || value.Length > 64)
             throw new IdentityValidationException("Role name must be between 2 and 64 characters.");
+
+        return value;
+    }
+
+    private static string? NormalizeRoleDescription(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+            return null;
+
+        var value = description.Trim();
+        if (value.Length > 1024)
+            throw new IdentityValidationException("Role description must be 1024 characters or fewer.");
 
         return value;
     }

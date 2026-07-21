@@ -26,8 +26,11 @@ Important fields:
 - `RoleId`
 - `Name`
 - `NormalizedName`
+- `Description`
 - `IsSystem`
 - `Status`
+
+`Description` is optional end-user/help text for UI surfaces. It lets a consuming app list roles and explain what each role means without hard-coding role copy in the frontend. It is not used for authorization; role ids, role names, permission maps, and grants remain the authorization inputs.
 
 Role assignments are mirrored into membership/API credential rows:
 

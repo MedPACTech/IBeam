@@ -90,7 +90,7 @@ which extends ElCamino `IdentityUser` with `PreferredTwoFactorMethod`.
 | `EmailConfirmed` | Whether email has been verified. | Set after email verification/password registration flow. |
 | `PhoneNumber` | Normalized phone number. | Used by SMS auth and `FindByPhoneAsync`; mirrored into `IBeamAuthIdentifiers`. |
 | `PhoneNumberConfirmed` | Whether phone has been verified. | Set after phone verification flow. |
-| `DisplayName` | Optional user display name. | Returned in `IdentityUser.DisplayName`; source-of-truth profile value for tenant-user projections. |
+| `DisplayName` | User display name. | Returned in `IdentityUser.DisplayName`; source-of-truth display value for tenant-user projections. On create, IBeam uses the provided display name when present, otherwise email, otherwise phone number. |
 | `PasswordHash` | ASP.NET Identity password hash. | Verified in password login; updated by set/reset password flows. |
 | `SecurityStamp` | ASP.NET Identity security stamp. | Updated when password changes. |
 | `ConcurrencyStamp` | ASP.NET Identity concurrency token. | Provider-managed optimistic concurrency at identity layer. |
@@ -165,8 +165,8 @@ Legacy comments and parsers also reference `TEN#{tenantId}` / `USR#{userId}`.
 | `DisabledAt` | When membership was disabled. | Set by disable membership flow and returned in API model. |
 | `DisabledReason` | Optional disable reason. | Set by disable membership flow and returned in API model. |
 | `UserDisplayName` | Optional denormalized user display name. | Populated from `IdentityUser.DisplayName` when user details are available during tenant-user linking/bootstrap and returned as `TenantUserInfo.DisplayName`. |
-| `Email` | Optional denormalized user email. | Populated from `IdentityUser.Email` when user details are available during tenant-user linking/bootstrap and returned in `TenantUserInfo.Email`. |
-| `PhoneNumber` | Optional denormalized user phone number. | Populated from `IdentityUser.PhoneNumber` when user details are available during tenant-user linking/bootstrap and returned in `TenantUserInfo.PhoneNumber`. |
+| `Email` | Optional denormalized identity email. | Populated from `IdentityUser.Email` when user details are available during tenant-user linking/bootstrap and returned in `TenantUserInfo.Email`. This is an identity projection, not an app-owned contact email. |
+| `PhoneNumber` | Optional denormalized identity phone number. | Populated from `IdentityUser.PhoneNumber` when user details are available during tenant-user linking/bootstrap and returned in `TenantUserInfo.PhoneNumber`. This is an identity projection, not an app-owned contact phone. |
 | `RolesCsv` | Comma-separated role names assigned to the user in this tenant. | Still active: returned as role names, updated on grants/revokes/renames, and used as fallback when `RoleIdsCsv` is absent. Legacy but not removable without migration. |
 | `RoleIdsCsv` | Comma-separated tenant role ids assigned to the user. | Canonical role assignment field used by `GetRolesForUserAsync`, grant/revoke, and role rename/delete synchronization. |
 
@@ -210,6 +210,7 @@ Keys:
 | `RoleId` | Role id. | Used for point lookup, grant/revoke, and membership `RoleIdsCsv`. |
 | `Name` | Display/semantic role name. | Returned by role APIs and mirrored into membership `RolesCsv`. |
 | `NormalizedName` | Uppercase normalized role name. | Used to enforce per-tenant role-name uniqueness and get-or-create by name. |
+| `Description` | Optional role description for end-user UI/help text. | Returned by role APIs. Not used for authorization decisions. |
 | `IsSystem` | Whether the role is framework/system protected. | Prevents rename/delete for system roles. |
 | `Status` | Role status, usually `Active` or `Disabled`. | Used to filter role queries and role assignment resolution. |
 | `CreatedAt` | Role creation timestamp. | Returned in role model. |

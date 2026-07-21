@@ -7,7 +7,8 @@ public sealed record TenantRole(
     bool IsSystem,
     bool IsActive,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? UpdatedAt = null
+    DateTimeOffset? UpdatedAt = null,
+    string? Description = null
 );
 
 public sealed record UserTenantRoleAssignment(

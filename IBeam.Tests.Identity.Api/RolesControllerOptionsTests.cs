@@ -30,9 +30,18 @@ public sealed class RolesControllerOptionsTests
     {
         var sut = CreateController(new RoleManagementOptions { AllowTenantRoleCreation = true });
 
-        var result = await sut.CreateRole(TenantId, new UpsertRoleRequest { Name = "ClinicalAdmin" }, CancellationToken.None);
+        var result = await sut.CreateRole(
+            TenantId,
+            new UpsertRoleRequest
+            {
+                Name = "ClinicalAdmin",
+                Description = "Can manage clinical workflows."
+            },
+            CancellationToken.None);
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
+        var role = (TenantRole)((OkObjectResult)result).Value!;
+        Assert.AreEqual("Can manage clinical workflows.", role.Description);
     }
 
     private static RolesController CreateController(RoleManagementOptions options)
@@ -73,7 +82,7 @@ public sealed class RolesControllerOptionsTests
         public Task<TenantRole?> GetRoleAsync(Guid tenantId, Guid roleId, CancellationToken ct = default)
             => Task.FromResult<TenantRole?>(null);
 
-        public Task<TenantRole> CreateRoleAsync(Guid tenantId, string name, CancellationToken ct = default)
+        public Task<TenantRole> CreateRoleAsync(Guid tenantId, string name, CancellationToken ct = default, string? description = null)
             => Task.FromResult(new TenantRole(
                 TenantId: tenantId,
                 RoleId: Guid.NewGuid(),
@@ -81,9 +90,10 @@ public sealed class RolesControllerOptionsTests
                 IsSystem: false,
                 IsActive: true,
                 CreatedAt: DateTimeOffset.UtcNow,
-                UpdatedAt: DateTimeOffset.UtcNow));
+                UpdatedAt: DateTimeOffset.UtcNow,
+                Description: description));
 
-        public Task<TenantRole> UpdateRoleAsync(Guid tenantId, Guid roleId, string name, CancellationToken ct = default)
+        public Task<TenantRole> UpdateRoleAsync(Guid tenantId, Guid roleId, string name, CancellationToken ct = default, string? description = null)
             => Task.FromResult(new TenantRole(
                 TenantId: tenantId,
                 RoleId: roleId,
@@ -91,7 +101,8 @@ public sealed class RolesControllerOptionsTests
                 IsSystem: false,
                 IsActive: true,
                 CreatedAt: DateTimeOffset.UtcNow,
-                UpdatedAt: DateTimeOffset.UtcNow));
+                UpdatedAt: DateTimeOffset.UtcNow,
+                Description: description));
 
         public Task DeleteRoleAsync(Guid tenantId, Guid roleId, CancellationToken ct = default)
             => Task.CompletedTask;

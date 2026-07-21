@@ -200,7 +200,6 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
         var resources = ItemsForCategory(items, AccessCatalogCategories.Resource);
 
         return new AccessCatalogDto(
-            Roles: ItemsForCategory(items, AccessCatalogCategories.Role),
             Permissions: ItemsForCategory(items, AccessCatalogCategories.Permission),
             Operations: ItemsForCategory(items, AccessCatalogCategories.Operation),
             Modules: ItemsForCategory(items, AccessCatalogCategories.Module),
@@ -301,10 +300,6 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
     {
         var options = _options.CurrentValue;
         var items = new List<AccessCatalogItem>();
-
-        items.AddRange(options.OwnerRoleNames.Select(x => RoleItem(x, AccessCatalogSources.IBeamDefault)));
-        items.AddRange(options.AdminRoleNames.Select(x => RoleItem(x, AccessCatalogSources.IBeamDefault)));
-        items.AddRange(options.ApplicationRoleNames.Select(x => RoleItem(x, AccessCatalogSources.IBeamDefault)));
 
         items.AddRange(options.AccessLevels
             .Where(x => !string.IsNullOrWhiteSpace(x.Key))
@@ -619,21 +614,6 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
             .Where(x => string.Equals(x.Category, category, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-    private static AccessCatalogItem RoleItem(string roleName, string source)
-    {
-        var key = string.IsNullOrWhiteSpace(roleName) ? string.Empty : roleName.Trim();
-        return new AccessCatalogItem(
-            key,
-            key,
-            null,
-            AccessCatalogCategories.Role,
-            source,
-            true,
-            false,
-            true,
-            SubjectTypes: [AccessSubjectTypes.User]);
-    }
-
     private static string NormalizePermissionSource(string? source)
     {
         if (string.IsNullOrWhiteSpace(source))
@@ -658,7 +638,6 @@ public sealed class IBeamAccessControlService : IIBeamAccessControlService
     private static int CategoryOrder(string category)
         => category.ToLowerInvariant() switch
         {
-            AccessCatalogCategories.Role => 0,
             AccessCatalogCategories.Permission => 1,
             AccessCatalogCategories.Operation => 2,
             AccessCatalogCategories.Module => 3,

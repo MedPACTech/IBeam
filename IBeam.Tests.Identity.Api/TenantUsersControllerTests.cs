@@ -154,10 +154,10 @@ public sealed class TenantUsersControllerTests
         public Task<TenantRole?> GetRoleAsync(Guid tenantId, Guid roleId, CancellationToken ct = default)
             => Task.FromResult<TenantRole?>(null);
 
-        public Task<TenantRole> CreateRoleAsync(Guid tenantId, string name, CancellationToken ct = default)
+        public Task<TenantRole> CreateRoleAsync(Guid tenantId, string name, CancellationToken ct = default, string? description = null)
             => Task.FromResult(CreateRole(tenantId, Guid.NewGuid(), name));
 
-        public Task<TenantRole> UpdateRoleAsync(Guid tenantId, Guid roleId, string name, CancellationToken ct = default)
+        public Task<TenantRole> UpdateRoleAsync(Guid tenantId, Guid roleId, string name, CancellationToken ct = default, string? description = null)
             => Task.FromResult(CreateRole(tenantId, roleId, name));
 
         public Task DeleteRoleAsync(Guid tenantId, Guid roleId, CancellationToken ct = default)

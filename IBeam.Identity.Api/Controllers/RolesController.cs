@@ -60,7 +60,7 @@ public sealed class RolesController : ControllerBase
 
         try
         {
-            var role = await _roles.CreateRoleAsync(tenantId, req.Name, ct);
+            var role = await _roles.CreateRoleAsync(tenantId, req.Name, ct: ct, description: req.Description);
             return Ok(role);
         }
         catch (IdentityValidationException ex)
@@ -79,7 +79,7 @@ public sealed class RolesController : ControllerBase
 
         try
         {
-            var role = await _roles.UpdateRoleAsync(tenantId, roleId, req.Name, ct);
+            var role = await _roles.UpdateRoleAsync(tenantId, roleId, req.Name, ct: ct, description: req.Description);
             return Ok(role);
         }
         catch (IdentityValidationException ex)
@@ -173,6 +173,7 @@ public sealed class RolesController : ControllerBase
 public sealed class UpsertRoleRequest
 {
     public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
 }
 
 public sealed class UserRoleMutationRequest

@@ -144,7 +144,6 @@ public sealed class IBeamAccessControlServiceTests
 
         var catalog = await sut.GetAccessCatalogAsync(TenantId);
 
-        Assert.IsTrue(catalog.Roles.Any(x => x.Key == "Owner" && x.Source == AccessCatalogSources.IBeamDefault));
         Assert.IsTrue(catalog.Modules.Any(x => x.Key == "work" && x.Source == AccessCatalogSources.HostConfig));
         Assert.IsTrue(catalog.ApiScopes.Any(x => x.Key == "work"));
         Assert.IsTrue(catalog.Operations.Any(x => x.Key == "projects.delete" && x.IsDangerous));

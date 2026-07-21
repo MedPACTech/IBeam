@@ -34,7 +34,6 @@ public static class AccessCatalogSources
 
 public static class AccessCatalogCategories
 {
-    public const string Role = "role";
     public const string Permission = "permission";
     public const string Operation = "operation";
     public const string Module = "module";
@@ -110,7 +109,6 @@ public sealed record AccessOperationCatalogItem(
     string? IdParameter = null);
 
 public sealed record AccessCatalogDto(
-    IReadOnlyList<AccessCatalogItem> Roles,
     IReadOnlyList<AccessCatalogItem> Permissions,
     IReadOnlyList<AccessCatalogItem> Operations,
     IReadOnlyList<AccessCatalogItem> Modules,

@@ -201,6 +201,8 @@ See `IBeam.Identity.Api/README.md` for detailed setup, HTTP examples, current-us
 IBeam Identity supports tenant-scoped roles and tenant-level API credentials. API credentials are
 service identities, not human users. They belong to a tenant, store only a hashed secret, emit a
 credential principal, and can be assigned tenant role IDs and/or API-safe role/scope names.
+Tenant roles can also carry optional descriptions so consuming UIs can explain access levels from
+the same role-list/detail calls used for assignment.
 
 Role management endpoints:
 
@@ -219,6 +221,8 @@ GET  /api/tenants/{tenantId}/users/{userId}/roles
 POST /api/tenants/{tenantId}/roles/grant
 POST /api/tenants/{tenantId}/roles/revoke
 ```
+
+Use the tenant role endpoints as the canonical role catalog. The access catalog is intentionally focused on fine-grained permissions, operations, modules, resources, tools, agents, API scopes, and access levels; tenant roles are not part of the access-catalog contract.
 
 Tenant invite endpoints let owners/admins invite by email or SMS, preserve tenant context, apply roles and optional access grants, and ensure host-owned user extension rows during acceptance:
 

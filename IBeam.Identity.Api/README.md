@@ -849,7 +849,7 @@ public static class HubbslyModules
 
 Definitions/options are layered, assignments are persisted, and evaluation is unified.
 
-The effective catalog endpoint is what a frontend should use to decide what can be assigned:
+The effective catalog endpoint is what a frontend should use to decide which fine-grained access items can be assigned:
 
 ```http
 GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-catalog
@@ -874,22 +874,12 @@ hostConfig
 ibeamDefault
 ```
 
+Tenant roles are intentionally not part of the access-catalog contract. Use `GET /api/tenants/{tenantId}/roles` for the canonical tenant role list, role ids, and role descriptions. Access catalog remains focused on fine-grained permissions, operations, modules, API scopes, tools, agents, resources, and access levels.
+
 Example response:
 
 ```json
 {
-  "roles": [
-    {
-      "key": "Owner",
-      "label": "Owner",
-      "category": "role",
-      "source": "ibeamDefault",
-      "isAssignable": true,
-      "isMutable": false,
-      "isEnabled": true,
-      "subjectTypes": ["user"]
-    }
-  ],
   "permissions": [
     {
       "key": "work.view",
@@ -1279,7 +1269,10 @@ POST /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/roles
 Authorization: Bearer {ownerOrAdminTenantToken}
 Content-Type: application/json
 
-{ "name": "Work Viewer" }
+{
+  "name": "Work Viewer",
+  "description": "Can view work items and related workspace information."
+}
 ```
 
 ```http
@@ -1287,8 +1280,13 @@ POST /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/roles
 Authorization: Bearer {ownerOrAdminTenantToken}
 Content-Type: application/json
 
-{ "name": "Product Manager" }
+{
+  "name": "Product Manager",
+  "description": "Can manage product records and coordinate related work."
+}
 ```
+
+Role responses include `description` so consuming UIs can explain tenant role access without duplicating copy. Descriptions are display/help metadata only; IBeam authorization continues to use role ids, role names, permission mappings, and access grants.
 
 Grant roles to a user:
 

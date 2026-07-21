@@ -14,6 +14,8 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
 {
     public const string OwnerRoleName = "Owner";
     public const string AdminRoleName = "Administrator";
+    private const string OwnerRoleDescription = "Full tenant owner access, including tenant settings, users, roles, permissions, and API credentials.";
+    private const string AdminRoleDescription = "Administrative tenant access for managing users, roles, and day-to-day tenant operations.";
 
     private readonly TableServiceClient _serviceClient;
     private readonly AzureTableIdentityOptions _opts;
@@ -55,13 +57,19 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         }
     }
 
-    public async Task<TenantRole> CreateRoleAsync(Guid tenantId, string name, bool isSystem = false, CancellationToken ct = default)
+    public async Task<TenantRole> CreateRoleAsync(
+        Guid tenantId,
+        string name,
+        bool isSystem = false,
+        CancellationToken ct = default,
+        string? description = null)
     {
         try
         {
             ct.ThrowIfCancellationRequested();
             var roleName = NormalizeName(name);
             var normalized = roleName.ToUpperInvariant();
+            var roleDescription = NormalizeOptional(description);
 
             await EnsureRoleNameUniqueAsync(tenantId, normalized, roleIdToExclude: null, ct).ConfigureAwait(false);
 
@@ -76,6 +84,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                 RoleId = roleId.ToString("D"),
                 Name = roleName,
                 NormalizedName = normalized,
+                Description = roleDescription,
                 IsSystem = isSystem,
                 Status = "Active",
                 CreatedAt = now
@@ -90,7 +99,12 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         }
     }
 
-    public async Task<TenantRole> UpdateRoleAsync(Guid tenantId, Guid roleId, string name, CancellationToken ct = default)
+    public async Task<TenantRole> UpdateRoleAsync(
+        Guid tenantId,
+        Guid roleId,
+        string name,
+        CancellationToken ct = default,
+        string? description = null)
     {
         try
         {
@@ -100,17 +114,23 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
 
             if (!IsActive(existing.Status))
                 throw new IdentityNotFoundException($"Role '{roleId}' was not found.");
-            if (existing.IsSystem)
-                throw new IdentityValidationException("System roles cannot be renamed.");
-
             var roleName = NormalizeName(name);
             var normalized = roleName.ToUpperInvariant();
+            var roleDescription = NormalizeOptional(description);
+
+            if (existing.IsSystem &&
+                !string.Equals(existing.NormalizedName, normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new IdentityValidationException("System roles cannot be renamed.");
+            }
 
             await EnsureRoleNameUniqueAsync(tenantId, normalized, roleId, ct).ConfigureAwait(false);
 
             var previousName = existing.Name;
             existing.Name = roleName;
             existing.NormalizedName = normalized;
+            if (description is not null)
+                existing.Description = roleDescription;
             existing.UpdatedAt = DateTimeOffset.UtcNow;
 
             await RolesTable().UpdateEntityAsync(existing, existing.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
@@ -272,8 +292,8 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         try
         {
             ct.ThrowIfCancellationRequested();
-            await EnsureRoleByNameAsync(tenantId, OwnerRoleName, isSystem: true, ct).ConfigureAwait(false);
-            await EnsureRoleByNameAsync(tenantId, AdminRoleName, isSystem: true, ct).ConfigureAwait(false);
+            await EnsureRoleByNameAsync(tenantId, OwnerRoleName, isSystem: true, ct, OwnerRoleDescription).ConfigureAwait(false);
+            await EnsureRoleByNameAsync(tenantId, AdminRoleName, isSystem: true, ct, AdminRoleDescription).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -550,18 +570,37 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
     private static string? NormalizeEmail(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
 
-    private async Task<TenantRole> EnsureRoleByNameAsync(Guid tenantId, string name, bool isSystem, CancellationToken ct)
+    private async Task<TenantRole> EnsureRoleByNameAsync(
+        Guid tenantId,
+        string name,
+        bool isSystem,
+        CancellationToken ct,
+        string? description = null)
     {
         var roleName = NormalizeName(name);
         var normalized = roleName.ToUpperInvariant();
+        var roleDescription = NormalizeOptional(description);
         var existingByName = (await GetActiveRoleEntitiesAsync(tenantId, ct).ConfigureAwait(false))
             .FirstOrDefault(x => string.Equals(x.NormalizedName, normalized, StringComparison.OrdinalIgnoreCase));
 
         if (existingByName is not null)
         {
+            var changed = false;
             if (isSystem && !existingByName.IsSystem)
             {
                 existingByName.IsSystem = true;
+                changed = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(roleDescription) &&
+                string.IsNullOrWhiteSpace(existingByName.Description))
+            {
+                existingByName.Description = roleDescription;
+                changed = true;
+            }
+
+            if (changed)
+            {
                 existingByName.UpdatedAt = DateTimeOffset.UtcNow;
                 await RolesTable()
                     .UpdateEntityAsync(existingByName, existingByName.ETag, TableUpdateMode.Replace, ct)
@@ -583,6 +622,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
             RoleId = roleId.ToString("D"),
             Name = roleName,
             NormalizedName = normalized,
+            Description = roleDescription,
             IsSystem = isSystem,
             Status = "Active",
             CreatedAt = now
@@ -623,6 +663,13 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
             if (isSystem && !existing.IsSystem)
             {
                 existing.IsSystem = true;
+                changed = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(roleDescription) &&
+                string.IsNullOrWhiteSpace(existing.Description))
+            {
+                existing.Description = roleDescription;
                 changed = true;
             }
 
@@ -793,7 +840,8 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
             IsSystem: x.IsSystem,
             IsActive: IsActive(x.Status),
             CreatedAt: x.CreatedAt,
-            UpdatedAt: x.UpdatedAt);
+            UpdatedAt: x.UpdatedAt,
+            Description: NormalizeOptional(x.Description));
 
     private TableClient RolesTable()
         => _serviceClient.GetTableClient(_opts.FullTableName(_opts.TenantRolesTableName));

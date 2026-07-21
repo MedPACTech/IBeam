@@ -14,13 +14,29 @@ public sealed class TenantRoleServiceTests
     {
         var tenantId = Guid.NewGuid();
         var store = new Mock<ITenantRoleStore>(MockBehavior.Strict);
-        store.Setup(x => x.CreateRoleAsync(tenantId, "Provider Admin", false, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TenantRole(tenantId, Guid.NewGuid(), "Provider Admin", false, true, DateTimeOffset.UtcNow));
+        store.Setup(x => x.CreateRoleAsync(
+                tenantId,
+                "Provider Admin",
+                false,
+                It.IsAny<CancellationToken>(),
+                "Can manage provider operations."))
+            .ReturnsAsync(new TenantRole(
+                tenantId,
+                Guid.NewGuid(),
+                "Provider Admin",
+                false,
+                true,
+                DateTimeOffset.UtcNow,
+                Description: "Can manage provider operations."));
 
         var sut = new TenantRoleService(store.Object);
-        var result = await sut.CreateRoleAsync(tenantId, "   Provider Admin   ");
+        var result = await sut.CreateRoleAsync(
+            tenantId,
+            "   Provider Admin   ",
+            description: "  Can manage provider operations.  ");
 
         Assert.AreEqual("Provider Admin", result.Name);
+        Assert.AreEqual("Can manage provider operations.", result.Description);
         store.VerifyAll();
     }
 
@@ -30,7 +46,12 @@ public sealed class TenantRoleServiceTests
         var tenantId = Guid.NewGuid();
         var executor = new RecordingServiceOperationExecutor();
         var store = new Mock<ITenantRoleStore>(MockBehavior.Strict);
-        store.Setup(x => x.CreateRoleAsync(tenantId, "Provider Admin", false, It.IsAny<CancellationToken>()))
+        store.Setup(x => x.CreateRoleAsync(
+                tenantId,
+                "Provider Admin",
+                false,
+                It.IsAny<CancellationToken>(),
+                null))
             .ReturnsAsync(new TenantRole(tenantId, Guid.NewGuid(), "Provider Admin", false, true, DateTimeOffset.UtcNow));
 
         var sut = new TenantRoleService(

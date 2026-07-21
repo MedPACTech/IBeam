@@ -75,7 +75,57 @@ public sealed class UserExtensionTests
         store.VerifyAll();
     }
 
-    public sealed class AppUser : IIdentityUserProfileExtension
+    [TestMethod]
+    public void ResolveDisplayName_UsesExplicitValueBeforeEmailOrPhone()
+    {
+        var result = IdentityUserDefaults.ResolveDisplayName(
+            "  Abram  ",
+            "abram@example.com",
+            "+16145551212");
+
+        Assert.AreEqual("Abram", result);
+    }
+
+    [TestMethod]
+    public void ResolveDisplayName_FallsBackToEmailThenPhone()
+    {
+        var emailResult = IdentityUserDefaults.ResolveDisplayName(
+            null,
+            "  abram@example.com  ",
+            "+16145551212");
+        var phoneResult = IdentityUserDefaults.ResolveDisplayName(
+            null,
+            null,
+            "  +16145551212  ");
+
+        Assert.AreEqual("abram@example.com", emailResult);
+        Assert.AreEqual("+16145551212", phoneResult);
+    }
+
+    [TestMethod]
+    public void SyncIdentityContact_CopiesIdentityEmailAndPhoneWithoutContactFields()
+    {
+        var userId = Guid.NewGuid();
+        var profile = new AppUser(userId, null, "Abram")
+        {
+            ContactEmail = "support@example.com",
+            ContactPhoneNumber = "+16145550000"
+        };
+        var identityUser = new IdentityUser(
+            userId,
+            "  Abram@Example.com  ",
+            true,
+            PhoneNumber: "  +16145551212  ");
+
+        IdentityUserDefaults.SyncIdentityContact(profile, identityUser);
+
+        Assert.AreEqual("abram@example.com", profile.IdentityEmail);
+        Assert.AreEqual("+16145551212", profile.IdentityPhoneNumber);
+        Assert.AreEqual("support@example.com", profile.ContactEmail);
+        Assert.AreEqual("+16145550000", profile.ContactPhoneNumber);
+    }
+
+    public sealed class AppUser : IIdentityUserProfileExtension, IIdentityUserContactProjection
     {
         public AppUser(Guid userId, Guid? tenantId, string displayName)
         {
@@ -89,5 +139,9 @@ public sealed class UserExtensionTests
         public string DisplayName { get; set; }
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
+        public string? IdentityEmail { get; set; }
+        public string? IdentityPhoneNumber { get; set; }
+        public string? ContactEmail { get; set; }
+        public string? ContactPhoneNumber { get; set; }
     }
 }

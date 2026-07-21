@@ -354,7 +354,6 @@ public sealed class AccessControlController : ControllerBase
 
     private static AccessCatalogDto FilterCatalog(AccessCatalogDto catalog, string? subjectType, string? category)
     {
-        var roles = FilterItems(catalog.Roles, subjectType, category);
         var permissions = FilterItems(catalog.Permissions, subjectType, category);
         var modules = FilterItems(catalog.Modules, subjectType, category);
         var apiScopes = FilterItems(catalog.ApiScopes, subjectType, category);
@@ -364,7 +363,6 @@ public sealed class AccessControlController : ControllerBase
         var accessLevels = FilterItems(catalog.AccessLevels, subjectType, category);
 
         return new AccessCatalogDto(
-            roles,
             permissions,
             FilterItems(catalog.Operations, subjectType, category),
             modules,

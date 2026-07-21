@@ -97,7 +97,7 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
                 UserName = userName,
                 Email = string.IsNullOrWhiteSpace(email) ? null : email,
                 PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone,
-                DisplayName = NormalizeOptional(request.DisplayName)
+                DisplayName = IdentityUserDefaults.ResolveDisplayName(request.DisplayName, email, phone)
             };
 
             if (!string.IsNullOrWhiteSpace(request.Password))
@@ -357,7 +357,7 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
             UserName = userName,
             Email = string.IsNullOrWhiteSpace(email) ? null : email,
             PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone,
-            DisplayName = NormalizeOptional(request.DisplayName)
+            DisplayName = IdentityUserDefaults.ResolveDisplayName(request.DisplayName, email, phone)
         };
 
         var result = await _store.CreateAsync(appUser).ConfigureAwait(false);
@@ -579,9 +579,6 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
             PreferredTwoFactorMethod: u.PreferredTwoFactorMethod
         );
     }
-
-    private static string? NormalizeOptional(string? value)
-        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static IReadOnlyDictionary<string, string[]> MapErrors(IdentityResult result)
         => result.Errors

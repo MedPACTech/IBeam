@@ -297,7 +297,7 @@ Tenant-user profile fields are projections from `IdentityUser`, not separate ten
 
 ### User extensions
 
-IBeam owns identity/security primitives only: identity user id, login identifiers, verification/auth state, passwords, OTP, sessions, refresh tokens, tenant membership, and role/token claims. Applications own extended user profile data such as display name, first and last name, preferences, onboarding state, and tenant-scoped profile metadata.
+IBeam owns identity/security primitives only: identity user id, login identifiers, verification/auth state, passwords, OTP, sessions, refresh tokens, tenant membership, and role/token claims. Applications own extended user profile data such as first and last name, preferences, onboarding state, contact preferences, and tenant-scoped profile metadata. `IdentityUser.DisplayName` is the canonical identity display value; when a user is created without one, IBeam defaults it from explicit display name, then email, then phone number.
 
 Register a host-owned user extension store when the app wants IBeam lifecycle events to project identity users into its own user table:
 
@@ -310,6 +310,7 @@ Core contracts:
 
 - `IIdentityUserExtension`
 - `IIdentityUserProfileExtension`
+- `IIdentityUserContactProjection`
 - `IIdentityUserExtensionStore<TUserExtension>`
 - `IIdentityUserExtensionResolver<TUserExtension>`
 - `IIdentityUserExtensionCoordinator`
@@ -321,12 +322,17 @@ IBeam does not expose built-in profile extension routes and does not persist app
 
 #### User profile data example
 
-For profile details such as gamer tag, theme, avatar URL, social media handle, onboarding flags, or user preferences, do not add fields to the packaged IBeam identity user table. Keep those fields in an app-owned entity and bind it back to the IBeam identity with `UserId`, and optionally `TenantId` when the value is tenant-specific.
+For profile details such as address, favorite color, gamer tag, theme, avatar URL, social media handle, onboarding flags, or user preferences, do not add fields to the packaged IBeam identity user table. Keep those fields in an app-owned entity and bind it back to the IBeam identity with `UserId`, and optionally `TenantId` when the value is tenant-specific.
+
+Many apps also need email and phone values in their user/profile table. Keep identity contact and app contact separate by convention:
+
+- `IdentityEmail` and `IdentityPhoneNumber` are read-only projections from IBeam identity and can be refreshed from `IdentityUser.Email` / `IdentityUser.PhoneNumber`.
+- `ContactEmail` and `ContactPhoneNumber` are app-owned contact preferences. They should not be used for login, verification, invite matching, recovery, or other auth decisions unless the app explicitly routes the change through an IBeam verification flow.
 
 Example app-owned profile entity:
 
 ```csharp
-public sealed class AppUserProfile : IIdentityUserProfileExtension
+public sealed class AppUserProfile : IIdentityUserProfileExtension, IIdentityUserContactProjection
 {
     public Guid UserId { get; set; }
     public Guid? TenantId { get; set; }
@@ -335,6 +341,12 @@ public sealed class AppUserProfile : IIdentityUserProfileExtension
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
 
+    public string? IdentityEmail { get; set; }
+    public string? IdentityPhoneNumber { get; set; }
+    public string? ContactEmail { get; set; }
+    public string? ContactPhoneNumber { get; set; }
+    public string? Address { get; set; }
+    public string? FavoriteColor { get; set; }
     public string? GamerTag { get; set; }
     public string? Theme { get; set; }
     public string? SocialHandle { get; set; }
@@ -374,6 +386,8 @@ public sealed class AppUserProfileStore : IIdentityUserExtensionStore<AppUserPro
             UpdatedUtc = DateTimeOffset.UtcNow
         };
 
+        IdentityUserDefaults.SyncIdentityContact(profile, identityUser);
+
         // Save the app-owned profile row.
         throw new NotImplementedException();
     }
@@ -385,6 +399,7 @@ public sealed class AppUserProfileStore : IIdentityUserExtensionStore<AppUserPro
         CancellationToken ct = default)
     {
         profile.DisplayName = context.DisplayName ?? profile.DisplayName;
+        IdentityUserDefaults.SyncIdentityContact(profile, identityUser);
         profile.UpdatedUtc = DateTimeOffset.UtcNow;
 
         // Save identity-owned display/contact sync without overwriting app-owned preferences.
@@ -400,7 +415,7 @@ services.AddIBeamIdentityServices(configuration);
 services.AddIBeamIdentityUserExtension<AppUserProfile, AppUserProfileStore>();
 ```
 
-The extension hook ensures the profile row exists during identity lifecycle flows. The consuming app should still expose its own typed profile service/API for user-editable fields such as `GamerTag`, `Theme`, and `SocialHandle`, because IBeam does not know the app's validation, privacy, or storage rules for those fields.
+The extension hook ensures the profile row exists during identity lifecycle flows. The consuming app should still expose its own typed profile service/API for user-editable fields such as `Address`, `FavoriteColor`, `GamerTag`, `Theme`, and `SocialHandle`, because IBeam does not know the app's validation, privacy, or storage rules for those fields.
 
 Typical end-to-end flow for updating a profile field:
 
@@ -435,6 +450,10 @@ public sealed record AppUserProfileDto(
     Guid UserId,
     Guid? TenantId,
     string? DisplayName,
+    string? IdentityEmail,
+    string? IdentityPhoneNumber,
+    string? ContactEmail,
+    string? ContactPhoneNumber,
     string? GamerTag,
     string? Theme,
     string? SocialHandle);
@@ -472,6 +491,10 @@ public sealed class UserProfileService
             saved.UserId,
             saved.TenantId,
             saved.DisplayName,
+            saved.IdentityEmail,
+            saved.IdentityPhoneNumber,
+            saved.ContactEmail,
+            saved.ContactPhoneNumber,
             saved.GamerTag,
             saved.Theme,
             saved.SocialHandle);
@@ -487,7 +510,13 @@ Example Azure Table shape for the app-owned profile row:
 | `RowKey` | `USER|{userId:D}` for point lookup by IBeam user id. |
 | `TenantId` | Tenant scope for tenant-specific profile values. |
 | `UserId` | Stable IBeam identity user id. |
-| `DisplayName` | App display name, optionally synced from IBeam identity context. |
+| `DisplayName` | App display name, initialized from IBeam identity context. Identity-owned display changes should be explicit; app fields should not silently override `IdentityUser.DisplayName`. |
+| `IdentityEmail` | Read-only projection from `IdentityUser.Email`. |
+| `IdentityPhoneNumber` | Read-only projection from `IdentityUser.PhoneNumber`. |
+| `ContactEmail` | App-owned contact email, not used for auth unless routed through an IBeam verification flow. |
+| `ContactPhoneNumber` | App-owned contact phone, not used for auth unless routed through an IBeam verification flow. |
+| `Address` | App-owned profile/contact field. |
+| `FavoriteColor` | App-owned preference field. |
 | `GamerTag` | App-owned profile field. |
 | `Theme` | App-owned preference, such as `dark-mode`. |
 | `SocialHandle` | App-owned social/contact display field. |
@@ -771,7 +800,7 @@ public sealed class HubbslyAccessCatalogProvider : IIBeamAccessCatalogProvider
 }
 ```
 
-The effective access catalog is layered from IBeam defaults, host configuration, host providers, and tenant DB additions or overrides. Use `IIBeamAccessCatalogProvider` for resource rows such as products and projects. Use `IIBeamAccessCatalogItemProvider` for non-resource catalog entries such as tenant-specific agents or integrations:
+The effective access catalog is layered from IBeam defaults, host configuration, host providers, and tenant DB additions or overrides. Tenant roles are not part of the access-catalog contract; use the tenant roles API for the canonical role catalog and descriptions. Use `IIBeamAccessCatalogProvider` for resource rows such as products and projects. Use `IIBeamAccessCatalogItemProvider` for non-resource catalog entries such as tenant-specific agents or integrations:
 
 ```csharp
 public sealed class HubbslyAgentCatalogProvider : IIBeamAccessCatalogItemProvider
