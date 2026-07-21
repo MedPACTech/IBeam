@@ -18,6 +18,7 @@ This package is for API hosts that want to expose identity endpoints quickly wit
   - JWT authentication and authorization configuration
 - controller endpoints in `AuthController` covering OTP/password/OAuth/token/session flows
   - `RolesController` for tenant role CRUD + user role grant/revoke
+  - `TenantInvitesController` for tenant invitation create/list/get/resend/revoke/preview/accept
   - `PermissionMappingsController` for permission catalog + tenant permission->role mappings
   - `AccessControlController` for access catalog, subject grants, access checks, and current-user access context
   - role authorization attributes:
@@ -198,6 +199,116 @@ Content-Type: application/json
 - `GET /api/tenants/{tenantId}/users/{userId}/roles`
 
 Role management endpoints require an authenticated tenant token (`tid`) with one of these role claims: `owner`, `administrator`, or `admin`.
+
+## Tenant Invitation Endpoints
+
+Tenant invite endpoints let owners/admins onboard users by email or SMS while preserving tenant context. The recipient may be an existing global IBeam user or a brand-new user; acceptance links the resolved identity user to the invited tenant.
+
+Admin endpoints require an authenticated tenant token (`tid`) with one of these role claims: `owner`, `administrator`, or `admin`.
+
+```http
+POST /api/tenants/{tenantId}/invites
+GET  /api/tenants/{tenantId}/invites
+GET  /api/tenants/{tenantId}/invites/{inviteId}
+POST /api/tenants/{tenantId}/invites/{inviteId}/resend
+POST /api/tenants/{tenantId}/invites/{inviteId}/revoke
+```
+
+Anonymous recipient endpoints:
+
+```http
+GET  /api/invites/{tokenOrCode}/preview
+POST /api/invites/accept
+```
+
+Create an email invite:
+
+```http
+POST /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/invites
+Authorization: Bearer {ownerOrAdminTenantToken}
+Content-Type: application/json
+
+{
+  "destinationType": "email",
+  "email": "ada@example.com",
+  "displayName": "Ada Lovelace",
+  "firstName": "Ada",
+  "lastName": "Lovelace",
+  "roleNames": ["Member"],
+  "roleIds": [],
+  "setAsDefaultTenant": true,
+  "redirectUrl": "https://app.example.com/invites/accept",
+  "metadata": {
+    "source": "admin-users"
+  },
+  "accessGrants": [
+    {
+      "resourceType": "module",
+      "resourceId": "work",
+      "accessLevel": "view",
+      "expirationUtc": null,
+      "metadata": {
+        "reason": "initial invite access"
+      }
+    }
+  ]
+}
+```
+
+Create an SMS invite:
+
+```http
+POST /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/invites
+Authorization: Bearer {ownerOrAdminTenantToken}
+Content-Type: application/json
+
+{
+  "destinationType": "sms",
+  "phoneNumber": "+16145551212",
+  "displayName": "Care Coordinator",
+  "roleNames": ["Member"],
+  "setAsDefaultTenant": true
+}
+```
+
+Preview an invite before authentication:
+
+```http
+GET /api/invites/{inviteToken}/preview
+```
+
+Accept with an existing authenticated session:
+
+```http
+POST /api/invites/accept
+Authorization: Bearer {recipientAccessToken}
+Content-Type: application/json
+
+{
+  "inviteToken": "{inviteToken}",
+  "mode": "existing-session",
+  "setAsDefaultTenant": true
+}
+```
+
+Accept with OTP verification:
+
+```http
+POST /api/invites/accept
+Content-Type: application/json
+
+{
+  "inviteToken": "{inviteToken}",
+  "mode": "otp",
+  "challengeId": "58ed50e1-a932-4bb5-a37c-2378a514eb79",
+  "code": "123456",
+  "displayName": "Ada Lovelace"
+}
+```
+
+Acceptance validates the invite token, verifies the invited destination, resolves or creates the identity user, links the user to the invite tenant, applies role ids/names, ensures the host-owned user extension row, applies optional access grants when access-control services are registered, marks the invite redeemed, and returns a tenant-scoped auth result.
+
+Host applications should override `ITenantInviteUrlBuilder` and `ITenantInviteMessageFactory` when they need branded templates, product-specific URLs, or richer template models. IBeam does not own custom invite screens, billing/license policy, or app-specific profile fields.
 
 ## API Credential Role Catalog
 

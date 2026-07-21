@@ -64,8 +64,12 @@ Provider implementations should resolve auth identifiers through an indexed look
   - `IIdentityUserStore`, `IOtpChallengeStore`, `IExternalLoginStore`
   - `ITenantMembershipStore`, `ITenantProvisioningService`, `IAuthSessionStore`
   - `ITenantRoleStore` for tenant-scoped role CRUD and assignment
+  - `ITenantInviteStore` for tenant invitation persistence
 - service contracts:
   - `ITenantRoleService`
+  - `ITenantInviteService`
+  - `ITenantInviteUrlBuilder`
+  - `ITenantInviteMessageFactory`
   - `IRoleAccessAuthorizer`
   - `IPermissionAccessAuthorizer`
   - `IPermissionCatalogProvider`
@@ -111,6 +115,7 @@ Provider implementations should resolve auth identifiers through an indexed look
 - `TenantUsers`: tenant-to-user membership index.
 - `UserTenants`: user-to-tenant membership index.
 - `TenantRoles`: tenant-scoped roles.
+- `TenantInvites`: tenant invitation records and token lookup rows.
 - `OtpChallenges`: OTP lifecycle records (destination, hash, attempts, expiry, consume state).
 - `AuthIdentifiers`: auth lookup bindings from email/SMS identifiers to canonical user ids.
 - `ExternalLogins`: OAuth provider-user links.
@@ -529,6 +534,93 @@ builder.Services.Configure<TenantProvisioningOptions>(options =>
     options.AutoLinkUserToDefaultTenant = true;
     options.AutoLinkRoleNames.Add("Member");
 });
+```
+
+## Tenant Invitations
+
+Tenant invitations are the reusable IBeam workflow for tenant-managed user onboarding. A tenant owner/admin can invite a recipient by email or SMS without knowing whether the recipient already has an IBeam account. The invite records the tenant, destination, role/access intent, profile hints, expiration, sender, and correlation metadata. Acceptance resolves or creates the canonical identity user and links that user to the invited tenant.
+
+Core contracts:
+
+- `ITenantInviteService`
+- `ITenantInviteStore`
+- `ITenantInviteUrlBuilder`
+- `ITenantInviteMessageFactory`
+- `TenantInviteCreateRequest`
+- `TenantInviteAcceptRequest`
+- tenant invite lifecycle events in `IBeam.Identity.Events`
+
+Create request highlights:
+
+- `DestinationType`: `email` or `sms`
+- `Email` or `PhoneNumber`
+- profile hints: `DisplayName`, `FirstName`, `LastName`, `Metadata`
+- initial tenant access: `RoleIds`, `RoleNames`, `SetAsDefaultTenant`
+- optional resource grants: `ResourceType`, `ResourceId`, `AccessLevel`, `ExpirationUtc`, `Metadata`
+- delivery/context: `ExpiresUtc`, `RedirectUrl`, `CorrelationId`, `CausationId`
+
+Acceptance modes:
+
+- `otp`: verify an email or SMS OTP challenge for the invited destination.
+- `sms-otp`: SMS-specific OTP acceptance.
+- `email-password`: verify/control the invited email and set or validate a password.
+- `existing-session`: accept as the current authenticated user, only when that user owns the verified invited destination.
+
+Successful acceptance:
+
+1. Looks up the invite by secure token hash.
+2. Checks status and expiration.
+3. Verifies the recipient controls the invited email or phone number.
+4. Resolves the existing identity user or creates a new one.
+5. Links the user to the invite tenant.
+6. Applies invite roles through `ITenantRoleService` or creates a role-less membership through `ITenantProvisioningService`.
+7. Calls `IIdentityUserExtensionCoordinator` with `Operation = "invite-accepted"` and tenant-scoped profile hints.
+8. Applies optional `IBeam.AccessControl` resource grants when an `IResourceAccessService` is registered.
+9. Marks the invite redeemed and returns a tenant-scoped token plus membership context.
+
+Security notes:
+
+- Create, resend, and revoke are tenant-admin operations. The API layer currently recognizes tenant role claims `owner`, `administrator`, and `admin`.
+- Preview and accept can be anonymous, but the tenant id used for acceptance comes from the stored invite, not from client query parameters.
+- Invite tokens are generated with secure random bytes and stored only as SHA-256 hashes.
+- The create and preview paths do not reveal whether the destination is already bound to a global identity user.
+- Host apps own invite screens, branding, email/SMS templates, license-seat policy, and post-acceptance profile editing.
+
+Override delivery behavior in host apps with DI:
+
+```csharp
+builder.Services.AddIBeamIdentityServices(builder.Configuration);
+builder.Services.AddScoped<ITenantInviteUrlBuilder, AppInviteUrlBuilder>();
+builder.Services.AddScoped<ITenantInviteMessageFactory, AppInviteMessageFactory>();
+```
+
+Example service usage:
+
+```csharp
+var created = await tenantInvites.CreateInviteAsync(
+    tenantId,
+    new TenantInviteCreateRequest(
+        DestinationType: TenantInviteDestinationTypes.Email,
+        Email: "ada@example.com",
+        DisplayName: "Ada Lovelace",
+        FirstName: "Ada",
+        LastName: "Lovelace",
+        RoleNames: ["Member"],
+        SetAsDefaultTenant: true,
+        RedirectUrl: "https://app.example.com/invites/accept",
+        Metadata: new Dictionary<string, string>
+        {
+            ["source"] = "admin-users"
+        }),
+    invitedByUserId,
+    ct);
+
+var accepted = await tenantInvites.AcceptInviteAsync(
+    new TenantInviteAcceptRequest(
+        InviteToken: created.InviteToken,
+        Mode: TenantInviteAcceptModes.ExistingSession),
+    authenticatedUserId,
+    ct);
 ```
 
 ## Examples

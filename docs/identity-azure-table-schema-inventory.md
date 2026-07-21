@@ -36,6 +36,7 @@ Each custom table also has Azure Table infrastructure fields:
 | `TenantUsersTableName` | `TenantUsers` | `TenantUsers` | `IBeamTenantUsers` |
 | `UserTenantsTableName` | `UserTenants` | `UserTenants` | `IBeamUserTenants` |
 | `TenantRolesTableName` | `Roles` | `Roles` | `IBeamRoles` |
+| `TenantInvitesTableName` | `TenantInvites` | `TenantInvites` | `IBeamTenantInvites` |
 | `OtpChallengesTableName` | `OtpChallenges` | `OtpChallenges` | `IBeamOtpChallenges` |
 | `AuthIdentifiersTableName` | `AuthIdentifiers` | `AuthIdentifiers` | `IBeamAuthIdentifiers` |
 | `ExternalLoginsTableName` | `ExternalLogins` | `ExternalLogins` | `IBeamExternalLogins` |
@@ -294,6 +295,47 @@ Keys:
 | `Status` | Override status. | Active overrides are returned; delete sets `Disabled`. |
 | `CreatedAt` | Creation timestamp. | Returned in override model. |
 | `UpdatedAt` | Last update timestamp. | Set on upsert/delete. |
+
+## IBeamTenantInvites
+
+Purpose: tenant invitation records and token lookup rows for tenant-managed onboarding.
+
+Keys:
+
+- Tenant list/point lookup row: `PartitionKey = TEN|{tenantId:D}`, `RowKey = INV|{inviteId:D}`
+- Token lookup row: `PartitionKey = TOK|{sha256(inviteToken)}`, `RowKey = INV`
+
+The store writes two rows per active invite: one tenant-scoped row for tenant admin list/get operations and one token-index row for preview/accept. Invite tokens are never stored in plaintext; only `TokenHash` is persisted. When an invite is resent, the previous token-index row is removed and a new token hash is written.
+
+| Field | Description | Logical usage |
+|---|---|---|
+| `InviteId` | Invite id. | Used for tenant admin point lookup, resend, revoke, and API responses. |
+| `TenantId` | Tenant owning the invite. | Used for tenant context during preview/accept and role/access assignment. |
+| `DestinationType` | Invite channel: `email` or `sms`. | Determines destination validation and delivery channel. |
+| `NormalizedDestination` | Normalized email or phone number. | Used to verify the accepting user controls the invited destination. |
+| `TokenHash` | SHA-256 hash of the invite token. | Used for token lookup without storing plaintext tokens. |
+| `Status` | Invite state: `pending`, `sent`, `redeemed`, `revoked`, or `expired`. | Used to block reuse, revoked invites, and expired invites. |
+| `CreatedUtc` | Creation timestamp. | Returned in invite APIs and used for sorting. |
+| `InvitedByUserId` | User who created the invite. | Audit metadata and created-by context for optional access grants. |
+| `ExpiresUtc` | Invite expiration timestamp. | Checked before preview/resend/accept; expired invites are marked `expired`. |
+| `SentUtc` | Latest send timestamp. | Updated when the invite is sent or resent. |
+| `RedeemedUtc` | Redemption timestamp. | Set after successful acceptance. |
+| `RedeemedByUserId` | User that accepted the invite. | Audit metadata and idempotency context. |
+| `RevokedUtc` | Revocation timestamp. | Set when an admin revokes the invite. |
+| `RevokedByUserId` | User who revoked the invite. | Audit metadata. |
+| `RevokedReason` | Optional revoke reason. | Returned for admin review. |
+| `DisplayName` | Initial display-name hint. | Passed to `IIdentityUserExtensionCoordinator` during acceptance. |
+| `FirstName` | Initial first-name hint. | Passed to the host-owned user extension row. |
+| `LastName` | Initial last-name hint. | Passed to the host-owned user extension row. |
+| `ProfileMetadataJson` | App metadata for profile initialization. | Passed through extension context; IBeam does not interpret app-specific fields. |
+| `RoleIdsCsv` | Comma-separated tenant role ids requested for acceptance. | Applied through `ITenantRoleService`. |
+| `RoleNamesJson` | Role names requested for acceptance. | Ensured/granted through `ITenantRoleService`. |
+| `SetAsDefaultTenant` | Whether acceptance should make this tenant the user's default. | Applied during tenant membership bootstrap. |
+| `AccessGrantsJson` | Optional resource grants to apply after acceptance. | Applied through `IResourceAccessService` when registered. |
+| `RedirectUrl` | Host-provided invite landing/acceptance URL. | Used by `ITenantInviteUrlBuilder`. |
+| `CorrelationId` | Correlation id for lifecycle events. | Links create/send/accept/revoke events. |
+| `CausationId` | Causation id for lifecycle events. | Links follow-on events to initiating actions. |
+| `MetadataJson` | Invite-level metadata. | Returned to services and passed to extension/delivery hooks. |
 
 ## IBeamAuthIdentifiers
 
