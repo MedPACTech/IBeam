@@ -13,4 +13,12 @@
       <NuGetPackageVersion>$(ReleasePackageVersion)</NuGetPackageVersion>
     </PropertyGroup>
   </Target>
+
+  <Target Name="ApplyReleaseAssemblyInformationalVersion"
+          BeforeTargets="GenerateAssemblyNBGVVersionInfo"
+          Condition="'$(ReleasePackageVersion)' != ''">
+    <PropertyGroup>
+      <AssemblyInformationalVersion>$(ReleasePackageVersion)</AssemblyInformationalVersion>
+    </PropertyGroup>
+  </Target>
 </Project>

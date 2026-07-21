@@ -10,6 +10,36 @@ namespace IBeam.Tests.Ai;
 public sealed class AgentMcpServiceTests
 {
     [TestMethod]
+    public async Task Initialize_ReturnsInformationalServerVersion()
+    {
+        var services = CreateServices(includeWorkScope: true);
+        var sut = services.GetRequiredService<IAgentMcpService>();
+
+        using var document = JsonDocument.Parse(
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 1,
+              "method": "initialize",
+              "params": {}
+            }
+            """);
+
+        var result = await sut.HandleAsync(document.RootElement);
+        var json = Serialize(result.Responses[0].Result);
+        using var resultDocument = JsonDocument.Parse(json);
+        var serverInfo = resultDocument.RootElement.GetProperty("serverInfo");
+        var expectedVersion = typeof(AgentMcpService).Assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+            .FirstOrDefault()
+            ?.InformationalVersion;
+
+        Assert.AreEqual("IBeam.Ai", serverInfo.GetProperty("name").GetString());
+        Assert.AreEqual(expectedVersion, serverInfo.GetProperty("version").GetString());
+    }
+
+    [TestMethod]
     public async Task ToolsList_ReturnsOnlyToolsAllowedForCurrentAgent()
     {
         var services = CreateServices(includeWorkScope: true);

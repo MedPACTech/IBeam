@@ -14,6 +14,13 @@
     <PackageIcon Condition="'$(PackageIcon)' == ''">ibeam-icon.png</PackageIcon>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(ReleasePackageVersion)' != ''">
+    <Version>$(ReleasePackageVersion)</Version>
+    <PackageVersion>$(ReleasePackageVersion)</PackageVersion>
+    <NuGetPackageVersion>$(ReleasePackageVersion)</NuGetPackageVersion>
+    <InformationalVersion>$(ReleasePackageVersion)</InformationalVersion>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(IsPackable)' != 'false' and Exists('$(MSBuildThisFileDirectory)docs\assets\ibeam-icon.png')">
     <None Include="$(MSBuildThisFileDirectory)docs\assets\ibeam-icon.png" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>

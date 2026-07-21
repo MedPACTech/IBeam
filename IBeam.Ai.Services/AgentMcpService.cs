@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
@@ -125,9 +126,21 @@ public sealed class AgentMcpService : IAgentMcpService
             serverInfo = new
             {
                 name = "IBeam.Ai",
-                version = typeof(AgentMcpService).Assembly.GetName().Version?.ToString() ?? "1.0.0"
+                version = ResolveServerVersion()
             }
         };
+
+    private static string ResolveServerVersion()
+    {
+        var assembly = typeof(AgentMcpService).Assembly;
+        var informationalVersion = assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        return !string.IsNullOrWhiteSpace(informationalVersion)
+            ? informationalVersion
+            : assembly.GetName().Version?.ToString() ?? "1.0.0";
+    }
 
     private async Task<object> ListToolsAsync(CancellationToken cancellationToken)
     {
