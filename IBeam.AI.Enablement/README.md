@@ -51,6 +51,7 @@ API <-- DTO object --> Service <-- Entity --> Repository
 | [`examples/builder-onboarding-prompt.md`](examples/builder-onboarding-prompt.md) | Full onboarding prompt. |
 | [`examples/builder-onboarding-prompt-quick.md`](examples/builder-onboarding-prompt-quick.md) | Short onboarding prompt. |
 | [`examples/consuming-api-migration-prompt.md`](examples/consuming-api-migration-prompt.md) | Migration prompt for existing consuming APIs. |
+| [`examples/ibeam-2.8-consuming-api-upgrade-prompt.md`](examples/ibeam-2.8-consuming-api-upgrade-prompt.md) | Upgrade prompt for IBeam 2.8 tenant invites, configurable admin access, and API credential management. |
 | [`examples/identity-extension-scan-prompt.md`](examples/identity-extension-scan-prompt.md) | Scan prompt for validating app-owned user/tenant extension tables and DTOs. |
 
 ## Recommended Usage Flow

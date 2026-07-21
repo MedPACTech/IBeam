@@ -27,3 +27,7 @@ Use `examples/builder-onboarding-prompt-quick.md` for a shorter first message.
 ## Seed 5: Architecture Review
 
 "Review this PR against IBeam.AI.Enablement/catalogs/architecture-rules.json and report violations with file-level findings and cycle-risk observations in service dependencies."
+
+## Seed 6: IBeam 2.8 Consuming API Upgrade
+
+Use `examples/ibeam-2.8-consuming-api-upgrade-prompt.md` after upgrading a consuming API to IBeam 2.8.0.

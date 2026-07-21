@@ -95,6 +95,7 @@ For repository work, agents should start with the root guide at [`.agent/impleme
 - [roles, permissions, and grants](docs/roles-permissions-and-grants.md)
 - [identity Azure Table schema inventory](docs/identity-azure-table-schema-inventory.md)
 - [consuming API migration prompt](IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
+- [IBeam 2.8 consuming API upgrade prompt](IBeam.AI.Enablement/examples/ibeam-2.8-consuming-api-upgrade-prompt.md)
 
 ### Licensing
 - `IBeam.Licensing`: core tenant licensing contracts and models
