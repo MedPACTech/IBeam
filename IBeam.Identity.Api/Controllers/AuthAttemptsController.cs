@@ -1,8 +1,10 @@
-using System.Security.Claims;
+using IBeam.Identity.Api.Authorization;
 using IBeam.Identity.Interfaces;
+using IBeam.Identity.Options;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace IBeam.Identity.Api.Controllers;
 
@@ -11,26 +13,18 @@ namespace IBeam.Identity.Api.Controllers;
 [Route("api/auth-attempts")]
 public sealed class AuthAttemptsController : ControllerBase
 {
-    private const string UnlockPermission = "identity:auth-attempts:unlock";
-
-    private static readonly HashSet<string> ManageRoleClaims = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "owner",
-        "admin",
-        "administrator",
-        "platform-admin",
-        "support"
-    };
-
     private readonly IAuthAttemptStore _attempts;
     private readonly IAuthAttemptContextProvider _contextProvider;
+    private readonly IOptionsSnapshot<IBeamAccessControlOptions> _accessOptions;
 
     public AuthAttemptsController(
         IAuthAttemptStore attempts,
-        IAuthAttemptContextProvider contextProvider)
+        IAuthAttemptContextProvider contextProvider,
+        IOptionsSnapshot<IBeamAccessControlOptions> accessOptions)
     {
         _attempts = attempts ?? throw new ArgumentNullException(nameof(attempts));
         _contextProvider = contextProvider ?? throw new ArgumentNullException(nameof(contextProvider));
+        _accessOptions = accessOptions ?? throw new ArgumentNullException(nameof(accessOptions));
     }
 
     [HttpGet]
@@ -96,45 +90,11 @@ public sealed class AuthAttemptsController : ControllerBase
     private bool TryAuthorizeAuthAttemptAdmin(out ObjectResult forbidden)
     {
         forbidden = StatusCode(StatusCodes.Status403Forbidden, new { message = "Forbidden." });
-
-        if (string.Equals(User.FindFirstValue("api_subject_type"), "credential", StringComparison.OrdinalIgnoreCase) ||
-            !string.IsNullOrWhiteSpace(User.FindFirstValue("api_credential_id")))
-        {
-            return false;
-        }
-
-        if (FindClaimValues("permission", "permissions", "scope", "scp")
-            .SelectMany(x => ExpandClaimValue(x.Value))
-            .Any(x => string.Equals(x, UnlockPermission, StringComparison.OrdinalIgnoreCase)))
-        {
-            return true;
-        }
-
-        var roleClaims = FindClaimValues("role", "roles", ClaimTypes.Role)
-            .SelectMany(x => ExpandClaimValue(x.Value));
-
-        return roleClaims.Any(x => ManageRoleClaims.Contains(x));
+        return IdentityApiAuthorization.TryAuthorizeAuthAttemptAdmin(User, _accessOptions.Value);
     }
 
     private bool TryGetCurrentUserId(out Guid userId)
-    {
-        var raw = User.FindFirstValue("uid") ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-        return Guid.TryParse(raw, out userId);
-    }
-
-    private IEnumerable<Claim> FindClaimValues(params string[] names)
-    {
-        foreach (var name in names)
-        {
-            foreach (var claim in User.FindAll(name))
-                yield return claim;
-        }
-    }
-
-    private static IEnumerable<string> ExpandClaimValue(string? value)
-        => string.IsNullOrWhiteSpace(value)
-            ? []
-            : value.Split([',', ' '], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        => IdentityApiAuthorization.TryGetCurrentUserId(User, out userId);
 }
 
 public sealed class UnlockAuthAttemptRequest

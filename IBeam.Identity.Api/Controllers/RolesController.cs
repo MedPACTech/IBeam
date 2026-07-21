@@ -1,4 +1,4 @@
-using System.Security.Claims;
+using IBeam.Identity.Api.Authorization;
 using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Options;
@@ -14,17 +14,18 @@ namespace IBeam.Identity.Api.Controllers;
 [Route("api/tenants/{tenantId:guid}/roles")]
 public sealed class RolesController : ControllerBase
 {
-    private static readonly string[] ManageRoleClaims = ["owner", "administrator", "admin"];
-
     private readonly ITenantRoleService _roles;
     private readonly IOptionsSnapshot<RoleManagementOptions> _roleManagementOptions;
+    private readonly IOptionsSnapshot<IBeamAccessControlOptions> _accessOptions;
 
     public RolesController(
         ITenantRoleService roles,
-        IOptionsSnapshot<RoleManagementOptions> roleManagementOptions)
+        IOptionsSnapshot<RoleManagementOptions> roleManagementOptions,
+        IOptionsSnapshot<IBeamAccessControlOptions> accessOptions)
     {
         _roles = roles;
         _roleManagementOptions = roleManagementOptions;
+        _accessOptions = accessOptions;
     }
 
     [HttpGet]
@@ -161,19 +162,11 @@ public sealed class RolesController : ControllerBase
     private bool TryAuthorizeTenantRoleAdmin(Guid routeTenantId, out ObjectResult forbidden)
     {
         forbidden = StatusCode(StatusCodes.Status403Forbidden, new { message = "Forbidden." });
-
-        var claimTenant = User.FindFirstValue("tid");
-        if (!Guid.TryParse(claimTenant, out var tokenTenantId))
-            return false;
-
-        if (tokenTenantId != routeTenantId)
-            return false;
-
-        var roleClaims = User.FindAll("role").Select(x => x.Value).ToList();
-        if (roleClaims.Any(x => ManageRoleClaims.Contains(x, StringComparer.OrdinalIgnoreCase)))
-            return true;
-
-        return false;
+        return IdentityApiAuthorization.TryAuthorizeTenantOperation(
+            User,
+            routeTenantId,
+            _accessOptions.Value,
+            _accessOptions.Value.TenantRoleManagementPermissionNames);
     }
 }
 

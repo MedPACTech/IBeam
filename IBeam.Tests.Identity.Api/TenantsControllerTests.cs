@@ -2,8 +2,10 @@ using System.Security.Claims;
 using IBeam.Identity.Api.Controllers;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
+using IBeam.Identity.Options;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace IBeam.Tests.Identity.Api;
 
@@ -22,6 +24,20 @@ public sealed class TenantsControllerTests
 
         Assert.IsInstanceOfType<ObjectResult>(result);
         Assert.AreEqual(StatusCodes.Status403Forbidden, ((ObjectResult)result).StatusCode);
+    }
+
+    [TestMethod]
+    public async Task GetTenant_ReturnsOk_ForConfiguredAdminRole()
+    {
+        var options = new IBeamAccessControlOptions
+        {
+            AdminRoleNames = ["RegionalAdmin"]
+        };
+        var sut = CreateController(role: "RegionalAdmin", accessOptions: options);
+
+        var result = await sut.GetTenant(TenantId, CancellationToken.None);
+
+        Assert.IsInstanceOfType<OkObjectResult>(result);
     }
 
     [TestMethod]
@@ -50,11 +66,13 @@ public sealed class TenantsControllerTests
     private static TenantsController CreateController(
         string role,
         FakeIdentityTenantService? tenants = null,
-        FakeTenantRoleService? roles = null)
+        FakeTenantRoleService? roles = null,
+        IBeamAccessControlOptions? accessOptions = null)
     {
         var controller = new TenantsController(
             tenants ?? new FakeIdentityTenantService(),
-            roles ?? new FakeTenantRoleService());
+            roles ?? new FakeTenantRoleService(),
+            new StaticOptionsSnapshot<IBeamAccessControlOptions>(accessOptions ?? new IBeamAccessControlOptions()));
 
         controller.ControllerContext = new ControllerContext
         {
@@ -70,6 +88,14 @@ public sealed class TenantsControllerTests
         };
 
         return controller;
+    }
+
+    private sealed class StaticOptionsSnapshot<T> : IOptionsSnapshot<T>
+        where T : class
+    {
+        public StaticOptionsSnapshot(T value) => Value = value;
+        public T Value { get; }
+        public T Get(string? name) => Value;
     }
 
     private sealed class FakeIdentityTenantService : IIdentityTenantService

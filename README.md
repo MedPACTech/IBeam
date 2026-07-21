@@ -126,7 +126,7 @@ Configure plans under `IBeam:Licensing:Plans`, then use `ILicenseAuthorizer` or 
 
 ### Identity
 - `IBeam.Identity`: identity contracts, models, options, events, and schema abstractions
-- `IBeam.Identity.Services`: identity orchestration (OTP, password, OAuth, tokens, tenant selection)
+- `IBeam.Identity.Services`: identity orchestration (OTP, password, OAuth, tokens, tenant selection, tenant invitations)
 - `IBeam.Identity.Repositories.AzureTable`: Azure Table-backed identity stores and schema bootstrap
 - `IBeam.Identity.Repositories.EntityFramework`: EF-backed identity store wiring (Sqlite currently active)
 
@@ -219,6 +219,20 @@ POST /api/tenants/{tenantId}/roles/grant
 POST /api/tenants/{tenantId}/roles/revoke
 ```
 
+Tenant invite endpoints let owners/admins invite by email or SMS, preserve tenant context, apply roles and optional access grants, and ensure host-owned user extension rows during acceptance:
+
+```http
+POST /api/tenants/{tenantId}/invites
+GET  /api/tenants/{tenantId}/invites
+GET  /api/tenants/{tenantId}/invites/{inviteId}
+POST /api/tenants/{tenantId}/invites/{inviteId}/resend
+POST /api/tenants/{tenantId}/invites/{inviteId}/revoke
+GET  /api/invites/{tokenOrCode}/preview
+POST /api/invites/accept
+```
+
+Management access for tenant, invite, role, permission mapping, access-control, auth-attempt, and API credential endpoints is configurable through `IBeam:Identity:AccessControl`. Defaults preserve the built-in `Owner`, `Administrator`, and `Admin` role behavior, while larger apps can configure their own admin tiers and operation-style permission names such as `identity.tenantinvites.manage` or `identity.apicredentials.manage`.
+
 Azure Table identity storage uses these default table names for tenant membership:
 
 ```text
@@ -226,6 +240,7 @@ Tenants
 TenantUsers
 UserTenants
 Roles
+TenantInvites
 ApiCredentials
 ```
 

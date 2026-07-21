@@ -16,6 +16,7 @@ This package is where identity behavior is implemented. It consumes contracts fr
   - `OtpService`
   - `JwtTokenService`
   - `TenantSelectionService`
+  - `TenantInviteService`
   - `IdentityCommunicationAdapter`
   - `PermissionAccessAuthorizer` (dynamic permission map authorization)
   - `PermissionCatalogProvider` (exposed permission catalog discovery)
@@ -42,6 +43,7 @@ Supported flows:
 - Add email/password to an existing SMS user: `StartEmailPasswordLinkAsync(...)`, then `CompleteEmailPasswordLinkAsync(...)`.
 - Add SMS to an existing email user: `StartPhoneLinkAsync(...)`, then `CompletePhoneLinkAsync(...)`.
 - 2FA: `StartTwoFactorSetupAsync(...)`, `CompleteTwoFactorSetupAsync(...)`, then `CompleteTwoFactorLoginAsync(...)`.
+- Tenant invites: `CreateInviteAsync(...)`, `PreviewInviteAsync(...)`, and `AcceptInviteAsync(...)` for tenant-managed onboarding.
 
 The repository provider is responsible for fast identifier resolution. For Azure Table, this is done by an `AuthIdentifiers` table keyed by identifier type and normalized value.
 
@@ -185,6 +187,34 @@ var result = await otpAuth.CompleteOtpAsync(
 
 If `AutoLinkUserToDefaultTenant` is `false` and the user is not already linked to `DefaultTenantId`, completion fails with an `IdentityValidationException`.
 
+### Tenant invite onboarding
+
+`TenantInviteService` handles tenant-preserving invitations without leaking whether the destination already belongs to an identity user. It sends an invite link, stores only a token hash, and on acceptance links the resolved user to the invite tenant.
+
+```csharp
+var invite = await tenantInvites.CreateInviteAsync(
+    tenantId,
+    new TenantInviteCreateRequest(
+        DestinationType: TenantInviteDestinationTypes.Sms,
+        PhoneNumber: "+16145551212",
+        DisplayName: "Care Coordinator",
+        RoleNames: ["Member"],
+        SetAsDefaultTenant: true),
+    invitedByUserId,
+    ct);
+
+var accepted = await tenantInvites.AcceptInviteAsync(
+    new TenantInviteAcceptRequest(
+        InviteToken: invite.InviteToken,
+        Mode: TenantInviteAcceptModes.Otp,
+        ChallengeId: challengeId,
+        Code: codeFromSms),
+    authenticatedUserId: null,
+    ct);
+```
+
+Acceptance ensures tenant membership, applies role ids/names, calls `IIdentityUserExtensionCoordinator` with `Operation = "invite-accepted"`, applies optional `IResourceAccessService` grants when access-control services are registered, marks the invite redeemed, and returns a tenant token.
+
 ### Code-based options configuration
 
 ```csharp
@@ -216,6 +246,10 @@ builder.Services.AddIBeamAccessControl(options =>
     options.AdminRoleNames.Clear();
     options.AdminRoleNames.Add("Administrator");
     options.AdminRoleNames.Add("Admin");
+
+    options.TenantUserManagementPermissionNames.Clear();
+    options.TenantUserManagementPermissionNames.Add("identity.tenantusers.manage");
+    options.TenantUserManagementPermissionNames.Add("identity.tenantinvites.manage");
 
     options.Modules.Add(new AccessModuleDefinition(
         Key: "work",

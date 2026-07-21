@@ -8,5 +8,6 @@ public enum SenderPurpose
     UserRegistration,
     PhoneVerification,
     ChangeEmail,
-    ChangePhone
+    ChangePhone,
+    TenantInvitation
 }

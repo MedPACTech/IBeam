@@ -1,5 +1,5 @@
-using System.Security.Claims;
 using IBeam.AccessControl;
+using IBeam.Identity.Api.Authorization;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
@@ -15,23 +15,24 @@ namespace IBeam.Identity.Api.Controllers;
 [Route("api/tenants/{tenantId:guid}/permissions")]
 public sealed class PermissionMappingsController : ControllerBase
 {
-    private static readonly string[] ManageRoleClaims = ["owner", "administrator", "admin"];
-
     private readonly IPermissionRoleMapService _mappings;
     private readonly IPermissionCatalogProvider _catalog;
     private readonly IOptionsSnapshot<RoleManagementOptions> _roleOptions;
     private readonly IOptionsSnapshot<PermissionAccessOptions> _permissionOptions;
+    private readonly IOptionsSnapshot<IBeamAccessControlOptions> _accessOptions;
 
     public PermissionMappingsController(
         IPermissionRoleMapService mappings,
         IPermissionCatalogProvider catalog,
         IOptionsSnapshot<RoleManagementOptions> roleOptions,
-        IOptionsSnapshot<PermissionAccessOptions> permissionOptions)
+        IOptionsSnapshot<PermissionAccessOptions> permissionOptions,
+        IOptionsSnapshot<IBeamAccessControlOptions> accessOptions)
     {
         _mappings = mappings;
         _catalog = catalog;
         _roleOptions = roleOptions;
         _permissionOptions = permissionOptions;
+        _accessOptions = accessOptions;
     }
 
     [HttpGet("catalog")]
@@ -189,19 +190,11 @@ public sealed class PermissionMappingsController : ControllerBase
     private bool TryAuthorizeTenantRoleAdmin(Guid routeTenantId, out ObjectResult forbidden)
     {
         forbidden = StatusCode(StatusCodes.Status403Forbidden, new { message = "Forbidden." });
-
-        var claimTenant = User.FindFirstValue("tid");
-        if (!Guid.TryParse(claimTenant, out var tokenTenantId))
-            return false;
-
-        if (tokenTenantId != routeTenantId)
-            return false;
-
-        var roleClaims = User.FindAll("role").Select(x => x.Value).ToList();
-        if (roleClaims.Any(x => ManageRoleClaims.Contains(x, StringComparer.OrdinalIgnoreCase)))
-            return true;
-
-        return false;
+        return IdentityApiAuthorization.TryAuthorizeTenantOperation(
+            User,
+            routeTenantId,
+            _accessOptions.Value,
+            _accessOptions.Value.TenantRoleManagementPermissionNames);
     }
 }
 

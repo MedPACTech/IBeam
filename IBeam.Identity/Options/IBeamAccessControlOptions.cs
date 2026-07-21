@@ -18,6 +18,67 @@ public sealed class IBeamAccessControlOptions
     public List<string> OwnerRoleNames { get; set; } = ["Owner"];
     public List<string> AdminRoleNames { get; set; } = ["Administrator", "Admin"];
     public List<string> ApplicationRoleNames { get; set; } = ["Application"];
+    public List<string> TenantManagementPermissionNames { get; set; } = ["identity.tenants.manage"];
+    public List<string> TenantUserManagementPermissionNames { get; set; } =
+    [
+        "identity.tenantusers.manage",
+        "identity.tenantinvites.manage",
+        "identity.tenantinvites.create",
+        "identity.tenantinvites.list",
+        "identity.tenantinvites.get",
+        "identity.tenantinvites.resend",
+        "identity.tenantinvites.revoke",
+        "identity.tenantroles.bootstrap",
+        "identity.tenantroles.user.list"
+    ];
+    public List<string> TenantRoleManagementPermissionNames { get; set; } =
+    [
+        "identity.tenantroles.manage",
+        "identity.tenantroles.list",
+        "identity.tenantroles.get",
+        "identity.tenantroles.create",
+        "identity.tenantroles.update",
+        "identity.tenantroles.delete",
+        "identity.tenantroles.grant",
+        "identity.tenantroles.revoke",
+        "identity.tenantroles.user.list"
+    ];
+    public List<string> TenantAccessControlManagementPermissionNames { get; set; } =
+    [
+        "identity.accesscontrol.manage",
+        "accesscontrol.resourceaccess.manage",
+        "accesscontrol.resourceaccess.list",
+        "accesscontrol.resourceaccess.grant",
+        "accesscontrol.resourceaccess.update",
+        "accesscontrol.resourceaccess.revoke",
+        "accesscontrol.permissionroles.manage",
+        "accesscontrol.permissionroles.list",
+        "accesscontrol.permissionroles.upsert.name",
+        "accesscontrol.permissionroles.upsert.id",
+        "accesscontrol.permissionroles.delete.name",
+        "accesscontrol.permissionroles.delete.id",
+        "accesscontrol.serviceoperations.manage",
+        "accesscontrol.serviceoperations.list",
+        "accesscontrol.serviceoperations.upsert",
+        "accesscontrol.serviceoperations.disable",
+        "accesscontrol.serviceoperations.delete"
+    ];
+    public List<string> ApiCredentialManagementPermissionNames { get; set; } =
+    [
+        "identity.apicredentials.manage",
+        "identity.apicredentials.create",
+        "identity.apicredentials.list",
+        "identity.apicredentials.get",
+        "identity.apicredentials.update",
+        "identity.apicredentials.roles.update",
+        "identity.apicredentials.access.get",
+        "identity.apicredentials.access.update",
+        "identity.apicredentials.rotate",
+        "identity.apicredentials.revoke",
+        "identity.apicredentials.activate"
+    ];
+    public List<string> AuthAttemptManagementRoleNames { get; set; } = ["PlatformAdmin", "platform-admin", "Support"];
+    public List<string> AuthAttemptManagementPermissionNames { get; set; } = ["identity:auth-attempts:unlock", "identity.authattempts.unlock"];
     public bool OwnerHasUnrestrictedTenantAccess { get; set; } = true;
     public bool AdminHasUnrestrictedAccessExceptOwnerActions { get; set; } = true;
     public bool ApplicationRoleRequiresExplicitGrants { get; set; } = true;
