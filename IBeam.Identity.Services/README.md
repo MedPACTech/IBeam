@@ -45,6 +45,8 @@ Supported flows:
 - 2FA: `StartTwoFactorSetupAsync(...)`, `CompleteTwoFactorSetupAsync(...)`, then `CompleteTwoFactorLoginAsync(...)`.
 - Tenant invites: `CreateInviteAsync(...)`, `PreviewInviteAsync(...)`, and `AcceptInviteAsync(...)` for tenant-managed onboarding.
 
+Successful OTP completion confirms the verified identity channel on the user record. Email OTP sets `IdentityUser.EmailConfirmed = true`; SMS OTP sets `IdentityUser.PhoneConfirmed = true` through the repository provider's confirmation fields.
+
 The repository provider is responsible for fast identifier resolution. For Azure Table, this is done by an `AuthIdentifiers` table keyed by identifier type and normalized value.
 
 ## Dependencies

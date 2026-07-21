@@ -144,6 +144,8 @@ public sealed class TenantProvisioningPolicyTests
 
         users.Setup(x => x.FindByPhoneAsync("+16142649686", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new IdentityUser(userId, string.Empty, false, "+16142649686"));
+        users.Setup(x => x.SetPhoneConfirmedAsync(userId, true, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         tenants.SetupSequence(x => x.GetTenantsForUserAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<TenantInfo>())

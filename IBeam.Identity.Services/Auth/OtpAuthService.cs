@@ -485,6 +485,8 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             channel == SenderChannel.Email ? normalizedDestination : user.Email,
             ct);
 
+        user = await ConfirmVerifiedOtpChannelAsync(user, channel, ct).ConfigureAwait(false);
+
         await EnsureTenantExtensionsForUserAsync(
             user.UserId,
             TenantExtensionOperations.Ensure,
@@ -964,6 +966,27 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             causationId: causationId,
             traceId: traceId,
             metadata: metadata);
+
+    private async Task<IdentityUser> ConfirmVerifiedOtpChannelAsync(
+        IdentityUser user,
+        SenderChannel channel,
+        CancellationToken ct)
+    {
+        if (channel == SenderChannel.Email)
+        {
+            if (user.EmailConfirmed)
+                return user;
+
+            await _users.SetEmailConfirmedAsync(user.UserId, true, ct).ConfigureAwait(false);
+            return user with { EmailConfirmed = true };
+        }
+
+        if (user.PhoneConfirmed)
+            return user;
+
+        await _users.SetPhoneConfirmedAsync(user.UserId, true, ct).ConfigureAwait(false);
+        return user with { PhoneConfirmed = true };
+    }
 
     private Guid? ResolveEffectiveTenantId(Guid? requestedTenantId)
     {

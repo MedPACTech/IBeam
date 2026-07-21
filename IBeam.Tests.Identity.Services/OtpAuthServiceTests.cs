@@ -139,6 +139,126 @@ public sealed class OtpAuthServiceTests
     }
 
     [TestMethod]
+    public async Task CompleteOtpAsync_EmailOtpConfirmsEmail_WhenUserWasUnconfirmed()
+    {
+        var userId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var tenants = new Mock<ITenantMembershipStore>(MockBehavior.Strict);
+        var tokens = new Mock<ITokenService>(MockBehavior.Strict);
+        var otpService = new Mock<IOtpService>(MockBehavior.Strict);
+        var otpChallenges = new Mock<IOtpChallengeStore>(MockBehavior.Strict);
+
+        otpService.Setup(x => x.VerifyAsync(It.IsAny<OtpVerifyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpVerifyResult(true, "vt", DateTimeOffset.UtcNow.AddMinutes(10)));
+
+        otpChallenges.Setup(x => x.GetAsync("challenge-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpChallengeRecord(
+                ChallengeId: "challenge-1",
+                Destination: "abram.cookson@outlook.com",
+                Purpose: SenderPurpose.LoginMfa,
+                CodeHash: "hash",
+                ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10),
+                AttemptCount: 0,
+                TenantId: null,
+                IsConsumed: true,
+                VerificationToken: "vt",
+                VerificationTokenExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10)));
+
+        users.Setup(x => x.FindByEmailAsync("ABRAM.COOKSON@OUTLOOK.COM", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(userId, "abram.cookson@outlook.com", false));
+        users.Setup(x => x.SetEmailConfirmedAsync(userId, true, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        tenants.Setup(x => x.GetTenantsForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TenantInfo> { new(tenantId, "Tenant A", new List<string> { "User" }, true) });
+
+        tokens.Setup(x => x.CreateAccessTokenAsync(
+                userId,
+                tenantId,
+                It.IsAny<IReadOnlyList<ClaimItem>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TokenResult("jwt-token", DateTimeOffset.UtcNow.AddMinutes(60), new List<ClaimItem>()));
+
+        var sut = new OtpAuthService(
+            users.Object,
+            tenants.Object,
+            Mock.Of<ITenantProvisioningService>(),
+            tokens.Object,
+            otpService.Object,
+            otpChallenges.Object);
+
+        var result = await sut.CompleteOtpAsync("challenge-1", "123456", "abram.cookson@outlook.com");
+
+        Assert.IsNotNull(result.Token);
+        users.Verify(x => x.SetEmailConfirmedAsync(userId, true, It.IsAny<CancellationToken>()), Times.Once);
+        users.Verify(x => x.SetPhoneConfirmedAsync(It.IsAny<Guid>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+        users.VerifyAll();
+    }
+
+    [TestMethod]
+    public async Task CompleteOtpAsync_SmsOtpConfirmsPhone_WhenUserWasUnconfirmed()
+    {
+        var userId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+        const string phone = "+16145551212";
+
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var tenants = new Mock<ITenantMembershipStore>(MockBehavior.Strict);
+        var tokens = new Mock<ITokenService>(MockBehavior.Strict);
+        var otpService = new Mock<IOtpService>(MockBehavior.Strict);
+        var otpChallenges = new Mock<IOtpChallengeStore>(MockBehavior.Strict);
+
+        otpService.Setup(x => x.VerifyAsync(It.IsAny<OtpVerifyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpVerifyResult(true, "vt", DateTimeOffset.UtcNow.AddMinutes(10)));
+
+        otpChallenges.Setup(x => x.GetAsync("challenge-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpChallengeRecord(
+                ChallengeId: "challenge-1",
+                Destination: phone,
+                Purpose: SenderPurpose.LoginMfa,
+                CodeHash: "hash",
+                ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10),
+                AttemptCount: 0,
+                TenantId: null,
+                IsConsumed: true,
+                VerificationToken: "vt",
+                VerificationTokenExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10),
+                Channel: SenderChannel.Sms));
+
+        users.Setup(x => x.FindByPhoneAsync(phone, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(userId, null, false, PhoneNumber: phone, PhoneConfirmed: false));
+        users.Setup(x => x.SetPhoneConfirmedAsync(userId, true, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        tenants.Setup(x => x.GetTenantsForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TenantInfo> { new(tenantId, "Tenant A", new List<string> { "User" }, true) });
+
+        tokens.Setup(x => x.CreateAccessTokenAsync(
+                userId,
+                tenantId,
+                It.IsAny<IReadOnlyList<ClaimItem>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TokenResult("jwt-token", DateTimeOffset.UtcNow.AddMinutes(60), new List<ClaimItem>()));
+
+        var sut = new OtpAuthService(
+            users.Object,
+            tenants.Object,
+            Mock.Of<ITenantProvisioningService>(),
+            tokens.Object,
+            otpService.Object,
+            otpChallenges.Object);
+
+        var result = await sut.CompleteOtpAsync("challenge-1", "123456", phone);
+
+        Assert.IsNotNull(result.Token);
+        users.Verify(x => x.SetPhoneConfirmedAsync(userId, true, It.IsAny<CancellationToken>()), Times.Once);
+        users.Verify(x => x.SetEmailConfirmedAsync(It.IsAny<Guid>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+        users.VerifyAll();
+    }
+
+    [TestMethod]
     public async Task CompleteOtpAsync_WithJwtTokenService_DoesNotDuplicateReservedClaims()
     {
         var userId = Guid.NewGuid();
