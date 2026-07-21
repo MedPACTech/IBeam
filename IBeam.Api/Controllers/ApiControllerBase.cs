@@ -22,11 +22,32 @@ public abstract class ApiControllerBase : ControllerBase
         IEnumerable<T> data,
         int pageSize,
         string? continuationToken)
-        => Ok(new ApiPagedResponse<T>
+        => OkCursorPagedResponse(data, pageSize, continuationToken);
+
+    protected IActionResult OkCursorPagedResponse<T>(
+        IEnumerable<T> data,
+        int pageSize,
+        string? continuationToken)
+        => Ok(new ApiCursorPagedResponse<T>
         {
             Data = data,
             PageSize = pageSize,
             ContinuationToken = continuationToken,
+            Success = true,
+            TraceId = HttpContext.TraceIdentifier
+        });
+
+    protected IActionResult OkOffsetPagedResponse<T>(
+        IEnumerable<T> data,
+        int pageNumber,
+        int pageSize,
+        long? totalCount)
+        => Ok(new ApiOffsetPagedResponse<T>
+        {
+            Data = data,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalCount = totalCount,
             Success = true,
             TraceId = HttpContext.TraceIdentifier
         });

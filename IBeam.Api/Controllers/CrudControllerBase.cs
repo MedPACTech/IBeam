@@ -11,6 +11,8 @@ public abstract class CrudControllerBase<TService, TEntity, TKey> : ApiControlle
     protected readonly TService Service;
 
     protected virtual bool AllowGetAll => false;
+    protected virtual bool AllowGetAllCursorPaged => false;
+    protected virtual bool AllowGetAllOffsetPaged => false;
     protected virtual bool AllowGetAllWithArchived => false;
     protected virtual bool AllowGetById => true;
     protected virtual bool AllowGetByIds => false;
@@ -26,9 +28,37 @@ public abstract class CrudControllerBase<TService, TEntity, TKey> : ApiControlle
         Service = service;
     }
 
+    [NonAction]
+    public virtual Task<IActionResult> GetAll(CancellationToken ct)
+        => GetAll(pageSize: null, continuationToken: null, pageNumber: null, ct);
+
     [HttpGet]
-    public virtual async Task<IActionResult> GetAll(CancellationToken ct = default)
+    public virtual async Task<IActionResult> GetAll(
+        [FromQuery] int? pageSize = null,
+        [FromQuery] string? continuationToken = null,
+        [FromQuery] int? pageNumber = null,
+        CancellationToken ct = default)
     {
+        var normalizedContinuationToken = string.IsNullOrWhiteSpace(continuationToken)
+            ? null
+            : continuationToken;
+
+        var validationError = ValidatePagingRequest(pageSize, normalizedContinuationToken, pageNumber);
+        if (validationError is not null)
+        {
+            return validationError;
+        }
+
+        if (pageNumber.HasValue)
+        {
+            return await GetAllOffsetPaged(pageNumber.Value, pageSize!.Value, ct);
+        }
+
+        if (pageSize.HasValue || normalizedContinuationToken is not null)
+        {
+            return await GetAllCursorPaged(pageSize!.Value, normalizedContinuationToken, ct);
+        }
+
         if (!AllowGetAll)
         {
             return StatusCode(StatusCodes.Status405MethodNotAllowed);
@@ -37,6 +67,71 @@ public abstract class CrudControllerBase<TService, TEntity, TKey> : ApiControlle
         var reader = RequireContract<IGetAllService<TEntity>>(nameof(GetAll));
         var results = await reader.GetAllAsync(ct);
         return OkResponse(results);
+    }
+
+    private async Task<IActionResult> GetAllCursorPaged(
+        int pageSize,
+        string? continuationToken,
+        CancellationToken ct)
+    {
+        if (!AllowGetAllCursorPaged)
+        {
+            return StatusCode(StatusCodes.Status405MethodNotAllowed);
+        }
+
+        var reader = RequireContract<IGetAllCursorPagedService<TEntity>>(nameof(GetAll));
+        var page = await reader.GetAllCursorPagedAsync(pageSize, continuationToken, ct);
+        return OkCursorPagedResponse(page.Results, pageSize, page.ContinuationToken);
+    }
+
+    private async Task<IActionResult> GetAllOffsetPaged(
+        int pageNumber,
+        int pageSize,
+        CancellationToken ct)
+    {
+        if (!AllowGetAllOffsetPaged)
+        {
+            return StatusCode(StatusCodes.Status405MethodNotAllowed);
+        }
+
+        var reader = RequireContract<IGetAllOffsetPagedService<TEntity>>(nameof(GetAll));
+        var page = await reader.GetAllOffsetPagedAsync(pageNumber, pageSize, ct);
+        return OkOffsetPagedResponse(page.Results, page.PageNumber, page.PageSize, page.TotalCount);
+    }
+
+    private IActionResult? ValidatePagingRequest(
+        int? pageSize,
+        string? continuationToken,
+        int? pageNumber)
+    {
+        if (pageSize.HasValue && pageSize.Value <= 0)
+        {
+            return BadRequestResponse("Page size must be greater than 0.", nameof(pageSize));
+        }
+
+        if (pageNumber.HasValue && pageNumber.Value <= 0)
+        {
+            return BadRequestResponse("Page number must be greater than 0.", nameof(pageNumber));
+        }
+
+        if (pageNumber.HasValue && continuationToken is not null)
+        {
+            return BadRequestResponse(
+                "Page number and continuation token cannot be used together.",
+                nameof(continuationToken));
+        }
+
+        if (pageNumber.HasValue && !pageSize.HasValue)
+        {
+            return BadRequestResponse("Page size is required when page number is provided.", nameof(pageSize));
+        }
+
+        if (continuationToken is not null && !pageSize.HasValue)
+        {
+            return BadRequestResponse("Page size is required when continuation token is provided.", nameof(pageSize));
+        }
+
+        return null;
     }
 
     [HttpGet("withArchived")]

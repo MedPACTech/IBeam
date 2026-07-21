@@ -311,3 +311,21 @@ public sealed class AccessBootstrapService
 ```
 
 The returned `AccessContextDto` contains role names, role IDs, resolved permissions, module access, resource grants, and convenience capabilities such as `CanManageUsers`, `CanManageRoles`, `CanManageAccess`, and `CanAssignOwner`.
+
+## Service Operations, Auditing, And Permissions
+
+Identity service methods that mutate authentication, tenants, roles, API credentials, grants, or sessions should remain service-bound operations. New custom service methods should be tagged with `[IBeamOperation("identity.<area>.<action>")]` or a more specific package operation name, and should route through `IServiceOperationExecutor` when policy/audit behavior is required.
+
+Keep authorization-critical role assignment stable by preferring role IDs where available, while retaining role names for display, claims, and compatibility.
+
+## Extended Docs And Agent Guidance
+
+- AI prompt: [`.agent/prompt.md`](./.agent/prompt.md)
+- Root implementation guide: [`../.agent/implementation-guide.md`](../.agent/implementation-guide.md)
+- Azure Table schema inventory: [`../docs/identity-azure-table-schema-inventory.md`](../docs/identity-azure-table-schema-inventory.md)
+- Roles, permissions, and grants: [`../docs/roles-permissions-and-grants.md`](../docs/roles-permissions-and-grants.md)
+- Service logging and audit: [`../docs/service-logging-and-audit.md`](../docs/service-logging-and-audit.md)
+- Service operation permissions: [`../docs/service-operation-permissions.md`](../docs/service-operation-permissions.md)
+- Consuming API migration prompt: [`../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md`](../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
+
+Agents should keep auth orchestration in services and avoid putting tenant, role, OTP, or API credential rules into controllers or repositories.

@@ -1469,3 +1469,15 @@ public sealed class PatientController : ControllerBase
 
 `AllowRoles` uses built-in ASP.NET Core role authorization against the `role` claim type.  
 `AllowRoleIds` uses a dynamic policy that checks `rid` (or `role_id`) claims.
+
+## Extended Docs And Agent Guidance
+
+- AI prompt: [`.agent/prompt.md`](./.agent/prompt.md)
+- Root implementation guide: [`../.agent/implementation-guide.md`](../.agent/implementation-guide.md)
+- Azure Table schema inventory: [`../docs/identity-azure-table-schema-inventory.md`](../docs/identity-azure-table-schema-inventory.md)
+- Roles, permissions, and grants: [`../docs/roles-permissions-and-grants.md`](../docs/roles-permissions-and-grants.md)
+- Service logging and audit: [`../docs/service-logging-and-audit.md`](../docs/service-logging-and-audit.md)
+- Service operation permissions: [`../docs/service-operation-permissions.md`](../docs/service-operation-permissions.md)
+- Consuming API migration prompt: [`../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md`](../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
+
+Agents should keep controllers thin. Identity API controllers should expose service behavior, not duplicate service-layer auth, tenant, role, grant, or audit rules.

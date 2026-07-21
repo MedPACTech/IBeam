@@ -10,6 +10,22 @@ public interface IGetAllWithArchivedService<TEntity>
     Task<IEnumerable<TEntity>> GetAllWithArchivedAsync(bool withArchived, CancellationToken ct = default);
 }
 
+public interface IGetAllCursorPagedService<TEntity>
+{
+    Task<CursorPagedResult<TEntity>> GetAllCursorPagedAsync(
+        int pageSize,
+        string? continuationToken = null,
+        CancellationToken ct = default);
+}
+
+public interface IGetAllOffsetPagedService<TEntity>
+{
+    Task<OffsetPagedResult<TEntity>> GetAllOffsetPagedAsync(
+        int pageNumber,
+        int pageSize,
+        CancellationToken ct = default);
+}
+
 public interface IGetByIdService<TEntity, in TKey>
 {
     Task<TEntity?> GetByIdAsync(TKey id, CancellationToken ct = default);

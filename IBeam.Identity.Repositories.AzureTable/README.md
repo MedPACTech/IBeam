@@ -176,6 +176,11 @@ In `RequireExistingTenant`, OTP/password/OAuth auth flows do not create `Tenants
 
 Access-control tables such as `AccessGrants`, `PermissionRoleMaps`, and `ServiceOperationPermissions` are owned by `IBeam.AccessControl.Repositories.AzureTable`, not the Identity schema manager.
 
+If a host configures the ElCamino base names to use `Identity` instead of `AspNet`, the first
+three tables become `IdentityUsers`, `IdentityRoles`, and `IdentityIndex` before prefixing. With
+`TablePrefix = "IBeam"`, that creates `IBeamIdentityUsers`, `IBeamIdentityRoles`, and
+`IBeamIdentityIndex`.
+
 ## Table Naming and Prefix Defaults
 
 Physical table names are `{TablePrefix}{BaseTableName}`.
@@ -207,3 +212,14 @@ Identity AzureTable provider resolves connection string with fallback precedence
 7. `ConnectionStrings:IBeam`
 8. `ConnectionStrings:DefaultConnection`
 9. `ConnectionStrings:IdentityAzureTable`
+
+## Extended Docs And Agent Guidance
+
+- AI prompt: [`.agent/prompt.md`](./.agent/prompt.md)
+- Root implementation guide: [`../.agent/implementation-guide.md`](../.agent/implementation-guide.md)
+- Azure Table schema inventory: [`../docs/identity-azure-table-schema-inventory.md`](../docs/identity-azure-table-schema-inventory.md)
+- Identity contracts: [`../IBeam.Identity/README.md`](../IBeam.Identity/README.md)
+- Roles, permissions, and grants: [`../docs/roles-permissions-and-grants.md`](../docs/roles-permissions-and-grants.md)
+- Service logging and audit: [`../docs/service-logging-and-audit.md`](../docs/service-logging-and-audit.md)
+
+Agents should keep provider code storage-focused. Tenant, role, OTP, API credential, and access rules belong in Identity/AccessControl services.
