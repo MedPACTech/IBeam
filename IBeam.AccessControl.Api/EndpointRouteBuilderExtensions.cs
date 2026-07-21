@@ -25,6 +25,8 @@ public static class AccessControlEndpointRouteBuilderExtensions
             string? resourceId,
             string? subjectType,
             string? subjectId,
+            bool? includeRevoked,
+            bool? includeInactive,
             IResourceAccessService access,
             CancellationToken ct) =>
         {
@@ -34,7 +36,13 @@ public static class AccessControlEndpointRouteBuilderExtensions
                     ? new AccessSubject(subjectType ?? string.Empty, subjectId ?? string.Empty)
                     : null;
 
-                var result = await access.ListGrantsAsync(tenantId, resourceType, resourceId, subject, ct)
+                var result = await access.ListGrantsAsync(
+                        tenantId,
+                        resourceType,
+                        resourceId,
+                        subject,
+                        ct,
+                        includeInactive == true || includeRevoked == true)
                     .ConfigureAwait(false);
                 return Results.Ok(result);
             }

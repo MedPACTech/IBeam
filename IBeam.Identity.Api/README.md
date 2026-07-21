@@ -1376,6 +1376,8 @@ GET /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-control/grants?subj
 Authorization: Bearer {ownerOrAdminTenantToken}
 ```
 
+Grant lists return active, unexpired grants by default. Add `includeRevoked=true` or `includeInactive=true` when building an admin audit/history view that should show revoked, disabled, or expired grants.
+
 Update a grant:
 
 ```http
@@ -1398,6 +1400,8 @@ Delete a grant:
 DELETE /api/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/access-control/grants/7a89e64c-c8ec-40ee-9cd8-d315bde84a62
 Authorization: Bearer {ownerOrAdminTenantToken}
 ```
+
+Deleting a grant soft-revokes it and returns `204 No Content`; the grant no longer appears in normal list results.
 
 ### Current User Access Context
 

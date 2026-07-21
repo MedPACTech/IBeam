@@ -257,6 +257,51 @@ public sealed class AccessControlServiceTests
     }
 
     [TestMethod]
+    public async Task ListGrantsAsync_ExcludesRevokedGrantsByDefault()
+    {
+        var fixture = CreateFixture();
+        var subject = new AccessSubject(AccessSubjectTypes.User, "user-1");
+        var grant = await fixture.Service.GrantAccessAsync(
+            TenantId,
+            new GrantResourceAccessRequest
+            {
+                ResourceType = "project",
+                ResourceId = "project-1",
+                Subject = subject,
+                AccessLevel = ResourceAccessLevels.View
+            });
+
+        await fixture.Service.RevokeGrantAsync(TenantId, grant.GrantId);
+
+        var grants = await fixture.Service.ListGrantsAsync(TenantId, subject: subject);
+
+        Assert.HasCount(0, grants);
+    }
+
+    [TestMethod]
+    public async Task ListGrantsAsync_CanIncludeRevokedGrants()
+    {
+        var fixture = CreateFixture();
+        var subject = new AccessSubject(AccessSubjectTypes.User, "user-1");
+        var grant = await fixture.Service.GrantAccessAsync(
+            TenantId,
+            new GrantResourceAccessRequest
+            {
+                ResourceType = "project",
+                ResourceId = "project-1",
+                Subject = subject,
+                AccessLevel = ResourceAccessLevels.View
+            });
+
+        await fixture.Service.RevokeGrantAsync(TenantId, grant.GrantId);
+
+        var grants = await fixture.Service.ListGrantsAsync(TenantId, subject: subject, includeInactive: true);
+
+        Assert.HasCount(1, grants);
+        Assert.AreEqual(ResourceAccessGrantStatuses.Revoked, grants[0].Status);
+    }
+
+    [TestMethod]
     public async Task AuthorizeAsync_DeniesExpiredGrant()
     {
         var fixture = CreateFixture();

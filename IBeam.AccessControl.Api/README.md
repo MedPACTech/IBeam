@@ -79,6 +79,8 @@ DELETE /api/tenants/{tenantId}/access-control/service-permissions/{ruleId}
 POST   /api/tenants/{tenantId}/access-control/service-permissions/check
 ```
 
+Grant list endpoints return active, unexpired grants by default. Add `includeRevoked=true` or `includeInactive=true` to include revoked, disabled, or expired grants for admin history views. Deleting a grant soft-revokes it and returns `204 No Content`.
+
 Example operation rule request:
 
 ```json

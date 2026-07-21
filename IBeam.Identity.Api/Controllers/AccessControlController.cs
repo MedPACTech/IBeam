@@ -164,8 +164,12 @@ public sealed class AccessControlController : ControllerBase
     [HttpGet("/api/tenants/{tenantId:guid}/access-control/grants")]
     public async Task<IActionResult> GetGrants(
         Guid tenantId,
+        [FromQuery] string? resourceType,
+        [FromQuery] string? resourceId,
         [FromQuery] string? subjectType,
         [FromQuery] string? subjectId,
+        [FromQuery] bool includeRevoked,
+        [FromQuery] bool includeInactive,
         CancellationToken ct)
     {
         if (!TryAuthorizeTenantRoleAdmin(tenantId, out var forbidden))
@@ -175,7 +179,13 @@ public sealed class AccessControlController : ControllerBase
             ? new IBeam.AccessControl.AccessSubject(subjectType ?? string.Empty, subjectId ?? string.Empty)
             : null;
 
-        var grants = await _resourceAccess.ListGrantsAsync(tenantId, subject: subject, ct: ct);
+        var grants = await _resourceAccess.ListGrantsAsync(
+            tenantId,
+            resourceType,
+            resourceId,
+            subject: subject,
+            ct: ct,
+            includeInactive: includeRevoked || includeInactive);
         return Ok(grants);
     }
 
@@ -230,7 +240,7 @@ public sealed class AccessControlController : ControllerBase
             return forbidden;
 
         await _resourceAccess.RevokeGrantAsync(tenantId, grantId, ct);
-        return Accepted();
+        return NoContent();
     }
 
     [HttpPost("/api/tenants/{tenantId:guid}/access-control/check")]

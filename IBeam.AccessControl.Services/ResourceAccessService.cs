@@ -20,10 +20,11 @@ public sealed class ResourceAccessService : IResourceAccessService
         string? resourceType = null,
         string? resourceId = null,
         AccessSubject? subject = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool includeInactive = false)
         => await _operations.ExecuteAsync(
             this,
-            token => ListGrantsCoreAsync(tenantId, resourceType, resourceId, subject, token),
+            token => ListGrantsCoreAsync(tenantId, resourceType, resourceId, subject, includeInactive, token),
             new ServiceOperationExecutionOptions { TenantId = tenantId },
             ct).ConfigureAwait(false);
 
@@ -32,11 +33,18 @@ public sealed class ResourceAccessService : IResourceAccessService
         string? resourceType,
         string? resourceId,
         AccessSubject? subject,
+        bool includeInactive,
         CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         var grants = await _store.ListGrantsAsync(tenantId, ct).ConfigureAwait(false);
         var query = grants.AsEnumerable();
+        var now = DateTimeOffset.UtcNow;
+
+        if (!includeInactive)
+        {
+            query = query.Where(x => x.IsActive(now));
+        }
 
         if (!string.IsNullOrWhiteSpace(resourceType))
         {

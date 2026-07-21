@@ -24,7 +24,8 @@ public interface IResourceAccessService
         string? resourceType = null,
         string? resourceId = null,
         AccessSubject? subject = null,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        bool includeInactive = false);
 
     Task<ResourceAccessGrantInfo> GrantAccessAsync(
         Guid tenantId,
