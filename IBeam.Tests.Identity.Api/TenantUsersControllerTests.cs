@@ -2,8 +2,10 @@ using System.Security.Claims;
 using IBeam.Identity.Api.Controllers;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
+using IBeam.Identity.Options;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace IBeam.Tests.Identity.Api;
 
@@ -48,29 +50,68 @@ public sealed class TenantUsersControllerTests
         Assert.IsTrue(roles.LastBootstrapRequest.SetAsDefault);
     }
 
+    [TestMethod]
+    public async Task LinkTenantUser_ReturnsOk_ForConfiguredPermissionClaim()
+    {
+        var accessOptions = new IBeamAccessControlOptions
+        {
+            TenantUserManagementPermissionNames = ["identity.users.invite"]
+        };
+        var roles = new FakeTenantRoleService();
+        var sut = CreateController(role: "member", permission: "identity.users.invite", roles: roles, accessOptions: accessOptions);
+
+        var result = await sut.LinkTenantUser(
+            TenantId,
+            new LinkTenantUserRequest
+            {
+                UserId = UserId,
+                RoleNames = ["Editor"]
+            },
+            CancellationToken.None);
+
+        Assert.IsInstanceOfType<OkObjectResult>(result);
+        Assert.IsNotNull(roles.LastBootstrapRequest);
+    }
+
     private static TenantUsersController CreateController(
         string role,
+        string? permission = null,
         FakeTenantMembershipStore? memberships = null,
-        FakeTenantRoleService? roles = null)
+        FakeTenantRoleService? roles = null,
+        IBeamAccessControlOptions? accessOptions = null)
     {
         var controller = new TenantUsersController(
             memberships ?? new FakeTenantMembershipStore(),
-            roles ?? new FakeTenantRoleService());
+            roles ?? new FakeTenantRoleService(),
+            new StaticOptionsSnapshot<IBeamAccessControlOptions>(accessOptions ?? new IBeamAccessControlOptions()));
+
+        var claims = new List<Claim>
+        {
+            new("uid", Guid.NewGuid().ToString("D")),
+            new("tid", TenantId.ToString("D")),
+            new("role", role)
+        };
+
+        if (!string.IsNullOrWhiteSpace(permission))
+            claims.Add(new Claim("permission", permission));
 
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
             {
-                User = new ClaimsPrincipal(new ClaimsIdentity(
-                [
-                    new Claim("uid", Guid.NewGuid().ToString("D")),
-                    new Claim("tid", TenantId.ToString("D")),
-                    new Claim("role", role)
-                ], "unit-test"))
+                User = new ClaimsPrincipal(new ClaimsIdentity(claims, "unit-test"))
             }
         };
 
         return controller;
+    }
+
+    private sealed class StaticOptionsSnapshot<T> : IOptionsSnapshot<T>
+        where T : class
+    {
+        public StaticOptionsSnapshot(T value) => Value = value;
+        public T Value { get; }
+        public T Get(string? name) => Value;
     }
 
     private sealed class FakeTenantMembershipStore : ITenantMembershipStore

@@ -64,8 +64,12 @@ Provider implementations should resolve auth identifiers through an indexed look
   - `IIdentityUserStore`, `IOtpChallengeStore`, `IExternalLoginStore`
   - `ITenantMembershipStore`, `ITenantProvisioningService`, `IAuthSessionStore`
   - `ITenantRoleStore` for tenant-scoped role CRUD and assignment
+  - `ITenantInviteStore` for tenant invitation persistence
 - service contracts:
   - `ITenantRoleService`
+  - `ITenantInviteService`
+  - `ITenantInviteUrlBuilder`
+  - `ITenantInviteMessageFactory`
   - `IRoleAccessAuthorizer`
   - `IPermissionAccessAuthorizer`
   - `IPermissionCatalogProvider`
@@ -111,6 +115,7 @@ Provider implementations should resolve auth identifiers through an indexed look
 - `TenantUsers`: tenant-to-user membership index.
 - `UserTenants`: user-to-tenant membership index.
 - `TenantRoles`: tenant-scoped roles.
+- `TenantInvites`: tenant invitation records and token lookup rows.
 - `OtpChallenges`: OTP lifecycle records (destination, hash, attempts, expiry, consume state).
 - `AuthIdentifiers`: auth lookup bindings from email/SMS identifiers to canonical user ids.
 - `ExternalLogins`: OAuth provider-user links.
@@ -130,6 +135,27 @@ For Azure Table identity provider, physical table name is:
 Examples:
 - `TablePrefix = "IBeam"` + `AspNetUsers` => `IBeamAspNetUsers`
 - `TablePrefix = "Acme"` + `TenantUsers` => `AcmeTenantUsers`
+
+Some consuming applications configure the ElCamino base table names to use `Identity` instead of
+`AspNet`. For those hosts, use:
+
+```json
+{
+  "IBeam": {
+    "Identity": {
+      "AzureTable": {
+        "TablePrefix": "IBeam",
+        "UserTableName": "IdentityUsers",
+        "RoleTableName": "IdentityRoles",
+        "IndexTableName": "IdentityIndex"
+      }
+    }
+  }
+}
+```
+
+That produces physical tables such as `IBeamIdentityUsers`, `IBeamIdentityRoles`, and
+`IBeamIdentityIndex`.
 
 This applies to both ElCamino and custom IBeam identity tables.
 
@@ -224,6 +250,15 @@ Default mode is `AutoCreateTenantForNewUser`, which preserves the original works
 
 IBeam owns `IdentityTenant` for identity/auth concerns, while an application can own its app/domain tenant entity such as `Tenant`, `Organization`, `Workspace`, `Practice`, or `Business`.
 
+In many consuming applications, plain tables named `Users` and `Tenants` are not IBeam's packaged identity tables. They are app-owned extension/domain tables that should be linked to IBeam identity records:
+
+| App Table | IBeam Link | Owns |
+|---|---|---|
+| `Users`, `AppUsers`, or `Profiles` | `UserId`, and often `TenantId + UserId` | Profile fields, preferences, handles, onboarding, avatar, app display state. |
+| `Tenants`, `Organizations`, or `Workspaces` | `TenantId` | Slug, branding, billing/provider fields, address, lifecycle flags, app metadata. |
+
+Do not treat extension tables as a request to add app fields to IBeam's packaged identity tables or auth DTOs. IBeam can coordinate creation/sync of extension rows, but the consuming app owns the schema, validation, update APIs, repositories, and migration scripts for those rows.
+
 `IdentityTenant` stays minimal:
 
 - `TenantId`
@@ -282,6 +317,181 @@ When configured, IBeam invokes the user extension store during user creation and
 
 IBeam does not expose built-in profile extension routes and does not persist app-specific user profile fields. For Hubbsly-style apps, the app-owned `Users` table should be keyed by selected IBeam `TenantId` plus IBeam `UserId`.
 
+#### User profile data example
+
+For profile details such as gamer tag, theme, avatar URL, social media handle, onboarding flags, or user preferences, do not add fields to the packaged IBeam identity user table. Keep those fields in an app-owned entity and bind it back to the IBeam identity with `UserId`, and optionally `TenantId` when the value is tenant-specific.
+
+Example app-owned profile entity:
+
+```csharp
+public sealed class AppUserProfile : IIdentityUserProfileExtension
+{
+    public Guid UserId { get; set; }
+    public Guid? TenantId { get; set; }
+
+    public string DisplayName { get; set; } = string.Empty;
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+
+    public string? GamerTag { get; set; }
+    public string? Theme { get; set; }
+    public string? SocialHandle { get; set; }
+    public DateTimeOffset CreatedUtc { get; set; }
+    public DateTimeOffset UpdatedUtc { get; set; }
+}
+```
+
+Example extension store:
+
+```csharp
+public sealed class AppUserProfileStore : IIdentityUserExtensionStore<AppUserProfile>
+{
+    public Task<AppUserProfile?> FindByUserIdAsync(
+        Guid userId,
+        Guid? tenantId,
+        CancellationToken ct = default)
+    {
+        // Look up the app-owned profile row by UserId and optional TenantId.
+        throw new NotImplementedException();
+    }
+
+    public Task<AppUserProfile> CreateAsync(
+        IdentityUser identityUser,
+        UserExtensionContext context,
+        CancellationToken ct = default)
+    {
+        var profile = new AppUserProfile
+        {
+            UserId = identityUser.UserId,
+            TenantId = context.TenantId,
+            DisplayName = context.DisplayName ?? string.Empty,
+            FirstName = context.FirstName ?? string.Empty,
+            LastName = context.LastName ?? string.Empty,
+            Theme = "dark-mode",
+            CreatedUtc = DateTimeOffset.UtcNow,
+            UpdatedUtc = DateTimeOffset.UtcNow
+        };
+
+        // Save the app-owned profile row.
+        throw new NotImplementedException();
+    }
+
+    public Task<AppUserProfile> UpdateFromIdentityUserAsync(
+        AppUserProfile profile,
+        IdentityUser identityUser,
+        UserExtensionContext context,
+        CancellationToken ct = default)
+    {
+        profile.DisplayName = context.DisplayName ?? profile.DisplayName;
+        profile.UpdatedUtc = DateTimeOffset.UtcNow;
+
+        // Save identity-owned display/contact sync without overwriting app-owned preferences.
+        throw new NotImplementedException();
+    }
+}
+```
+
+Register it in the consuming app:
+
+```csharp
+services.AddIBeamIdentityServices(configuration);
+services.AddIBeamIdentityUserExtension<AppUserProfile, AppUserProfileStore>();
+```
+
+The extension hook ensures the profile row exists during identity lifecycle flows. The consuming app should still expose its own typed profile service/API for user-editable fields such as `GamerTag`, `Theme`, and `SocialHandle`, because IBeam does not know the app's validation, privacy, or storage rules for those fields.
+
+Typical end-to-end flow for updating a profile field:
+
+```text
+PUT /api/me/profile/gamertag
+        |
+        v
+MeProfileController
+        |
+        v
+UserProfileService.UpdateGamerTagAsync(...)
+        |
+        v
+IUserProfileRepository.SaveAsync(...)
+        |
+        v
+App-owned table: Users or AppUsers
+PartitionKey = TENANT|{tenantId:D}
+RowKey       = USER|{userId:D}
+```
+
+Example request DTO:
+
+```csharp
+public sealed record UpdateGamerTagRequest(string GamerTag);
+```
+
+Example response DTO:
+
+```csharp
+public sealed record AppUserProfileDto(
+    Guid UserId,
+    Guid? TenantId,
+    string? DisplayName,
+    string? GamerTag,
+    string? Theme,
+    string? SocialHandle);
+```
+
+Example app service:
+
+```csharp
+[IBeamOperation("users.profile")]
+public sealed class UserProfileService
+{
+    private readonly IUserProfileRepository _profiles;
+
+    public UserProfileService(IUserProfileRepository profiles)
+    {
+        _profiles = profiles;
+    }
+
+    [IBeamOperation("users.profile.updateGamertag")]
+    public async Task<AppUserProfileDto> UpdateGamerTagAsync(
+        Guid tenantId,
+        Guid userId,
+        string gamerTag,
+        CancellationToken ct = default)
+    {
+        var profile = await _profiles.GetAsync(tenantId, userId, ct)
+            ?? throw new InvalidOperationException("User profile was not found.");
+
+        profile.GamerTag = gamerTag.Trim();
+        profile.UpdatedUtc = DateTimeOffset.UtcNow;
+
+        var saved = await _profiles.SaveAsync(profile, ct);
+
+        return new AppUserProfileDto(
+            saved.UserId,
+            saved.TenantId,
+            saved.DisplayName,
+            saved.GamerTag,
+            saved.Theme,
+            saved.SocialHandle);
+    }
+}
+```
+
+Example Azure Table shape for the app-owned profile row:
+
+| Field | Purpose |
+|---|---|
+| `PartitionKey` | `TENANT|{tenantId:D}` for tenant-scoped profile data. |
+| `RowKey` | `USER|{userId:D}` for point lookup by IBeam user id. |
+| `TenantId` | Tenant scope for tenant-specific profile values. |
+| `UserId` | Stable IBeam identity user id. |
+| `DisplayName` | App display name, optionally synced from IBeam identity context. |
+| `GamerTag` | App-owned profile field. |
+| `Theme` | App-owned preference, such as `dark-mode`. |
+| `SocialHandle` | App-owned social/contact display field. |
+| `CreatedUtc` | Profile row creation timestamp. |
+| `UpdatedUtc` | Profile row update timestamp. |
+
 For single-tenant deployments, use `UseDefaultTenant` with an explicit tenant ID. Auth requests that omit tenant ID use this configured default; IBeam does not infer it from environment name or storage account.
 
 ```json
@@ -324,6 +534,93 @@ builder.Services.Configure<TenantProvisioningOptions>(options =>
     options.AutoLinkUserToDefaultTenant = true;
     options.AutoLinkRoleNames.Add("Member");
 });
+```
+
+## Tenant Invitations
+
+Tenant invitations are the reusable IBeam workflow for tenant-managed user onboarding. A tenant owner/admin can invite a recipient by email or SMS without knowing whether the recipient already has an IBeam account. The invite records the tenant, destination, role/access intent, profile hints, expiration, sender, and correlation metadata. Acceptance resolves or creates the canonical identity user and links that user to the invited tenant.
+
+Core contracts:
+
+- `ITenantInviteService`
+- `ITenantInviteStore`
+- `ITenantInviteUrlBuilder`
+- `ITenantInviteMessageFactory`
+- `TenantInviteCreateRequest`
+- `TenantInviteAcceptRequest`
+- tenant invite lifecycle events in `IBeam.Identity.Events`
+
+Create request highlights:
+
+- `DestinationType`: `email` or `sms`
+- `Email` or `PhoneNumber`
+- profile hints: `DisplayName`, `FirstName`, `LastName`, `Metadata`
+- initial tenant access: `RoleIds`, `RoleNames`, `SetAsDefaultTenant`
+- optional resource grants: `ResourceType`, `ResourceId`, `AccessLevel`, `ExpirationUtc`, `Metadata`
+- delivery/context: `ExpiresUtc`, `RedirectUrl`, `CorrelationId`, `CausationId`
+
+Acceptance modes:
+
+- `otp`: verify an email or SMS OTP challenge for the invited destination.
+- `sms-otp`: SMS-specific OTP acceptance.
+- `email-password`: verify/control the invited email and set or validate a password.
+- `existing-session`: accept as the current authenticated user, only when that user owns the verified invited destination.
+
+Successful acceptance:
+
+1. Looks up the invite by secure token hash.
+2. Checks status and expiration.
+3. Verifies the recipient controls the invited email or phone number.
+4. Resolves the existing identity user or creates a new one.
+5. Links the user to the invite tenant.
+6. Applies invite roles through `ITenantRoleService` or creates a role-less membership through `ITenantProvisioningService`.
+7. Calls `IIdentityUserExtensionCoordinator` with `Operation = "invite-accepted"` and tenant-scoped profile hints.
+8. Applies optional `IBeam.AccessControl` resource grants when an `IResourceAccessService` is registered.
+9. Marks the invite redeemed and returns a tenant-scoped token plus membership context.
+
+Security notes:
+
+- Create, list, get, resend, and revoke are tenant-admin operations. The API layer uses `IBeam:Identity:AccessControl` to decide which tenant roles and permission claims can manage invites. Defaults recognize `Owner`, `Administrator`, and `Admin` roles, plus configurable operation-style permission names such as `identity.tenantinvites.manage`.
+- Preview and accept can be anonymous, but the tenant id used for acceptance comes from the stored invite, not from client query parameters.
+- Invite tokens are generated with secure random bytes and stored only as SHA-256 hashes.
+- The create and preview paths do not reveal whether the destination is already bound to a global identity user.
+- Host apps own invite screens, branding, email/SMS templates, license-seat policy, and post-acceptance profile editing.
+
+Override delivery behavior in host apps with DI:
+
+```csharp
+builder.Services.AddIBeamIdentityServices(builder.Configuration);
+builder.Services.AddScoped<ITenantInviteUrlBuilder, AppInviteUrlBuilder>();
+builder.Services.AddScoped<ITenantInviteMessageFactory, AppInviteMessageFactory>();
+```
+
+Example service usage:
+
+```csharp
+var created = await tenantInvites.CreateInviteAsync(
+    tenantId,
+    new TenantInviteCreateRequest(
+        DestinationType: TenantInviteDestinationTypes.Email,
+        Email: "ada@example.com",
+        DisplayName: "Ada Lovelace",
+        FirstName: "Ada",
+        LastName: "Lovelace",
+        RoleNames: ["Member"],
+        SetAsDefaultTenant: true,
+        RedirectUrl: "https://app.example.com/invites/accept",
+        Metadata: new Dictionary<string, string>
+        {
+            ["source"] = "admin-users"
+        }),
+    invitedByUserId,
+    ct);
+
+var accepted = await tenantInvites.AcceptInviteAsync(
+    new TenantInviteAcceptRequest(
+        InviteToken: created.InviteToken,
+        Mode: TenantInviteAcceptModes.ExistingSession),
+    authenticatedUserId,
+    ct);
 ```
 
 ## Examples
@@ -542,7 +839,7 @@ public sealed class ProductService
         _access = access;
     }
 
-    public async Task UpdateProductAsync(
+public async Task UpdateProductAsync(
         ClaimsPrincipal user,
         Guid productId,
         UpdateProductRequest request,
@@ -559,3 +856,16 @@ public sealed class ProductService
     }
 }
 ```
+
+## Extended Docs And Agent Guidance
+
+- AI prompt: [`.agent/prompt.md`](./.agent/prompt.md)
+- Root implementation guide: [`../.agent/implementation-guide.md`](../.agent/implementation-guide.md)
+- Azure Table schema inventory: [`../docs/identity-azure-table-schema-inventory.md`](../docs/identity-azure-table-schema-inventory.md)
+- Roles, permissions, and grants: [`../docs/roles-permissions-and-grants.md`](../docs/roles-permissions-and-grants.md)
+- Service logging and audit: [`../docs/service-logging-and-audit.md`](../docs/service-logging-and-audit.md)
+- Service operation permissions: [`../docs/service-operation-permissions.md`](../docs/service-operation-permissions.md)
+- Consuming API migration prompt: [`../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md`](../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
+- Identity extension scan prompt: [`../IBeam.AI.Enablement/examples/identity-extension-scan-prompt.md`](../IBeam.AI.Enablement/examples/identity-extension-scan-prompt.md)
+
+Agents should treat Identity as auth/account infrastructure and keep application domain behavior in the consuming application's services.

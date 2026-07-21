@@ -16,6 +16,7 @@ This package is where identity behavior is implemented. It consumes contracts fr
   - `OtpService`
   - `JwtTokenService`
   - `TenantSelectionService`
+  - `TenantInviteService`
   - `IdentityCommunicationAdapter`
   - `PermissionAccessAuthorizer` (dynamic permission map authorization)
   - `PermissionCatalogProvider` (exposed permission catalog discovery)
@@ -42,6 +43,7 @@ Supported flows:
 - Add email/password to an existing SMS user: `StartEmailPasswordLinkAsync(...)`, then `CompleteEmailPasswordLinkAsync(...)`.
 - Add SMS to an existing email user: `StartPhoneLinkAsync(...)`, then `CompletePhoneLinkAsync(...)`.
 - 2FA: `StartTwoFactorSetupAsync(...)`, `CompleteTwoFactorSetupAsync(...)`, then `CompleteTwoFactorLoginAsync(...)`.
+- Tenant invites: `CreateInviteAsync(...)`, `PreviewInviteAsync(...)`, and `AcceptInviteAsync(...)` for tenant-managed onboarding.
 
 The repository provider is responsible for fast identifier resolution. For Azure Table, this is done by an `AuthIdentifiers` table keyed by identifier type and normalized value.
 
@@ -185,6 +187,34 @@ var result = await otpAuth.CompleteOtpAsync(
 
 If `AutoLinkUserToDefaultTenant` is `false` and the user is not already linked to `DefaultTenantId`, completion fails with an `IdentityValidationException`.
 
+### Tenant invite onboarding
+
+`TenantInviteService` handles tenant-preserving invitations without leaking whether the destination already belongs to an identity user. It sends an invite link, stores only a token hash, and on acceptance links the resolved user to the invite tenant.
+
+```csharp
+var invite = await tenantInvites.CreateInviteAsync(
+    tenantId,
+    new TenantInviteCreateRequest(
+        DestinationType: TenantInviteDestinationTypes.Sms,
+        PhoneNumber: "+16145551212",
+        DisplayName: "Care Coordinator",
+        RoleNames: ["Member"],
+        SetAsDefaultTenant: true),
+    invitedByUserId,
+    ct);
+
+var accepted = await tenantInvites.AcceptInviteAsync(
+    new TenantInviteAcceptRequest(
+        InviteToken: invite.InviteToken,
+        Mode: TenantInviteAcceptModes.Otp,
+        ChallengeId: challengeId,
+        Code: codeFromSms),
+    authenticatedUserId: null,
+    ct);
+```
+
+Acceptance ensures tenant membership, applies role ids/names, calls `IIdentityUserExtensionCoordinator` with `Operation = "invite-accepted"`, applies optional `IResourceAccessService` grants when access-control services are registered, marks the invite redeemed, and returns a tenant token.
+
 ### Code-based options configuration
 
 ```csharp
@@ -216,6 +246,10 @@ builder.Services.AddIBeamAccessControl(options =>
     options.AdminRoleNames.Clear();
     options.AdminRoleNames.Add("Administrator");
     options.AdminRoleNames.Add("Admin");
+
+    options.TenantUserManagementPermissionNames.Clear();
+    options.TenantUserManagementPermissionNames.Add("identity.tenantusers.manage");
+    options.TenantUserManagementPermissionNames.Add("identity.tenantinvites.manage");
 
     options.Modules.Add(new AccessModuleDefinition(
         Key: "work",
@@ -311,3 +345,21 @@ public sealed class AccessBootstrapService
 ```
 
 The returned `AccessContextDto` contains role names, role IDs, resolved permissions, module access, resource grants, and convenience capabilities such as `CanManageUsers`, `CanManageRoles`, `CanManageAccess`, and `CanAssignOwner`.
+
+## Service Operations, Auditing, And Permissions
+
+Identity service methods that mutate authentication, tenants, roles, API credentials, grants, or sessions should remain service-bound operations. New custom service methods should be tagged with `[IBeamOperation("identity.<area>.<action>")]` or a more specific package operation name, and should route through `IServiceOperationExecutor` when policy/audit behavior is required.
+
+Keep authorization-critical role assignment stable by preferring role IDs where available, while retaining role names for display, claims, and compatibility.
+
+## Extended Docs And Agent Guidance
+
+- AI prompt: [`.agent/prompt.md`](./.agent/prompt.md)
+- Root implementation guide: [`../.agent/implementation-guide.md`](../.agent/implementation-guide.md)
+- Azure Table schema inventory: [`../docs/identity-azure-table-schema-inventory.md`](../docs/identity-azure-table-schema-inventory.md)
+- Roles, permissions, and grants: [`../docs/roles-permissions-and-grants.md`](../docs/roles-permissions-and-grants.md)
+- Service logging and audit: [`../docs/service-logging-and-audit.md`](../docs/service-logging-and-audit.md)
+- Service operation permissions: [`../docs/service-operation-permissions.md`](../docs/service-operation-permissions.md)
+- Consuming API migration prompt: [`../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md`](../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
+
+Agents should keep auth orchestration in services and avoid putting tenant, role, OTP, or API credential rules into controllers or repositories.

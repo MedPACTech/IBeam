@@ -64,12 +64,18 @@ See `CONTRIBUTING.md` for workflow and standards.
 - `IBeam.Api`: reusable API composition helpers (response envelopes, exception middleware, DI/config builder)
 - `IBeam.Identity.Api`: identity endpoint module that composes identity services + providers
 
+### Access Control
+- `IBeam.AccessControl`: core access-control contracts and models
+- `IBeam.AccessControl.Services`: grants, permission-role maps, service-operation rules, and access evaluation services
+- `IBeam.AccessControl.Api`: optional ASP.NET Core endpoints for dynamic access-control management
+- `IBeam.AccessControl.Repositories.AzureTable`: Azure Table-backed access-control stores
+
 ### AI
 - `IBeam.Ai`: core agent tooling contracts and MCP models
 - `IBeam.Ai.Services`: agent tool registry, authorization, and MCP service orchestration
 - `IBeam.Ai.Api`: ASP.NET Core endpoint wiring for IBeam AI agent and MCP tooling
 
-IBeam NuGet packages include package-specific AI guidance under `.agent/project/prompt.md`.
+IBeam NuGet packages include package-specific AI guidance under `.agent/prompt.md`.
 To make that guidance available to an AI coding agent in an application that already uses
 an `.agent` directory, add this opt-in property to the application project or its
 `Directory.Build.props`:
@@ -81,6 +87,14 @@ an `.agent` directory, add this opt-in property to the application project or it
 The package prompt is then copied, only when missing, to
 `.agent/packages/<package-id>/prompt.md`. Existing application and package prompts are
 not overwritten.
+
+For repository work, agents should start with the root guide at [`.agent/implementation-guide.md`](.agent/implementation-guide.md), then read the package README and `.agent/prompt.md` for each package being used. Extended docs include:
+
+- [service logging and audit](docs/service-logging-and-audit.md)
+- [service operation permissions](docs/service-operation-permissions.md)
+- [roles, permissions, and grants](docs/roles-permissions-and-grants.md)
+- [identity Azure Table schema inventory](docs/identity-azure-table-schema-inventory.md)
+- [consuming API migration prompt](IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
 
 ### Licensing
 - `IBeam.Licensing`: core tenant licensing contracts and models
@@ -112,7 +126,7 @@ Configure plans under `IBeam:Licensing:Plans`, then use `ILicenseAuthorizer` or 
 
 ### Identity
 - `IBeam.Identity`: identity contracts, models, options, events, and schema abstractions
-- `IBeam.Identity.Services`: identity orchestration (OTP, password, OAuth, tokens, tenant selection)
+- `IBeam.Identity.Services`: identity orchestration (OTP, password, OAuth, tokens, tenant selection, tenant invitations)
 - `IBeam.Identity.Repositories.AzureTable`: Azure Table-backed identity stores and schema bootstrap
 - `IBeam.Identity.Repositories.EntityFramework`: EF-backed identity store wiring (Sqlite currently active)
 
@@ -205,6 +219,20 @@ POST /api/tenants/{tenantId}/roles/grant
 POST /api/tenants/{tenantId}/roles/revoke
 ```
 
+Tenant invite endpoints let owners/admins invite by email or SMS, preserve tenant context, apply roles and optional access grants, and ensure host-owned user extension rows during acceptance:
+
+```http
+POST /api/tenants/{tenantId}/invites
+GET  /api/tenants/{tenantId}/invites
+GET  /api/tenants/{tenantId}/invites/{inviteId}
+POST /api/tenants/{tenantId}/invites/{inviteId}/resend
+POST /api/tenants/{tenantId}/invites/{inviteId}/revoke
+GET  /api/invites/{tokenOrCode}/preview
+POST /api/invites/accept
+```
+
+Management access for tenant, invite, role, permission mapping, access-control, auth-attempt, and API credential endpoints is configurable through `IBeam:Identity:AccessControl`. Defaults preserve the built-in `Owner`, `Administrator`, and `Admin` role behavior, while larger apps can configure their own admin tiers and operation-style permission names such as `identity.tenantinvites.manage` or `identity.apicredentials.manage`.
+
 Azure Table identity storage uses these default table names for tenant membership:
 
 ```text
@@ -212,6 +240,7 @@ Tenants
 TenantUsers
 UserTenants
 Roles
+TenantInvites
 ApiCredentials
 ```
 

@@ -39,7 +39,8 @@ public sealed class RolesControllerOptionsTests
     {
         var controller = new RolesController(
             new FakeTenantRoleService(),
-            new StaticOptionsSnapshot<RoleManagementOptions>(options));
+            new StaticOptionsSnapshot<RoleManagementOptions>(options),
+            new StaticOptionsSnapshot<IBeamAccessControlOptions>(new IBeamAccessControlOptions()));
 
         controller.ControllerContext = new ControllerContext
         {

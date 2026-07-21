@@ -1,10 +1,13 @@
 using System.Security.Claims;
+using IBeam.Identity.Api.Authorization;
 using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
+using IBeam.Identity.Options;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using GrantResourceAccessRequest = IBeam.AccessControl.GrantResourceAccessRequest;
 using IResourceAccessService = IBeam.AccessControl.IResourceAccessService;
 using UpdateResourceAccessGrantRequest = IBeam.AccessControl.UpdateResourceAccessGrantRequest;
@@ -15,23 +18,24 @@ namespace IBeam.Identity.Api.Controllers;
 [Authorize]
 public sealed class AccessControlController : ControllerBase
 {
-    private static readonly string[] ManageRoleClaims = ["owner", "administrator", "admin"];
-
     private readonly IIBeamAccessControlService _access;
     private readonly IApiCredentialAccessService _apiCredentialAccess;
     private readonly IApiCredentialService _apiCredentials;
     private readonly IResourceAccessService _resourceAccess;
+    private readonly IOptionsSnapshot<IBeamAccessControlOptions> _accessOptions;
 
     public AccessControlController(
         IIBeamAccessControlService access,
         IApiCredentialAccessService apiCredentialAccess,
         IApiCredentialService apiCredentials,
-        IResourceAccessService resourceAccess)
+        IResourceAccessService resourceAccess,
+        IOptionsSnapshot<IBeamAccessControlOptions> accessOptions)
     {
         _access = access;
         _apiCredentialAccess = apiCredentialAccess;
         _apiCredentials = apiCredentials;
         _resourceAccess = resourceAccess;
+        _accessOptions = accessOptions;
     }
 
     [HttpGet("/api/access/me")]
@@ -285,21 +289,17 @@ public sealed class AccessControlController : ControllerBase
     private bool TryAuthorizeTenantMember(Guid routeTenantId, out ObjectResult forbidden)
     {
         forbidden = StatusCode(StatusCodes.Status403Forbidden, new { message = "Forbidden." });
-
-        var claimTenant = User.FindFirstValue("tid");
-        if (!Guid.TryParse(claimTenant, out var tokenTenantId))
-            return false;
-
-        return tokenTenantId == routeTenantId;
+        return IdentityApiAuthorization.TryAuthorizeTenantMember(User, routeTenantId);
     }
 
     private bool TryAuthorizeTenantRoleAdmin(Guid routeTenantId, out ObjectResult forbidden)
     {
-        if (!TryAuthorizeTenantMember(routeTenantId, out forbidden))
-            return false;
-
-        var roleClaims = User.FindAll("role").Select(x => x.Value).ToList();
-        return roleClaims.Any(x => ManageRoleClaims.Contains(x, StringComparer.OrdinalIgnoreCase));
+        forbidden = StatusCode(StatusCodes.Status403Forbidden, new { message = "Forbidden." });
+        return IdentityApiAuthorization.TryAuthorizeTenantOperation(
+            User,
+            routeTenantId,
+            _accessOptions.Value,
+            _accessOptions.Value.TenantAccessControlManagementPermissionNames);
     }
 
     private string? ResolveRequestedAgentKey()

@@ -7,6 +7,7 @@ using IBeam.Identity.Services.ApiCredentials;
 using IBeam.Identity.Services.Auth;
 using IBeam.Identity.Services.Auth.Attempts;
 using IBeam.Identity.Services.Authorization;
+using IBeam.Identity.Services.Invites;
 using IBeam.Identity.Services.Tenants;
 using IBeam.Identity.Services.Tokens;
 using IBeam.Identity.Services.Users;
@@ -118,6 +119,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IIdentityTenantService, IdentityTenantService>();
         services.AddScoped<ITenantSelectionService, TenantSelectionService>();
         services.AddScoped<ITenantRoleService, TenantRoleService>();
+        services.AddScoped<ITenantInviteService, TenantInviteService>();
+        services.TryAddScoped<ITenantInviteStore, InMemoryTenantInviteStore>();
+        services.TryAddScoped<ITenantInviteUrlBuilder, DefaultTenantInviteUrlBuilder>();
+        services.TryAddScoped<ITenantInviteMessageFactory, DefaultTenantInviteMessageFactory>();
         services.TryAddScoped<ITenantMetadataProvider, NoOpTenantMetadataProvider>();
         services.TryAddScoped<ITenantLifecycleHook, NoOpTenantLifecycleHook>();
         services.TryAddScoped<ITenantExtensionCoordinator, NoOpTenantExtensionCoordinator>();

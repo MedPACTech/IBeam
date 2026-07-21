@@ -2,8 +2,10 @@ using System.Security.Claims;
 using IBeam.Identity.Api.Controllers;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
+using IBeam.Identity.Options;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace IBeam.Tests.Identity.Api;
 
@@ -86,6 +88,26 @@ public sealed class ApiCredentialsControllerTests
     }
 
     [TestMethod]
+    public async Task Create_ReturnsOk_ForConfiguredApiCredentialPermission()
+    {
+        var sut = CreateController(
+        [
+            new Claim("tid", TenantId.ToString("D")),
+            new Claim("uid", UserId.ToString("D")),
+            new Claim("role", "member"),
+            new Claim("permission", "identity.apikeys.manage")
+        ],
+        new IBeamAccessControlOptions
+        {
+            ApiCredentialManagementPermissionNames = ["identity.apikeys.manage"]
+        });
+
+        var result = await sut.Create(new CreateApiCredentialRequest { DisplayName = "Worker" }, CancellationToken.None);
+
+        Assert.IsInstanceOfType<OkObjectResult>(result);
+    }
+
+    [TestMethod]
     public async Task RoleCatalog_ReturnsBuiltInApiCredentialScopes_ForHumanTenantAdmin()
     {
         var sut = CreateController([
@@ -136,14 +158,17 @@ public sealed class ApiCredentialsControllerTests
         CollectionAssert.Contains(entries.Select(x => x.Key).ToList(), "mcp");
     }
 
-    private static ApiCredentialsController CreateController(IEnumerable<Claim> claims)
+    private static ApiCredentialsController CreateController(
+        IEnumerable<Claim> claims,
+        IBeamAccessControlOptions? accessOptions = null)
     {
         var controller = new ApiCredentialsController(
             new FakeApiCredentialService(),
             new FakeApiCredentialAuthenticator(),
             new FakeApiCredentialRoleCatalogProvider(),
             new FakeApiCredentialScopeCatalogProvider(),
-            new FakeApiCredentialAccessService())
+            new FakeApiCredentialAccessService(),
+            new StaticOptionsSnapshot<IBeamAccessControlOptions>(accessOptions ?? new IBeamAccessControlOptions()))
         {
             ControllerContext = new ControllerContext
             {
@@ -155,6 +180,14 @@ public sealed class ApiCredentialsControllerTests
         };
 
         return controller;
+    }
+
+    private sealed class StaticOptionsSnapshot<T> : IOptionsSnapshot<T>
+        where T : class
+    {
+        public StaticOptionsSnapshot(T value) => Value = value;
+        public T Value { get; }
+        public T Get(string? name) => Value;
     }
 
     private sealed class FakeApiCredentialService : IApiCredentialService

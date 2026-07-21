@@ -106,7 +106,8 @@ public sealed class PermissionMappingsControllerTests
             mappings ?? new FakePermissionRoleMapService(),
             new FakePermissionCatalogProvider(catalog ?? Array.Empty<ExposedPermission>()),
             new StaticOptionsSnapshot<RoleManagementOptions>(roleOptions),
-            new StaticOptionsSnapshot<PermissionAccessOptions>(permissionOptions));
+            new StaticOptionsSnapshot<PermissionAccessOptions>(permissionOptions),
+            new StaticOptionsSnapshot<IBeamAccessControlOptions>(new IBeamAccessControlOptions()));
 
         controller.ControllerContext = new ControllerContext
         {

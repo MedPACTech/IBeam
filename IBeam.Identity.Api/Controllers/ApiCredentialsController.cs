@@ -1,11 +1,13 @@
 using System.Security.Claims;
-using System.Text.Json;
+using IBeam.Identity.Api.Authorization;
 using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
+using IBeam.Identity.Options;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace IBeam.Identity.Api.Controllers;
 
@@ -14,27 +16,27 @@ namespace IBeam.Identity.Api.Controllers;
 [Route("api/api-credentials")]
 public sealed class ApiCredentialsController : ControllerBase
 {
-    private static readonly string[] ManageRoleClaims = ["owner", "administrator", "admin"];
-    private const string MicrosoftTenantIdClaimType = "http://schemas.microsoft.com/identity/claims/tenantid";
-
     private readonly IApiCredentialService _credentials;
     private readonly IApiCredentialAuthenticator _authenticator;
     private readonly IApiCredentialRoleCatalogProvider _roleCatalog;
     private readonly IApiCredentialScopeCatalogProvider _scopeCatalog;
     private readonly IApiCredentialAccessService _access;
+    private readonly IOptionsSnapshot<IBeamAccessControlOptions> _accessOptions;
 
     public ApiCredentialsController(
         IApiCredentialService credentials,
         IApiCredentialAuthenticator authenticator,
         IApiCredentialRoleCatalogProvider roleCatalog,
         IApiCredentialScopeCatalogProvider scopeCatalog,
-        IApiCredentialAccessService access)
+        IApiCredentialAccessService access,
+        IOptionsSnapshot<IBeamAccessControlOptions> accessOptions)
     {
         _credentials = credentials;
         _authenticator = authenticator;
         _roleCatalog = roleCatalog;
         _scopeCatalog = scopeCatalog;
         _access = access;
+        _accessOptions = accessOptions;
     }
 
     [HttpGet]
@@ -379,32 +381,24 @@ public sealed class ApiCredentialsController : ControllerBase
 
     private bool TryAuthorizeHumanTenantAdmin(out Guid tenantId, out Guid? userId, out ObjectResult forbidden)
     {
-        tenantId = Guid.Empty;
-        userId = null;
         forbidden = StatusCode(StatusCodes.Status403Forbidden, new { message = "Forbidden." });
-
-        if (string.Equals(User.FindFirstValue("api_subject_type"), "credential", StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        if (!Guid.TryParse(FindFirstClaimValue("tid", "tenant_id", MicrosoftTenantIdClaimType), out tenantId))
-            return false;
-
-        if (Guid.TryParse(User.FindFirstValue("uid") ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub"), out var parsedUserId))
-            userId = parsedUserId;
-
-        var roleClaims = FindClaimValues("role", "roles", ClaimTypes.Role)
-            .SelectMany(x => ExpandClaimValue(x.Value))
-            .ToList();
-
-        return roleClaims.Any(x => ManageRoleClaims.Contains(x, StringComparer.OrdinalIgnoreCase));
+        return IdentityApiAuthorization.TryAuthorizeHumanTenantOperation(
+            User,
+            _accessOptions.Value,
+            _accessOptions.Value.ApiCredentialManagementPermissionNames,
+            out tenantId,
+            out userId);
     }
 
     private bool TryAuthorizeHumanTenantAdmin(Guid routeTenantId, out Guid? userId, out ObjectResult forbidden)
     {
-        if (!TryAuthorizeHumanTenantAdmin(out var tokenTenantId, out userId, out forbidden))
-            return false;
-
-        return tokenTenantId == routeTenantId;
+        forbidden = StatusCode(StatusCodes.Status403Forbidden, new { message = "Forbidden." });
+        return IdentityApiAuthorization.TryAuthorizeHumanTenantOperation(
+            User,
+            routeTenantId,
+            _accessOptions.Value,
+            _accessOptions.Value.ApiCredentialManagementPermissionNames,
+            out userId);
     }
 
     private async Task<IActionResult> UpdateRolesCore(
@@ -468,44 +462,4 @@ public sealed class ApiCredentialsController : ControllerBase
     private static string? FirstNonEmpty(params string?[] values)
         => values.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))?.Trim();
 
-    private string? FindFirstClaimValue(params string[] claimTypes)
-        => FindClaimValues(claimTypes).Select(x => x.Value).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
-
-    private IEnumerable<Claim> FindClaimValues(params string[] claimTypes)
-    {
-        var accepted = claimTypes
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        return User.Claims.Where(x => accepted.Contains(x.Type));
-    }
-
-    private static IEnumerable<string> ExpandClaimValue(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            yield break;
-
-        var trimmed = value.Trim();
-        if (trimmed.StartsWith("[", StringComparison.Ordinal) && trimmed.EndsWith("]", StringComparison.Ordinal))
-        {
-            string[]? parsed = null;
-            try
-            {
-                parsed = JsonSerializer.Deserialize<string[]>(trimmed);
-            }
-            catch
-            {
-            }
-
-            if (parsed is not null)
-            {
-                foreach (var item in parsed.Where(x => !string.IsNullOrWhiteSpace(x)))
-                    yield return item.Trim();
-                yield break;
-            }
-        }
-
-        foreach (var item in trimmed.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            yield return item;
-    }
 }
