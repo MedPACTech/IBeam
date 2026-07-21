@@ -231,6 +231,8 @@ GET  /api/invites/{tokenOrCode}/preview
 POST /api/invites/accept
 ```
 
+Management access for tenant, invite, role, permission mapping, access-control, auth-attempt, and API credential endpoints is configurable through `IBeam:Identity:AccessControl`. Defaults preserve the built-in `Owner`, `Administrator`, and `Admin` role behavior, while larger apps can configure their own admin tiers and operation-style permission names such as `identity.tenantinvites.manage` or `identity.apicredentials.manage`.
+
 Azure Table identity storage uses these default table names for tenant membership:
 
 ```text

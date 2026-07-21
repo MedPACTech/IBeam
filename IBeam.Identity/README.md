@@ -580,7 +580,7 @@ Successful acceptance:
 
 Security notes:
 
-- Create, resend, and revoke are tenant-admin operations. The API layer currently recognizes tenant role claims `owner`, `administrator`, and `admin`.
+- Create, list, get, resend, and revoke are tenant-admin operations. The API layer uses `IBeam:Identity:AccessControl` to decide which tenant roles and permission claims can manage invites. Defaults recognize `Owner`, `Administrator`, and `Admin` roles, plus configurable operation-style permission names such as `identity.tenantinvites.manage`.
 - Preview and accept can be anonymous, but the tenant id used for acceptance comes from the stored invite, not from client query parameters.
 - Invite tokens are generated with secure random bytes and stored only as SHA-256 hashes.
 - The create and preview paths do not reveal whether the destination is already bound to a global identity user.

@@ -198,13 +198,59 @@ Content-Type: application/json
 - `POST /api/tenants/{tenantId}/roles/revoke`
 - `GET /api/tenants/{tenantId}/users/{userId}/roles`
 
-Role management endpoints require an authenticated tenant token (`tid`) with one of these role claims: `owner`, `administrator`, or `admin`.
+Role management endpoints require an authenticated tenant token for the route tenant and either a configured tenant management role or a configured role-management permission claim.
+
+## Configurable Management Authorization
+
+The Identity API uses `IBeam:Identity:AccessControl` for built-in admin endpoint access. Defaults preserve the small-application path:
+
+- owner roles: `Owner`
+- admin roles: `Administrator`, `Admin`
+- auth-attempt support roles: `PlatformAdmin`, `platform-admin`, `Support`
+
+Developers can replace or extend these defaults in configuration or code. The API checks `tid`, `tenant_id`, or the Microsoft tenant id claim against the route tenant, then accepts configured role names from `role`, `roles`, or `ClaimTypes.Role` claims. It also accepts configured permission names from `permission`, `permissions`, `scope`, or `scp` claims. The built-in permission defaults include broad `*.manage` names and concrete `IBeamOperation` names such as `identity.tenantinvites.create` and `identity.apicredentials.rotate`.
+
+```json
+{
+  "IBeam": {
+    "Identity": {
+      "AccessControl": {
+        "OwnerRoleNames": [ "Owner" ],
+        "AdminRoleNames": [ "Administrator", "Admin", "RegionalAdmin" ],
+        "TenantManagementPermissionNames": [ "identity.tenants.manage" ],
+        "TenantUserManagementPermissionNames": [ "identity.tenantusers.manage", "identity.tenantinvites.manage" ],
+        "TenantRoleManagementPermissionNames": [ "identity.tenantroles.manage" ],
+        "TenantAccessControlManagementPermissionNames": [ "identity.accesscontrol.manage" ],
+        "ApiCredentialManagementPermissionNames": [ "identity.apicredentials.manage" ],
+        "AuthAttemptManagementRoleNames": [ "PlatformAdmin", "Support" ],
+        "AuthAttemptManagementPermissionNames": [ "identity:auth-attempts:unlock" ]
+      }
+    }
+  }
+}
+```
+
+Code configuration works the same way:
+
+```csharp
+builder.Services.AddIBeamAccessControl(options =>
+{
+    options.AdminRoleNames.Clear();
+    options.AdminRoleNames.Add("RegionalAdmin");
+    options.AdminRoleNames.Add("ClinicAdministrator");
+
+    options.TenantUserManagementPermissionNames.Clear();
+    options.TenantUserManagementPermissionNames.Add("identity.users.invite");
+});
+```
+
+API credential management endpoints remain human-only: API credential principals are rejected even when they carry matching roles or permissions.
 
 ## Tenant Invitation Endpoints
 
 Tenant invite endpoints let owners/admins onboard users by email or SMS while preserving tenant context. The recipient may be an existing global IBeam user or a brand-new user; acceptance links the resolved identity user to the invited tenant.
 
-Admin endpoints require an authenticated tenant token (`tid`) with one of these role claims: `owner`, `administrator`, or `admin`.
+Admin endpoints require an authenticated tenant token for the route tenant and either a configured tenant management role or a configured tenant-user/invite management permission claim.
 
 ```http
 POST /api/tenants/{tenantId}/invites

@@ -1,10 +1,12 @@
-using System.Security.Claims;
+using IBeam.Identity.Api.Authorization;
 using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
+using IBeam.Identity.Options;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace IBeam.Identity.Api.Controllers;
 
@@ -12,13 +14,15 @@ namespace IBeam.Identity.Api.Controllers;
 [Route("api")]
 public sealed class TenantInvitesController : ControllerBase
 {
-    private static readonly string[] ManageTenantClaims = ["owner", "administrator", "admin"];
-
     private readonly ITenantInviteService _invites;
+    private readonly IOptionsSnapshot<IBeamAccessControlOptions> _accessOptions;
 
-    public TenantInvitesController(ITenantInviteService invites)
+    public TenantInvitesController(
+        ITenantInviteService invites,
+        IOptionsSnapshot<IBeamAccessControlOptions> accessOptions)
     {
         _invites = invites ?? throw new ArgumentNullException(nameof(invites));
+        _accessOptions = accessOptions ?? throw new ArgumentNullException(nameof(accessOptions));
     }
 
     [Authorize]
@@ -139,24 +143,15 @@ public sealed class TenantInvitesController : ControllerBase
     private bool TryAuthorizeTenantAdmin(Guid routeTenantId, out ObjectResult forbidden)
     {
         forbidden = StatusCode(StatusCodes.Status403Forbidden, new { message = "Forbidden." });
-
-        var claimTenant = User.FindFirstValue("tid");
-        if (!Guid.TryParse(claimTenant, out var tokenTenantId))
-            return false;
-
-        if (tokenTenantId != routeTenantId)
-            return false;
-
-        var roleClaims = User.FindAll("role").Select(x => x.Value).ToList();
-        return roleClaims.Any(x => ManageTenantClaims.Contains(x, StringComparer.OrdinalIgnoreCase));
+        return IdentityApiAuthorization.TryAuthorizeTenantOperation(
+            User,
+            routeTenantId,
+            _accessOptions.Value,
+            _accessOptions.Value.TenantUserManagementPermissionNames);
     }
 
     private bool TryGetCurrentUserId(out Guid userId)
-    {
-        userId = Guid.Empty;
-        var raw = User.FindFirstValue("uid") ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-        return Guid.TryParse(raw, out userId);
-    }
+        => IdentityApiAuthorization.TryGetCurrentUserId(User, out userId);
 }
 
 public sealed class RevokeTenantInviteRequest

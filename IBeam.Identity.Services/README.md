@@ -247,6 +247,10 @@ builder.Services.AddIBeamAccessControl(options =>
     options.AdminRoleNames.Add("Administrator");
     options.AdminRoleNames.Add("Admin");
 
+    options.TenantUserManagementPermissionNames.Clear();
+    options.TenantUserManagementPermissionNames.Add("identity.tenantusers.manage");
+    options.TenantUserManagementPermissionNames.Add("identity.tenantinvites.manage");
+
     options.Modules.Add(new AccessModuleDefinition(
         Key: "work",
         Label: "Work",
