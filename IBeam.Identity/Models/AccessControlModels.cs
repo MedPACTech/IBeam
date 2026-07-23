@@ -9,6 +9,7 @@ public static class AccessSubjectTypes
     public const string Group = "group";
     public const string Team = "team";
     public const string ApiCredential = "api-credential";
+    public const string AgentUser = "agent-user";
 }
 
 public static class AccessResourceTypes
