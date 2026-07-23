@@ -59,7 +59,37 @@ public sealed class AgentMcpServiceTests
         var json = Serialize(result.Responses[0].Result);
 
         StringAssert.Contains(json, "demo.work.visible");
+        StringAssert.Contains(json, "agentusers.me");
         Assert.IsFalse(json.Contains("demo.money.hidden", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task ToolsCall_AgentUsersMe_ReturnsSafeAgentIdentity()
+    {
+        var services = CreateServices(includeWorkScope: true);
+        var sut = services.GetRequiredService<IAgentMcpService>();
+
+        using var document = JsonDocument.Parse(
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 4,
+              "method": "tools/call",
+              "params": {
+                "name": "agentusers.me",
+                "arguments": {}
+              }
+            }
+            """);
+
+        var result = await sut.HandleAsync(document.RootElement);
+        var json = Serialize(result.Responses[0].Result);
+
+        StringAssert.Contains(json, "Front End Codex Dev");
+        StringAssert.Contains(json, "frontend-codex-dev");
+        StringAssert.Contains(json, "codex");
+        StringAssert.Contains(json, "api-scope:work");
+        Assert.IsFalse(json.Contains("apiCredentialId", StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]
@@ -169,6 +199,10 @@ public sealed class AgentMcpServiceTests
         var claims = new List<Claim>
         {
             new(AgentClaimTypes.AgentKey, "codex"),
+            new(AgentClaimTypes.AgentUserId, Guid.NewGuid().ToString("D")),
+            new(AgentClaimTypes.AgentUserName, "Front End Codex Dev"),
+            new(AgentClaimTypes.AgentType, "codex"),
+            new(AgentClaimTypes.AlternateAgentKey, "frontend-codex-dev"),
             new(AgentClaimTypes.TenantId, Guid.NewGuid().ToString("D")),
             new(AgentClaimTypes.ApiCredentialId, Guid.NewGuid().ToString("D"))
         };

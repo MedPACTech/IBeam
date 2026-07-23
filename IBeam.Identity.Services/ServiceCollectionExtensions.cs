@@ -3,6 +3,7 @@ using IBeam.AccessControl.Services;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Events;
 using IBeam.Identity.Services.Otp;
+using IBeam.Identity.Services.AgentUsers;
 using IBeam.Identity.Services.ApiCredentials;
 using IBeam.Identity.Services.Auth;
 using IBeam.Identity.Services.Auth.Attempts;
@@ -155,6 +156,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IApiCredentialAccessService, ApiCredentialAccessService>();
         services.AddScoped<IApiCredentialService, ApiCredentialService>();
         services.AddScoped<IApiCredentialAuthenticator, ApiCredentialAuthenticator>();
+        services.AddScoped<IAgentUserResolver, AgentUserResolver>();
+        services.AddScoped<IAgentUserService, AgentUserService>();
 
 
         // Note: IOtpChallengeStore, ISender, and other dependencies must be registered by the consumer or by repository/communications packages.
@@ -174,6 +177,8 @@ public static class ServiceCollectionExtensions
 
         services.TryAddScoped<IApiCredentialScopeCatalogProvider, ApiCredentialScopeCatalogProvider>();
         services.TryAddScoped<IApiCredentialAccessService, ApiCredentialAccessService>();
+        services.TryAddScoped<IAgentUserResolver, AgentUserResolver>();
+        services.TryAddScoped<IAgentUserService, AgentUserService>();
         return services;
     }
 

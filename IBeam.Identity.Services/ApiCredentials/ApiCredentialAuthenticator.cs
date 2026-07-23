@@ -9,17 +9,20 @@ public sealed class ApiCredentialAuthenticator : IApiCredentialAuthenticator
     private readonly IApiCredentialKeyGenerator _keyGenerator;
     private readonly IApiCredentialSecretHasher _hasher;
     private readonly IApiCredentialPrincipalFactory _principalFactory;
+    private readonly IAgentUserResolver _agentUsers;
 
     public ApiCredentialAuthenticator(
         IApiCredentialStore store,
         IApiCredentialKeyGenerator keyGenerator,
         IApiCredentialSecretHasher hasher,
-        IApiCredentialPrincipalFactory principalFactory)
+        IApiCredentialPrincipalFactory principalFactory,
+        IAgentUserResolver agentUsers)
     {
         _store = store;
         _keyGenerator = keyGenerator;
         _hasher = hasher;
         _principalFactory = principalFactory;
+        _agentUsers = agentUsers;
     }
 
     public async Task<ApiCredentialAuthenticationResult> AuthenticateAsync(
@@ -45,7 +48,9 @@ public sealed class ApiCredentialAuthenticator : IApiCredentialAuthenticator
             return ApiCredentialAuthenticationResult.Fail("invalid_hash");
 
         await _store.TouchLastUsedAsync(record.TenantId, record.CredentialId, now, ipAddress, ct).ConfigureAwait(false);
-        var principal = _principalFactory.CreatePrincipal(record);
+        var agentUser = await _agentUsers.ResolveForCredentialAsync(record.TenantId, record.CredentialId, ct)
+            .ConfigureAwait(false);
+        var principal = _principalFactory.CreatePrincipal(record, agentUser?.AgentUser);
         return ApiCredentialAuthenticationResult.Success(record, principal);
     }
 }
