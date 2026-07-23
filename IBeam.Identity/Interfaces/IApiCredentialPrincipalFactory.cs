@@ -5,5 +5,5 @@ namespace IBeam.Identity.Interfaces;
 
 public interface IApiCredentialPrincipalFactory
 {
-    ClaimsPrincipal CreatePrincipal(ApiCredentialRecord credential);
+    ClaimsPrincipal CreatePrincipal(ApiCredentialRecord credential, AgentUserInfo? agentUser = null);
 }

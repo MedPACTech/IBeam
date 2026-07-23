@@ -32,6 +32,8 @@ public sealed class AzureTableIdentityOptions
     public string ExternalLoginsTableName { get; set; } = "ExternalLogins";
     public string AuthSessionsTableName { get; set; } = "AuthSessions";
     public string ApiCredentialsTableName { get; set; } = "ApiCredentials";
+    public string AgentUsersTableName { get; set; } = "AgentUsers";
+    public string AgentUserCredentialsTableName { get; set; } = "AgentUserCredentials";
     public string AccessCatalogOverridesTableName { get; set; } = "AccessCatalogOverrides";
     public string AuthAttemptsTableName { get; set; } = "AuthAttempts";
     public string SystemLogsTableName { get; set; } = "SystemLogs";
@@ -88,6 +90,17 @@ public sealed class AzureTableIdentityOptions
     public string ApiCredentialsPk(Guid tenantId) => $"TEN|{tenantId:D}";
     public string ApiCredentialsRk(Guid credentialId) => $"CRED|{credentialId:D}";
 
+    // AgentUsers: PK = "TEN|{tenantId}", RK = "AGU|{agentUserId}"
+    public string AgentUsersPk(Guid tenantId) => $"TEN|{tenantId:D}";
+    public string AgentUsersRk(Guid agentUserId) => $"AGU|{agentUserId:D}";
+
+    // AgentUserCredentials: PK = "TEN|{tenantId}|AGU|{agentUserId}", RK = "CRED|{credentialId}"
+    // Credential lookup index rows share the table: PK = "TEN|{tenantId}|CREDIDX", RK = "CRED|{credentialId}"
+    public string AgentUserCredentialsPk(Guid tenantId, Guid agentUserId) => $"TEN|{tenantId:D}|AGU|{agentUserId:D}";
+    public string AgentUserCredentialsRk(Guid credentialId) => $"CRED|{credentialId:D}";
+    public string AgentCredentialIndexPk(Guid tenantId) => $"TEN|{tenantId:D}|CREDIDX";
+    public string AgentCredentialIndexRk(Guid credentialId) => $"CRED|{credentialId:D}";
+
     // Tenants: PK = "TEN", RK = tenantId
     public const string TenantsPk = "TEN";
     public string TenantsRk(Guid tenantId) => tenantId.ToString("D");
@@ -115,6 +128,8 @@ public sealed class AzureTableIdentityOptions
         ExternalLoginsTableName = NormalizeOrDefault(ExternalLoginsTableName, "ExternalLogins");
         AuthSessionsTableName = NormalizeOrDefault(AuthSessionsTableName, "AuthSessions");
         ApiCredentialsTableName = NormalizeOrDefault(ApiCredentialsTableName, "ApiCredentials");
+        AgentUsersTableName = NormalizeOrDefault(AgentUsersTableName, "AgentUsers");
+        AgentUserCredentialsTableName = NormalizeOrDefault(AgentUserCredentialsTableName, "AgentUserCredentials");
         AccessCatalogOverridesTableName = NormalizeOrDefault(AccessCatalogOverridesTableName, "AccessCatalogOverrides");
         AuthAttemptsTableName = NormalizeOrDefault(AuthAttemptsTableName, "AuthAttempts");
         SystemLogsTableName = NormalizeOrDefault(SystemLogsTableName, "SystemLogs");
@@ -135,6 +150,8 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(ExternalLoginsTableName, nameof(ExternalLoginsTableName));
         ValidateTableName(AuthSessionsTableName, nameof(AuthSessionsTableName));
         ValidateTableName(ApiCredentialsTableName, nameof(ApiCredentialsTableName));
+        ValidateTableName(AgentUsersTableName, nameof(AgentUsersTableName));
+        ValidateTableName(AgentUserCredentialsTableName, nameof(AgentUserCredentialsTableName));
         ValidateTableName(AccessCatalogOverridesTableName, nameof(AccessCatalogOverridesTableName));
         ValidateTableName(AuthAttemptsTableName, nameof(AuthAttemptsTableName));
         ValidateTableName(SystemLogsTableName, nameof(SystemLogsTableName));
@@ -155,6 +172,8 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(FullTableName(ExternalLoginsTableName), nameof(TablePrefix) + "+" + nameof(ExternalLoginsTableName));
         ValidateTableName(FullTableName(AuthSessionsTableName), nameof(TablePrefix) + "+" + nameof(AuthSessionsTableName));
         ValidateTableName(FullTableName(ApiCredentialsTableName), nameof(TablePrefix) + "+" + nameof(ApiCredentialsTableName));
+        ValidateTableName(FullTableName(AgentUsersTableName), nameof(TablePrefix) + "+" + nameof(AgentUsersTableName));
+        ValidateTableName(FullTableName(AgentUserCredentialsTableName), nameof(TablePrefix) + "+" + nameof(AgentUserCredentialsTableName));
         ValidateTableName(FullTableName(AccessCatalogOverridesTableName), nameof(TablePrefix) + "+" + nameof(AccessCatalogOverridesTableName));
         ValidateTableName(FullTableName(AuthAttemptsTableName), nameof(TablePrefix) + "+" + nameof(AuthAttemptsTableName));
         ValidateTableName(FullTableName(SystemLogsTableName), nameof(TablePrefix) + "+" + nameof(SystemLogsTableName));

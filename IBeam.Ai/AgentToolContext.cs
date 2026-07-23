@@ -7,4 +7,7 @@ public sealed record AgentToolContext(
     IServiceProvider Services,
     string? AgentKey,
     Guid? TenantId,
-    Guid? ApiCredentialId);
+    Guid? ApiCredentialId,
+    Guid? AgentUserId = null,
+    string? AgentUserName = null,
+    string? AgentType = null);

@@ -16,7 +16,7 @@ public sealed class ApiCredentialPrincipalFactory : IApiCredentialPrincipalFacto
         _options.Validate();
     }
 
-    public ClaimsPrincipal CreatePrincipal(ApiCredentialRecord credential)
+    public ClaimsPrincipal CreatePrincipal(ApiCredentialRecord credential, AgentUserInfo? agentUser = null)
     {
         ArgumentNullException.ThrowIfNull(credential);
 
@@ -31,8 +31,8 @@ public sealed class ApiCredentialPrincipalFactory : IApiCredentialPrincipalFacto
             new("uid", credentialId),
             new("api_credential_id", credentialId),
             new("api_credential_name", credential.DisplayName),
-            new("principal_type", AccessSubjectTypes.ApiCredential),
-            new("api_subject_type", "credential")
+            new("principal_type", agentUser is null ? AccessSubjectTypes.ApiCredential : AccessSubjectTypes.AgentUser),
+            new("api_subject_type", agentUser is null ? "credential" : "agent")
         };
 
         if (!string.IsNullOrWhiteSpace(credential.DisplayName))
@@ -45,6 +45,17 @@ public sealed class ApiCredentialPrincipalFactory : IApiCredentialPrincipalFacto
         {
             claims.Add(new Claim("api_agent_key", credential.AgentKey));
             claims.Add(new Claim("agent_key", credential.AgentKey));
+        }
+
+        if (agentUser is not null)
+        {
+            claims.Add(new Claim(AgentUserClaimTypes.AgentUserId, agentUser.Id.ToString("D")));
+            claims.Add(new Claim(AgentUserClaimTypes.AgentUserName, agentUser.DisplayName));
+            claims.Add(new Claim(AgentUserClaimTypes.AgentType, agentUser.AgentType));
+            claims.Add(new Claim(AgentUserClaimTypes.AgentKey, agentUser.AgentKey));
+            claims.Add(new Claim("agent_user_description", agentUser.Description ?? string.Empty));
+            claims.Add(new Claim("name", agentUser.DisplayName));
+            claims.Add(new Claim(ClaimTypes.Name, agentUser.DisplayName));
         }
 
         foreach (var allowedAgentKey in credential.AllowedAgentKeys ?? Array.Empty<string>())

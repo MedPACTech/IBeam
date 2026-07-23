@@ -97,6 +97,48 @@ public sealed class ApiCredentialServiceTests
     }
 
     [TestMethod]
+    public async Task AuthenticateAsync_AgentBoundKey_EmitsAgentUserClaims()
+    {
+        var resolver = new FakeAgentUserResolver();
+        var fixture = CreateFixture(agentUsers: resolver);
+        var created = await fixture.Service.CreateAsync(
+            TenantId,
+            new CreateApiCredentialRequest
+            {
+                DisplayName = "Frontend Codex Key",
+                RoleNames = ["API", "tool:mcp", "api-scope:work"]
+            },
+            Guid.NewGuid());
+        var agentUserId = Guid.NewGuid();
+        resolver.Bind(
+            created.Credential.Id,
+            new AgentUserInfo(
+                agentUserId,
+                TenantId,
+                "Front End Codex Dev",
+                "Codex agent for frontend development workflows.",
+                "codex",
+                "frontend-codex-dev",
+                AgentUserStatuses.Active,
+                DateTimeOffset.UtcNow,
+                null,
+                null,
+                null));
+
+        var result = await fixture.Authenticator.AuthenticateAsync(created.ApiKey);
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.IsNotNull(result.Principal);
+        Assert.AreEqual("agent", result.Principal.FindFirstValue("api_subject_type"));
+        Assert.AreEqual(AccessSubjectTypes.AgentUser, result.Principal.FindAll("principal_type").Last().Value);
+        Assert.AreEqual(agentUserId.ToString("D"), result.Principal.FindFirstValue(AgentUserClaimTypes.AgentUserId));
+        Assert.AreEqual("Front End Codex Dev", result.Principal.FindFirstValue(AgentUserClaimTypes.AgentUserName));
+        Assert.AreEqual("codex", result.Principal.FindFirstValue(AgentUserClaimTypes.AgentType));
+        Assert.AreEqual("frontend-codex-dev", result.Principal.FindFirstValue(AgentUserClaimTypes.AgentKey));
+        CollectionAssert.Contains(result.Principal.FindAll("tool").Select(x => x.Value).ToList(), "mcp");
+    }
+
+    [TestMethod]
     public async Task AuthenticateAsync_RevokedKey_Fails()
     {
         var fixture = CreateFixture();
@@ -315,7 +357,9 @@ public sealed class ApiCredentialServiceTests
         Assert.IsTrue(activated.IsActive);
     }
 
-    private static Fixture CreateFixture(RecordingServiceOperationExecutor? operations = null)
+    private static Fixture CreateFixture(
+        RecordingServiceOperationExecutor? operations = null,
+        IAgentUserResolver? agentUsers = null)
     {
         var options = Options.Create(new ApiCredentialOptions());
         var roleStore = new FakeTenantRoleStore();
@@ -325,7 +369,12 @@ public sealed class ApiCredentialServiceTests
         var validator = new ApiCredentialRoleAssignmentValidator(roleStore, options);
         var principalFactory = new ApiCredentialPrincipalFactory(options);
         var service = new ApiCredentialService(store, roleStore, validator, keyGenerator, hasher, new FakeApiCredentialAccessService(), operations);
-        var authenticator = new ApiCredentialAuthenticator(store, keyGenerator, hasher, principalFactory);
+        var authenticator = new ApiCredentialAuthenticator(
+            store,
+            keyGenerator,
+            hasher,
+            principalFactory,
+            agentUsers ?? new FakeAgentUserResolver());
         return new Fixture(store, service, authenticator);
     }
 
@@ -510,6 +559,42 @@ public sealed class ApiCredentialServiceTests
 
         public Task RequireResourceAccessAsync(ClaimsPrincipal principal, string resourceType, string resourceId, string minimumAccessLevel = AccessLevels.View, CancellationToken ct = default)
             => Task.CompletedTask;
+    }
+
+    private sealed class FakeAgentUserResolver : IAgentUserResolver
+    {
+        private readonly Dictionary<Guid, AgentUserInfo> _agentUsersByCredential = [];
+
+        public void Bind(Guid credentialId, AgentUserInfo agentUser)
+            => _agentUsersByCredential[credentialId] = agentUser;
+
+        public Task<ResolvedAgentUser?> ResolveForCredentialAsync(
+            Guid tenantId,
+            Guid credentialId,
+            CancellationToken ct = default)
+        {
+            if (!_agentUsersByCredential.TryGetValue(credentialId, out var agentUser) ||
+                agentUser.TenantId != tenantId)
+            {
+                return Task.FromResult<ResolvedAgentUser?>(null);
+            }
+
+            return Task.FromResult<ResolvedAgentUser?>(new ResolvedAgentUser(
+                agentUser,
+                new AgentUserCredentialBindingInfo(
+                    Guid.NewGuid(),
+                    tenantId,
+                    agentUser.Id,
+                    credentialId,
+                    null,
+                    null,
+                    AgentUserStatuses.Active,
+                    DateTimeOffset.UtcNow,
+                    null,
+                    null,
+                    null,
+                    null)));
+        }
     }
 
     private sealed class InMemoryAccessGrantStore : IResourceAccessStore
