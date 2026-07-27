@@ -23,7 +23,11 @@ public static class LicensingServiceCollectionExtensions
             })
             .ValidateOnStart();
 
-        services.TryAddSingleton<ILicensePlanCatalogProvider, ConfigurationLicensePlanCatalogProvider>();
+        services.TryAddSingleton<ConfigurationLicensePlanCatalogProvider>();
+        services.TryAddSingleton<ILicensePlanCatalogProvider>(
+            provider => provider.GetRequiredService<ConfigurationLicensePlanCatalogProvider>());
+        services.TryAddSingleton<ILicenseProductCatalogProvider>(
+            provider => provider.GetRequiredService<ConfigurationLicensePlanCatalogProvider>());
         services.TryAddSingleton<ILicensingStore, InMemoryLicensingStore>();
         services.TryAddScoped<ITenantLicenseService, TenantLicenseService>();
         services.TryAddScoped<ILicenseSeatAssignmentService, LicenseSeatAssignmentService>();

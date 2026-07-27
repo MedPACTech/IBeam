@@ -21,7 +21,7 @@ Licensing is intentionally separate from Identity. Identity answers who the call
 
 | Area | Type(s) | Purpose |
 |---|---|---|
-| Plan catalog | `LicensePlan`, `LicensePlanOptions`, `ILicensePlanCatalogProvider` | Defines plans, entitlements, limits, and metadata. |
+| Plan catalog | `LicenseProductInfo`, `LicensePlanInfo`, `LicensePlanOptions`, `ILicensePlanCatalogProvider` | Defines products, plans, entitlements, limits, default seats, default credit grants, provider price references, and metadata. |
 | Tenant licenses | `TenantLicense`, `GrantTenantLicenseRequest`, `UpdateTenantLicenseRequest`, `ITenantLicenseService` | Represents a tenant's active/revoked product license. |
 | Seat assignments | `LicenseSeatAssignment`, `AssignLicenseSeatRequest`, `ILicenseSeatAssignmentService` | Links a license to a user, API credential, agent, or external subject. |
 | Authorization | `ILicenseAuthorizer`, `LicenseAuthorizationResult` | Checks whether a subject can use an entitlement. |
@@ -40,9 +40,12 @@ This package is the model/contract layer. It does not own HTTP endpoints, databa
 
 | Concept | Plain-English Meaning |
 |---|---|
+| Product | The sellable product family a plan belongs to. |
 | Plan | The product package a tenant can buy or receive. |
+| Plan level | A host-defined ordering such as basic, pro, or enterprise. |
 | Entitlement | A named capability, such as `feature:work` or `work:cards:create`. |
 | Limit | A numeric quota, such as seats or monthly calls. |
+| Credit grant | A plan-provided consumption allowance for a host-defined bucket. |
 | Tenant license | A plan granted to one tenant. |
 | Seat assignment | A subject consuming a seat on a tenant license. |
 | Subject | The thing using the product: user, API credential, agent, or external identity. |
@@ -96,14 +99,39 @@ Plans are usually configured under `IBeam:Licensing`:
 {
   "IBeam": {
     "Licensing": {
+      "Products": [
+        {
+          "Key": "hubbsly",
+          "DisplayName": "Hubbsly"
+        }
+      ],
       "Plans": [
         {
           "Key": "hubbsly-work",
+          "ProductKey": "hubbsly",
           "DisplayName": "Hubbsly Work",
+          "Classification": "tenant",
+          "Level": 2,
           "Entitlements": [ "feature:work", "work:cards:create" ],
           "Limits": {
             "Seats": 4
-          }
+          },
+          "DefaultSeatLimit": 4,
+          "DefaultCreditGrants": [
+            {
+              "BucketKey": "ai-chat",
+              "Amount": 500,
+              "Period": "monthly"
+            }
+          ],
+          "ProviderPrices": [
+            {
+              "ProviderName": "stripe",
+              "PriceId": "price_123",
+              "Currency": "USD",
+              "BillingPeriod": "monthly"
+            }
+          ]
         }
       ]
     }
