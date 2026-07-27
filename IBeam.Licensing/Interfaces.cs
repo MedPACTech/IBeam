@@ -57,6 +57,14 @@ public interface ILicenseGate
     Task RequireAsync(LicenseGateRequest request, CancellationToken ct = default);
 }
 
+public interface ILicenseRuntimeContextService
+{
+    Task<LicenseRuntimeContextInfo> GetRuntimeContextAsync(
+        Guid tenantId,
+        GetLicenseRuntimeContextRequest request,
+        CancellationToken ct = default);
+}
+
 public interface ILicenseSubjectResolver
 {
     LicenseSubject? ResolveSubject(System.Security.Claims.ClaimsPrincipal? principal);

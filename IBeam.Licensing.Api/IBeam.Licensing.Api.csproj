@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\IBeam.Api\IBeam.Api.csproj" />
     <ProjectReference Include="..\IBeam.Licensing.Services\IBeam.Licensing.Services.csproj" />
   </ItemGroup>
 
