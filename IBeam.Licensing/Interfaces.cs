@@ -51,6 +51,12 @@ public interface ILicenseAuthorizer
         CancellationToken ct = default);
 }
 
+public interface ILicenseGate
+{
+    Task<LicenseGateResult> CheckAsync(LicenseGateRequest request, CancellationToken ct = default);
+    Task RequireAsync(LicenseGateRequest request, CancellationToken ct = default);
+}
+
 public interface ILicenseExtension
 {
     Guid TenantId { get; }

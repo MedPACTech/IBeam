@@ -33,6 +33,7 @@ public static class LicensingServiceCollectionExtensions
         services.TryAddScoped<ILicenseSeatAssignmentService, LicenseSeatAssignmentService>();
         services.TryAddScoped<ILicenseSeatPolicyService, LicenseSeatPolicyService>();
         services.TryAddScoped<ILicenseAuthorizer, LicenseAuthorizer>();
+        services.TryAddScoped<ILicenseGate, LicenseGate>();
 
         return services;
     }

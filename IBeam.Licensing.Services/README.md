@@ -24,6 +24,7 @@ For ASP.NET Core endpoints, use `IBeam.Licensing.Api`.
 | Seat assignments | `LicenseSeatAssignmentService` | Assigns and revokes seats for users, credentials, agents, or external subjects. |
 | Seat policy helpers | `LicenseSeatPolicyService` | One-call helpers for single-user and tenant/team seat grants. |
 | Entitlement checks | `LicenseAuthorizer` | Checks tenant license status, entitlements, and seat requirements. |
+| License gate | `LicenseGate` | Returns structured allow/deny details and a throwing helper for service/API boundaries. |
 | Store | in-memory `ILicensingStore` implementation | Default development/test persistence. |
 | DI | `AddIBeamLicensingServices(...)` | Registers the licensing service stack. |
 
@@ -172,6 +173,25 @@ await licenseAuthorizer.RequireEntitlementAsync(
     new LicenseSubject(LicenseSubjectTypes.User, userId.ToString()),
     "work:cards:create",
     ct);
+```
+
+Use the gate when an API or service needs structured denial details:
+
+```csharp
+var gate = await licenseGate.CheckAsync(
+    new LicenseGateRequest
+    {
+        TenantId = tenantId,
+        Subject = new LicenseSubject(LicenseSubjectTypes.User, userId.ToString()),
+        Entitlement = "work:cards:create",
+        OperationName = "work.cards.create"
+    },
+    ct);
+
+if (!gate.Allowed)
+{
+    // gate.DenialCode is no-license, inactive-license, missing-entitlement, or missing-seat.
+}
 ```
 
 ## Service Operations

@@ -26,6 +26,7 @@ Licensing is intentionally separate from Identity. Identity answers who the call
 | Seat assignments | `LicenseSeatAssignment`, `AssignLicenseSeatRequest`, `ILicenseSeatAssignmentService` | Links a license to a user, API credential, agent, or external subject. |
 | Seat policy helpers | `GrantSingleUserLicenseRequest`, `GrantTenantSeatLicenseRequest`, `ILicenseSeatPolicyService` | Provides one-call workflows for solo purchases and tenant/team seat grants. |
 | Authorization | `ILicenseAuthorizer`, `LicenseAuthorizationResult` | Checks whether a subject can use an entitlement. |
+| Gate | `ILicenseGate`, `LicenseGateRequest`, `LicenseGateResult` | Returns structured allow/deny details for entitlement and seat checks. |
 | Store contract | `ILicensingStore` | Persistence boundary for licenses and seat assignments. |
 | Extensibility | `ILicenseExtension` | Hook for provider-specific or app-specific licensing behavior. |
 
@@ -103,6 +104,25 @@ For API credential and MCP scenarios, treat the API credential scope as the auth
 ```text
 API credential scope: api-scope:work
 License entitlement: work:cards:create
+```
+
+For structured runtime decisions, use the gate:
+
+```csharp
+var gateResult = await licenseGate.CheckAsync(
+    new LicenseGateRequest
+    {
+        TenantId = tenantId,
+        Subject = new LicenseSubject(LicenseSubjectTypes.User, userId.ToString()),
+        Entitlement = "work:cards:create",
+        OperationName = "work.cards.create"
+    },
+    ct);
+
+if (!gateResult.Allowed)
+{
+    // Route by gateResult.DenialCode, such as missing-seat or missing-entitlement.
+}
 ```
 
 ## Configuration Shape
