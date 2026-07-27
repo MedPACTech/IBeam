@@ -139,6 +139,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Tests.Billing", "IBea
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Billing.Services", "IBeam.Billing.Services\IBeam.Billing.Services.csproj", "{642D58F6-A371-46AE-9102-94B7616B9B55}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Billing.Licensing", "IBeam.Billing.Licensing\IBeam.Billing.Licensing.csproj", "{A8815D05-E9D9-40ED-AEEF-A5A2E8C2B4A8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -929,6 +931,18 @@ Global
 		{642D58F6-A371-46AE-9102-94B7616B9B55}.Release|x64.Build.0 = Release|Any CPU
 		{642D58F6-A371-46AE-9102-94B7616B9B55}.Release|x86.ActiveCfg = Release|Any CPU
 		{642D58F6-A371-46AE-9102-94B7616B9B55}.Release|x86.Build.0 = Release|Any CPU
+		{A8815D05-E9D9-40ED-AEEF-A5A2E8C2B4A8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A8815D05-E9D9-40ED-AEEF-A5A2E8C2B4A8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A8815D05-E9D9-40ED-AEEF-A5A2E8C2B4A8}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A8815D05-E9D9-40ED-AEEF-A5A2E8C2B4A8}.Debug|x64.Build.0 = Debug|Any CPU
+		{A8815D05-E9D9-40ED-AEEF-A5A2E8C2B4A8}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A8815D05-E9D9-40ED-AEEF-A5A2E8C2B4A8}.Debug|x86.Build.0 = Debug|Any CPU
+		{A8815D05-E9D9-40ED-AEEF-A5A2E8C2B4A8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A8815D05-E9D9-40ED-AEEF-A5A2E8C2B4A8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A8815D05-E9D9-40ED-AEEF-A5A2E8C2B4A8}.Release|x64.ActiveCfg = Release|Any CPU
+		{A8815D05-E9D9-40ED-AEEF-A5A2E8C2B4A8}.Release|x64.Build.0 = Release|Any CPU
+		{A8815D05-E9D9-40ED-AEEF-A5A2E8C2B4A8}.Release|x86.ActiveCfg = Release|Any CPU
+		{A8815D05-E9D9-40ED-AEEF-A5A2E8C2B4A8}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
