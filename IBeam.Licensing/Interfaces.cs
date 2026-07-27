@@ -27,6 +27,21 @@ public interface ILicenseSeatAssignmentService
     Task RevokeSeatAsync(Guid tenantId, Guid licenseId, Guid assignmentId, CancellationToken ct = default);
 }
 
+public interface ILicenseSeatPolicyService
+{
+    Task<TenantLicenseWithSeatsInfo> GrantSingleUserLicenseAsync(
+        Guid tenantId,
+        GrantSingleUserLicenseRequest request,
+        Guid? createdByUserId = null,
+        CancellationToken ct = default);
+
+    Task<TenantLicenseWithSeatsInfo> GrantTenantSeatLicenseAsync(
+        Guid tenantId,
+        GrantTenantSeatLicenseRequest request,
+        Guid? createdByUserId = null,
+        CancellationToken ct = default);
+}
+
 public interface ILicenseAuthorizer
 {
     Task<LicenseAuthorizationResult> AuthorizeAsync(
