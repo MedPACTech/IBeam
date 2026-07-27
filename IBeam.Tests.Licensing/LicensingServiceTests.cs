@@ -173,6 +173,47 @@ public sealed class LicensingServiceTests
     }
 
     [TestMethod]
+    public async Task GrantLicense_DistinguishesCommercialStatusFromRuntimeStatus()
+    {
+        var fixture = CreateFixture();
+
+        var manual = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "manual-work",
+                Status = LicenseStatuses.Active,
+                Entitlements = ["work:cards:create"]
+            });
+
+        var paid = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "paid-work",
+                Status = LicenseStatuses.Active,
+                Entitlements = ["work:cards:create"],
+                ProviderName = "stripe",
+                ProviderSubscriptionId = "sub_123"
+            });
+
+        var trial = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "trial-work",
+                Status = LicenseStatuses.Trialing,
+                Entitlements = ["work:cards:create"]
+            });
+
+        Assert.AreEqual(LicenseStatuses.Active, manual.Status);
+        Assert.AreEqual(LicenseCommercialStatuses.Manual, manual.CommercialStatus);
+        Assert.AreEqual(LicenseCommercialStatuses.Paid, paid.CommercialStatus);
+        Assert.AreEqual(LicenseStatuses.Trialing, trial.Status);
+        Assert.AreEqual(LicenseCommercialStatuses.Trial, trial.CommercialStatus);
+    }
+
+    [TestMethod]
     public async Task GrantLicenseAsync_UsesServiceOperationExecutor()
     {
         var store = new InMemoryLicensingStore();
@@ -306,6 +347,95 @@ public sealed class LicensingServiceTests
         var result = await fixture.Authorizer.AuthorizeAsync(TenantId, subject, "work:cards:create");
 
         Assert.IsFalse(result.Allowed);
+    }
+
+    [TestMethod]
+    public async Task AuthorizeAsync_DeniesFutureLicense()
+    {
+        var fixture = CreateFixture();
+        var subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1");
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "future-work",
+                Entitlements = ["work:cards:create"],
+                StartsUtc = DateTimeOffset.UtcNow.AddDays(1),
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(30)
+            });
+
+        var result = await fixture.Authorizer.AuthorizeAsync(TenantId, subject, "work:cards:create");
+
+        Assert.IsFalse(result.Allowed);
+        StringAssert.Contains(result.Reason, LicenseRuntimeStatuses.NotStarted);
+    }
+
+    [TestMethod]
+    public async Task AuthorizeAsync_DeniesSuspendedLicense()
+    {
+        var fixture = CreateFixture();
+        var subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1");
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "suspended-work",
+                Status = LicenseStatuses.Suspended,
+                Entitlements = ["work:cards:create"]
+            });
+
+        var result = await fixture.Authorizer.AuthorizeAsync(TenantId, subject, "work:cards:create");
+
+        Assert.IsFalse(result.Allowed);
+        StringAssert.Contains(result.Reason, LicenseRuntimeStatuses.Suspended);
+    }
+
+    [TestMethod]
+    public async Task AuthorizeAsync_AllowsGraceLicenseUntilGraceEnds()
+    {
+        var fixture = CreateFixture();
+        var subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1");
+        var license = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "grace-work",
+                Status = LicenseStatuses.Grace,
+                Entitlements = ["work:cards:create"],
+                StartsUtc = DateTimeOffset.UtcNow.AddDays(-40),
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(-1),
+                GraceEndsUtc = DateTimeOffset.UtcNow.AddDays(6)
+            });
+
+        var result = await fixture.Authorizer.AuthorizeAsync(TenantId, subject, "work:cards:create");
+
+        Assert.IsTrue(result.Allowed);
+        Assert.AreEqual(license.LicenseId, result.LicenseId);
+        Assert.AreEqual(LicenseCommercialStatuses.Grace, license.CommercialStatus);
+        Assert.AreEqual(LicenseStatuses.Grace, license.Status);
+    }
+
+    [TestMethod]
+    public async Task AuthorizeAsync_DeniesGraceLicenseAfterGraceEnds()
+    {
+        var fixture = CreateFixture();
+        var subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1");
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "grace-ended-work",
+                Status = LicenseStatuses.Grace,
+                Entitlements = ["work:cards:create"],
+                StartsUtc = DateTimeOffset.UtcNow.AddDays(-40),
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(-10),
+                GraceEndsUtc = DateTimeOffset.UtcNow.AddDays(-1)
+            });
+
+        var result = await fixture.Authorizer.AuthorizeAsync(TenantId, subject, "work:cards:create");
+
+        Assert.IsFalse(result.Allowed);
+        StringAssert.Contains(result.Reason, LicenseRuntimeStatuses.Expired);
     }
 
     [TestMethod]

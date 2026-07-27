@@ -57,8 +57,9 @@ public sealed class LicenseSeatAssignmentService : ILicenseSeatAssignmentService
         var license = await _store.GetLicenseAsync(tenantId, licenseId, ct).ConfigureAwait(false)
                       ?? throw new LicensingException($"License '{licenseId}' was not found for tenant '{tenantId}'.");
 
-        if (!license.IsActive(DateTimeOffset.UtcNow))
-            throw new LicensingException("Seats can only be assigned to active licenses.");
+        var eligibility = license.EvaluateRuntimeEligibility(DateTimeOffset.UtcNow);
+        if (!eligibility.IsEligible)
+            throw new LicensingException($"Seats can only be assigned to runtime-eligible licenses. {eligibility.Reason}");
 
         var subject = ValidateSubject(request.Subject);
         var existing = await _store.ListAssignmentsAsync(tenantId, licenseId, ct).ConfigureAwait(false);
