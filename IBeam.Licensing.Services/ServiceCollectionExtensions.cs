@@ -34,6 +34,7 @@ public static class LicensingServiceCollectionExtensions
         services.TryAddScoped<ILicenseSeatPolicyService, LicenseSeatPolicyService>();
         services.TryAddScoped<ILicenseAuthorizer, LicenseAuthorizer>();
         services.TryAddScoped<ILicenseGate, LicenseGate>();
+        services.TryAddScoped<ILicenseRuntimeContextService, LicenseRuntimeContextService>();
 
         return services;
     }

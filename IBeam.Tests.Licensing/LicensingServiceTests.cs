@@ -615,6 +615,153 @@ public sealed class LicensingServiceTests
     }
 
     [TestMethod]
+    public async Task RuntimeContext_ReturnsActiveUserEntitlements()
+    {
+        var fixture = CreateFixture();
+        var license = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest { PlanKey = "hubbsly-work" });
+        var subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1");
+        await fixture.Assignments.AssignSeatAsync(
+            TenantId,
+            license.LicenseId,
+            new AssignLicenseSeatRequest { Subject = subject });
+
+        var context = await fixture.RuntimeContext.GetRuntimeContextAsync(
+            TenantId,
+            new GetLicenseRuntimeContextRequest { Subject = subject });
+
+        Assert.AreEqual(LicenseRuntimeContextStatuses.Active, context.Status);
+        Assert.IsTrue(context.IsLicensed);
+        Assert.IsFalse(context.IsLimited);
+        CollectionAssert.Contains(context.Entitlements.ToList(), "work:cards:create");
+        Assert.HasCount(0, context.Licenses);
+    }
+
+    [TestMethod]
+    public async Task RuntimeContext_ReturnsAdminLicenseDetailsWhenRequested()
+    {
+        var fixture = CreateFixture();
+        var license = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "open-work",
+                Entitlements = ["work:cards:create"],
+                ProviderCustomerId = "cus_hidden"
+            });
+
+        var context = await fixture.RuntimeContext.GetRuntimeContextAsync(
+            TenantId,
+            new GetLicenseRuntimeContextRequest
+            {
+                Subject = new LicenseSubject(LicenseSubjectTypes.User, "admin-1"),
+                IncludeAdminDetails = true
+            });
+
+        Assert.AreEqual(LicenseRuntimeContextStatuses.Active, context.Status);
+        Assert.HasCount(1, context.Licenses);
+        Assert.AreEqual(license.LicenseId, context.Licenses[0].LicenseId);
+        Assert.AreEqual("open-work", context.Licenses[0].PlanKey);
+    }
+
+    [TestMethod]
+    public async Task RuntimeContext_ReturnsUnlicensedWhenTenantHasNoLicense()
+    {
+        var fixture = CreateFixture();
+
+        var context = await fixture.RuntimeContext.GetRuntimeContextAsync(
+            TenantId,
+            new GetLicenseRuntimeContextRequest
+            {
+                Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1")
+            });
+
+        Assert.AreEqual(LicenseRuntimeContextStatuses.Unlicensed, context.Status);
+        Assert.IsFalse(context.IsLicensed);
+    }
+
+    [TestMethod]
+    public async Task RuntimeContext_ReturnsExpiredWhenOnlyExpiredLicensesExist()
+    {
+        var fixture = CreateFixture();
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "expired-work",
+                Entitlements = ["work:cards:create"],
+                StartsUtc = DateTimeOffset.UtcNow.AddDays(-10),
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(-1)
+            });
+
+        var context = await fixture.RuntimeContext.GetRuntimeContextAsync(
+            TenantId,
+            new GetLicenseRuntimeContextRequest
+            {
+                Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1")
+            });
+
+        Assert.AreEqual(LicenseRuntimeContextStatuses.Expired, context.Status);
+        Assert.IsFalse(context.IsLicensed);
+    }
+
+    [TestMethod]
+    public async Task RuntimeContext_ReturnsContactAdminWhenSeatIsMissing()
+    {
+        var fixture = CreateFixture();
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest { PlanKey = "hubbsly-work" });
+
+        var context = await fixture.RuntimeContext.GetRuntimeContextAsync(
+            TenantId,
+            new GetLicenseRuntimeContextRequest
+            {
+                Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1")
+            });
+
+        Assert.AreEqual(LicenseRuntimeContextStatuses.ContactAdmin, context.Status);
+        Assert.IsTrue(context.ContactAdmin);
+        Assert.HasCount(1, context.Seats);
+        Assert.AreEqual(LicenseRuntimeSeatStates.Missing, context.Seats[0].State);
+    }
+
+    [TestMethod]
+    public async Task RuntimeContext_ReturnsLimitedWhenFallbackLicenseRemains()
+    {
+        var fixture = CreateFixture();
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "expired-app",
+                Entitlements = ["app:use"],
+                StartsUtc = DateTimeOffset.UtcNow.AddDays(-40),
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(-1)
+            });
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "fallback-chat",
+                Entitlements = ["ai:chat"]
+            });
+
+        var context = await fixture.RuntimeContext.GetRuntimeContextAsync(
+            TenantId,
+            new GetLicenseRuntimeContextRequest
+            {
+                Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1")
+            });
+
+        Assert.AreEqual(LicenseRuntimeContextStatuses.Limited, context.Status);
+        Assert.IsTrue(context.IsLicensed);
+        Assert.IsTrue(context.IsLimited);
+        CollectionAssert.AreEqual(new[] { "ai:chat" }, context.Entitlements.ToArray());
+    }
+
+    [TestMethod]
     public async Task LicensedServiceOperationExecutor_UsesClassLevelEntitlement()
     {
         var fixture = CreateFixture();
@@ -989,8 +1136,9 @@ public sealed class LicensingServiceTests
         var seatPolicies = new LicenseSeatPolicyService(licenses, assignments);
         var authorizer = new LicenseAuthorizer(store);
         var gate = new LicenseGate(store);
+        var runtimeContext = new LicenseRuntimeContextService(store);
 
-        return new Fixture(licenses, assignments, seatPolicies, authorizer, gate);
+        return new Fixture(licenses, assignments, seatPolicies, authorizer, gate, runtimeContext);
     }
 
     private static LicensedServiceOperationExecutor CreateLicensedExecutor(
@@ -1063,7 +1211,8 @@ public sealed class LicensingServiceTests
         LicenseSeatAssignmentService Assignments,
         LicenseSeatPolicyService SeatPolicies,
         LicenseAuthorizer Authorizer,
-        LicenseGate Gate);
+        LicenseGate Gate,
+        LicenseRuntimeContextService RuntimeContext);
 
     private sealed class RecordingServiceOperationExecutor : IServiceOperationExecutor
     {
