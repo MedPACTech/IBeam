@@ -6,6 +6,12 @@ public interface ILicensePlanCatalogProvider
     Task<LicensePlanInfo?> GetPlanAsync(string planKey, CancellationToken ct = default);
 }
 
+public interface ILicenseProductCatalogProvider
+{
+    Task<IReadOnlyList<LicenseProductInfo>> ListProductsAsync(CancellationToken ct = default);
+    Task<LicenseProductInfo?> GetProductAsync(string productKey, CancellationToken ct = default);
+}
+
 public interface ITenantLicenseService
 {
     Task<IReadOnlyList<TenantLicenseInfo>> ListTenantLicensesAsync(Guid tenantId, CancellationToken ct = default);

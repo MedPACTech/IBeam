@@ -19,7 +19,7 @@ For ASP.NET Core endpoints, use `IBeam.Licensing.Api`.
 
 | Area | Type(s) | Purpose |
 |---|---|---|
-| Plan catalog | `ConfigurationLicensePlanCatalogProvider` | Reads plan definitions from `IBeam:Licensing`. |
+| Plan catalog | `ConfigurationLicensePlanCatalogProvider` | Reads product and plan definitions from `IBeam:Licensing`. |
 | Tenant licenses | `TenantLicenseService` | Grants, updates, lists, and revokes tenant licenses. |
 | Seat assignments | `LicenseSeatAssignmentService` | Assigns and revokes seats for users, credentials, agents, or external subjects. |
 | Entitlement checks | `LicenseAuthorizer` | Checks tenant license status, entitlements, and seat requirements. |
@@ -48,16 +48,41 @@ Configure plans:
 {
   "IBeam": {
     "Licensing": {
+      "Products": [
+        {
+          "Key": "hubbsly",
+          "DisplayName": "Hubbsly"
+        }
+      ],
       "Plans": [
         {
           "Key": "hubbsly-work",
+          "ProductKey": "hubbsly",
           "DisplayName": "Hubbsly Work",
           "Description": "Work module access for users and agents.",
+          "Classification": "tenant",
+          "Level": 2,
           "Entitlements": [ "feature:work", "work:cards:create", "mcp:tools" ],
           "Limits": {
             "Seats": 4,
             "McpCallsPerMonth": 10000
           },
+          "DefaultSeatLimit": 4,
+          "DefaultCreditGrants": [
+            {
+              "BucketKey": "ai-chat",
+              "Amount": 500,
+              "Period": "monthly"
+            }
+          ],
+          "ProviderPrices": [
+            {
+              "ProviderName": "stripe",
+              "PriceId": "price_123",
+              "Currency": "USD",
+              "BillingPeriod": "monthly"
+            }
+          ],
           "Metadata": {
             "product": "hubbsly",
             "module": "work"
@@ -160,6 +185,7 @@ Register the replacement after `AddIBeamLicensingServices` so the host applicati
 |---|---|---|
 | License persistence | `ILicensingStore` | Store licenses and seats in the host data platform. |
 | Plan catalog | `ILicensePlanCatalogProvider` | Load plans from database, billing provider, or another config source. |
+| Product catalog | `ILicenseProductCatalogProvider` | Load product metadata independently from plan lookups. |
 | Entitlement checks | `ILicenseAuthorizer` | Add product-specific quota or billing-state rules. |
 | Provider hooks | `ILicenseExtension` | Integrate Stripe, Azure Marketplace, manual grants, or custom billing. |
 

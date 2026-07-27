@@ -74,7 +74,7 @@ public sealed class TenantLicenseService : ITenantLicenseService
             Status: NormalizeOptional(request.Status) ?? LicenseStatuses.Active,
             Entitlements: entitlements,
             Limits: limits,
-            SeatLimit: request.SeatLimit ?? ReadSeatLimit(limits),
+            SeatLimit: request.SeatLimit ?? plan?.DefaultSeatLimit ?? ReadSeatLimit(limits),
             StartsUtc: starts,
             ExpiresUtc: request.ExpiresUtc,
             CreatedUtc: now,

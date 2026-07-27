@@ -22,8 +22,131 @@ public sealed class LicensingServiceTests
 
         Assert.HasCount(1, plans);
         Assert.AreEqual("hubbsly-work", plans[0].Key);
+        Assert.AreEqual("hubbsly", plans[0].ProductKey);
+        Assert.AreEqual(LicensePlanClassifications.Tenant, plans[0].Classification);
+        Assert.AreEqual(2, plans[0].Level);
+        Assert.AreEqual(2, plans[0].DefaultSeatLimit);
         CollectionAssert.Contains(plans[0].Entitlements.ToList(), "work:cards:create");
         Assert.AreEqual(2, plans[0].Limits["Seats"]);
+        Assert.HasCount(1, plans[0].DefaultCreditGrants);
+        Assert.AreEqual("ai-chat", plans[0].DefaultCreditGrants[0].BucketKey);
+        Assert.AreEqual(500, plans[0].DefaultCreditGrants[0].Amount);
+        Assert.HasCount(1, plans[0].ProviderPrices);
+        Assert.AreEqual("stripe", plans[0].ProviderPrices[0].ProviderName);
+        Assert.AreEqual("price_hubbsly_work_monthly", plans[0].ProviderPrices[0].PriceId);
+    }
+
+    [TestMethod]
+    public async Task PlanCatalog_ReturnsConfiguredProducts()
+    {
+        var provider = CreatePlanCatalog();
+
+        var products = await provider.ListProductsAsync();
+        var product = await provider.GetProductAsync(" HUBBSLY ");
+
+        Assert.HasCount(1, products);
+        Assert.IsNotNull(product);
+        Assert.AreEqual("hubbsly", product.Key);
+        Assert.AreEqual("Hubbsly", product.DisplayName);
+        Assert.AreEqual("work", product.Metadata["module"]);
+    }
+
+    [TestMethod]
+    public void LicensePlanInfo_PreservesLegacyConstructorDefaults()
+    {
+        var plan = new LicensePlanInfo(
+            "legacy",
+            "Legacy",
+            null,
+            ["legacy:use"],
+            new Dictionary<string, int>(),
+            new Dictionary<string, string>());
+
+        Assert.AreEqual("legacy", plan.Key);
+        Assert.IsTrue(plan.IsConfigured);
+        Assert.IsNull(plan.ProductKey);
+        Assert.AreEqual(LicensePlanClassifications.Tenant, plan.Classification);
+        Assert.IsNull(plan.DefaultSeatLimit);
+        Assert.HasCount(0, plan.DefaultCreditGrants);
+        Assert.HasCount(0, plan.ProviderPrices);
+    }
+
+    [TestMethod]
+    public async Task PlanCatalog_NormalizesRichCatalogFields()
+    {
+        var provider = new ConfigurationLicensePlanCatalogProvider(Options.Create(new LicensingOptions
+        {
+            Products =
+            [
+                new LicenseProductOptions
+                {
+                    Key = " hubbsly ",
+                    DisplayName = " Hubbsly ",
+                    Metadata = new Dictionary<string, string> { [" module "] = " work " }
+                },
+                new LicenseProductOptions { Key = "HUBBSLY", DisplayName = "Duplicate" }
+            ],
+            Plans =
+            [
+                new LicensePlanOptions
+                {
+                    Key = " enterprise ",
+                    ProductKey = " hubbsly ",
+                    Classification = " ENTERPRISE ",
+                    Level = 3,
+                    DefaultSeatLimit = 25,
+                    Entitlements = [" work:cards:create ", "WORK:CARDS:CREATE", " work:cards:update "],
+                    Limits = new Dictionary<string, int> { [" Seats "] = 25 },
+                    DefaultCreditGrants =
+                    [
+                        new LicenseCreditGrantOptions
+                        {
+                            BucketKey = " ai-chat ",
+                            Amount = 2500,
+                            Period = " monthly ",
+                            Metadata = new Dictionary<string, string> { [" rollover "] = " false " }
+                        },
+                        new LicenseCreditGrantOptions { BucketKey = "ignored", Amount = 0 }
+                    ],
+                    ProviderPrices =
+                    [
+                        new LicenseProviderPriceOptions
+                        {
+                            ProviderName = " stripe ",
+                            PriceId = " price_enterprise ",
+                            Currency = " usd ",
+                            UnitAmount = 499m,
+                            BillingPeriod = " monthly "
+                        },
+                        new LicenseProviderPriceOptions { ProviderName = "stripe" }
+                    ],
+                    Metadata = new Dictionary<string, string> { [" market "] = " healthcare " }
+                }
+            ]
+        }));
+
+        var products = await provider.ListProductsAsync();
+        var plans = await provider.ListPlansAsync();
+
+        Assert.HasCount(1, products);
+        Assert.AreEqual("hubbsly", products[0].Key);
+        Assert.AreEqual("work", products[0].Metadata["module"]);
+        Assert.HasCount(1, plans);
+        Assert.AreEqual("enterprise", plans[0].Key);
+        Assert.AreEqual("hubbsly", plans[0].ProductKey);
+        Assert.AreEqual(LicensePlanClassifications.Enterprise, plans[0].Classification);
+        Assert.AreEqual(3, plans[0].Level);
+        Assert.AreEqual(25, plans[0].DefaultSeatLimit);
+        CollectionAssert.AreEqual(
+            new[] { "work:cards:create", "work:cards:update" },
+            plans[0].Entitlements.ToArray());
+        Assert.AreEqual(25, plans[0].Limits["Seats"]);
+        Assert.AreEqual("healthcare", plans[0].Metadata["market"]);
+        Assert.HasCount(1, plans[0].DefaultCreditGrants);
+        Assert.AreEqual("ai-chat", plans[0].DefaultCreditGrants[0].BucketKey);
+        Assert.AreEqual("false", plans[0].DefaultCreditGrants[0].Metadata["rollover"]);
+        Assert.HasCount(1, plans[0].ProviderPrices);
+        Assert.AreEqual("USD", plans[0].ProviderPrices[0].Currency);
     }
 
     [TestMethod]
@@ -237,10 +360,44 @@ public sealed class LicensingServiceTests
                 new LicensePlanOptions
                 {
                     Key = "hubbsly-work",
+                    ProductKey = "hubbsly",
                     DisplayName = "Hubbsly Work",
+                    Classification = LicensePlanClassifications.Tenant,
+                    Level = 2,
                     Entitlements = ["feature:work", "work:cards:create", "work:cards:update"],
                     Limits = new Dictionary<string, int> { ["Seats"] = 2 },
+                    DefaultSeatLimit = 2,
+                    DefaultCreditGrants =
+                    [
+                        new LicenseCreditGrantOptions
+                        {
+                            BucketKey = "ai-chat",
+                            Amount = 500,
+                            DisplayName = "AI Chat Credits",
+                            Period = "monthly"
+                        }
+                    ],
+                    ProviderPrices =
+                    [
+                        new LicenseProviderPriceOptions
+                        {
+                            ProviderName = "stripe",
+                            PriceId = "price_hubbsly_work_monthly",
+                            Currency = "usd",
+                            UnitAmount = 49m,
+                            BillingPeriod = "monthly"
+                        }
+                    ],
                     Metadata = new Dictionary<string, string> { ["product"] = "hubbsly" }
+                }
+            ],
+            Products =
+            [
+                new LicenseProductOptions
+                {
+                    Key = "hubbsly",
+                    DisplayName = "Hubbsly",
+                    Metadata = new Dictionary<string, string> { ["module"] = "work" }
                 }
             ]
         }));
