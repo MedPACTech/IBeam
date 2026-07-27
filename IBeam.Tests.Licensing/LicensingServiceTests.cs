@@ -466,6 +466,154 @@ public sealed class LicensingServiceTests
     }
 
     [TestMethod]
+    public async Task LicenseGate_AllowsAssignedSubjectWithEntitlement()
+    {
+        var fixture = CreateFixture();
+        var license = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest { PlanKey = "hubbsly-work" });
+        var subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1");
+        await fixture.Assignments.AssignSeatAsync(
+            TenantId,
+            license.LicenseId,
+            new AssignLicenseSeatRequest { Subject = subject });
+
+        var result = await fixture.Gate.CheckAsync(new LicenseGateRequest
+        {
+            TenantId = TenantId,
+            Subject = subject,
+            Entitlement = "work:cards:create",
+            OperationName = "work.cards.create",
+            Metadata = new Dictionary<string, string> { [" request "] = " api " }
+        });
+
+        Assert.IsTrue(result.Allowed);
+        Assert.AreEqual(license.LicenseId, result.LicenseId);
+        Assert.AreEqual("work.cards.create", result.OperationName);
+        Assert.AreEqual("api", result.Metadata["request"]);
+    }
+
+    [TestMethod]
+    public async Task LicenseGate_DeniesMissingEntitlement()
+    {
+        var fixture = CreateFixture();
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "open-work",
+                Entitlements = ["work:cards:create"]
+            });
+
+        var result = await fixture.Gate.CheckAsync(new LicenseGateRequest
+        {
+            TenantId = TenantId,
+            Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+            Entitlement = "work:cards:delete"
+        });
+
+        Assert.IsFalse(result.Allowed);
+        Assert.AreEqual(LicenseGateDenialCodes.MissingEntitlement, result.DenialCode);
+    }
+
+    [TestMethod]
+    public async Task LicenseGate_DeniesMissingSeat()
+    {
+        var fixture = CreateFixture();
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest { PlanKey = "hubbsly-work" });
+
+        var result = await fixture.Gate.CheckAsync(new LicenseGateRequest
+        {
+            TenantId = TenantId,
+            Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+            Entitlement = "work:cards:create"
+        });
+
+        Assert.IsFalse(result.Allowed);
+        Assert.AreEqual(LicenseGateDenialCodes.MissingSeat, result.DenialCode);
+    }
+
+    [TestMethod]
+    public async Task LicenseGate_DeniesInactiveLicense()
+    {
+        var fixture = CreateFixture();
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "expired-work",
+                Entitlements = ["work:cards:create"],
+                StartsUtc = DateTimeOffset.UtcNow.AddDays(-10),
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(-1)
+            });
+
+        var result = await fixture.Gate.CheckAsync(new LicenseGateRequest
+        {
+            TenantId = TenantId,
+            Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+            Entitlement = "work:cards:create"
+        });
+
+        Assert.IsFalse(result.Allowed);
+        Assert.AreEqual(LicenseGateDenialCodes.InactiveLicense, result.DenialCode);
+    }
+
+    [TestMethod]
+    public async Task LicenseGate_SelectsEligibleEntitledLicenseAcrossMultipleLicenses()
+    {
+        var fixture = CreateFixture();
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "expired-work",
+                Entitlements = ["work:cards:create"],
+                StartsUtc = DateTimeOffset.UtcNow.AddDays(-10),
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(-1)
+            });
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "active-no-match",
+                Entitlements = ["work:cards:read"]
+            });
+        var expected = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "active-work",
+                Entitlements = ["work:cards:create"]
+            });
+
+        var result = await fixture.Gate.CheckAsync(new LicenseGateRequest
+        {
+            TenantId = TenantId,
+            Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+            Entitlement = "work:cards:create"
+        });
+
+        Assert.IsTrue(result.Allowed);
+        Assert.AreEqual(expected.LicenseId, result.LicenseId);
+    }
+
+    [TestMethod]
+    public async Task LicenseGate_RequireAsync_ThrowsWhenDenied()
+    {
+        var fixture = CreateFixture();
+
+        await Assert.ThrowsExactlyAsync<LicensingException>(() =>
+            fixture.Gate.RequireAsync(new LicenseGateRequest
+            {
+                TenantId = TenantId,
+                Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+                Entitlement = "work:cards:create"
+            }));
+    }
+
+    [TestMethod]
     public async Task AuthorizeAsync_DeniesExpiredLicense()
     {
         var fixture = CreateFixture();
@@ -615,8 +763,9 @@ public sealed class LicensingServiceTests
         var assignments = new LicenseSeatAssignmentService(store);
         var seatPolicies = new LicenseSeatPolicyService(licenses, assignments);
         var authorizer = new LicenseAuthorizer(store);
+        var gate = new LicenseGate(store);
 
-        return new Fixture(licenses, assignments, seatPolicies, authorizer);
+        return new Fixture(licenses, assignments, seatPolicies, authorizer, gate);
     }
 
     private static ConfigurationLicensePlanCatalogProvider CreatePlanCatalog()
@@ -673,7 +822,8 @@ public sealed class LicensingServiceTests
         TenantLicenseService Licenses,
         LicenseSeatAssignmentService Assignments,
         LicenseSeatPolicyService SeatPolicies,
-        LicenseAuthorizer Authorizer);
+        LicenseAuthorizer Authorizer,
+        LicenseGate Gate);
 
     private sealed class RecordingServiceOperationExecutor : IServiceOperationExecutor
     {
