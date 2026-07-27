@@ -3,6 +3,7 @@ using IBeam.Licensing.Services;
 using IBeam.Services.Abstractions;
 using Microsoft.Extensions.Options;
 using System.Runtime.CompilerServices;
+using System.Security.Claims;
 
 [assembly: Parallelize(Scope = ExecutionScope.MethodLevel)]
 
@@ -614,6 +615,95 @@ public sealed class LicensingServiceTests
     }
 
     [TestMethod]
+    public async Task LicensedServiceOperationExecutor_UsesClassLevelEntitlement()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "notes",
+                Entitlements = ["notes:use"]
+            });
+        var service = new LicensedNotesService(CreateLicensedExecutor(fixture, principal, TenantId));
+
+        await service.ReadAsync();
+
+        Assert.IsTrue(service.ReadCalled);
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_UsesMethodEntitlementOverride()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "notes-write",
+                Entitlements = ["notes:write"]
+            });
+        var service = new LicensedNotesService(CreateLicensedExecutor(fixture, principal, TenantId));
+
+        await service.WriteAsync();
+
+        Assert.IsTrue(service.WriteCalled);
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_ThrowsWhenTenantContextMissing()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        var service = new LicensedNotesService(CreateLicensedExecutor(fixture, principal, tenantId: null));
+
+        await Assert.ThrowsExactlyAsync<LicensingException>(() => service.ReadAsync());
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_AllowsExplicitTenantOption()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "notes",
+                Entitlements = ["notes:use"]
+            });
+        var service = new LicensedNotesService(CreateLicensedExecutor(fixture, principal, tenantId: null));
+
+        await service.ReadWithTenantOptionAsync(TenantId);
+
+        Assert.IsTrue(service.ReadCalled);
+    }
+
+    [TestMethod]
+    public void ClaimsPrincipalLicenseSubjectResolver_ResolvesKnownSubjectClaims()
+    {
+        var resolver = new ClaimsPrincipalLicenseSubjectResolver();
+
+        var explicitSubject = resolver.ResolveSubject(Principal(
+            new Claim(LicenseSubjectClaimTypes.SubjectType, LicenseSubjectTypes.External),
+            new Claim(LicenseSubjectClaimTypes.SubjectId, "external-1")));
+        var agent = resolver.ResolveSubject(Principal(new Claim(LicenseSubjectClaimTypes.AgentUserId, "agent-1")));
+        var apiCredential = resolver.ResolveSubject(Principal(new Claim(LicenseSubjectClaimTypes.ApiCredentialId, "credential-1")));
+        var user = resolver.ResolveSubject(Principal(new Claim(ClaimTypes.NameIdentifier, "user-1")));
+
+        Assert.AreEqual(LicenseSubjectTypes.External, explicitSubject?.SubjectType);
+        Assert.AreEqual("external-1", explicitSubject?.SubjectId);
+        Assert.AreEqual(LicenseSubjectTypes.Agent, agent?.SubjectType);
+        Assert.AreEqual("agent-1", agent?.SubjectId);
+        Assert.AreEqual(LicenseSubjectTypes.ApiCredential, apiCredential?.SubjectType);
+        Assert.AreEqual("credential-1", apiCredential?.SubjectId);
+        Assert.AreEqual(LicenseSubjectTypes.User, user?.SubjectType);
+        Assert.AreEqual("user-1", user?.SubjectId);
+    }
+
+    [TestMethod]
     public async Task AuthorizeAsync_DeniesExpiredLicense()
     {
         var fixture = CreateFixture();
@@ -768,6 +858,19 @@ public sealed class LicensingServiceTests
         return new Fixture(licenses, assignments, seatPolicies, authorizer, gate);
     }
 
+    private static LicensedServiceOperationExecutor CreateLicensedExecutor(
+        Fixture fixture,
+        ClaimsPrincipal principal,
+        Guid? tenantId)
+        => new(
+            fixture.Gate,
+            subjectResolver: new ClaimsPrincipalLicenseSubjectResolver(),
+            serviceOperationPrincipalProvider: new FixedPrincipalProvider(principal),
+            tenantContext: tenantId.HasValue ? new FixedTenantContext(tenantId.Value) : null);
+
+    private static ClaimsPrincipal Principal(params Claim[] claims)
+        => new(new ClaimsIdentity(claims, "test"));
+
     private static ConfigurationLicensePlanCatalogProvider CreatePlanCatalog()
         => new(Options.Create(new LicensingOptions
         {
@@ -877,4 +980,78 @@ public sealed class LicensingServiceTests
     private sealed record ServiceOperationCall(
         string? CallerMemberName,
         ServiceOperationExecutionOptions? Options);
+
+    [IBeamOperation("notes")]
+    [IBeamRequiresEntitlement("notes:use")]
+    private sealed class LicensedNotesService
+    {
+        private readonly IServiceOperationExecutor _operations;
+
+        public LicensedNotesService(IServiceOperationExecutor operations)
+        {
+            _operations = operations;
+        }
+
+        public bool ReadCalled { get; private set; }
+        public bool WriteCalled { get; private set; }
+
+        [IBeamOperation("notes.read")]
+        public Task ReadAsync(CancellationToken ct = default)
+            => _operations.ExecuteAsync(
+                this,
+                _ =>
+                {
+                    ReadCalled = true;
+                    return Task.CompletedTask;
+                },
+                ct: ct);
+
+        [IBeamOperation("notes.read")]
+        public Task ReadWithTenantOptionAsync(Guid tenantId, CancellationToken ct = default)
+            => _operations.ExecuteAsync(
+                this,
+                _ =>
+                {
+                    ReadCalled = true;
+                    return Task.CompletedTask;
+                },
+                new ServiceOperationExecutionOptions { TenantId = tenantId },
+                ct);
+
+        [IBeamOperation("notes.write")]
+        [IBeamRequiresEntitlement("notes:write")]
+        public Task WriteAsync(CancellationToken ct = default)
+            => _operations.ExecuteAsync(
+                this,
+                _ =>
+                {
+                    WriteCalled = true;
+                    return Task.CompletedTask;
+                },
+                ct: ct);
+    }
+
+    private sealed class FixedPrincipalProvider : IServiceOperationPrincipalProvider
+    {
+        private readonly ClaimsPrincipal _principal;
+
+        public FixedPrincipalProvider(ClaimsPrincipal principal)
+        {
+            _principal = principal;
+        }
+
+        public ClaimsPrincipal? GetPrincipal() => _principal;
+    }
+
+    private sealed class FixedTenantContext : IBeam.Repositories.Abstractions.ITenantContext
+    {
+        public FixedTenantContext(Guid tenantId)
+        {
+            TenantId = tenantId;
+        }
+
+        public Guid? TenantId { get; }
+
+        public bool IsTenantIdSet() => TenantId.HasValue && TenantId.Value != Guid.Empty;
+    }
 }

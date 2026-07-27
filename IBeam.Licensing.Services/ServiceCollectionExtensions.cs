@@ -37,4 +37,12 @@ public static class LicensingServiceCollectionExtensions
 
         return services;
     }
+
+    public static IServiceCollection AddIBeamLicensedServiceOperations(this IServiceCollection services)
+    {
+        services.TryAddScoped<ILicenseSubjectResolver, ClaimsPrincipalLicenseSubjectResolver>();
+        services.RemoveAll<IServiceOperationExecutor>();
+        services.AddScoped<IServiceOperationExecutor, LicensedServiceOperationExecutor>();
+        return services;
+    }
 }

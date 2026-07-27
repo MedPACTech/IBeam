@@ -44,6 +44,31 @@ using IBeam.Licensing.Services;
 builder.Services.AddIBeamLicensingServices(builder.Configuration);
 ```
 
+To enforce licensing automatically on attributed IBeam service operations, opt in after registering licensing:
+
+```csharp
+builder.Services
+    .AddIBeamLicensingServices(builder.Configuration)
+    .AddIBeamLicensedServiceOperations();
+```
+
+Then annotate a service class or method:
+
+```csharp
+[IBeamRequiresEntitlement("notes:use")]
+public sealed class NotesService
+{
+    private readonly IServiceOperationExecutor _operations;
+
+    [IBeamOperation("notes.create")]
+    [IBeamRequiresEntitlement("notes:write")]
+    public Task CreateAsync(CancellationToken ct)
+        => _operations.ExecuteAsync(this, _ => CreateCoreAsync(), ct: ct);
+}
+```
+
+Class-level entitlements apply by default; method-level entitlements override them. Tenant id is resolved from `ServiceOperationExecutionOptions.TenantId` or `ITenantContext`. The subject is resolved from the current `IServiceOperationPrincipalProvider` using explicit IBeam subject claims, agent/API credential claims, or standard user claims.
+
 Configure plans:
 
 ```json
