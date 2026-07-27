@@ -137,6 +137,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Billing", "IBeam.Bill
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Tests.Billing", "IBeam.Tests.Billing\IBeam.Tests.Billing.csproj", "{98948548-2D8E-4C55-B0FE-4D68AC4F83D2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Billing.Services", "IBeam.Billing.Services\IBeam.Billing.Services.csproj", "{642D58F6-A371-46AE-9102-94B7616B9B55}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -915,6 +917,18 @@ Global
 		{98948548-2D8E-4C55-B0FE-4D68AC4F83D2}.Release|x64.Build.0 = Release|Any CPU
 		{98948548-2D8E-4C55-B0FE-4D68AC4F83D2}.Release|x86.ActiveCfg = Release|Any CPU
 		{98948548-2D8E-4C55-B0FE-4D68AC4F83D2}.Release|x86.Build.0 = Release|Any CPU
+		{642D58F6-A371-46AE-9102-94B7616B9B55}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{642D58F6-A371-46AE-9102-94B7616B9B55}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{642D58F6-A371-46AE-9102-94B7616B9B55}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{642D58F6-A371-46AE-9102-94B7616B9B55}.Debug|x64.Build.0 = Debug|Any CPU
+		{642D58F6-A371-46AE-9102-94B7616B9B55}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{642D58F6-A371-46AE-9102-94B7616B9B55}.Debug|x86.Build.0 = Debug|Any CPU
+		{642D58F6-A371-46AE-9102-94B7616B9B55}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{642D58F6-A371-46AE-9102-94B7616B9B55}.Release|Any CPU.Build.0 = Release|Any CPU
+		{642D58F6-A371-46AE-9102-94B7616B9B55}.Release|x64.ActiveCfg = Release|Any CPU
+		{642D58F6-A371-46AE-9102-94B7616B9B55}.Release|x64.Build.0 = Release|Any CPU
+		{642D58F6-A371-46AE-9102-94B7616B9B55}.Release|x86.ActiveCfg = Release|Any CPU
+		{642D58F6-A371-46AE-9102-94B7616B9B55}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

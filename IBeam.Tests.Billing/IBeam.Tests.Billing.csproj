@@ -16,6 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\IBeam.Billing\IBeam.Billing.csproj" />
+    <ProjectReference Include="..\IBeam.Billing.Services\IBeam.Billing.Services.csproj" />
   </ItemGroup>
 </Project>
