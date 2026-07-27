@@ -31,6 +31,7 @@ public static class LicensingServiceCollectionExtensions
         services.TryAddSingleton<ILicensingStore, InMemoryLicensingStore>();
         services.TryAddScoped<ITenantLicenseService, TenantLicenseService>();
         services.TryAddScoped<ILicenseSeatAssignmentService, LicenseSeatAssignmentService>();
+        services.TryAddScoped<ILicenseSeatPolicyService, LicenseSeatPolicyService>();
         services.TryAddScoped<ILicenseAuthorizer, LicenseAuthorizer>();
 
         return services;

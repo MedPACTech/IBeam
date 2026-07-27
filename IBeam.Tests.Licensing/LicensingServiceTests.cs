@@ -255,6 +255,142 @@ public sealed class LicensingServiceTests
     }
 
     [TestMethod]
+    public async Task AssignSeatAsync_ReturnsExistingAssignmentForDuplicateSubject()
+    {
+        var fixture = CreateFixture();
+        var license = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest { PlanKey = "hubbsly-work" });
+
+        var first = await fixture.Assignments.AssignSeatAsync(
+            TenantId,
+            license.LicenseId,
+            new AssignLicenseSeatRequest { Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1") });
+        var duplicate = await fixture.Assignments.AssignSeatAsync(
+            TenantId,
+            license.LicenseId,
+            new AssignLicenseSeatRequest { Subject = new LicenseSubject(LicenseSubjectTypes.User, "USER-1") });
+        var assignments = await fixture.Assignments.ListAssignmentsAsync(TenantId, license.LicenseId);
+
+        Assert.AreEqual(first.AssignmentId, duplicate.AssignmentId);
+        Assert.HasCount(1, assignments);
+    }
+
+    [TestMethod]
+    public async Task GrantSingleUserLicenseAsync_GrantsOneSeatAndAssignsBuyingUser()
+    {
+        var fixture = CreateFixture();
+
+        var result = await fixture.SeatPolicies.GrantSingleUserLicenseAsync(
+            TenantId,
+            new GrantSingleUserLicenseRequest
+            {
+                License = new GrantTenantLicenseRequest
+                {
+                    PlanKey = "solo-work",
+                    Entitlements = ["work:cards:create"],
+                    SeatLimit = 99
+                },
+                Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1", "Buying User"),
+                SeatMetadata = new Dictionary<string, string> { [" source "] = " checkout " }
+            });
+
+        Assert.AreEqual(1, result.License.SeatLimit);
+        Assert.HasCount(1, result.Assignments);
+        Assert.AreEqual(LicenseSubjectTypes.User, result.Assignments[0].Subject.SubjectType);
+        Assert.AreEqual("user-1", result.Assignments[0].Subject.SubjectId);
+        Assert.AreEqual("checkout", result.Assignments[0].Metadata["source"]);
+    }
+
+    [TestMethod]
+    public async Task GrantTenantSeatLicenseAsync_GrantsMultipleSeatsForMixedSubjects()
+    {
+        var fixture = CreateFixture();
+
+        var result = await fixture.SeatPolicies.GrantTenantSeatLicenseAsync(
+            TenantId,
+            new GrantTenantSeatLicenseRequest
+            {
+                SeatLimit = 4,
+                License = new GrantTenantLicenseRequest
+                {
+                    PlanKey = "enterprise-work",
+                    Entitlements = ["work:cards:create"],
+                    ProviderName = "stripe"
+                },
+                InitialSubjects =
+                [
+                    new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+                    new LicenseSubject(LicenseSubjectTypes.ApiCredential, "credential-1"),
+                    new LicenseSubject(LicenseSubjectTypes.Agent, "codex"),
+                    new LicenseSubject(LicenseSubjectTypes.External, "external-admin")
+                ]
+            });
+
+        Assert.AreEqual(4, result.License.SeatLimit);
+        Assert.HasCount(4, result.Assignments);
+        CollectionAssert.AreEquivalent(
+            new[]
+            {
+                LicenseSubjectTypes.User,
+                LicenseSubjectTypes.ApiCredential,
+                LicenseSubjectTypes.Agent,
+                LicenseSubjectTypes.External
+            },
+            result.Assignments.Select(x => x.Subject.SubjectType).ToArray());
+    }
+
+    [TestMethod]
+    public async Task GrantTenantSeatLicenseAsync_DeduplicatesInitialSubjects()
+    {
+        var fixture = CreateFixture();
+
+        var result = await fixture.SeatPolicies.GrantTenantSeatLicenseAsync(
+            TenantId,
+            new GrantTenantSeatLicenseRequest
+            {
+                SeatLimit = 2,
+                License = new GrantTenantLicenseRequest
+                {
+                    PlanKey = "team-work",
+                    Entitlements = ["work:cards:create"]
+                },
+                InitialSubjects =
+                [
+                    new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+                    new LicenseSubject(LicenseSubjectTypes.User, "USER-1")
+                ]
+            });
+
+        Assert.AreEqual(2, result.License.SeatLimit);
+        Assert.HasCount(1, result.Assignments);
+    }
+
+    [TestMethod]
+    public async Task GrantTenantSeatLicenseAsync_EnforcesRequestedSeatLimit()
+    {
+        var fixture = CreateFixture();
+
+        await Assert.ThrowsExactlyAsync<LicensingException>(() =>
+            fixture.SeatPolicies.GrantTenantSeatLicenseAsync(
+                TenantId,
+                new GrantTenantSeatLicenseRequest
+                {
+                    SeatLimit = 1,
+                    License = new GrantTenantLicenseRequest
+                    {
+                        PlanKey = "team-work",
+                        Entitlements = ["work:cards:create"]
+                    },
+                    InitialSubjects =
+                    [
+                        new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+                        new LicenseSubject(LicenseSubjectTypes.ApiCredential, "credential-1")
+                    ]
+                }));
+    }
+
+    [TestMethod]
     public async Task AssignSeatAsync_UsesServiceOperationExecutor()
     {
         var store = new InMemoryLicensingStore();
@@ -477,9 +613,10 @@ public sealed class LicensingServiceTests
         var catalog = CreatePlanCatalog();
         var licenses = new TenantLicenseService(store, catalog);
         var assignments = new LicenseSeatAssignmentService(store);
+        var seatPolicies = new LicenseSeatPolicyService(licenses, assignments);
         var authorizer = new LicenseAuthorizer(store);
 
-        return new Fixture(licenses, assignments, authorizer);
+        return new Fixture(licenses, assignments, seatPolicies, authorizer);
     }
 
     private static ConfigurationLicensePlanCatalogProvider CreatePlanCatalog()
@@ -535,6 +672,7 @@ public sealed class LicensingServiceTests
     private sealed record Fixture(
         TenantLicenseService Licenses,
         LicenseSeatAssignmentService Assignments,
+        LicenseSeatPolicyService SeatPolicies,
         LicenseAuthorizer Authorizer);
 
     private sealed class RecordingServiceOperationExecutor : IServiceOperationExecutor

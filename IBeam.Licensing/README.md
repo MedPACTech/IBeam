@@ -24,6 +24,7 @@ Licensing is intentionally separate from Identity. Identity answers who the call
 | Plan catalog | `LicenseProductInfo`, `LicensePlanInfo`, `LicensePlanOptions`, `ILicensePlanCatalogProvider` | Defines products, plans, entitlements, limits, default seats, default credit grants, provider price references, and metadata. |
 | Tenant licenses | `TenantLicense`, `GrantTenantLicenseRequest`, `UpdateTenantLicenseRequest`, `ITenantLicenseService` | Represents a tenant's active/revoked product license. |
 | Seat assignments | `LicenseSeatAssignment`, `AssignLicenseSeatRequest`, `ILicenseSeatAssignmentService` | Links a license to a user, API credential, agent, or external subject. |
+| Seat policy helpers | `GrantSingleUserLicenseRequest`, `GrantTenantSeatLicenseRequest`, `ILicenseSeatPolicyService` | Provides one-call workflows for solo purchases and tenant/team seat grants. |
 | Authorization | `ILicenseAuthorizer`, `LicenseAuthorizationResult` | Checks whether a subject can use an entitlement. |
 | Store contract | `ILicensingStore` | Persistence boundary for licenses and seat assignments. |
 | Extensibility | `ILicenseExtension` | Hook for provider-specific or app-specific licensing behavior. |

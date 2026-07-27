@@ -22,6 +22,7 @@ For ASP.NET Core endpoints, use `IBeam.Licensing.Api`.
 | Plan catalog | `ConfigurationLicensePlanCatalogProvider` | Reads product and plan definitions from `IBeam:Licensing`. |
 | Tenant licenses | `TenantLicenseService` | Grants, updates, lists, and revokes tenant licenses. |
 | Seat assignments | `LicenseSeatAssignmentService` | Assigns and revokes seats for users, credentials, agents, or external subjects. |
+| Seat policy helpers | `LicenseSeatPolicyService` | One-call helpers for single-user and tenant/team seat grants. |
 | Entitlement checks | `LicenseAuthorizer` | Checks tenant license status, entitlements, and seat requirements. |
 | Store | in-memory `ILicensingStore` implementation | Default development/test persistence. |
 | DI | `AddIBeamLicensingServices(...)` | Registers the licensing service stack. |
@@ -119,6 +120,45 @@ await seatAssignments.AssignSeatAsync(
     new AssignLicenseSeatRequest
     {
         Subject = new LicenseSubject(LicenseSubjectTypes.Agent, "codex")
+    },
+    createdByUserId,
+    ct);
+```
+
+Grant a single-user license and assign the buying user in one call:
+
+```csharp
+var grant = await seatPolicies.GrantSingleUserLicenseAsync(
+    tenantId,
+    new GrantSingleUserLicenseRequest
+    {
+        License = new GrantTenantLicenseRequest
+        {
+            PlanKey = "hubbsly-work"
+        },
+        Subject = new LicenseSubject(LicenseSubjectTypes.User, userId.ToString())
+    },
+    createdByUserId,
+    ct);
+```
+
+Grant a tenant/team license with multiple initial seats:
+
+```csharp
+var teamGrant = await seatPolicies.GrantTenantSeatLicenseAsync(
+    tenantId,
+    new GrantTenantSeatLicenseRequest
+    {
+        SeatLimit = 10,
+        License = new GrantTenantLicenseRequest
+        {
+            PlanKey = "hubbsly-work"
+        },
+        InitialSubjects =
+        [
+            new LicenseSubject(LicenseSubjectTypes.User, ownerUserId.ToString()),
+            new LicenseSubject(LicenseSubjectTypes.ApiCredential, apiCredentialId)
+        ]
     },
     createdByUserId,
     ct);
