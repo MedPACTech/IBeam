@@ -682,6 +682,141 @@ public sealed class LicensingServiceTests
     }
 
     [TestMethod]
+    public async Task LicensedServiceOperationExecutor_UsesDefaultEntitlementPolicy()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "app",
+                Entitlements = ["app:use"]
+            });
+        var service = new PolicyOperationService(CreateLicensedExecutor(
+            fixture,
+            principal,
+            TenantId,
+            new LicensingOptions
+            {
+                ServiceOperations = new LicensedServiceOperationOptions { DefaultEntitlement = "app:use" }
+            }));
+
+        await service.DefaultAsync();
+
+        Assert.IsTrue(service.DefaultCalled);
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_UsesExactOperationOverride()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "chat",
+                Entitlements = ["ai:chat"]
+            });
+        var service = new PolicyOperationService(CreateLicensedExecutor(
+            fixture,
+            principal,
+            TenantId,
+            new LicensingOptions
+            {
+                ServiceOperations = new LicensedServiceOperationOptions
+                {
+                    DefaultEntitlement = "app:use",
+                    OperationEntitlements = new Dictionary<string, string> { ["ai.chat.complete"] = "ai:chat" }
+                }
+            }));
+
+        await service.ChatExactAsync();
+
+        Assert.IsTrue(service.ChatExactCalled);
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_UsesWildcardOperationOverride()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "chat",
+                Entitlements = ["ai:chat"]
+            });
+        var service = new PolicyOperationService(CreateLicensedExecutor(
+            fixture,
+            principal,
+            TenantId,
+            new LicensingOptions
+            {
+                ServiceOperations = new LicensedServiceOperationOptions
+                {
+                    DefaultEntitlement = "app:use",
+                    OperationEntitlements = new Dictionary<string, string> { ["ai.chat.*"] = "ai:chat" }
+                }
+            }));
+
+        await service.ChatWildcardAsync();
+
+        Assert.IsTrue(service.ChatWildcardCalled);
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_SkipsNoLicenseOperations()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        var service = new PolicyOperationService(CreateLicensedExecutor(
+            fixture,
+            principal,
+            TenantId,
+            new LicensingOptions
+            {
+                ServiceOperations = new LicensedServiceOperationOptions
+                {
+                    DefaultEntitlement = "app:use",
+                    NoLicenseOperations = ["billing.*", "auth.login"]
+                }
+            }));
+
+        await service.FreeBillingAsync();
+
+        Assert.IsTrue(service.FreeBillingCalled);
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_AttributeOverridesConfiguredPolicy()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "notes-write",
+                Entitlements = ["notes:write"]
+            });
+        var service = new LicensedNotesService(CreateLicensedExecutor(
+            fixture,
+            principal,
+            TenantId,
+            new LicensingOptions
+            {
+                ServiceOperations = new LicensedServiceOperationOptions { DefaultEntitlement = "app:use" }
+            }));
+
+        await service.WriteAsync();
+
+        Assert.IsTrue(service.WriteCalled);
+    }
+
+    [TestMethod]
     public void ClaimsPrincipalLicenseSubjectResolver_ResolvesKnownSubjectClaims()
     {
         var resolver = new ClaimsPrincipalLicenseSubjectResolver();
@@ -861,11 +996,13 @@ public sealed class LicensingServiceTests
     private static LicensedServiceOperationExecutor CreateLicensedExecutor(
         Fixture fixture,
         ClaimsPrincipal principal,
-        Guid? tenantId)
+        Guid? tenantId,
+        LicensingOptions? options = null)
         => new(
             fixture.Gate,
             subjectResolver: new ClaimsPrincipalLicenseSubjectResolver(),
             serviceOperationPrincipalProvider: new FixedPrincipalProvider(principal),
+            licensingOptionsMonitor: new StaticOptionsMonitor<LicensingOptions>(options ?? new LicensingOptions()),
             tenantContext: tenantId.HasValue ? new FixedTenantContext(tenantId.Value) : null);
 
     private static ClaimsPrincipal Principal(params Claim[] claims)
@@ -1053,5 +1190,78 @@ public sealed class LicensingServiceTests
         public Guid? TenantId { get; }
 
         public bool IsTenantIdSet() => TenantId.HasValue && TenantId.Value != Guid.Empty;
+    }
+
+    private sealed class StaticOptionsMonitor<T> : IOptionsMonitor<T>
+    {
+        public StaticOptionsMonitor(T value)
+        {
+            CurrentValue = value;
+        }
+
+        public T CurrentValue { get; }
+
+        public T Get(string? name) => CurrentValue;
+
+        public IDisposable? OnChange(Action<T, string?> listener) => null;
+    }
+
+    private sealed class PolicyOperationService
+    {
+        private readonly IServiceOperationExecutor _operations;
+
+        public PolicyOperationService(IServiceOperationExecutor operations)
+        {
+            _operations = operations;
+        }
+
+        public bool DefaultCalled { get; private set; }
+        public bool ChatExactCalled { get; private set; }
+        public bool ChatWildcardCalled { get; private set; }
+        public bool FreeBillingCalled { get; private set; }
+
+        [IBeamOperation("patients.create")]
+        public Task DefaultAsync(CancellationToken ct = default)
+            => _operations.ExecuteAsync(
+                this,
+                _ =>
+                {
+                    DefaultCalled = true;
+                    return Task.CompletedTask;
+                },
+                ct: ct);
+
+        [IBeamOperation("ai.chat.complete")]
+        public Task ChatExactAsync(CancellationToken ct = default)
+            => _operations.ExecuteAsync(
+                this,
+                _ =>
+                {
+                    ChatExactCalled = true;
+                    return Task.CompletedTask;
+                },
+                ct: ct);
+
+        [IBeamOperation("ai.chat.stream")]
+        public Task ChatWildcardAsync(CancellationToken ct = default)
+            => _operations.ExecuteAsync(
+                this,
+                _ =>
+                {
+                    ChatWildcardCalled = true;
+                    return Task.CompletedTask;
+                },
+                ct: ct);
+
+        [IBeamOperation("billing.portal.open")]
+        public Task FreeBillingAsync(CancellationToken ct = default)
+            => _operations.ExecuteAsync(
+                this,
+                _ =>
+                {
+                    FreeBillingCalled = true;
+                    return Task.CompletedTask;
+                },
+                ct: ct);
     }
 }

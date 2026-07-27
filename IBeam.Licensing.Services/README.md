@@ -69,6 +69,30 @@ public sealed class NotesService
 
 Class-level entitlements apply by default; method-level entitlements override them. Tenant id is resolved from `ServiceOperationExecutionOptions.TenantId` or `ITenantContext`. The subject is resolved from the current `IServiceOperationPrincipalProvider` using explicit IBeam subject claims, agent/API credential claims, or standard user claims.
 
+You can also configure a default entitlement and operation-specific exceptions:
+
+```json
+{
+  "IBeam": {
+    "Licensing": {
+      "ServiceOperations": {
+        "DefaultEntitlement": "app:use",
+        "OperationEntitlements": {
+          "ai.chat.*": "ai:chat",
+          "patients.create": "patients:write"
+        },
+        "NoLicenseOperations": [
+          "auth.*",
+          "billing.portal.*"
+        ]
+      }
+    }
+  }
+}
+```
+
+Attributes override configuration. No-license patterns skip licensing entirely for operations such as auth, billing portal, or renewal flows.
+
 Configure plans:
 
 ```json
