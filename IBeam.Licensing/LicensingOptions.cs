@@ -6,9 +6,12 @@ public sealed class LicensingOptions
 
     public List<LicenseProductOptions> Products { get; set; } = [];
     public List<LicensePlanOptions> Plans { get; set; } = [];
+    public LicensedServiceOperationOptions ServiceOperations { get; set; } = new();
 
     public void Validate()
     {
+        ServiceOperations.Normalize();
+
         Products = Products
             .Where(x => !string.IsNullOrWhiteSpace(x.Key))
             .Select(x =>
@@ -29,6 +32,26 @@ public sealed class LicensingOptions
             })
             .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
             .Select(x => x.First())
+            .ToList();
+    }
+}
+
+public sealed class LicensedServiceOperationOptions
+{
+    public string? DefaultEntitlement { get; set; }
+    public Dictionary<string, string> OperationEntitlements { get; set; } = [];
+    public List<string> NoLicenseOperations { get; set; } = [];
+
+    internal void Normalize()
+    {
+        DefaultEntitlement = string.IsNullOrWhiteSpace(DefaultEntitlement) ? null : DefaultEntitlement.Trim();
+        OperationEntitlements = OperationEntitlements
+            .Where(x => !string.IsNullOrWhiteSpace(x.Key) && !string.IsNullOrWhiteSpace(x.Value))
+            .ToDictionary(x => x.Key.Trim(), x => x.Value.Trim(), StringComparer.OrdinalIgnoreCase);
+        NoLicenseOperations = NoLicenseOperations
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 }

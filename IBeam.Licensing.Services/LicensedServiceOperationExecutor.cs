@@ -13,6 +13,7 @@ public sealed class LicensedServiceOperationExecutor : IServiceOperationExecutor
     private readonly ILicenseGate _gate;
     private readonly ILicenseSubjectResolver _subjectResolver;
     private readonly IServiceOperationPrincipalProvider _principalProvider;
+    private readonly IOptionsMonitor<LicensingOptions> _licensingOptionsMonitor;
     private readonly ITenantContext? _tenantContext;
     private readonly ServiceOperationExecutor _inner;
 
@@ -24,12 +25,14 @@ public sealed class LicensedServiceOperationExecutor : IServiceOperationExecutor
         IAuditRequestContextProvider? auditRequestContextProvider = null,
         IServiceOperationAuthorizer? serviceOperationAuthorizer = null,
         IServiceOperationPrincipalProvider? serviceOperationPrincipalProvider = null,
+        IOptionsMonitor<LicensingOptions>? licensingOptionsMonitor = null,
         IOptionsMonitor<ServiceAuditOptions>? auditOptionsMonitor = null,
         ITenantContext? tenantContext = null)
     {
         _gate = gate;
         _subjectResolver = subjectResolver ?? new ClaimsPrincipalLicenseSubjectResolver();
         _principalProvider = serviceOperationPrincipalProvider ?? new NoOpServiceOperationPrincipalProvider();
+        _licensingOptionsMonitor = licensingOptionsMonitor ?? new StaticOptionsMonitor<LicensingOptions>(new LicensingOptions());
         _tenantContext = tenantContext;
         _inner = new ServiceOperationExecutor(
             auditTrailSink,
@@ -93,8 +96,8 @@ public sealed class LicensedServiceOperationExecutor : IServiceOperationExecutor
 
         var serviceType = serviceInstance.GetType();
         var method = ResolveMethod(serviceType, callerMemberName);
-        var entitlement = LastAttribute<IBeamRequiresEntitlementAttribute>(method)
-                          ?? LastAttribute<IBeamRequiresEntitlementAttribute>(serviceType);
+        var operationName = ResolveOperationName(serviceType, method, options, callerMemberName);
+        var entitlement = ResolveRequiredEntitlement(method, serviceType, operationName);
         if (entitlement is null)
             return;
 
@@ -113,10 +116,37 @@ public sealed class LicensedServiceOperationExecutor : IServiceOperationExecutor
             {
                 TenantId = tenantId.Value,
                 Subject = subject,
-                Entitlement = entitlement.Entitlement,
-                OperationName = ResolveOperationName(serviceType, method, options, callerMemberName)
+                Entitlement = entitlement,
+                OperationName = operationName
             },
             ct).ConfigureAwait(false);
+    }
+
+    private string? ResolveRequiredEntitlement(MethodInfo? method, Type serviceType, string operationName)
+    {
+        var attribute = LastAttribute<IBeamRequiresEntitlementAttribute>(method)
+                        ?? LastAttribute<IBeamRequiresEntitlementAttribute>(serviceType);
+        if (attribute is not null)
+            return attribute.Entitlement;
+
+        var options = _licensingOptionsMonitor.CurrentValue;
+        options.Validate();
+        var serviceOptions = options.ServiceOperations;
+
+        if (MatchesAny(serviceOptions.NoLicenseOperations, operationName))
+            return null;
+
+        if (serviceOptions.OperationEntitlements.TryGetValue(operationName, out var exact))
+            return exact;
+
+        var wildcard = serviceOptions.OperationEntitlements
+            .Where(x => x.Key.EndsWith("*", StringComparison.Ordinal))
+            .OrderByDescending(x => x.Key.Length)
+            .FirstOrDefault(x => MatchesPattern(x.Key, operationName));
+        if (!string.IsNullOrWhiteSpace(wildcard.Value))
+            return wildcard.Value;
+
+        return serviceOptions.DefaultEntitlement;
     }
 
     private static string ResolveOperationName(
@@ -179,5 +209,31 @@ public sealed class LicensedServiceOperationExecutor : IServiceOperationExecutor
             : methodName;
 
         return value.Trim().ToLowerInvariant();
+    }
+
+    private static bool MatchesAny(IEnumerable<string> patterns, string operationName)
+        => patterns.Any(x => MatchesPattern(x, operationName));
+
+    private static bool MatchesPattern(string pattern, string operationName)
+    {
+        if (string.Equals(pattern, operationName, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return pattern.EndsWith("*", StringComparison.Ordinal) &&
+               operationName.StartsWith(pattern[..^1], StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class StaticOptionsMonitor<T> : IOptionsMonitor<T>
+    {
+        public StaticOptionsMonitor(T value)
+        {
+            CurrentValue = value;
+        }
+
+        public T CurrentValue { get; }
+
+        public T Get(string? name) => CurrentValue;
+
+        public IDisposable? OnChange(Action<T, string?> listener) => null;
     }
 }
