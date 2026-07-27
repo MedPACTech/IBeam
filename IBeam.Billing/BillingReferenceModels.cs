@@ -32,7 +32,7 @@ public sealed record BillingPriceReferenceInfo(
             string.IsNullOrWhiteSpace(billingMode) ? null : BillingModes.Normalize(billingMode),
             NormalizeMetadata(metadata));
 
-    internal static string NormalizeRequired(string value, string parameterName)
+    public static string NormalizeRequired(string value, string parameterName)
     {
         if (string.IsNullOrWhiteSpace(value))
             throw new ArgumentException("Value is required.", parameterName);
@@ -40,13 +40,13 @@ public sealed record BillingPriceReferenceInfo(
         return value.Trim();
     }
 
-    internal static string? NormalizeOptional(string? value)
+    public static string? NormalizeOptional(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    internal static string? NormalizeCurrency(string? currency)
+    public static string? NormalizeCurrency(string? currency)
         => string.IsNullOrWhiteSpace(currency) ? null : currency.Trim().ToUpperInvariant();
 
-    internal static IReadOnlyDictionary<string, string> NormalizeMetadata(IReadOnlyDictionary<string, string>? metadata)
+    public static IReadOnlyDictionary<string, string> NormalizeMetadata(IReadOnlyDictionary<string, string>? metadata)
         => metadata?
             .Where(x => !string.IsNullOrWhiteSpace(x.Key))
             .ToDictionary(x => x.Key.Trim(), x => x.Value?.Trim() ?? string.Empty, StringComparer.OrdinalIgnoreCase)
