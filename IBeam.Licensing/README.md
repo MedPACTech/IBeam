@@ -50,6 +50,19 @@ This package is the model/contract layer. It does not own HTTP endpoints, databa
 | Seat assignment | A subject consuming a seat on a tenant license. |
 | Subject | The thing using the product: user, API credential, agent, or external identity. |
 
+## License Lifecycle
+
+Tenant licenses distinguish runtime grant status from commercial billing state:
+
+| Field | Meaning |
+|---|---|
+| `Status` | Runtime grant state such as `active`, `trialing`, `grace`, `manual`, `suspended`, `expired`, or `revoked`. |
+| `CommercialStatus` | Commercial state such as `paid`, `trial`, `grace`, `past-due`, `canceled`, `manual`, or `support-granted`. |
+| `StartsUtc` / `ExpiresUtc` | Runtime validity window for the grant. |
+| `GraceEndsUtc` | Optional runtime grace window after expiration. |
+
+Use `EvaluateRuntimeEligibility(now)` when you need a structured runtime decision. `IsActive(now)` remains available for existing consumers and returns the runtime eligibility result.
+
 ## Code Example
 
 Typical service-layer usage:

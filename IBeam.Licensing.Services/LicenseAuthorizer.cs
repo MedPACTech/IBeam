@@ -19,9 +19,17 @@ public sealed class LicenseAuthorizer : ILicenseAuthorizer
         var normalizedEntitlement = TenantLicenseService.NormalizeRequired(entitlement, nameof(entitlement));
         var licenses = await _store.ListLicensesAsync(tenantId, ct).ConfigureAwait(false);
         var now = DateTimeOffset.UtcNow;
+        var denialReasons = new List<string>();
 
-        foreach (var license in licenses.Where(x => x.IsActive(now)))
+        foreach (var license in licenses)
         {
+            var eligibility = license.EvaluateRuntimeEligibility(now);
+            if (!eligibility.IsEligible)
+            {
+                denialReasons.Add($"{license.LicenseId}: {eligibility.RuntimeStatus}");
+                continue;
+            }
+
             if (!HasEntitlement(license, normalizedEntitlement))
                 continue;
 
@@ -33,7 +41,10 @@ public sealed class LicenseAuthorizer : ILicenseAuthorizer
                 return LicenseAuthorizationResult.Allow(license.LicenseId);
         }
 
-        return LicenseAuthorizationResult.Deny($"Tenant '{tenantId}' does not have an active license entitlement for '{normalizedEntitlement}'.");
+        var reasonSuffix = denialReasons.Count == 0
+            ? string.Empty
+            : $" Checked licenses: {string.Join(", ", denialReasons)}.";
+        return LicenseAuthorizationResult.Deny($"Tenant '{tenantId}' does not have a runtime-eligible license entitlement for '{normalizedEntitlement}'.{reasonSuffix}");
     }
 
     private static bool HasEntitlement(TenantLicenseRecord license, string entitlement)

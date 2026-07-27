@@ -62,16 +62,21 @@ public sealed class TenantLicenseService : ITenantLicenseService
         var limits = MergeLimits(plan?.Limits, request.Limits);
         var now = DateTimeOffset.UtcNow;
         var starts = request.StartsUtc ?? now;
+        var status = NormalizeLicenseStatus(request.Status) ?? LicenseStatuses.Active;
+        var commercialStatus = NormalizeCommercialStatus(request.CommercialStatus)
+                               ?? InferCommercialStatus(status, request);
 
         if (request.ExpiresUtc is { } expires && expires <= starts)
             throw new LicensingException("expiresUtc must be after startsUtc.");
+
+        ValidateGraceWindow(starts, request.ExpiresUtc, request.GraceEndsUtc);
 
         var record = new TenantLicenseRecord(
             LicenseId: Guid.NewGuid(),
             TenantId: tenantId,
             PlanKey: planKey,
             DisplayName: NormalizeOptional(request.DisplayName) ?? plan?.DisplayName ?? planKey,
-            Status: NormalizeOptional(request.Status) ?? LicenseStatuses.Active,
+            Status: status,
             Entitlements: entitlements,
             Limits: limits,
             SeatLimit: request.SeatLimit ?? plan?.DefaultSeatLimit ?? ReadSeatLimit(limits),
@@ -86,7 +91,9 @@ public sealed class TenantLicenseService : ITenantLicenseService
             ProviderSubscriptionId: NormalizeOptional(request.ProviderSubscriptionId),
             ProviderPriceId: NormalizeOptional(request.ProviderPriceId),
             ProviderStatus: NormalizeOptional(request.ProviderStatus),
-            Metadata: NormalizeMetadata(request.Metadata));
+            Metadata: NormalizeMetadata(request.Metadata),
+            CommercialStatus: commercialStatus,
+            GraceEndsUtc: request.GraceEndsUtc);
 
         var saved = await _store.UpsertLicenseAsync(record, ct).ConfigureAwait(false);
         return TenantLicenseInfo.FromRecord(saved);
@@ -117,10 +124,12 @@ public sealed class TenantLicenseService : ITenantLicenseService
 
         var existing = await GetRequiredAsync(tenantId, licenseId, ct).ConfigureAwait(false);
         var limits = request.Limits is null ? existing.Limits : NormalizeLimits(request.Limits);
+        var status = NormalizeLicenseStatus(request.Status) ?? existing.Status;
+        var commercialStatus = NormalizeCommercialStatus(request.CommercialStatus) ?? existing.CommercialStatus;
         var updated = existing with
         {
             DisplayName = NormalizeOptional(request.DisplayName) ?? existing.DisplayName,
-            Status = NormalizeOptional(request.Status) ?? existing.Status,
+            Status = status,
             Entitlements = request.Entitlements is null ? existing.Entitlements : NormalizeEntitlements(request.Entitlements),
             Limits = limits,
             SeatLimit = request.SeatLimit ?? existing.SeatLimit,
@@ -131,11 +140,15 @@ public sealed class TenantLicenseService : ITenantLicenseService
             ProviderSubscriptionId = NormalizeOptional(request.ProviderSubscriptionId) ?? existing.ProviderSubscriptionId,
             ProviderPriceId = NormalizeOptional(request.ProviderPriceId) ?? existing.ProviderPriceId,
             ProviderStatus = NormalizeOptional(request.ProviderStatus) ?? existing.ProviderStatus,
+            CommercialStatus = commercialStatus,
+            GraceEndsUtc = request.GraceEndsUtc ?? existing.GraceEndsUtc,
             Metadata = request.Metadata is null ? existing.Metadata : NormalizeMetadata(request.Metadata)
         };
 
         if (updated.ExpiresUtc is { } expires && expires <= updated.StartsUtc)
             throw new LicensingException("expiresUtc must be after startsUtc.");
+
+        ValidateGraceWindow(updated.StartsUtc, updated.ExpiresUtc, updated.GraceEndsUtc);
 
         var saved = await _store.UpsertLicenseAsync(updated, ct).ConfigureAwait(false);
         return TenantLicenseInfo.FromRecord(saved);
@@ -194,6 +207,45 @@ public sealed class TenantLicenseService : ITenantLicenseService
     internal static string? NormalizeOptional(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    internal static string? NormalizeLicenseStatus(string? value)
+    {
+        var normalized = NormalizeOptional(value)?.ToLowerInvariant();
+        if (normalized is null)
+            return null;
+
+        return normalized switch
+        {
+            LicenseStatuses.Active => normalized,
+            LicenseStatuses.Trialing => normalized,
+            LicenseStatuses.Grace => normalized,
+            LicenseStatuses.Manual => normalized,
+            LicenseStatuses.Suspended => normalized,
+            LicenseStatuses.Revoked => normalized,
+            LicenseStatuses.Expired => normalized,
+            _ => throw new LicensingException($"License status '{value}' is not supported.")
+        };
+    }
+
+    internal static string? NormalizeCommercialStatus(string? value)
+    {
+        var normalized = NormalizeOptional(value)?.ToLowerInvariant();
+        if (normalized is null)
+            return null;
+
+        return normalized switch
+        {
+            LicenseCommercialStatuses.Unknown => normalized,
+            LicenseCommercialStatuses.Paid => normalized,
+            LicenseCommercialStatuses.Trial => normalized,
+            LicenseCommercialStatuses.Grace => normalized,
+            LicenseCommercialStatuses.PastDue => normalized,
+            LicenseCommercialStatuses.Canceled => normalized,
+            LicenseCommercialStatuses.Manual => normalized,
+            LicenseCommercialStatuses.SupportGranted => normalized,
+            _ => throw new LicensingException($"License commercial status '{value}' is not supported.")
+        };
+    }
+
     internal static IReadOnlyList<string> NormalizeEntitlements(IEnumerable<string>? values)
         => (values ?? Array.Empty<string>())
             .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -229,4 +281,46 @@ public sealed class TenantLicenseService : ITenantLicenseService
 
     private static int? ReadSeatLimit(IReadOnlyDictionary<string, int> limits)
         => limits.TryGetValue("Seats", out var seats) ? seats : null;
+
+    private static string InferCommercialStatus(string status, GrantTenantLicenseRequest request)
+    {
+        if (string.Equals(status, LicenseStatuses.Trialing, StringComparison.OrdinalIgnoreCase))
+            return LicenseCommercialStatuses.Trial;
+
+        if (string.Equals(status, LicenseStatuses.Grace, StringComparison.OrdinalIgnoreCase))
+            return LicenseCommercialStatuses.Grace;
+
+        if (string.Equals(status, LicenseStatuses.Manual, StringComparison.OrdinalIgnoreCase))
+            return LicenseCommercialStatuses.Manual;
+
+        if (string.Equals(status, LicenseStatuses.Suspended, StringComparison.OrdinalIgnoreCase))
+            return LicenseCommercialStatuses.PastDue;
+
+        if (string.Equals(status, LicenseStatuses.Expired, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(status, LicenseStatuses.Revoked, StringComparison.OrdinalIgnoreCase))
+            return LicenseCommercialStatuses.Canceled;
+
+        return HasProviderReference(request)
+            ? LicenseCommercialStatuses.Paid
+            : LicenseCommercialStatuses.Manual;
+    }
+
+    private static bool HasProviderReference(GrantTenantLicenseRequest request)
+        => !string.IsNullOrWhiteSpace(request.ProviderName) ||
+           !string.IsNullOrWhiteSpace(request.ProviderCustomerId) ||
+           !string.IsNullOrWhiteSpace(request.ProviderSubscriptionId) ||
+           !string.IsNullOrWhiteSpace(request.ProviderPriceId) ||
+           !string.IsNullOrWhiteSpace(request.ProviderStatus);
+
+    private static void ValidateGraceWindow(DateTimeOffset startsUtc, DateTimeOffset? expiresUtc, DateTimeOffset? graceEndsUtc)
+    {
+        if (graceEndsUtc is null)
+            return;
+
+        if (graceEndsUtc <= startsUtc)
+            throw new LicensingException("graceEndsUtc must be after startsUtc.");
+
+        if (expiresUtc is { } expires && graceEndsUtc <= expires)
+            throw new LicensingException("graceEndsUtc must be after expiresUtc.");
+    }
 }
