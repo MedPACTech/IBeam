@@ -16,6 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IBeam.Billing.Api\IBeam.Billing.Api.csproj" />
     <ProjectReference Include="..\IBeam.Billing.Services\IBeam.Billing.Services.csproj" />
     <ProjectReference Include="..\IBeam.Billing.Licensing\IBeam.Billing.Licensing.csproj" />
     <ProjectReference Include="..\IBeam.Licensing.Services\IBeam.Licensing.Services.csproj" />
