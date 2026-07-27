@@ -15,7 +15,7 @@ public static class BillingModes
     public static bool IsKnown(string? mode)
         => Normalize(mode) is SelfServiceMonthly or AnnualContract or ManualInvoice or Marketplace or SupportManaged;
 
-    internal static string NormalizeKnown(string? value, string defaultValue)
+    public static string NormalizeKnown(string? value, string defaultValue)
     {
         if (string.IsNullOrWhiteSpace(value))
             return defaultValue;
