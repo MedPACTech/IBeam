@@ -57,6 +57,11 @@ public interface ILicenseGate
     Task RequireAsync(LicenseGateRequest request, CancellationToken ct = default);
 }
 
+public interface ILicenseSubjectResolver
+{
+    LicenseSubject? ResolveSubject(System.Security.Claims.ClaimsPrincipal? principal);
+}
+
 public interface ILicenseExtension
 {
     Guid TenantId { get; }
