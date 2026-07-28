@@ -1,0 +1,14 @@
+[
+  {
+    "boardKey": "ibeam",
+    "laneKey": "ready",
+    "title": "Implement sample IBeam workflow card",
+    "description": "Acceptance criteria:\n- Validate the card payload locally.\n- Publish through the Hubbsly MCP endpoint only when requested.\n- Keep secrets out of source and output.",
+    "workType": "workflow",
+    "priority": "medium",
+    "sourceSystem": "codex",
+    "sourceKey": "IBM-SAMPLE",
+    "sourceUrl": "https://github.com/MedPACTech/IBeam",
+    "sortOrder": 100
+  }
+]
