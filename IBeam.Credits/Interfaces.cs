@@ -10,3 +10,24 @@ public interface ICreditLedgerStore
         string? bucketKey = null,
         CancellationToken ct = default);
 }
+
+public interface ICreditReservationService
+{
+    Task<CreditReservationInfo> ReserveAsync(Guid tenantId, ReserveCreditsRequest request, CancellationToken ct = default);
+    Task<CreditReservationInfo> SettleAsync(Guid tenantId, Guid creditReservationId, SettleCreditReservationRequest request, CancellationToken ct = default);
+    Task<CreditReservationInfo> ReleaseAsync(Guid tenantId, Guid creditReservationId, ReleaseCreditReservationRequest request, CancellationToken ct = default);
+    Task<IReadOnlyList<CreditReservationInfo>> ExpireAsync(Guid tenantId, DateTimeOffset? asOfUtc = null, CancellationToken ct = default);
+}
+
+public interface ICreditUsageRecorder
+{
+    Task<CreditUsageRecordResult> RecordUsageAsync(Guid tenantId, RecordCreditUsageRequest request, CancellationToken ct = default);
+}
+
+public interface ICreditReservationStore : ICreditLedgerStore
+{
+    Task<CreditReservationInfo> SaveReservationAsync(CreditReservationInfo reservation, CancellationToken ct = default);
+    Task<CreditReservationInfo?> GetReservationAsync(Guid tenantId, Guid creditReservationId, CancellationToken ct = default);
+    Task<CreditReservationInfo?> GetReservationByIdempotencyKeyAsync(Guid tenantId, string idempotencyKey, CancellationToken ct = default);
+    Task<IReadOnlyList<CreditReservationInfo>> ListReservationsAsync(Guid tenantId, Guid? creditAccountId = null, string? bucketKey = null, CancellationToken ct = default);
+}

@@ -16,6 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\IBeam.Credits\IBeam.Credits.csproj" />
+    <ProjectReference Include="..\IBeam.Credits.Services\IBeam.Credits.Services.csproj" />
   </ItemGroup>
 </Project>
