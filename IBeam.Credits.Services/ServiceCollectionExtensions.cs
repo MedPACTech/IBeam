@@ -20,6 +20,7 @@ public static class CreditServiceCollectionExtensions
         services.TryAddScoped<ICreditReservationService>(provider => provider.GetRequiredService<CreditReservationService>());
         services.TryAddScoped<ICreditUsageRecorder>(provider => provider.GetRequiredService<CreditReservationService>());
         services.TryAddScoped<ICreditPolicyService, CreditPolicyService>();
+        services.TryAddScoped<ICreditBalanceSummaryService, CreditBalanceSummaryService>();
         return services;
     }
 }
