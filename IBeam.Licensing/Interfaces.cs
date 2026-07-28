@@ -6,6 +6,12 @@ public interface ILicensePlanCatalogProvider
     Task<LicensePlanInfo?> GetPlanAsync(string planKey, CancellationToken ct = default);
 }
 
+public interface ILicenseProductCatalogProvider
+{
+    Task<IReadOnlyList<LicenseProductInfo>> ListProductsAsync(CancellationToken ct = default);
+    Task<LicenseProductInfo?> GetProductAsync(string productKey, CancellationToken ct = default);
+}
+
 public interface ITenantLicenseService
 {
     Task<IReadOnlyList<TenantLicenseInfo>> ListTenantLicensesAsync(Guid tenantId, CancellationToken ct = default);
@@ -21,6 +27,21 @@ public interface ILicenseSeatAssignmentService
     Task RevokeSeatAsync(Guid tenantId, Guid licenseId, Guid assignmentId, CancellationToken ct = default);
 }
 
+public interface ILicenseSeatPolicyService
+{
+    Task<TenantLicenseWithSeatsInfo> GrantSingleUserLicenseAsync(
+        Guid tenantId,
+        GrantSingleUserLicenseRequest request,
+        Guid? createdByUserId = null,
+        CancellationToken ct = default);
+
+    Task<TenantLicenseWithSeatsInfo> GrantTenantSeatLicenseAsync(
+        Guid tenantId,
+        GrantTenantSeatLicenseRequest request,
+        Guid? createdByUserId = null,
+        CancellationToken ct = default);
+}
+
 public interface ILicenseAuthorizer
 {
     Task<LicenseAuthorizationResult> AuthorizeAsync(
@@ -28,6 +49,25 @@ public interface ILicenseAuthorizer
         LicenseSubject subject,
         string entitlement,
         CancellationToken ct = default);
+}
+
+public interface ILicenseGate
+{
+    Task<LicenseGateResult> CheckAsync(LicenseGateRequest request, CancellationToken ct = default);
+    Task RequireAsync(LicenseGateRequest request, CancellationToken ct = default);
+}
+
+public interface ILicenseRuntimeContextService
+{
+    Task<LicenseRuntimeContextInfo> GetRuntimeContextAsync(
+        Guid tenantId,
+        GetLicenseRuntimeContextRequest request,
+        CancellationToken ct = default);
+}
+
+public interface ILicenseSubjectResolver
+{
+    LicenseSubject? ResolveSubject(System.Security.Claims.ClaimsPrincipal? principal);
 }
 
 public interface ILicenseExtension

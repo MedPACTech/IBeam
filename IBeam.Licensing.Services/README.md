@@ -19,10 +19,12 @@ For ASP.NET Core endpoints, use `IBeam.Licensing.Api`.
 
 | Area | Type(s) | Purpose |
 |---|---|---|
-| Plan catalog | `ConfigurationLicensePlanCatalogProvider` | Reads plan definitions from `IBeam:Licensing`. |
+| Plan catalog | `ConfigurationLicensePlanCatalogProvider` | Reads product and plan definitions from `IBeam:Licensing`. |
 | Tenant licenses | `TenantLicenseService` | Grants, updates, lists, and revokes tenant licenses. |
 | Seat assignments | `LicenseSeatAssignmentService` | Assigns and revokes seats for users, credentials, agents, or external subjects. |
+| Seat policy helpers | `LicenseSeatPolicyService` | One-call helpers for single-user and tenant/team seat grants. |
 | Entitlement checks | `LicenseAuthorizer` | Checks tenant license status, entitlements, and seat requirements. |
+| License gate | `LicenseGate` | Returns structured allow/deny details and a throwing helper for service/API boundaries. |
 | Store | in-memory `ILicensingStore` implementation | Default development/test persistence. |
 | DI | `AddIBeamLicensingServices(...)` | Registers the licensing service stack. |
 
@@ -42,22 +44,96 @@ using IBeam.Licensing.Services;
 builder.Services.AddIBeamLicensingServices(builder.Configuration);
 ```
 
+To enforce licensing automatically on attributed IBeam service operations, opt in after registering licensing:
+
+```csharp
+builder.Services
+    .AddIBeamLicensingServices(builder.Configuration)
+    .AddIBeamLicensedServiceOperations();
+```
+
+Then annotate a service class or method:
+
+```csharp
+[IBeamRequiresEntitlement("notes:use")]
+public sealed class NotesService
+{
+    private readonly IServiceOperationExecutor _operations;
+
+    [IBeamOperation("notes.create")]
+    [IBeamRequiresEntitlement("notes:write")]
+    public Task CreateAsync(CancellationToken ct)
+        => _operations.ExecuteAsync(this, _ => CreateCoreAsync(), ct: ct);
+}
+```
+
+Class-level entitlements apply by default; method-level entitlements override them. Tenant id is resolved from `ServiceOperationExecutionOptions.TenantId` or `ITenantContext`. The subject is resolved from the current `IServiceOperationPrincipalProvider` using explicit IBeam subject claims, agent/API credential claims, or standard user claims.
+
+You can also configure a default entitlement and operation-specific exceptions:
+
+```json
+{
+  "IBeam": {
+    "Licensing": {
+      "ServiceOperations": {
+        "DefaultEntitlement": "app:use",
+        "OperationEntitlements": {
+          "ai.chat.*": "ai:chat",
+          "patients.create": "patients:write"
+        },
+        "NoLicenseOperations": [
+          "auth.*",
+          "billing.portal.*"
+        ]
+      }
+    }
+  }
+}
+```
+
+Attributes override configuration. No-license patterns skip licensing entirely for operations such as auth, billing portal, or renewal flows.
+
 Configure plans:
 
 ```json
 {
   "IBeam": {
     "Licensing": {
+      "Products": [
+        {
+          "Key": "hubbsly",
+          "DisplayName": "Hubbsly"
+        }
+      ],
       "Plans": [
         {
           "Key": "hubbsly-work",
+          "ProductKey": "hubbsly",
           "DisplayName": "Hubbsly Work",
           "Description": "Work module access for users and agents.",
+          "Classification": "tenant",
+          "Level": 2,
           "Entitlements": [ "feature:work", "work:cards:create", "mcp:tools" ],
           "Limits": {
             "Seats": 4,
             "McpCallsPerMonth": 10000
           },
+          "DefaultSeatLimit": 4,
+          "DefaultCreditGrants": [
+            {
+              "BucketKey": "ai-chat",
+              "Amount": 500,
+              "Period": "monthly"
+            }
+          ],
+          "ProviderPrices": [
+            {
+              "ProviderName": "stripe",
+              "PriceId": "price_123",
+              "Currency": "USD",
+              "BillingPeriod": "monthly"
+            }
+          ],
           "Metadata": {
             "product": "hubbsly",
             "module": "work"
@@ -99,6 +175,45 @@ await seatAssignments.AssignSeatAsync(
     ct);
 ```
 
+Grant a single-user license and assign the buying user in one call:
+
+```csharp
+var grant = await seatPolicies.GrantSingleUserLicenseAsync(
+    tenantId,
+    new GrantSingleUserLicenseRequest
+    {
+        License = new GrantTenantLicenseRequest
+        {
+            PlanKey = "hubbsly-work"
+        },
+        Subject = new LicenseSubject(LicenseSubjectTypes.User, userId.ToString())
+    },
+    createdByUserId,
+    ct);
+```
+
+Grant a tenant/team license with multiple initial seats:
+
+```csharp
+var teamGrant = await seatPolicies.GrantTenantSeatLicenseAsync(
+    tenantId,
+    new GrantTenantSeatLicenseRequest
+    {
+        SeatLimit = 10,
+        License = new GrantTenantLicenseRequest
+        {
+            PlanKey = "hubbsly-work"
+        },
+        InitialSubjects =
+        [
+            new LicenseSubject(LicenseSubjectTypes.User, ownerUserId.ToString()),
+            new LicenseSubject(LicenseSubjectTypes.ApiCredential, apiCredentialId)
+        ]
+    },
+    createdByUserId,
+    ct);
+```
+
 Check access before a feature runs:
 
 ```csharp
@@ -107,6 +222,25 @@ await licenseAuthorizer.RequireEntitlementAsync(
     new LicenseSubject(LicenseSubjectTypes.User, userId.ToString()),
     "work:cards:create",
     ct);
+```
+
+Use the gate when an API or service needs structured denial details:
+
+```csharp
+var gate = await licenseGate.CheckAsync(
+    new LicenseGateRequest
+    {
+        TenantId = tenantId,
+        Subject = new LicenseSubject(LicenseSubjectTypes.User, userId.ToString()),
+        Entitlement = "work:cards:create",
+        OperationName = "work.cards.create"
+    },
+    ct);
+
+if (!gate.Allowed)
+{
+    // gate.DenialCode is no-license, inactive-license, missing-entitlement, or missing-seat.
+}
 ```
 
 ## Service Operations
@@ -160,6 +294,7 @@ Register the replacement after `AddIBeamLicensingServices` so the host applicati
 |---|---|---|
 | License persistence | `ILicensingStore` | Store licenses and seats in the host data platform. |
 | Plan catalog | `ILicensePlanCatalogProvider` | Load plans from database, billing provider, or another config source. |
+| Product catalog | `ILicenseProductCatalogProvider` | Load product metadata independently from plan lookups. |
 | Entitlement checks | `ILicenseAuthorizer` | Add product-specific quota or billing-state rules. |
 | Provider hooks | `ILicenseExtension` | Integrate Stripe, Azure Marketplace, manual grants, or custom billing. |
 

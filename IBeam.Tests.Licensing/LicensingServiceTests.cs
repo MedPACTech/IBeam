@@ -3,6 +3,7 @@ using IBeam.Licensing.Services;
 using IBeam.Services.Abstractions;
 using Microsoft.Extensions.Options;
 using System.Runtime.CompilerServices;
+using System.Security.Claims;
 
 [assembly: Parallelize(Scope = ExecutionScope.MethodLevel)]
 
@@ -22,8 +23,131 @@ public sealed class LicensingServiceTests
 
         Assert.HasCount(1, plans);
         Assert.AreEqual("hubbsly-work", plans[0].Key);
+        Assert.AreEqual("hubbsly", plans[0].ProductKey);
+        Assert.AreEqual(LicensePlanClassifications.Tenant, plans[0].Classification);
+        Assert.AreEqual(2, plans[0].Level);
+        Assert.AreEqual(2, plans[0].DefaultSeatLimit);
         CollectionAssert.Contains(plans[0].Entitlements.ToList(), "work:cards:create");
         Assert.AreEqual(2, plans[0].Limits["Seats"]);
+        Assert.HasCount(1, plans[0].DefaultCreditGrants);
+        Assert.AreEqual("ai-chat", plans[0].DefaultCreditGrants[0].BucketKey);
+        Assert.AreEqual(500, plans[0].DefaultCreditGrants[0].Amount);
+        Assert.HasCount(1, plans[0].ProviderPrices);
+        Assert.AreEqual("stripe", plans[0].ProviderPrices[0].ProviderName);
+        Assert.AreEqual("price_hubbsly_work_monthly", plans[0].ProviderPrices[0].PriceId);
+    }
+
+    [TestMethod]
+    public async Task PlanCatalog_ReturnsConfiguredProducts()
+    {
+        var provider = CreatePlanCatalog();
+
+        var products = await provider.ListProductsAsync();
+        var product = await provider.GetProductAsync(" HUBBSLY ");
+
+        Assert.HasCount(1, products);
+        Assert.IsNotNull(product);
+        Assert.AreEqual("hubbsly", product.Key);
+        Assert.AreEqual("Hubbsly", product.DisplayName);
+        Assert.AreEqual("work", product.Metadata["module"]);
+    }
+
+    [TestMethod]
+    public void LicensePlanInfo_PreservesLegacyConstructorDefaults()
+    {
+        var plan = new LicensePlanInfo(
+            "legacy",
+            "Legacy",
+            null,
+            ["legacy:use"],
+            new Dictionary<string, int>(),
+            new Dictionary<string, string>());
+
+        Assert.AreEqual("legacy", plan.Key);
+        Assert.IsTrue(plan.IsConfigured);
+        Assert.IsNull(plan.ProductKey);
+        Assert.AreEqual(LicensePlanClassifications.Tenant, plan.Classification);
+        Assert.IsNull(plan.DefaultSeatLimit);
+        Assert.HasCount(0, plan.DefaultCreditGrants);
+        Assert.HasCount(0, plan.ProviderPrices);
+    }
+
+    [TestMethod]
+    public async Task PlanCatalog_NormalizesRichCatalogFields()
+    {
+        var provider = new ConfigurationLicensePlanCatalogProvider(Options.Create(new LicensingOptions
+        {
+            Products =
+            [
+                new LicenseProductOptions
+                {
+                    Key = " hubbsly ",
+                    DisplayName = " Hubbsly ",
+                    Metadata = new Dictionary<string, string> { [" module "] = " work " }
+                },
+                new LicenseProductOptions { Key = "HUBBSLY", DisplayName = "Duplicate" }
+            ],
+            Plans =
+            [
+                new LicensePlanOptions
+                {
+                    Key = " enterprise ",
+                    ProductKey = " hubbsly ",
+                    Classification = " ENTERPRISE ",
+                    Level = 3,
+                    DefaultSeatLimit = 25,
+                    Entitlements = [" work:cards:create ", "WORK:CARDS:CREATE", " work:cards:update "],
+                    Limits = new Dictionary<string, int> { [" Seats "] = 25 },
+                    DefaultCreditGrants =
+                    [
+                        new LicenseCreditGrantOptions
+                        {
+                            BucketKey = " ai-chat ",
+                            Amount = 2500,
+                            Period = " monthly ",
+                            Metadata = new Dictionary<string, string> { [" rollover "] = " false " }
+                        },
+                        new LicenseCreditGrantOptions { BucketKey = "ignored", Amount = 0 }
+                    ],
+                    ProviderPrices =
+                    [
+                        new LicenseProviderPriceOptions
+                        {
+                            ProviderName = " stripe ",
+                            PriceId = " price_enterprise ",
+                            Currency = " usd ",
+                            UnitAmount = 499m,
+                            BillingPeriod = " monthly "
+                        },
+                        new LicenseProviderPriceOptions { ProviderName = "stripe" }
+                    ],
+                    Metadata = new Dictionary<string, string> { [" market "] = " healthcare " }
+                }
+            ]
+        }));
+
+        var products = await provider.ListProductsAsync();
+        var plans = await provider.ListPlansAsync();
+
+        Assert.HasCount(1, products);
+        Assert.AreEqual("hubbsly", products[0].Key);
+        Assert.AreEqual("work", products[0].Metadata["module"]);
+        Assert.HasCount(1, plans);
+        Assert.AreEqual("enterprise", plans[0].Key);
+        Assert.AreEqual("hubbsly", plans[0].ProductKey);
+        Assert.AreEqual(LicensePlanClassifications.Enterprise, plans[0].Classification);
+        Assert.AreEqual(3, plans[0].Level);
+        Assert.AreEqual(25, plans[0].DefaultSeatLimit);
+        CollectionAssert.AreEqual(
+            new[] { "work:cards:create", "work:cards:update" },
+            plans[0].Entitlements.ToArray());
+        Assert.AreEqual(25, plans[0].Limits["Seats"]);
+        Assert.AreEqual("healthcare", plans[0].Metadata["market"]);
+        Assert.HasCount(1, plans[0].DefaultCreditGrants);
+        Assert.AreEqual("ai-chat", plans[0].DefaultCreditGrants[0].BucketKey);
+        Assert.AreEqual("false", plans[0].DefaultCreditGrants[0].Metadata["rollover"]);
+        Assert.HasCount(1, plans[0].ProviderPrices);
+        Assert.AreEqual("USD", plans[0].ProviderPrices[0].Currency);
     }
 
     [TestMethod]
@@ -47,6 +171,47 @@ public sealed class LicensingServiceTests
         CollectionAssert.Contains(license.Entitlements.ToList(), "mcp:tools");
         Assert.AreEqual(1000, license.Limits["McpCallsPerMonth"]);
         Assert.AreEqual("C-100", license.Metadata["contractNumber"]);
+    }
+
+    [TestMethod]
+    public async Task GrantLicense_DistinguishesCommercialStatusFromRuntimeStatus()
+    {
+        var fixture = CreateFixture();
+
+        var manual = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "manual-work",
+                Status = LicenseStatuses.Active,
+                Entitlements = ["work:cards:create"]
+            });
+
+        var paid = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "paid-work",
+                Status = LicenseStatuses.Active,
+                Entitlements = ["work:cards:create"],
+                ProviderName = "stripe",
+                ProviderSubscriptionId = "sub_123"
+            });
+
+        var trial = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "trial-work",
+                Status = LicenseStatuses.Trialing,
+                Entitlements = ["work:cards:create"]
+            });
+
+        Assert.AreEqual(LicenseStatuses.Active, manual.Status);
+        Assert.AreEqual(LicenseCommercialStatuses.Manual, manual.CommercialStatus);
+        Assert.AreEqual(LicenseCommercialStatuses.Paid, paid.CommercialStatus);
+        Assert.AreEqual(LicenseStatuses.Trialing, trial.Status);
+        Assert.AreEqual(LicenseCommercialStatuses.Trial, trial.CommercialStatus);
     }
 
     [TestMethod]
@@ -88,6 +253,142 @@ public sealed class LicensingServiceTests
                 TenantId,
                 license.LicenseId,
                 new AssignLicenseSeatRequest { Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-3") }));
+    }
+
+    [TestMethod]
+    public async Task AssignSeatAsync_ReturnsExistingAssignmentForDuplicateSubject()
+    {
+        var fixture = CreateFixture();
+        var license = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest { PlanKey = "hubbsly-work" });
+
+        var first = await fixture.Assignments.AssignSeatAsync(
+            TenantId,
+            license.LicenseId,
+            new AssignLicenseSeatRequest { Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1") });
+        var duplicate = await fixture.Assignments.AssignSeatAsync(
+            TenantId,
+            license.LicenseId,
+            new AssignLicenseSeatRequest { Subject = new LicenseSubject(LicenseSubjectTypes.User, "USER-1") });
+        var assignments = await fixture.Assignments.ListAssignmentsAsync(TenantId, license.LicenseId);
+
+        Assert.AreEqual(first.AssignmentId, duplicate.AssignmentId);
+        Assert.HasCount(1, assignments);
+    }
+
+    [TestMethod]
+    public async Task GrantSingleUserLicenseAsync_GrantsOneSeatAndAssignsBuyingUser()
+    {
+        var fixture = CreateFixture();
+
+        var result = await fixture.SeatPolicies.GrantSingleUserLicenseAsync(
+            TenantId,
+            new GrantSingleUserLicenseRequest
+            {
+                License = new GrantTenantLicenseRequest
+                {
+                    PlanKey = "solo-work",
+                    Entitlements = ["work:cards:create"],
+                    SeatLimit = 99
+                },
+                Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1", "Buying User"),
+                SeatMetadata = new Dictionary<string, string> { [" source "] = " checkout " }
+            });
+
+        Assert.AreEqual(1, result.License.SeatLimit);
+        Assert.HasCount(1, result.Assignments);
+        Assert.AreEqual(LicenseSubjectTypes.User, result.Assignments[0].Subject.SubjectType);
+        Assert.AreEqual("user-1", result.Assignments[0].Subject.SubjectId);
+        Assert.AreEqual("checkout", result.Assignments[0].Metadata["source"]);
+    }
+
+    [TestMethod]
+    public async Task GrantTenantSeatLicenseAsync_GrantsMultipleSeatsForMixedSubjects()
+    {
+        var fixture = CreateFixture();
+
+        var result = await fixture.SeatPolicies.GrantTenantSeatLicenseAsync(
+            TenantId,
+            new GrantTenantSeatLicenseRequest
+            {
+                SeatLimit = 4,
+                License = new GrantTenantLicenseRequest
+                {
+                    PlanKey = "enterprise-work",
+                    Entitlements = ["work:cards:create"],
+                    ProviderName = "stripe"
+                },
+                InitialSubjects =
+                [
+                    new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+                    new LicenseSubject(LicenseSubjectTypes.ApiCredential, "credential-1"),
+                    new LicenseSubject(LicenseSubjectTypes.Agent, "codex"),
+                    new LicenseSubject(LicenseSubjectTypes.External, "external-admin")
+                ]
+            });
+
+        Assert.AreEqual(4, result.License.SeatLimit);
+        Assert.HasCount(4, result.Assignments);
+        CollectionAssert.AreEquivalent(
+            new[]
+            {
+                LicenseSubjectTypes.User,
+                LicenseSubjectTypes.ApiCredential,
+                LicenseSubjectTypes.Agent,
+                LicenseSubjectTypes.External
+            },
+            result.Assignments.Select(x => x.Subject.SubjectType).ToArray());
+    }
+
+    [TestMethod]
+    public async Task GrantTenantSeatLicenseAsync_DeduplicatesInitialSubjects()
+    {
+        var fixture = CreateFixture();
+
+        var result = await fixture.SeatPolicies.GrantTenantSeatLicenseAsync(
+            TenantId,
+            new GrantTenantSeatLicenseRequest
+            {
+                SeatLimit = 2,
+                License = new GrantTenantLicenseRequest
+                {
+                    PlanKey = "team-work",
+                    Entitlements = ["work:cards:create"]
+                },
+                InitialSubjects =
+                [
+                    new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+                    new LicenseSubject(LicenseSubjectTypes.User, "USER-1")
+                ]
+            });
+
+        Assert.AreEqual(2, result.License.SeatLimit);
+        Assert.HasCount(1, result.Assignments);
+    }
+
+    [TestMethod]
+    public async Task GrantTenantSeatLicenseAsync_EnforcesRequestedSeatLimit()
+    {
+        var fixture = CreateFixture();
+
+        await Assert.ThrowsExactlyAsync<LicensingException>(() =>
+            fixture.SeatPolicies.GrantTenantSeatLicenseAsync(
+                TenantId,
+                new GrantTenantSeatLicenseRequest
+                {
+                    SeatLimit = 1,
+                    License = new GrantTenantLicenseRequest
+                    {
+                        PlanKey = "team-work",
+                        Entitlements = ["work:cards:create"]
+                    },
+                    InitialSubjects =
+                    [
+                        new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+                        new LicenseSubject(LicenseSubjectTypes.ApiCredential, "credential-1")
+                    ]
+                }));
     }
 
     [TestMethod]
@@ -166,6 +467,525 @@ public sealed class LicensingServiceTests
     }
 
     [TestMethod]
+    public async Task LicenseGate_AllowsAssignedSubjectWithEntitlement()
+    {
+        var fixture = CreateFixture();
+        var license = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest { PlanKey = "hubbsly-work" });
+        var subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1");
+        await fixture.Assignments.AssignSeatAsync(
+            TenantId,
+            license.LicenseId,
+            new AssignLicenseSeatRequest { Subject = subject });
+
+        var result = await fixture.Gate.CheckAsync(new LicenseGateRequest
+        {
+            TenantId = TenantId,
+            Subject = subject,
+            Entitlement = "work:cards:create",
+            OperationName = "work.cards.create",
+            Metadata = new Dictionary<string, string> { [" request "] = " api " }
+        });
+
+        Assert.IsTrue(result.Allowed);
+        Assert.AreEqual(license.LicenseId, result.LicenseId);
+        Assert.AreEqual("work.cards.create", result.OperationName);
+        Assert.AreEqual("api", result.Metadata["request"]);
+    }
+
+    [TestMethod]
+    public async Task LicenseGate_DeniesMissingEntitlement()
+    {
+        var fixture = CreateFixture();
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "open-work",
+                Entitlements = ["work:cards:create"]
+            });
+
+        var result = await fixture.Gate.CheckAsync(new LicenseGateRequest
+        {
+            TenantId = TenantId,
+            Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+            Entitlement = "work:cards:delete"
+        });
+
+        Assert.IsFalse(result.Allowed);
+        Assert.AreEqual(LicenseGateDenialCodes.MissingEntitlement, result.DenialCode);
+    }
+
+    [TestMethod]
+    public async Task LicenseGate_DeniesMissingSeat()
+    {
+        var fixture = CreateFixture();
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest { PlanKey = "hubbsly-work" });
+
+        var result = await fixture.Gate.CheckAsync(new LicenseGateRequest
+        {
+            TenantId = TenantId,
+            Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+            Entitlement = "work:cards:create"
+        });
+
+        Assert.IsFalse(result.Allowed);
+        Assert.AreEqual(LicenseGateDenialCodes.MissingSeat, result.DenialCode);
+    }
+
+    [TestMethod]
+    public async Task LicenseGate_DeniesInactiveLicense()
+    {
+        var fixture = CreateFixture();
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "expired-work",
+                Entitlements = ["work:cards:create"],
+                StartsUtc = DateTimeOffset.UtcNow.AddDays(-10),
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(-1)
+            });
+
+        var result = await fixture.Gate.CheckAsync(new LicenseGateRequest
+        {
+            TenantId = TenantId,
+            Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+            Entitlement = "work:cards:create"
+        });
+
+        Assert.IsFalse(result.Allowed);
+        Assert.AreEqual(LicenseGateDenialCodes.InactiveLicense, result.DenialCode);
+    }
+
+    [TestMethod]
+    public async Task LicenseGate_SelectsEligibleEntitledLicenseAcrossMultipleLicenses()
+    {
+        var fixture = CreateFixture();
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "expired-work",
+                Entitlements = ["work:cards:create"],
+                StartsUtc = DateTimeOffset.UtcNow.AddDays(-10),
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(-1)
+            });
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "active-no-match",
+                Entitlements = ["work:cards:read"]
+            });
+        var expected = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "active-work",
+                Entitlements = ["work:cards:create"]
+            });
+
+        var result = await fixture.Gate.CheckAsync(new LicenseGateRequest
+        {
+            TenantId = TenantId,
+            Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+            Entitlement = "work:cards:create"
+        });
+
+        Assert.IsTrue(result.Allowed);
+        Assert.AreEqual(expected.LicenseId, result.LicenseId);
+    }
+
+    [TestMethod]
+    public async Task LicenseGate_RequireAsync_ThrowsWhenDenied()
+    {
+        var fixture = CreateFixture();
+
+        await Assert.ThrowsExactlyAsync<LicensingException>(() =>
+            fixture.Gate.RequireAsync(new LicenseGateRequest
+            {
+                TenantId = TenantId,
+                Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1"),
+                Entitlement = "work:cards:create"
+            }));
+    }
+
+    [TestMethod]
+    public async Task RuntimeContext_ReturnsActiveUserEntitlements()
+    {
+        var fixture = CreateFixture();
+        var license = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest { PlanKey = "hubbsly-work" });
+        var subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1");
+        await fixture.Assignments.AssignSeatAsync(
+            TenantId,
+            license.LicenseId,
+            new AssignLicenseSeatRequest { Subject = subject });
+
+        var context = await fixture.RuntimeContext.GetRuntimeContextAsync(
+            TenantId,
+            new GetLicenseRuntimeContextRequest { Subject = subject });
+
+        Assert.AreEqual(LicenseRuntimeContextStatuses.Active, context.Status);
+        Assert.IsTrue(context.IsLicensed);
+        Assert.IsFalse(context.IsLimited);
+        CollectionAssert.Contains(context.Entitlements.ToList(), "work:cards:create");
+        Assert.HasCount(0, context.Licenses);
+    }
+
+    [TestMethod]
+    public async Task RuntimeContext_ReturnsAdminLicenseDetailsWhenRequested()
+    {
+        var fixture = CreateFixture();
+        var license = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "open-work",
+                Entitlements = ["work:cards:create"],
+                ProviderCustomerId = "cus_hidden"
+            });
+
+        var context = await fixture.RuntimeContext.GetRuntimeContextAsync(
+            TenantId,
+            new GetLicenseRuntimeContextRequest
+            {
+                Subject = new LicenseSubject(LicenseSubjectTypes.User, "admin-1"),
+                IncludeAdminDetails = true
+            });
+
+        Assert.AreEqual(LicenseRuntimeContextStatuses.Active, context.Status);
+        Assert.HasCount(1, context.Licenses);
+        Assert.AreEqual(license.LicenseId, context.Licenses[0].LicenseId);
+        Assert.AreEqual("open-work", context.Licenses[0].PlanKey);
+    }
+
+    [TestMethod]
+    public async Task RuntimeContext_ReturnsUnlicensedWhenTenantHasNoLicense()
+    {
+        var fixture = CreateFixture();
+
+        var context = await fixture.RuntimeContext.GetRuntimeContextAsync(
+            TenantId,
+            new GetLicenseRuntimeContextRequest
+            {
+                Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1")
+            });
+
+        Assert.AreEqual(LicenseRuntimeContextStatuses.Unlicensed, context.Status);
+        Assert.IsFalse(context.IsLicensed);
+    }
+
+    [TestMethod]
+    public async Task RuntimeContext_ReturnsExpiredWhenOnlyExpiredLicensesExist()
+    {
+        var fixture = CreateFixture();
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "expired-work",
+                Entitlements = ["work:cards:create"],
+                StartsUtc = DateTimeOffset.UtcNow.AddDays(-10),
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(-1)
+            });
+
+        var context = await fixture.RuntimeContext.GetRuntimeContextAsync(
+            TenantId,
+            new GetLicenseRuntimeContextRequest
+            {
+                Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1")
+            });
+
+        Assert.AreEqual(LicenseRuntimeContextStatuses.Expired, context.Status);
+        Assert.IsFalse(context.IsLicensed);
+    }
+
+    [TestMethod]
+    public async Task RuntimeContext_ReturnsContactAdminWhenSeatIsMissing()
+    {
+        var fixture = CreateFixture();
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest { PlanKey = "hubbsly-work" });
+
+        var context = await fixture.RuntimeContext.GetRuntimeContextAsync(
+            TenantId,
+            new GetLicenseRuntimeContextRequest
+            {
+                Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1")
+            });
+
+        Assert.AreEqual(LicenseRuntimeContextStatuses.ContactAdmin, context.Status);
+        Assert.IsTrue(context.ContactAdmin);
+        Assert.HasCount(1, context.Seats);
+        Assert.AreEqual(LicenseRuntimeSeatStates.Missing, context.Seats[0].State);
+    }
+
+    [TestMethod]
+    public async Task RuntimeContext_ReturnsLimitedWhenFallbackLicenseRemains()
+    {
+        var fixture = CreateFixture();
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "expired-app",
+                Entitlements = ["app:use"],
+                StartsUtc = DateTimeOffset.UtcNow.AddDays(-40),
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(-1)
+            });
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "fallback-chat",
+                Entitlements = ["ai:chat"]
+            });
+
+        var context = await fixture.RuntimeContext.GetRuntimeContextAsync(
+            TenantId,
+            new GetLicenseRuntimeContextRequest
+            {
+                Subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1")
+            });
+
+        Assert.AreEqual(LicenseRuntimeContextStatuses.Limited, context.Status);
+        Assert.IsTrue(context.IsLicensed);
+        Assert.IsTrue(context.IsLimited);
+        CollectionAssert.AreEqual(new[] { "ai:chat" }, context.Entitlements.ToArray());
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_UsesClassLevelEntitlement()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "notes",
+                Entitlements = ["notes:use"]
+            });
+        var service = new LicensedNotesService(CreateLicensedExecutor(fixture, principal, TenantId));
+
+        await service.ReadAsync();
+
+        Assert.IsTrue(service.ReadCalled);
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_UsesMethodEntitlementOverride()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "notes-write",
+                Entitlements = ["notes:write"]
+            });
+        var service = new LicensedNotesService(CreateLicensedExecutor(fixture, principal, TenantId));
+
+        await service.WriteAsync();
+
+        Assert.IsTrue(service.WriteCalled);
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_ThrowsWhenTenantContextMissing()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        var service = new LicensedNotesService(CreateLicensedExecutor(fixture, principal, tenantId: null));
+
+        await Assert.ThrowsExactlyAsync<LicensingException>(() => service.ReadAsync());
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_AllowsExplicitTenantOption()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "notes",
+                Entitlements = ["notes:use"]
+            });
+        var service = new LicensedNotesService(CreateLicensedExecutor(fixture, principal, tenantId: null));
+
+        await service.ReadWithTenantOptionAsync(TenantId);
+
+        Assert.IsTrue(service.ReadCalled);
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_UsesDefaultEntitlementPolicy()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "app",
+                Entitlements = ["app:use"]
+            });
+        var service = new PolicyOperationService(CreateLicensedExecutor(
+            fixture,
+            principal,
+            TenantId,
+            new LicensingOptions
+            {
+                ServiceOperations = new LicensedServiceOperationOptions { DefaultEntitlement = "app:use" }
+            }));
+
+        await service.DefaultAsync();
+
+        Assert.IsTrue(service.DefaultCalled);
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_UsesExactOperationOverride()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "chat",
+                Entitlements = ["ai:chat"]
+            });
+        var service = new PolicyOperationService(CreateLicensedExecutor(
+            fixture,
+            principal,
+            TenantId,
+            new LicensingOptions
+            {
+                ServiceOperations = new LicensedServiceOperationOptions
+                {
+                    DefaultEntitlement = "app:use",
+                    OperationEntitlements = new Dictionary<string, string> { ["ai.chat.complete"] = "ai:chat" }
+                }
+            }));
+
+        await service.ChatExactAsync();
+
+        Assert.IsTrue(service.ChatExactCalled);
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_UsesWildcardOperationOverride()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "chat",
+                Entitlements = ["ai:chat"]
+            });
+        var service = new PolicyOperationService(CreateLicensedExecutor(
+            fixture,
+            principal,
+            TenantId,
+            new LicensingOptions
+            {
+                ServiceOperations = new LicensedServiceOperationOptions
+                {
+                    DefaultEntitlement = "app:use",
+                    OperationEntitlements = new Dictionary<string, string> { ["ai.chat.*"] = "ai:chat" }
+                }
+            }));
+
+        await service.ChatWildcardAsync();
+
+        Assert.IsTrue(service.ChatWildcardCalled);
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_SkipsNoLicenseOperations()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        var service = new PolicyOperationService(CreateLicensedExecutor(
+            fixture,
+            principal,
+            TenantId,
+            new LicensingOptions
+            {
+                ServiceOperations = new LicensedServiceOperationOptions
+                {
+                    DefaultEntitlement = "app:use",
+                    NoLicenseOperations = ["billing.*", "auth.login"]
+                }
+            }));
+
+        await service.FreeBillingAsync();
+
+        Assert.IsTrue(service.FreeBillingCalled);
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_AttributeOverridesConfiguredPolicy()
+    {
+        var fixture = CreateFixture();
+        var principal = Principal(new Claim(ClaimTypes.NameIdentifier, "user-1"));
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "notes-write",
+                Entitlements = ["notes:write"]
+            });
+        var service = new LicensedNotesService(CreateLicensedExecutor(
+            fixture,
+            principal,
+            TenantId,
+            new LicensingOptions
+            {
+                ServiceOperations = new LicensedServiceOperationOptions { DefaultEntitlement = "app:use" }
+            }));
+
+        await service.WriteAsync();
+
+        Assert.IsTrue(service.WriteCalled);
+    }
+
+    [TestMethod]
+    public void ClaimsPrincipalLicenseSubjectResolver_ResolvesKnownSubjectClaims()
+    {
+        var resolver = new ClaimsPrincipalLicenseSubjectResolver();
+
+        var explicitSubject = resolver.ResolveSubject(Principal(
+            new Claim(LicenseSubjectClaimTypes.SubjectType, LicenseSubjectTypes.External),
+            new Claim(LicenseSubjectClaimTypes.SubjectId, "external-1")));
+        var agent = resolver.ResolveSubject(Principal(new Claim(LicenseSubjectClaimTypes.AgentUserId, "agent-1")));
+        var apiCredential = resolver.ResolveSubject(Principal(new Claim(LicenseSubjectClaimTypes.ApiCredentialId, "credential-1")));
+        var user = resolver.ResolveSubject(Principal(new Claim(ClaimTypes.NameIdentifier, "user-1")));
+
+        Assert.AreEqual(LicenseSubjectTypes.External, explicitSubject?.SubjectType);
+        Assert.AreEqual("external-1", explicitSubject?.SubjectId);
+        Assert.AreEqual(LicenseSubjectTypes.Agent, agent?.SubjectType);
+        Assert.AreEqual("agent-1", agent?.SubjectId);
+        Assert.AreEqual(LicenseSubjectTypes.ApiCredential, apiCredential?.SubjectType);
+        Assert.AreEqual("credential-1", apiCredential?.SubjectId);
+        Assert.AreEqual(LicenseSubjectTypes.User, user?.SubjectType);
+        Assert.AreEqual("user-1", user?.SubjectId);
+    }
+
+    [TestMethod]
     public async Task AuthorizeAsync_DeniesExpiredLicense()
     {
         var fixture = CreateFixture();
@@ -183,6 +1003,95 @@ public sealed class LicensingServiceTests
         var result = await fixture.Authorizer.AuthorizeAsync(TenantId, subject, "work:cards:create");
 
         Assert.IsFalse(result.Allowed);
+    }
+
+    [TestMethod]
+    public async Task AuthorizeAsync_DeniesFutureLicense()
+    {
+        var fixture = CreateFixture();
+        var subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1");
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "future-work",
+                Entitlements = ["work:cards:create"],
+                StartsUtc = DateTimeOffset.UtcNow.AddDays(1),
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(30)
+            });
+
+        var result = await fixture.Authorizer.AuthorizeAsync(TenantId, subject, "work:cards:create");
+
+        Assert.IsFalse(result.Allowed);
+        StringAssert.Contains(result.Reason, LicenseRuntimeStatuses.NotStarted);
+    }
+
+    [TestMethod]
+    public async Task AuthorizeAsync_DeniesSuspendedLicense()
+    {
+        var fixture = CreateFixture();
+        var subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1");
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "suspended-work",
+                Status = LicenseStatuses.Suspended,
+                Entitlements = ["work:cards:create"]
+            });
+
+        var result = await fixture.Authorizer.AuthorizeAsync(TenantId, subject, "work:cards:create");
+
+        Assert.IsFalse(result.Allowed);
+        StringAssert.Contains(result.Reason, LicenseRuntimeStatuses.Suspended);
+    }
+
+    [TestMethod]
+    public async Task AuthorizeAsync_AllowsGraceLicenseUntilGraceEnds()
+    {
+        var fixture = CreateFixture();
+        var subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1");
+        var license = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "grace-work",
+                Status = LicenseStatuses.Grace,
+                Entitlements = ["work:cards:create"],
+                StartsUtc = DateTimeOffset.UtcNow.AddDays(-40),
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(-1),
+                GraceEndsUtc = DateTimeOffset.UtcNow.AddDays(6)
+            });
+
+        var result = await fixture.Authorizer.AuthorizeAsync(TenantId, subject, "work:cards:create");
+
+        Assert.IsTrue(result.Allowed);
+        Assert.AreEqual(license.LicenseId, result.LicenseId);
+        Assert.AreEqual(LicenseCommercialStatuses.Grace, license.CommercialStatus);
+        Assert.AreEqual(LicenseStatuses.Grace, license.Status);
+    }
+
+    [TestMethod]
+    public async Task AuthorizeAsync_DeniesGraceLicenseAfterGraceEnds()
+    {
+        var fixture = CreateFixture();
+        var subject = new LicenseSubject(LicenseSubjectTypes.User, "user-1");
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "grace-ended-work",
+                Status = LicenseStatuses.Grace,
+                Entitlements = ["work:cards:create"],
+                StartsUtc = DateTimeOffset.UtcNow.AddDays(-40),
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(-10),
+                GraceEndsUtc = DateTimeOffset.UtcNow.AddDays(-1)
+            });
+
+        var result = await fixture.Authorizer.AuthorizeAsync(TenantId, subject, "work:cards:create");
+
+        Assert.IsFalse(result.Allowed);
+        StringAssert.Contains(result.Reason, LicenseRuntimeStatuses.Expired);
     }
 
     [TestMethod]
@@ -224,10 +1133,28 @@ public sealed class LicensingServiceTests
         var catalog = CreatePlanCatalog();
         var licenses = new TenantLicenseService(store, catalog);
         var assignments = new LicenseSeatAssignmentService(store);
+        var seatPolicies = new LicenseSeatPolicyService(licenses, assignments);
         var authorizer = new LicenseAuthorizer(store);
+        var gate = new LicenseGate(store);
+        var runtimeContext = new LicenseRuntimeContextService(store);
 
-        return new Fixture(licenses, assignments, authorizer);
+        return new Fixture(licenses, assignments, seatPolicies, authorizer, gate, runtimeContext);
     }
+
+    private static LicensedServiceOperationExecutor CreateLicensedExecutor(
+        Fixture fixture,
+        ClaimsPrincipal principal,
+        Guid? tenantId,
+        LicensingOptions? options = null)
+        => new(
+            fixture.Gate,
+            subjectResolver: new ClaimsPrincipalLicenseSubjectResolver(),
+            serviceOperationPrincipalProvider: new FixedPrincipalProvider(principal),
+            licensingOptionsMonitor: new StaticOptionsMonitor<LicensingOptions>(options ?? new LicensingOptions()),
+            tenantContext: tenantId.HasValue ? new FixedTenantContext(tenantId.Value) : null);
+
+    private static ClaimsPrincipal Principal(params Claim[] claims)
+        => new(new ClaimsIdentity(claims, "test"));
 
     private static ConfigurationLicensePlanCatalogProvider CreatePlanCatalog()
         => new(Options.Create(new LicensingOptions
@@ -237,10 +1164,44 @@ public sealed class LicensingServiceTests
                 new LicensePlanOptions
                 {
                     Key = "hubbsly-work",
+                    ProductKey = "hubbsly",
                     DisplayName = "Hubbsly Work",
+                    Classification = LicensePlanClassifications.Tenant,
+                    Level = 2,
                     Entitlements = ["feature:work", "work:cards:create", "work:cards:update"],
                     Limits = new Dictionary<string, int> { ["Seats"] = 2 },
+                    DefaultSeatLimit = 2,
+                    DefaultCreditGrants =
+                    [
+                        new LicenseCreditGrantOptions
+                        {
+                            BucketKey = "ai-chat",
+                            Amount = 500,
+                            DisplayName = "AI Chat Credits",
+                            Period = "monthly"
+                        }
+                    ],
+                    ProviderPrices =
+                    [
+                        new LicenseProviderPriceOptions
+                        {
+                            ProviderName = "stripe",
+                            PriceId = "price_hubbsly_work_monthly",
+                            Currency = "usd",
+                            UnitAmount = 49m,
+                            BillingPeriod = "monthly"
+                        }
+                    ],
                     Metadata = new Dictionary<string, string> { ["product"] = "hubbsly" }
+                }
+            ],
+            Products =
+            [
+                new LicenseProductOptions
+                {
+                    Key = "hubbsly",
+                    DisplayName = "Hubbsly",
+                    Metadata = new Dictionary<string, string> { ["module"] = "work" }
                 }
             ]
         }));
@@ -248,7 +1209,10 @@ public sealed class LicensingServiceTests
     private sealed record Fixture(
         TenantLicenseService Licenses,
         LicenseSeatAssignmentService Assignments,
-        LicenseAuthorizer Authorizer);
+        LicenseSeatPolicyService SeatPolicies,
+        LicenseAuthorizer Authorizer,
+        LicenseGate Gate,
+        LicenseRuntimeContextService RuntimeContext);
 
     private sealed class RecordingServiceOperationExecutor : IServiceOperationExecutor
     {
@@ -302,4 +1266,151 @@ public sealed class LicensingServiceTests
     private sealed record ServiceOperationCall(
         string? CallerMemberName,
         ServiceOperationExecutionOptions? Options);
+
+    [IBeamOperation("notes")]
+    [IBeamRequiresEntitlement("notes:use")]
+    private sealed class LicensedNotesService
+    {
+        private readonly IServiceOperationExecutor _operations;
+
+        public LicensedNotesService(IServiceOperationExecutor operations)
+        {
+            _operations = operations;
+        }
+
+        public bool ReadCalled { get; private set; }
+        public bool WriteCalled { get; private set; }
+
+        [IBeamOperation("notes.read")]
+        public Task ReadAsync(CancellationToken ct = default)
+            => _operations.ExecuteAsync(
+                this,
+                _ =>
+                {
+                    ReadCalled = true;
+                    return Task.CompletedTask;
+                },
+                ct: ct);
+
+        [IBeamOperation("notes.read")]
+        public Task ReadWithTenantOptionAsync(Guid tenantId, CancellationToken ct = default)
+            => _operations.ExecuteAsync(
+                this,
+                _ =>
+                {
+                    ReadCalled = true;
+                    return Task.CompletedTask;
+                },
+                new ServiceOperationExecutionOptions { TenantId = tenantId },
+                ct);
+
+        [IBeamOperation("notes.write")]
+        [IBeamRequiresEntitlement("notes:write")]
+        public Task WriteAsync(CancellationToken ct = default)
+            => _operations.ExecuteAsync(
+                this,
+                _ =>
+                {
+                    WriteCalled = true;
+                    return Task.CompletedTask;
+                },
+                ct: ct);
+    }
+
+    private sealed class FixedPrincipalProvider : IServiceOperationPrincipalProvider
+    {
+        private readonly ClaimsPrincipal _principal;
+
+        public FixedPrincipalProvider(ClaimsPrincipal principal)
+        {
+            _principal = principal;
+        }
+
+        public ClaimsPrincipal? GetPrincipal() => _principal;
+    }
+
+    private sealed class FixedTenantContext : IBeam.Repositories.Abstractions.ITenantContext
+    {
+        public FixedTenantContext(Guid tenantId)
+        {
+            TenantId = tenantId;
+        }
+
+        public Guid? TenantId { get; }
+
+        public bool IsTenantIdSet() => TenantId.HasValue && TenantId.Value != Guid.Empty;
+    }
+
+    private sealed class StaticOptionsMonitor<T> : IOptionsMonitor<T>
+    {
+        public StaticOptionsMonitor(T value)
+        {
+            CurrentValue = value;
+        }
+
+        public T CurrentValue { get; }
+
+        public T Get(string? name) => CurrentValue;
+
+        public IDisposable? OnChange(Action<T, string?> listener) => null;
+    }
+
+    private sealed class PolicyOperationService
+    {
+        private readonly IServiceOperationExecutor _operations;
+
+        public PolicyOperationService(IServiceOperationExecutor operations)
+        {
+            _operations = operations;
+        }
+
+        public bool DefaultCalled { get; private set; }
+        public bool ChatExactCalled { get; private set; }
+        public bool ChatWildcardCalled { get; private set; }
+        public bool FreeBillingCalled { get; private set; }
+
+        [IBeamOperation("patients.create")]
+        public Task DefaultAsync(CancellationToken ct = default)
+            => _operations.ExecuteAsync(
+                this,
+                _ =>
+                {
+                    DefaultCalled = true;
+                    return Task.CompletedTask;
+                },
+                ct: ct);
+
+        [IBeamOperation("ai.chat.complete")]
+        public Task ChatExactAsync(CancellationToken ct = default)
+            => _operations.ExecuteAsync(
+                this,
+                _ =>
+                {
+                    ChatExactCalled = true;
+                    return Task.CompletedTask;
+                },
+                ct: ct);
+
+        [IBeamOperation("ai.chat.stream")]
+        public Task ChatWildcardAsync(CancellationToken ct = default)
+            => _operations.ExecuteAsync(
+                this,
+                _ =>
+                {
+                    ChatWildcardCalled = true;
+                    return Task.CompletedTask;
+                },
+                ct: ct);
+
+        [IBeamOperation("billing.portal.open")]
+        public Task FreeBillingAsync(CancellationToken ct = default)
+            => _operations.ExecuteAsync(
+                this,
+                _ =>
+                {
+                    FreeBillingCalled = true;
+                    return Task.CompletedTask;
+                },
+                ct: ct);
+    }
 }
