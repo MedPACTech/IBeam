@@ -12,10 +12,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\IBeam.Credits.Services\IBeam.Credits.Services.csproj" />
+    <ProjectReference Include="..\IBeam.Credits.Api\IBeam.Credits.Api.csproj" />
+    <ProjectReference Include="..\IBeam.Licensing.Services\IBeam.Licensing.Services.csproj" />
   </ItemGroup>
 </Project>

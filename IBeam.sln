@@ -151,6 +151,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Credits.Services", "I
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Licensing.Credits", "IBeam.Licensing.Credits\IBeam.Licensing.Credits.csproj", "{070ED27D-02B1-4814-A1B5-5D5D1B6A5CC8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Credits.Api", "IBeam.Credits.Api\IBeam.Credits.Api.csproj", "{EC654C0D-69BA-4445-B287-B28B6C4B64CB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1013,6 +1015,18 @@ Global
 		{070ED27D-02B1-4814-A1B5-5D5D1B6A5CC8}.Release|x64.Build.0 = Release|Any CPU
 		{070ED27D-02B1-4814-A1B5-5D5D1B6A5CC8}.Release|x86.ActiveCfg = Release|Any CPU
 		{070ED27D-02B1-4814-A1B5-5D5D1B6A5CC8}.Release|x86.Build.0 = Release|Any CPU
+		{EC654C0D-69BA-4445-B287-B28B6C4B64CB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EC654C0D-69BA-4445-B287-B28B6C4B64CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EC654C0D-69BA-4445-B287-B28B6C4B64CB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{EC654C0D-69BA-4445-B287-B28B6C4B64CB}.Debug|x64.Build.0 = Debug|Any CPU
+		{EC654C0D-69BA-4445-B287-B28B6C4B64CB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{EC654C0D-69BA-4445-B287-B28B6C4B64CB}.Debug|x86.Build.0 = Debug|Any CPU
+		{EC654C0D-69BA-4445-B287-B28B6C4B64CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EC654C0D-69BA-4445-B287-B28B6C4B64CB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EC654C0D-69BA-4445-B287-B28B6C4B64CB}.Release|x64.ActiveCfg = Release|Any CPU
+		{EC654C0D-69BA-4445-B287-B28B6C4B64CB}.Release|x64.Build.0 = Release|Any CPU
+		{EC654C0D-69BA-4445-B287-B28B6C4B64CB}.Release|x86.ActiveCfg = Release|Any CPU
+		{EC654C0D-69BA-4445-B287-B28B6C4B64CB}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
