@@ -147,6 +147,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Credits", "IBeam.Cred
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Tests.Credits", "IBeam.Tests.Credits\IBeam.Tests.Credits.csproj", "{3B30167F-B734-4CC5-94C1-116F7623DF01}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Credits.Services", "IBeam.Credits.Services\IBeam.Credits.Services.csproj", "{0CA1C9AF-5D9E-4D8C-96F9-E01D697C2820}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -985,6 +987,18 @@ Global
 		{3B30167F-B734-4CC5-94C1-116F7623DF01}.Release|x64.Build.0 = Release|Any CPU
 		{3B30167F-B734-4CC5-94C1-116F7623DF01}.Release|x86.ActiveCfg = Release|Any CPU
 		{3B30167F-B734-4CC5-94C1-116F7623DF01}.Release|x86.Build.0 = Release|Any CPU
+		{0CA1C9AF-5D9E-4D8C-96F9-E01D697C2820}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0CA1C9AF-5D9E-4D8C-96F9-E01D697C2820}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0CA1C9AF-5D9E-4D8C-96F9-E01D697C2820}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0CA1C9AF-5D9E-4D8C-96F9-E01D697C2820}.Debug|x64.Build.0 = Debug|Any CPU
+		{0CA1C9AF-5D9E-4D8C-96F9-E01D697C2820}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0CA1C9AF-5D9E-4D8C-96F9-E01D697C2820}.Debug|x86.Build.0 = Debug|Any CPU
+		{0CA1C9AF-5D9E-4D8C-96F9-E01D697C2820}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0CA1C9AF-5D9E-4D8C-96F9-E01D697C2820}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0CA1C9AF-5D9E-4D8C-96F9-E01D697C2820}.Release|x64.ActiveCfg = Release|Any CPU
+		{0CA1C9AF-5D9E-4D8C-96F9-E01D697C2820}.Release|x64.Build.0 = Release|Any CPU
+		{0CA1C9AF-5D9E-4D8C-96F9-E01D697C2820}.Release|x86.ActiveCfg = Release|Any CPU
+		{0CA1C9AF-5D9E-4D8C-96F9-E01D697C2820}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
