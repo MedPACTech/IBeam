@@ -101,6 +101,15 @@ For repository work, agents should start with the root guide at [`.agent/impleme
 - `IBeam.Licensing`: core tenant licensing contracts and models
 - `IBeam.Licensing.Services`: plan catalog, tenant license, seat assignment, and entitlement services
 - `IBeam.Licensing.Api`: ASP.NET Core endpoint wiring for tenant application licensing
+- `IBeam.Billing`: provider-neutral billing customer, subscription, invoice, and provider-event contracts
+- `IBeam.Billing.Services`: billing customer, subscription, invoice, and provider-event services
+- `IBeam.Billing.Api`: optional ASP.NET Core billing controllers
+- `IBeam.Billing.Licensing`: optional reconciliation from billing subscriptions to license grants
+- `IBeam.Credits`: generic credit account, bucket, grant, ledger, reservation, and policy contracts
+- `IBeam.Credits.Services`: credit reservation, settlement, usage, and balance services
+- `IBeam.Credits.Api`: optional ASP.NET Core credit runtime/admin/bootstrap controllers
+- `IBeam.Licensing.Credits`: optional gate that requires both license entitlement and credits
+- `IBeam.Commerce.Repositories.AzureTable`: Azure Table stores for billing, licensing, seats, and credits
 
 Quick start:
 
@@ -114,6 +123,8 @@ app.MapIBeamLicensing();
 ```
 
 Configure plans under `IBeam:Licensing:Plans`, then use `ILicenseAuthorizer` or the licensing API endpoints to check tenant entitlements. See the package READMEs for full setup, API examples, and production store replacement guidance.
+
+For the cross-package architecture, frontend bootstrap flow, service-base examples, purchase workflows, seats, billing reconciliation, and dynamic credit policies, see [Licensing, Billing, Seats, And Credits](docs/licensing-billing-credits-guide.md).
 
 ### Communications
 - `IBeam.Communications`: provider-agnostic email/SMS contracts, options, validation, templating orchestration

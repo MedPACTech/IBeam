@@ -21,10 +21,12 @@ Licensing is intentionally separate from Identity. Identity answers who the call
 
 | Area | Type(s) | Purpose |
 |---|---|---|
-| Plan catalog | `LicensePlan`, `LicensePlanOptions`, `ILicensePlanCatalogProvider` | Defines plans, entitlements, limits, and metadata. |
+| Plan catalog | `LicenseProductInfo`, `LicensePlanInfo`, `LicensePlanOptions`, `ILicensePlanCatalogProvider` | Defines products, plans, entitlements, limits, default seats, default credit grants, provider price references, and metadata. |
 | Tenant licenses | `TenantLicense`, `GrantTenantLicenseRequest`, `UpdateTenantLicenseRequest`, `ITenantLicenseService` | Represents a tenant's active/revoked product license. |
 | Seat assignments | `LicenseSeatAssignment`, `AssignLicenseSeatRequest`, `ILicenseSeatAssignmentService` | Links a license to a user, API credential, agent, or external subject. |
+| Seat policy helpers | `GrantSingleUserLicenseRequest`, `GrantTenantSeatLicenseRequest`, `ILicenseSeatPolicyService` | Provides one-call workflows for solo purchases and tenant/team seat grants. |
 | Authorization | `ILicenseAuthorizer`, `LicenseAuthorizationResult` | Checks whether a subject can use an entitlement. |
+| Gate | `ILicenseGate`, `LicenseGateRequest`, `LicenseGateResult` | Returns structured allow/deny details for entitlement and seat checks. |
 | Store contract | `ILicensingStore` | Persistence boundary for licenses and seat assignments. |
 | Extensibility | `ILicenseExtension` | Hook for provider-specific or app-specific licensing behavior. |
 
@@ -40,12 +42,28 @@ This package is the model/contract layer. It does not own HTTP endpoints, databa
 
 | Concept | Plain-English Meaning |
 |---|---|
+| Product | The sellable product family a plan belongs to. |
 | Plan | The product package a tenant can buy or receive. |
+| Plan level | A host-defined ordering such as basic, pro, or enterprise. |
 | Entitlement | A named capability, such as `feature:work` or `work:cards:create`. |
 | Limit | A numeric quota, such as seats or monthly calls. |
+| Credit grant | A plan-provided consumption allowance for a host-defined bucket. |
 | Tenant license | A plan granted to one tenant. |
 | Seat assignment | A subject consuming a seat on a tenant license. |
 | Subject | The thing using the product: user, API credential, agent, or external identity. |
+
+## License Lifecycle
+
+Tenant licenses distinguish runtime grant status from commercial billing state:
+
+| Field | Meaning |
+|---|---|
+| `Status` | Runtime grant state such as `active`, `trialing`, `grace`, `manual`, `suspended`, `expired`, or `revoked`. |
+| `CommercialStatus` | Commercial state such as `paid`, `trial`, `grace`, `past-due`, `canceled`, `manual`, or `support-granted`. |
+| `StartsUtc` / `ExpiresUtc` | Runtime validity window for the grant. |
+| `GraceEndsUtc` | Optional runtime grace window after expiration. |
+
+Use `EvaluateRuntimeEligibility(now)` when you need a structured runtime decision. `IsActive(now)` remains available for existing consumers and returns the runtime eligibility result.
 
 ## Code Example
 
@@ -88,6 +106,25 @@ API credential scope: api-scope:work
 License entitlement: work:cards:create
 ```
 
+For structured runtime decisions, use the gate:
+
+```csharp
+var gateResult = await licenseGate.CheckAsync(
+    new LicenseGateRequest
+    {
+        TenantId = tenantId,
+        Subject = new LicenseSubject(LicenseSubjectTypes.User, userId.ToString()),
+        Entitlement = "work:cards:create",
+        OperationName = "work.cards.create"
+    },
+    ct);
+
+if (!gateResult.Allowed)
+{
+    // Route by gateResult.DenialCode, such as missing-seat or missing-entitlement.
+}
+```
+
 ## Configuration Shape
 
 Plans are usually configured under `IBeam:Licensing`:
@@ -96,14 +133,39 @@ Plans are usually configured under `IBeam:Licensing`:
 {
   "IBeam": {
     "Licensing": {
+      "Products": [
+        {
+          "Key": "hubbsly",
+          "DisplayName": "Hubbsly"
+        }
+      ],
       "Plans": [
         {
           "Key": "hubbsly-work",
+          "ProductKey": "hubbsly",
           "DisplayName": "Hubbsly Work",
+          "Classification": "tenant",
+          "Level": 2,
           "Entitlements": [ "feature:work", "work:cards:create" ],
           "Limits": {
             "Seats": 4
-          }
+          },
+          "DefaultSeatLimit": 4,
+          "DefaultCreditGrants": [
+            {
+              "BucketKey": "ai-chat",
+              "Amount": 500,
+              "Period": "monthly"
+            }
+          ],
+          "ProviderPrices": [
+            {
+              "ProviderName": "stripe",
+              "PriceId": "price_123",
+              "Currency": "USD",
+              "BillingPeriod": "monthly"
+            }
+          ]
         }
       ]
     }

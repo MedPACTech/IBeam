@@ -20,13 +20,58 @@ public sealed record TenantLicenseRecord(
     string? ProviderSubscriptionId,
     string? ProviderPriceId,
     string? ProviderStatus,
-    IReadOnlyDictionary<string, string> Metadata)
+    IReadOnlyDictionary<string, string> Metadata,
+    string CommercialStatus = LicenseCommercialStatuses.Unknown,
+    DateTimeOffset? GraceEndsUtc = null)
 {
     public bool IsActive(DateTimeOffset now)
-        => string.Equals(Status, LicenseStatuses.Active, StringComparison.OrdinalIgnoreCase) &&
-           RevokedUtc is null &&
-           StartsUtc <= now &&
-           (ExpiresUtc is null || ExpiresUtc > now);
+        => EvaluateRuntimeEligibility(now).IsEligible;
+
+    public LicenseRuntimeEligibilityInfo EvaluateRuntimeEligibility(DateTimeOffset now)
+    {
+        var status = Status.Trim();
+
+        if (RevokedUtc is not null || string.Equals(status, LicenseStatuses.Revoked, StringComparison.OrdinalIgnoreCase))
+            return LicenseRuntimeEligibilityInfo.Deny(LicenseRuntimeStatuses.Revoked, "License was revoked.");
+
+        if (StartsUtc > now)
+            return LicenseRuntimeEligibilityInfo.Deny(LicenseRuntimeStatuses.NotStarted, "License has not started.");
+
+        if (string.Equals(status, LicenseStatuses.Suspended, StringComparison.OrdinalIgnoreCase))
+            return LicenseRuntimeEligibilityInfo.Deny(LicenseRuntimeStatuses.Suspended, "License is suspended.");
+
+        if (string.Equals(status, LicenseStatuses.Expired, StringComparison.OrdinalIgnoreCase))
+            return LicenseRuntimeEligibilityInfo.Deny(LicenseRuntimeStatuses.Expired, "License is expired.");
+
+        var pastExpiration = ExpiresUtc is { } expires && expires <= now;
+        if (pastExpiration)
+        {
+            if (string.Equals(status, LicenseStatuses.Grace, StringComparison.OrdinalIgnoreCase) &&
+                GraceEndsUtc is { } graceEnds &&
+                graceEnds > now)
+            {
+                return LicenseRuntimeEligibilityInfo.Allow(LicenseRuntimeStatuses.Grace);
+            }
+
+            return LicenseRuntimeEligibilityInfo.Deny(LicenseRuntimeStatuses.Expired, "License is expired.");
+        }
+
+        if (string.Equals(status, LicenseStatuses.Active, StringComparison.OrdinalIgnoreCase))
+            return LicenseRuntimeEligibilityInfo.Allow(LicenseRuntimeStatuses.Active);
+
+        if (string.Equals(status, LicenseStatuses.Trialing, StringComparison.OrdinalIgnoreCase))
+            return LicenseRuntimeEligibilityInfo.Allow(LicenseRuntimeStatuses.Trialing);
+
+        if (string.Equals(status, LicenseStatuses.Grace, StringComparison.OrdinalIgnoreCase))
+            return GraceEndsUtc is null || GraceEndsUtc > now
+                ? LicenseRuntimeEligibilityInfo.Allow(LicenseRuntimeStatuses.Grace)
+                : LicenseRuntimeEligibilityInfo.Deny(LicenseRuntimeStatuses.Expired, "License grace period has ended.");
+
+        if (string.Equals(status, LicenseStatuses.Manual, StringComparison.OrdinalIgnoreCase))
+            return LicenseRuntimeEligibilityInfo.Allow(LicenseRuntimeStatuses.Manual);
+
+        return LicenseRuntimeEligibilityInfo.Deny(LicenseRuntimeStatuses.Unknown, $"License status '{Status}' is not runtime eligible.");
+    }
 }
 
 public sealed record TenantLicenseInfo(
@@ -49,7 +94,9 @@ public sealed record TenantLicenseInfo(
     string? ProviderSubscriptionId,
     string? ProviderPriceId,
     string? ProviderStatus,
-    IReadOnlyDictionary<string, string> Metadata)
+    IReadOnlyDictionary<string, string> Metadata,
+    string CommercialStatus = LicenseCommercialStatuses.Unknown,
+    DateTimeOffset? GraceEndsUtc = null)
 {
     public static TenantLicenseInfo FromRecord(TenantLicenseRecord record)
         => new(
@@ -72,7 +119,21 @@ public sealed record TenantLicenseInfo(
             record.ProviderSubscriptionId,
             record.ProviderPriceId,
             record.ProviderStatus,
-            record.Metadata);
+            record.Metadata,
+            record.CommercialStatus,
+            record.GraceEndsUtc);
+}
+
+public sealed record LicenseRuntimeEligibilityInfo(
+    bool IsEligible,
+    string RuntimeStatus,
+    string? Reason)
+{
+    public static LicenseRuntimeEligibilityInfo Allow(string runtimeStatus)
+        => new(true, runtimeStatus, null);
+
+    public static LicenseRuntimeEligibilityInfo Deny(string runtimeStatus, string reason)
+        => new(false, runtimeStatus, reason);
 }
 
 public sealed class GrantTenantLicenseRequest
@@ -90,6 +151,8 @@ public sealed class GrantTenantLicenseRequest
     public string? ProviderSubscriptionId { get; set; }
     public string? ProviderPriceId { get; set; }
     public string? ProviderStatus { get; set; }
+    public string? CommercialStatus { get; set; }
+    public DateTimeOffset? GraceEndsUtc { get; set; }
     public Dictionary<string, string> Metadata { get; set; } = [];
 }
 
@@ -107,6 +170,8 @@ public sealed class UpdateTenantLicenseRequest
     public string? ProviderSubscriptionId { get; set; }
     public string? ProviderPriceId { get; set; }
     public string? ProviderStatus { get; set; }
+    public string? CommercialStatus { get; set; }
+    public DateTimeOffset? GraceEndsUtc { get; set; }
     public Dictionary<string, string>? Metadata { get; set; }
 }
 

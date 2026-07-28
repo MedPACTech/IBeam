@@ -20,6 +20,7 @@ Do not expose this package without host authentication and authorization. Licens
 |---|---|---|
 | Endpoint mapping | `MapIBeamLicensing(...)` | Adds licensing route groups to an ASP.NET Core app. |
 | Registration helper | `AddIBeamLicensingApi(...)` | Registers licensing services needed by the endpoint layer. |
+| Runtime controller | `LicensingRuntimeController` | Provides frontend bootstrap licensing context in a normal MVC controller. |
 | Plan endpoints | Minimal API handlers | Lists configured license plans. |
 | Tenant license endpoints | Minimal API handlers | Grants, updates, lists, and revokes tenant licenses. |
 | Seat endpoints | Minimal API handlers | Assigns and revokes license seats. |
@@ -67,6 +68,7 @@ POST   /api/tenants/{tenantId}/licenses/{licenseId}/assignments
 DELETE /api/tenants/{tenantId}/licenses/{licenseId}/assignments/{assignmentId}
 GET    /api/tenants/{tenantId}/license-entitlements
 POST   /api/tenants/{tenantId}/license-entitlements/check
+POST   /api/licensing/tenants/{tenantId}/runtime-context
 ```
 
 Example license grant:
@@ -112,6 +114,22 @@ Content-Type: application/json
   "entitlement": "work:cards:create"
 }
 ```
+
+Example runtime bootstrap call after authentication:
+
+```http
+POST /api/licensing/tenants/225925cc-995e-4584-a63b-4f2cb4f38f6f/runtime-context
+Content-Type: application/json
+
+{
+  "subject": {
+    "subjectType": "user",
+    "subjectId": "user-1"
+  }
+}
+```
+
+The runtime context response is UI guidance only. Services and APIs must still enforce entitlements server-side.
 
 ## Configuration
 

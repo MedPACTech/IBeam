@@ -18,5 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IBeam.Licensing.Services\IBeam.Licensing.Services.csproj" />
+    <ProjectReference Include="..\IBeam.Licensing.Credits\IBeam.Licensing.Credits.csproj" />
+    <ProjectReference Include="..\IBeam.Credits.Services\IBeam.Credits.Services.csproj" />
   </ItemGroup>
 </Project>
