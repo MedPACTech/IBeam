@@ -122,16 +122,19 @@ public sealed class CreditReservationService : ICreditReservationService, ICredi
             throw new CreditException("actualAmount cannot exceed maxAmount for this reservation.");
 
         var now = DateTimeOffset.UtcNow;
-        var debit = CreditLedgerEntryInfo.CreateDebit(
-            tenantId,
-            reservation.CreditAccountId,
-            reservation.BucketKey,
-            request.ActualAmount,
-            CreditNormalization.NormalizeOptional(request.OperationName) ?? reservation.OperationName,
-            CreditNormalization.NormalizeOptional(request.IdempotencyKey) ?? reservation.IdempotencyKey,
-            now,
-            MergeMetadata(reservation.Metadata, request.Metadata));
-        await _store.AppendLedgerEntryAsync(debit, ct).ConfigureAwait(false);
+        if (request.ActualAmount > 0)
+        {
+            var debit = CreditLedgerEntryInfo.CreateDebit(
+                tenantId,
+                reservation.CreditAccountId,
+                reservation.BucketKey,
+                request.ActualAmount,
+                CreditNormalization.NormalizeOptional(request.OperationName) ?? reservation.OperationName,
+                CreditNormalization.NormalizeOptional(request.IdempotencyKey) ?? reservation.IdempotencyKey,
+                now,
+                MergeMetadata(reservation.Metadata, request.Metadata));
+            await _store.AppendLedgerEntryAsync(debit, ct).ConfigureAwait(false);
+        }
 
         var settled = reservation with
         {

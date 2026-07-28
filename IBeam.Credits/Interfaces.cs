@@ -24,6 +24,13 @@ public interface ICreditUsageRecorder
     Task<CreditUsageRecordResult> RecordUsageAsync(Guid tenantId, RecordCreditUsageRequest request, CancellationToken ct = default);
 }
 
+public interface ICreditPolicyService
+{
+    Task<CreditOperationDecision> BeginOperationAsync(Guid tenantId, BeginCreditOperationRequest request, CancellationToken ct = default);
+    Task<CreditOperationSettlementResult> CompleteOperationAsync(Guid tenantId, CompleteCreditOperationRequest request, CancellationToken ct = default);
+    Task<CreditOperationSettlementResult> RecordStreamingChunkAsync(Guid tenantId, RecordStreamingCreditChunkRequest request, CancellationToken ct = default);
+}
+
 public interface ICreditReservationStore : ICreditLedgerStore
 {
     Task<CreditReservationInfo> SaveReservationAsync(CreditReservationInfo reservation, CancellationToken ct = default);

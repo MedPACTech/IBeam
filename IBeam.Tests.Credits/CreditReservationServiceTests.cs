@@ -61,6 +61,23 @@ public sealed class CreditReservationServiceTests
     }
 
     [TestMethod]
+    public async Task SettleAsync_AllowsZeroActualUsageWithoutDebit()
+    {
+        var fixture = await CreateFixtureAsync(100);
+        var reservation = await ReserveAsync(fixture, maxAmount: 50);
+
+        var settled = await fixture.Service.SettleAsync(TenantId, reservation.CreditReservationId, new SettleCreditReservationRequest
+        {
+            ActualAmount = 0
+        });
+        var balance = await BalanceAsync(fixture);
+
+        Assert.AreEqual(CreditReservationStatuses.Settled, settled.Status);
+        Assert.AreEqual(0, settled.ActualAmount);
+        Assert.AreEqual(100, balance.Available);
+    }
+
+    [TestMethod]
     public async Task ReleaseAsync_ReturnsReservedCreditsToAvailability()
     {
         var fixture = await CreateFixtureAsync(100);
