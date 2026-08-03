@@ -172,6 +172,9 @@ In `RequireExistingTenant`, OTP/password/OAuth auth flows do not create `Tenants
 - `OtpChallenges`: OTP challenge state.
 - `ExternalLogins`: OAuth provider-user links.
 - `AuthSessions`, `AuthAttempts`: session and lockout state.
+- `OAuthClients`: downstream OAuth client registrations with hashed confidential-client secrets.
+- `OAuthAuthorizationCodes`: short-lived hashed authorization codes with atomic one-time consumption.
+- `OAuthConsents`: tenant- and user-scoped client/resource consent grants.
 - `SystemLogs`, `SystemErrors`, `Schema`: operational records.
 
 Access-control tables such as `AccessGrants`, `PermissionRoleMaps`, and `ServiceOperationPermissions` are owned by `IBeam.AccessControl.Repositories.AzureTable`, not the Identity schema manager.

@@ -1,5 +1,7 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace IBeam.Identity.Repositories.AzureTable.Options;
 
@@ -31,6 +33,9 @@ public sealed class AzureTableIdentityOptions
     public string AuthIdentifiersTableName { get; set; } = "AuthIdentifiers";
     public string ExternalLoginsTableName { get; set; } = "ExternalLogins";
     public string AuthSessionsTableName { get; set; } = "AuthSessions";
+    public string OAuthClientsTableName { get; set; } = "OAuthClients";
+    public string OAuthAuthorizationCodesTableName { get; set; } = "OAuthAuthorizationCodes";
+    public string OAuthConsentsTableName { get; set; } = "OAuthConsents";
     public string ApiCredentialsTableName { get; set; } = "ApiCredentials";
     public string AgentUsersTableName { get; set; } = "AgentUsers";
     public string AgentUserCredentialsTableName { get; set; } = "AgentUserCredentials";
@@ -90,6 +95,15 @@ public sealed class AzureTableIdentityOptions
     public string ApiCredentialsPk(Guid tenantId) => $"TEN|{tenantId:D}";
     public string ApiCredentialsRk(Guid credentialId) => $"CRED|{credentialId:D}";
 
+    // OAuth client ids and resources may be URLs, so their Azure row keys use stable hashes.
+    public const string OAuthClientsPk = "OAUTHCLIENT";
+    public string OAuthClientsRk(string clientId) => $"CLIENT|{StableKeyHash(clientId)}";
+    public string OAuthAuthorizationCodesPk(string codeHash) => $"OAUTHCODE|{StableKeyHash(codeHash)[..2]}";
+    public string OAuthAuthorizationCodesRk(string codeHash) => StableKeyHash(codeHash);
+    public string OAuthConsentsPk(Guid tenantId, Guid userId) => $"TEN|{tenantId:D}|USR|{userId:D}";
+    public string OAuthConsentsRk(string clientId, string resource) =>
+        $"CONSENT|{StableKeyHash($"{clientId.Trim()}\n{resource.Trim()}")}";
+
     // AgentUsers: PK = "TEN|{tenantId}", RK = "AGU|{agentUserId}"
     public string AgentUsersPk(Guid tenantId) => $"TEN|{tenantId:D}";
     public string AgentUsersRk(Guid agentUserId) => $"AGU|{agentUserId:D}";
@@ -127,6 +141,9 @@ public sealed class AzureTableIdentityOptions
         AuthIdentifiersTableName = NormalizeOrDefault(AuthIdentifiersTableName, "AuthIdentifiers");
         ExternalLoginsTableName = NormalizeOrDefault(ExternalLoginsTableName, "ExternalLogins");
         AuthSessionsTableName = NormalizeOrDefault(AuthSessionsTableName, "AuthSessions");
+        OAuthClientsTableName = NormalizeOrDefault(OAuthClientsTableName, "OAuthClients");
+        OAuthAuthorizationCodesTableName = NormalizeOrDefault(OAuthAuthorizationCodesTableName, "OAuthAuthorizationCodes");
+        OAuthConsentsTableName = NormalizeOrDefault(OAuthConsentsTableName, "OAuthConsents");
         ApiCredentialsTableName = NormalizeOrDefault(ApiCredentialsTableName, "ApiCredentials");
         AgentUsersTableName = NormalizeOrDefault(AgentUsersTableName, "AgentUsers");
         AgentUserCredentialsTableName = NormalizeOrDefault(AgentUserCredentialsTableName, "AgentUserCredentials");
@@ -149,6 +166,9 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(AuthIdentifiersTableName, nameof(AuthIdentifiersTableName));
         ValidateTableName(ExternalLoginsTableName, nameof(ExternalLoginsTableName));
         ValidateTableName(AuthSessionsTableName, nameof(AuthSessionsTableName));
+        ValidateTableName(OAuthClientsTableName, nameof(OAuthClientsTableName));
+        ValidateTableName(OAuthAuthorizationCodesTableName, nameof(OAuthAuthorizationCodesTableName));
+        ValidateTableName(OAuthConsentsTableName, nameof(OAuthConsentsTableName));
         ValidateTableName(ApiCredentialsTableName, nameof(ApiCredentialsTableName));
         ValidateTableName(AgentUsersTableName, nameof(AgentUsersTableName));
         ValidateTableName(AgentUserCredentialsTableName, nameof(AgentUserCredentialsTableName));
@@ -171,6 +191,9 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(FullTableName(AuthIdentifiersTableName), nameof(TablePrefix) + "+" + nameof(AuthIdentifiersTableName));
         ValidateTableName(FullTableName(ExternalLoginsTableName), nameof(TablePrefix) + "+" + nameof(ExternalLoginsTableName));
         ValidateTableName(FullTableName(AuthSessionsTableName), nameof(TablePrefix) + "+" + nameof(AuthSessionsTableName));
+        ValidateTableName(FullTableName(OAuthClientsTableName), nameof(TablePrefix) + "+" + nameof(OAuthClientsTableName));
+        ValidateTableName(FullTableName(OAuthAuthorizationCodesTableName), nameof(TablePrefix) + "+" + nameof(OAuthAuthorizationCodesTableName));
+        ValidateTableName(FullTableName(OAuthConsentsTableName), nameof(TablePrefix) + "+" + nameof(OAuthConsentsTableName));
         ValidateTableName(FullTableName(ApiCredentialsTableName), nameof(TablePrefix) + "+" + nameof(ApiCredentialsTableName));
         ValidateTableName(FullTableName(AgentUsersTableName), nameof(TablePrefix) + "+" + nameof(AgentUsersTableName));
         ValidateTableName(FullTableName(AgentUserCredentialsTableName), nameof(TablePrefix) + "+" + nameof(AgentUserCredentialsTableName));
@@ -185,6 +208,12 @@ public sealed class AzureTableIdentityOptions
 
     private static string NormalizeId(string id)
         => (id ?? string.Empty).Trim();
+
+    private static string StableKeyHash(string value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized))).ToLowerInvariant();
+    }
 
     private static void ValidateTableName(string name, string propertyName)
     {
