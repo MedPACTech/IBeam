@@ -138,6 +138,7 @@ This API package does not create tables or repositories. Storage comes from Iden
 - Agent/API migration prompt: [`../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md`](../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
 - Service logging and audit: [`../docs/service-logging-and-audit.md`](../docs/service-logging-and-audit.md)
 - Service operation permissions: [`../docs/service-operation-permissions.md`](../docs/service-operation-permissions.md)
+- OAuth MCP operator guide: [`../docs/oauth-mcp-operator-guide.md`](../docs/oauth-mcp-operator-guide.md)
 
 Agents should treat MCP tools like API actions and keep durable work inside services.
 
