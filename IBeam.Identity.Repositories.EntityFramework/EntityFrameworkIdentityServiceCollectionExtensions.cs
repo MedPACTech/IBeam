@@ -1,5 +1,6 @@
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Repositories.EntityFramework.Data;
+using IBeam.Identity.Repositories.EntityFramework.OAuth;
 using IBeam.Identity.Repositories.EntityFramework.Options;
 using IBeam.Identity.Repositories.EntityFramework.Tenants;
 using IBeam.Identity.Repositories.EntityFramework.Types;
@@ -33,6 +34,9 @@ public static class EntityFrameworkIdentityServiceCollectionExtensions
 
         services.AddScoped<IIdentityTenantStore, EntityFrameworkIdentityTenantStore>();
         services.AddScoped<ITenantMembershipStore, EntityFrameworkTenantMembershipStore>();
+        services.AddScoped<IOAuthClientStore, EntityFrameworkOAuthClientStore>();
+        services.AddScoped<IOAuthAuthorizationCodeStore, EntityFrameworkOAuthAuthorizationCodeStore>();
+        services.AddScoped<IOAuthConsentStore, EntityFrameworkOAuthConsentStore>();
 
         services.AddDbContext<IBeamIdentityDbContext>(db =>
         {

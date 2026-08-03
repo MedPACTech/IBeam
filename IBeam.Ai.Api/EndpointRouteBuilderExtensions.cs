@@ -2,6 +2,8 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace IBeam.Ai;
 
@@ -14,6 +16,8 @@ public static class EndpointRouteBuilderExtensions
         string pattern = "/api/mcp",
         string? authorizationPolicy = null)
     {
+        endpoints.MapIBeamMcpProtectedResourceMetadata(pattern);
+
         var route = endpoints.MapPost(pattern, async (
             HttpContext httpContext,
             IAgentMcpService mcp,
@@ -54,8 +58,51 @@ public static class EndpointRouteBuilderExtensions
             }
         });
 
+        route.WithMetadata(new IBeamMcpEndpointMetadata(GetConfiguredScopes(endpoints)));
+
         return string.IsNullOrWhiteSpace(authorizationPolicy)
             ? route.RequireAuthorization()
             : route.RequireAuthorization(authorizationPolicy);
+    }
+
+    public static IEndpointRouteBuilder MapIBeamMcpProtectedResourceMetadata(
+        this IEndpointRouteBuilder endpoints,
+        string mcpPattern = "/api/mcp")
+    {
+        static IResult GetMetadata(IOptions<IBeamMcpOAuthOptions> options)
+        {
+            return IBeamMcpOAuthUris.TryCreateMetadata(options.Value, out var metadata)
+                ? Results.Json(metadata, JsonOptions)
+                : Results.NotFound();
+        }
+
+        endpoints.MapGet(IBeamMcpOAuthUris.WellKnownPath, GetMetadata).AllowAnonymous();
+
+        var path = NormalizeMcpPath(mcpPattern);
+        if (path.Length > 0)
+            endpoints.MapGet(IBeamMcpOAuthUris.WellKnownPath + path, GetMetadata).AllowAnonymous();
+
+        return endpoints;
+    }
+
+    private static string[] GetConfiguredScopes(IEndpointRouteBuilder endpoints)
+    {
+        var requiredScope = endpoints.ServiceProvider.GetService<IOptions<IBeamMcpOAuthOptions>>()?
+            .Value.RequiredScope;
+        return [string.IsNullOrWhiteSpace(requiredScope)
+            ? IBeamMcpAuthenticationDefaults.DefaultRequiredScope
+            : requiredScope];
+    }
+
+    private static string NormalizeMcpPath(string pattern)
+    {
+        if (string.IsNullOrWhiteSpace(pattern))
+            return string.Empty;
+
+        var path = pattern.Trim();
+        if (!path.StartsWith('/'))
+            path = "/" + path;
+
+        return path.TrimEnd('/');
     }
 }

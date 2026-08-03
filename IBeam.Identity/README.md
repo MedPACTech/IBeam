@@ -213,6 +213,7 @@ Azure Table providers currently resolve connection strings with fallback precede
 - `IBeam:Identity:Jwt`
 - `IBeam:Identity:Otp`
 - `IBeam:Identity:OAuth`
+- `IBeam:Identity:OAuthServer`
 - `IBeam:Identity:Features`
 - `IBeam:Identity:Events`
 - `IBeam:Identity:TenantProvisioning`
@@ -220,6 +221,20 @@ Azure Table providers currently resolve connection strings with fallback precede
 - `IBeam:Identity:PermissionAccess`
 - `IBeam:Identity:RoleManagement`
 - `IBeam:Identity:AccessControl`
+
+`IBeam:Identity:OAuth` configures upstream identity providers used to sign users in. The separate
+`IBeam:Identity:OAuthServer` section configures IBeam as an authorization server for downstream
+clients such as remote MCP consumers. OAuth server clients use exact redirect URI matching, public
+clients require PKCE, and configured client secrets must already be hashed.
+
+### JWT signing migration
+
+`IBeam:Identity:Jwt:SigningMode` defaults to `symmetric`, preserving existing `SigningKey`
+configuration. For independently verifiable OAuth/MCP access tokens, switch to `asymmetric`, set a
+stable `KeyId`, and supply an RSA private key through `PrivateKeyPem` from a secret store. The public
+key is published at `/.well-known/jwks.json`. During rotation, move the prior public key into
+`PreviousSigningKeys` with a `PublishUntilUtc` after the longest outstanding token lifetime; private
+keys must never be placed in `PreviousSigningKeys` or returned by an endpoint.
 
 ## Tenant Provisioning Policy
 

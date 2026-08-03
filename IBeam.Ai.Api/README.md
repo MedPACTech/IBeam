@@ -9,7 +9,7 @@ dotnet add package IBeam.Ai.Api
 ## When To Use This
 
 - You want to expose an MCP endpoint from an ASP.NET Core API.
-- You want API key-authenticated agents to call IBeam service-backed tools.
+- You want API key or OAuth-authenticated agents to call IBeam service-backed tools.
 - You want tool context populated from the current HTTP user/principal.
 
 ## What This Package Contains
@@ -32,13 +32,13 @@ The MCP endpoint is an API gateway. It should authenticate the caller, delegate 
 
 ```csharp
 using IBeam.Ai;
+using IBeam.Identity.Api.DependencyInjection;
 
 builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();
 
-builder.Services.AddIBeamAiMcp(tools =>
-{
-    tools.AddTool(
+builder.Services.AddIBeamAiMcp(
+    tools => tools.AddTool(
         name: "hubbsly.work.list_cards",
         description: "List work cards visible to the current agent.",
         inputSchema: AgentToolSchemas.Object(
@@ -53,15 +53,26 @@ builder.Services.AddIBeamAiMcp(tools =>
         {
             var service = context.Services.GetRequiredService<IWorkItemService>();
             return await service.ListAsync(ct);
-        });
-});
+        }),
+    oauth =>
+    {
+        oauth.Enabled = true;
+        oauth.ResourceUri = "https://api.example.com/api/mcp";
+        oauth.AuthorizationServerUri = "https://identity.example.com";
+        oauth.SupportedScopes = [ "tool:mcp" ];
+    });
+
+// Call after registering IBeam Identity services and API-key authentication.
+builder.Services.AddIBeamMcpAuthorization();
 
 var app = builder.Build();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapIBeamMcp("/api/mcp", authorizationPolicy: "AgentApi");
+app.MapIBeamMcp(
+    "/api/mcp",
+    authorizationPolicy: IBeamMcpAuthenticationDefaults.AuthorizationPolicy);
 ```
 
 With IBeam Identity API credentials, agents should call the endpoint with:
@@ -77,6 +88,21 @@ Authorization: ApiKey {raw-api-key}
 ```
 
 Do not send API credentials as Bearer tokens unless the consuming app explicitly implements that behavior.
+
+## OAuth Protected Resource Discovery
+
+When OAuth is enabled, `MapIBeamMcp` also publishes protected-resource metadata at:
+
+```text
+/.well-known/oauth-protected-resource
+/.well-known/oauth-protected-resource/api/mcp
+```
+
+The second URL is derived from the mapped MCP path and is the canonical RFC 9728 location for a resource URI ending in `/api/mcp`. Unauthorized MCP responses append a Bearer challenge containing `resource_metadata`; forbidden responses include `insufficient_scope` and the configured MCP scopes. Existing authentication-scheme challenges remain present.
+
+Use absolute HTTPS values for `ResourceUri` and `AuthorizationServerUri`. `SupportedScopes` describes the resource's public protocol surface; do not put tenant-specific grants in this list.
+
+`AddIBeamMcpAuthorization` adds the named `IBeamMcp` policy. It accepts the existing `IBeamApiKey` scheme or the resource-bound `IBeamMcpOAuth` Bearer scheme and requires `RequiredScope` (default `tool:mcp`). OAuth validation checks the JWT issuer, signature, lifetime, exact audience and resource claim, tenant, and current client status. Disabling or revoking an OAuth client therefore stops new MCP requests immediately.
 
 ## Context Claims
 
@@ -112,6 +138,7 @@ This API package does not create tables or repositories. Storage comes from Iden
 - Agent/API migration prompt: [`../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md`](../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
 - Service logging and audit: [`../docs/service-logging-and-audit.md`](../docs/service-logging-and-audit.md)
 - Service operation permissions: [`../docs/service-operation-permissions.md`](../docs/service-operation-permissions.md)
+- OAuth MCP operator guide: [`../docs/oauth-mcp-operator-guide.md`](../docs/oauth-mcp-operator-guide.md)
 
 Agents should treat MCP tools like API actions and keep durable work inside services.
 

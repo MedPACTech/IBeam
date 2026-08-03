@@ -95,6 +95,15 @@ public static class ServiceCollectionExtensions
         services.AddOptions<OAuthOptions>()
         .Bind(configuration.GetSection(OAuthOptions.SectionName));
 
+        services.AddOptions<OAuthAuthorizationServerOptions>()
+        .Bind(configuration.GetSection(OAuthAuthorizationServerOptions.SectionName))
+        .Validate(o =>
+        {
+            o.Validate();
+            return true;
+        })
+        .ValidateOnStart();
+
         services.AddOptions<IdentityEmailTemplateOptions>()
         .Bind(configuration.GetSection(IdentityEmailTemplateOptions.SectionName));
 
@@ -132,6 +141,9 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IIdentityUserExtensionCoordinator, NoOpIdentityUserExtensionCoordinator>();
         services.TryAddScoped<ITenantInfoResolver, TenantInfoResolver>();
         services.TryAddScoped<IAuthAttemptStore, InMemoryAuthAttemptStore>();
+        services.TryAddSingleton<IOAuthClientStore, InMemoryOAuthClientStore>();
+        services.TryAddScoped<IOAuthClientAdministrationService, OAuthClientAdministrationService>();
+        services.TryAddScoped<IOAuthAuthorizationService, OAuthAuthorizationService>();
         services.TryAddScoped<IAuthAttemptContextProvider, NoOpAuthAttemptContextProvider>();
         services.AddScoped<IRoleAccessAuthorizer, RoleAccessAuthorizer>();
         services.TryAddSingleton<IPermissionRoleMapStore, InMemoryPermissionRoleMapStore>();
@@ -143,10 +155,13 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IIBeamAccessCatalogOverrideStore, NoOpAccessCatalogOverrideStore>();
         services.AddScoped<IPermissionGrantResolver, PermissionGrantResolver>();
         services.AddScoped<IPermissionAccessAuthorizer, PermissionAccessAuthorizer>();
+        services.AddScoped<IOAuthEffectivePermissionResolver, OAuthEffectivePermissionResolver>();
         services.AddSingleton<IIBeamOperationCatalogProvider, OperationCatalogProvider>();
         services.AddScoped<IIBeamAccessControlService, IBeamAccessControlService>();
         services.AddSingleton<IPermissionCatalogProvider, PermissionCatalogProvider>();
         services.AddScoped<ITokenService, JwtTokenService>();
+        services.AddSingleton<IJwtSigningKeyProvider, JwtSigningKeyProvider>();
+        services.AddScoped<IOAuthTokenService, OAuthTokenService>();
         services.AddScoped<IApiCredentialKeyGenerator, ApiCredentialKeyGenerator>();
         services.AddScoped<IApiCredentialSecretHasher, ApiCredentialSecretHasher>();
         services.AddScoped<IApiCredentialRoleCatalogProvider, ApiCredentialRoleCatalogProvider>();

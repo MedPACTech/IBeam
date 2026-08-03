@@ -77,6 +77,17 @@ public sealed class IBeamAccessControlOptions
         "identity.apicredentials.revoke",
         "identity.apicredentials.activate"
     ];
+    public List<string> OAuthClientManagementPermissionNames { get; set; } =
+    [
+        "identity.oauthclients.manage",
+        "identity.oauthclients.create",
+        "identity.oauthclients.list",
+        "identity.oauthclients.get",
+        "identity.oauthclients.update",
+        "identity.oauthclients.secret.rotate",
+        "identity.oauthclients.disable",
+        "identity.oauthclients.revoke"
+    ];
     public List<string> AuthAttemptManagementRoleNames { get; set; } = ["PlatformAdmin", "platform-admin", "Support"];
     public List<string> AuthAttemptManagementPermissionNames { get; set; } = ["identity:auth-attempts:unlock", "identity.authattempts.unlock"];
     public bool OwnerHasUnrestrictedTenantAccess { get; set; } = true;

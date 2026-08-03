@@ -69,6 +69,7 @@ The repository provider is responsible for fast identifier resolution. For Azure
 - `IBeam:Identity:Otp`
 - `IBeam:Identity:Features`
 - `IBeam:Identity:OAuth` (when OAuth is enabled)
+- `IBeam:Identity:OAuthServer` (optional; downstream OAuth clients and authorization-server policy)
 - `IBeam:Identity:Events` (optional)
 - `IBeam:Identity:TenantProvisioning` (optional; auth tenant creation/linking policy)
 - `IBeam:Identity:PermissionAccess` (optional; JSON permission map source)
