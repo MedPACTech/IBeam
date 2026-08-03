@@ -227,6 +227,15 @@ Azure Table providers currently resolve connection strings with fallback precede
 clients such as remote MCP consumers. OAuth server clients use exact redirect URI matching, public
 clients require PKCE, and configured client secrets must already be hashed.
 
+### JWT signing migration
+
+`IBeam:Identity:Jwt:SigningMode` defaults to `symmetric`, preserving existing `SigningKey`
+configuration. For independently verifiable OAuth/MCP access tokens, switch to `asymmetric`, set a
+stable `KeyId`, and supply an RSA private key through `PrivateKeyPem` from a secret store. The public
+key is published at `/.well-known/jwks.json`. During rotation, move the prior public key into
+`PreviousSigningKeys` with a `PublishUntilUtc` after the longest outstanding token lifetime; private
+keys must never be placed in `PreviousSigningKeys` or returned by an endpoint.
+
 ## Tenant Provisioning Policy
 
 Auth flows use `IBeam:Identity:TenantProvisioning` to decide what happens after a user is authenticated but no active tenant membership is available.

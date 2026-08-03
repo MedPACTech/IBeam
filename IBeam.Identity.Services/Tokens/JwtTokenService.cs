@@ -25,6 +25,7 @@ public sealed class JwtTokenService : ITokenService
     private readonly IOptions<AuthEventOptions> _eventOptions;
     private readonly ILogger<JwtTokenService> _logger;
     private readonly IReadOnlyList<IClaimsEnricher> _claimsEnrichers;
+    private readonly IJwtSigningKeyProvider _signingKeys;
 
     public JwtTokenService(
         IOptions<JwtOptions> options,
@@ -40,7 +41,8 @@ public sealed class JwtTokenService : ITokenService
             lifecycleHook,
             eventOptions,
             logger,
-            Array.Empty<IClaimsEnricher>())
+            Array.Empty<IClaimsEnricher>(),
+            null)
     {
     }
 
@@ -51,7 +53,8 @@ public sealed class JwtTokenService : ITokenService
         IAuthLifecycleHook lifecycleHook,
         IOptions<AuthEventOptions> eventOptions,
         ILogger<JwtTokenService> logger,
-        IEnumerable<IClaimsEnricher> claimsEnrichers)
+        IEnumerable<IClaimsEnricher> claimsEnrichers,
+        IJwtSigningKeyProvider? signingKeys = null)
     {
         _options = options.Value ?? throw new ArgumentNullException(nameof(options));
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
@@ -61,6 +64,7 @@ public sealed class JwtTokenService : ITokenService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _claimsEnrichers = claimsEnrichers?.ToList() ?? [];
         Validate(_options);
+        _signingKeys = signingKeys ?? new JwtSigningKeyProvider(options);
     }
 
     public JwtTokenService(IOptions<JwtOptions> options, IAuthSessionStore sessions)
@@ -403,21 +407,13 @@ public sealed class JwtTokenService : ITokenService
 
     private string SignJwt(List<Claim> claims, DateTimeOffset now, DateTimeOffset expiresAt)
     {
-        var keyBytes = Encoding.UTF8.GetBytes(_options.SigningKey);
-        var signingKey = new SymmetricSecurityKey(keyBytes);
-
-        if (!string.IsNullOrWhiteSpace(_options.KeyId))
-            signingKey.KeyId = _options.KeyId;
-
-        var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
-
         var token = new JwtSecurityToken(
             issuer: _options.Issuer,
             audience: _options.Audience,
             claims: claims,
             notBefore: now.UtcDateTime,
             expires: expiresAt.UtcDateTime,
-            signingCredentials: creds);
+            signingCredentials: _signingKeys.SigningCredentials);
 
         return _handler.WriteToken(token);
     }
@@ -441,7 +437,7 @@ public sealed class JwtTokenService : ITokenService
             throw new IdentityValidationException("TokenOptions.Issuer is required.");
         if (string.IsNullOrWhiteSpace(o.Audience))
             throw new IdentityValidationException("TokenOptions.Audience is required.");
-        if (string.IsNullOrWhiteSpace(o.SigningKey))
+        if (o.SigningMode == JwtSigningModes.Symmetric && string.IsNullOrWhiteSpace(o.SigningKey))
             throw new IdentityValidationException("TokenOptions.SigningKey is required.");
         if (o.AccessTokenMinutes <= 0)
             throw new IdentityValidationException("TokenOptions.AccessTokenMinutes must be > 0.");

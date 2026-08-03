@@ -19,6 +19,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
+using IBeam.Identity.Services.Tokens;
 
 namespace IBeam.Identity.Api.DependencyInjection;
 
@@ -50,6 +51,7 @@ public static class ServiceCollectionExtensions
 
         var jwt = configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
         jwt.Validate();
+        var signingKeys = new JwtSigningKeyProvider(Microsoft.Extensions.Options.Options.Create(jwt));
 
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -109,7 +111,9 @@ public static class ServiceCollectionExtensions
                     ValidateLifetime = true,
                     ValidIssuer = jwt.Issuer,
                     ValidAudience = jwt.Audience,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
+                    IssuerSigningKeyResolver = (_, _, keyId, _) => signingKeys
+                        .GetValidationKeys()
+                        .Where(key => string.IsNullOrWhiteSpace(keyId) || string.Equals(key.KeyId, keyId, StringComparison.Ordinal)),
                     RoleClaimType = "role",
                     ClockSkew = TimeSpan.FromSeconds(jwt.ClockSkewSeconds)
                 };

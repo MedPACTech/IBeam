@@ -159,6 +159,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IIBeamAccessControlService, IBeamAccessControlService>();
         services.AddSingleton<IPermissionCatalogProvider, PermissionCatalogProvider>();
         services.AddScoped<ITokenService, JwtTokenService>();
+        services.AddSingleton<IJwtSigningKeyProvider, JwtSigningKeyProvider>();
         services.AddScoped<IApiCredentialKeyGenerator, ApiCredentialKeyGenerator>();
         services.AddScoped<IApiCredentialSecretHasher, ApiCredentialSecretHasher>();
         services.AddScoped<IApiCredentialRoleCatalogProvider, ApiCredentialRoleCatalogProvider>();
