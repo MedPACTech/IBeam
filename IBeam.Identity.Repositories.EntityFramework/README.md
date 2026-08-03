@@ -2,6 +2,12 @@
 
 Entity Framework identity repository provider for IBeam.
 
+The provider maps OAuth authorization-server state to `IBeamIdentityOAuthClients`,
+`IBeamIdentityOAuthAuthorizationCodes`, and `IBeamIdentityOAuthConsents`. Client ids and consent
+lookup keys are unique, authorization-code consumption uses a conditional database update, and
+client secrets and authorization codes are represented only by their hashes. Hosts should include
+these model changes in their next Entity Framework migration.
+
 ## Narrative Introduction
 
 This package offers EF-based Identity store wiring and tenant membership persistence for teams that prefer relational storage. It centralizes provider selection and DbContext setup behind one registration method so hosts can swap persistence approaches without changing auth orchestration code.
