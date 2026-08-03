@@ -17,6 +17,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\IBeam.Ai\IBeam.Ai.csproj" />
+    <ProjectReference Include="..\IBeam.Ai.Api\IBeam.Ai.Api.csproj" />
     <ProjectReference Include="..\IBeam.Communications\IBeam.Communications.csproj" />
     <ProjectReference Include="..\IBeam.Communications.Email.AzureCommunications\IBeam.Communications.Email.AzureCommunications.csproj" />
     <ProjectReference Include="..\IBeam.Communications.Sms.AzureCommunications\IBeam.Communications.Sms.AzureCommunications.csproj" />

@@ -15,7 +15,7 @@ namespace IBeam.Identity.Repositories.AzureTable.Schema;
 
 internal sealed class AzureTableIdentitySchemaManager : IIdentitySchemaManager
 {
-    private const int TargetVersion = 1;
+    private const int TargetVersion = 2;
 
     private readonly TableServiceClient _serviceClient;
     private readonly IdentityConfiguration _identityConfig;
@@ -58,7 +58,7 @@ internal sealed class AzureTableIdentitySchemaManager : IIdentitySchemaManager
             await _serviceClient.CreateTableIfNotExistsAsync(name, ct).ConfigureAwait(false);
 
         // 3) Schema version
-        await WriteSchemaVersionAsync(1, ct).ConfigureAwait(false);
+        await WriteSchemaVersionAsync(TargetVersion, ct).ConfigureAwait(false);
 
         _logger.LogInformation("AzureTable identity schema ensured.");
     }
@@ -75,13 +75,13 @@ internal sealed class AzureTableIdentitySchemaManager : IIdentitySchemaManager
         var existing = await ListTableNamesAsync(ct).ConfigureAwait(false);
 
         // Custom tables missing?
-        foreach (var name in RequiredCustomTables())
+        foreach (var table in RequiredCustomTableSteps())
         {
-            if (!existing.Contains(name))
+            if (!existing.Contains(table.Name))
             {
                 pending.Add(new IdentitySchemaStep(
-                    Version: 1,
-                    Description: $"Create table '{name}'"));
+                    Version: table.Version,
+                    Description: $"Create table '{table.Name}'"));
             }
         }
 
@@ -94,12 +94,11 @@ internal sealed class AzureTableIdentitySchemaManager : IIdentitySchemaManager
                 Description: $"Create table '{schemaTableName}'"));
         }
 
-        // If schema table exists but version row is missing, ReadSchemaVersionAsync returns 0.
-        if (existing.Contains(schemaTableName) && currentVersion == 0)
+        if (existing.Contains(schemaTableName) && currentVersion < TargetVersion)
         {
             pending.Add(new IdentitySchemaStep(
-                Version: 1,
-                Description: $"Write schema version row in '{schemaTableName}'"));
+                Version: TargetVersion,
+                Description: $"Write schema version {TargetVersion} row in '{schemaTableName}'"));
         }
 
         // You *can* optionally check ElCamino tables too, but EnsureCreatedAsync already guarantees them.
@@ -115,23 +114,29 @@ internal sealed class AzureTableIdentitySchemaManager : IIdentitySchemaManager
 
     // -------- internal helpers --------
 
-    private IEnumerable<string> RequiredCustomTables()
+    private IEnumerable<string> RequiredCustomTables() =>
+        RequiredCustomTableSteps().Select(x => x.Name);
+
+    private IEnumerable<(string Name, int Version)> RequiredCustomTableSteps()
     {
-        yield return $"{_opts.TablePrefix}{_opts.TenantsTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.TenantUsersTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.UserTenantsTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.TenantRolesTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.TenantInvitesTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.OtpChallengesTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.AuthIdentifiersTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.ExternalLoginsTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.AuthSessionsTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.ApiCredentialsTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.AgentUsersTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.AgentUserCredentialsTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.AccessCatalogOverridesTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.AuthAttemptsTableName}";
-        yield return $"{_opts.TablePrefix}{_opts.SystemErrorsTableName}";
+        yield return ($"{_opts.TablePrefix}{_opts.TenantsTableName}", 1);
+        yield return ($"{_opts.TablePrefix}{_opts.TenantUsersTableName}", 1);
+        yield return ($"{_opts.TablePrefix}{_opts.UserTenantsTableName}", 1);
+        yield return ($"{_opts.TablePrefix}{_opts.TenantRolesTableName}", 1);
+        yield return ($"{_opts.TablePrefix}{_opts.TenantInvitesTableName}", 1);
+        yield return ($"{_opts.TablePrefix}{_opts.OtpChallengesTableName}", 1);
+        yield return ($"{_opts.TablePrefix}{_opts.AuthIdentifiersTableName}", 1);
+        yield return ($"{_opts.TablePrefix}{_opts.ExternalLoginsTableName}", 1);
+        yield return ($"{_opts.TablePrefix}{_opts.AuthSessionsTableName}", 1);
+        yield return ($"{_opts.TablePrefix}{_opts.ApiCredentialsTableName}", 1);
+        yield return ($"{_opts.TablePrefix}{_opts.AgentUsersTableName}", 1);
+        yield return ($"{_opts.TablePrefix}{_opts.AgentUserCredentialsTableName}", 1);
+        yield return ($"{_opts.TablePrefix}{_opts.AccessCatalogOverridesTableName}", 1);
+        yield return ($"{_opts.TablePrefix}{_opts.AuthAttemptsTableName}", 1);
+        yield return ($"{_opts.TablePrefix}{_opts.SystemErrorsTableName}", 1);
+        yield return ($"{_opts.TablePrefix}{_opts.OAuthClientsTableName}", 2);
+        yield return ($"{_opts.TablePrefix}{_opts.OAuthAuthorizationCodesTableName}", 2);
+        yield return ($"{_opts.TablePrefix}{_opts.OAuthConsentsTableName}", 2);
     }
 
     private string SchemaTableName()

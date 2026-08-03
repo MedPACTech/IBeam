@@ -10,4 +10,6 @@ public sealed record AgentToolContext(
     Guid? ApiCredentialId,
     Guid? AgentUserId = null,
     string? AgentUserName = null,
-    string? AgentType = null);
+    string? AgentType = null,
+    string? OAuthClientId = null,
+    string? OAuthSessionId = null);

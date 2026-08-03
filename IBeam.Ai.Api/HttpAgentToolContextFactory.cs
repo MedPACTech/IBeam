@@ -23,7 +23,9 @@ public sealed class HttpAgentToolContextFactory : IAgentToolContextFactory
             ResolveGuid(user, AgentClaimTypes.ApiCredentialId),
             ResolveGuid(user, AgentClaimTypes.AgentUserId),
             ResolveString(user, AgentClaimTypes.AgentUserName),
-            ResolveString(user, AgentClaimTypes.AgentType));
+            ResolveString(user, AgentClaimTypes.AgentType),
+            ResolveString(user, AgentClaimTypes.OAuthClientId, AgentClaimTypes.OAuthAuthorizedParty),
+            ResolveString(user, AgentClaimTypes.OAuthSessionId));
     }
 
     private static string? ResolveAgentKey(ClaimsPrincipal user)
