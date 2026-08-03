@@ -153,6 +153,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IIBeamAccessCatalogOverrideStore, NoOpAccessCatalogOverrideStore>();
         services.AddScoped<IPermissionGrantResolver, PermissionGrantResolver>();
         services.AddScoped<IPermissionAccessAuthorizer, PermissionAccessAuthorizer>();
+        services.AddScoped<IOAuthEffectivePermissionResolver, OAuthEffectivePermissionResolver>();
         services.AddSingleton<IIBeamOperationCatalogProvider, OperationCatalogProvider>();
         services.AddScoped<IIBeamAccessControlService, IBeamAccessControlService>();
         services.AddSingleton<IPermissionCatalogProvider, PermissionCatalogProvider>();
