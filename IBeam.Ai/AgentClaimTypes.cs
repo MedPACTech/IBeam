@@ -10,4 +10,7 @@ public static class AgentClaimTypes
     public const string ApiCredentialId = "api_credential_id";
     public const string TenantId = "tid";
     public const string AlternateTenantId = "tenant_id";
+    public const string OAuthClientId = "client_id";
+    public const string OAuthAuthorizedParty = "azp";
+    public const string OAuthSessionId = "sid";
 }
