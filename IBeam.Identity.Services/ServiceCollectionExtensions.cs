@@ -143,6 +143,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IAuthAttemptStore, InMemoryAuthAttemptStore>();
         services.TryAddSingleton<IOAuthClientStore, InMemoryOAuthClientStore>();
         services.TryAddScoped<IOAuthClientAdministrationService, OAuthClientAdministrationService>();
+        services.TryAddScoped<IOAuthAuthorizationService, OAuthAuthorizationService>();
         services.TryAddScoped<IAuthAttemptContextProvider, NoOpAuthAttemptContextProvider>();
         services.AddScoped<IRoleAccessAuthorizer, RoleAccessAuthorizer>();
         services.TryAddSingleton<IPermissionRoleMapStore, InMemoryPermissionRoleMapStore>();
