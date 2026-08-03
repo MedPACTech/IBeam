@@ -18,7 +18,9 @@
   <ItemGroup>
     <ProjectReference Include="..\IBeam.Ai\IBeam.Ai.csproj" />
     <ProjectReference Include="..\IBeam.Ai.Api\IBeam.Ai.Api.csproj" />
+    <ProjectReference Include="..\IBeam.Ai.Services\IBeam.Ai.Services.csproj" />
     <ProjectReference Include="..\IBeam.Identity.Api\IBeam.Identity.Api.csproj" />
+    <ProjectReference Include="..\IBeam.Identity.Services\IBeam.Identity.Services.csproj" />
   </ItemGroup>
 
 </Project>
