@@ -11,6 +11,7 @@ public sealed class OAuthAuthorizationServerOptions
     public int AuthorizationCodeLifetimeMinutes { get; set; } = 5;
     public bool ClientIdMetadataDocumentsEnabled { get; set; } = true;
     public bool DynamicClientRegistrationEnabled { get; set; }
+    public int DynamicRegistrationRequestsPerMinute { get; set; } = 10;
     public List<OAuthClientRegistrationOptions> Clients { get; set; } = [];
 
     public void Validate()
@@ -24,6 +25,8 @@ public sealed class OAuthAuthorizationServerOptions
             throw new InvalidOperationException(
                 $"{SectionName}:{nameof(AuthorizationCodeLifetimeMinutes)} must be between 1 and 15 minutes.");
         }
+        if (DynamicRegistrationRequestsPerMinute is < 1 or > 1000)
+            throw new InvalidOperationException($"{SectionName}:{nameof(DynamicRegistrationRequestsPerMinute)} must be between 1 and 1000.");
 
         Clients ??= [];
         foreach (var client in Clients)
