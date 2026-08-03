@@ -87,8 +87,11 @@ public static class EndpointRouteBuilderExtensions
 
     private static string[] GetConfiguredScopes(IEndpointRouteBuilder endpoints)
     {
-        return endpoints.ServiceProvider.GetService<IOptions<IBeamMcpOAuthOptions>>()?
-            .Value.SupportedScopes ?? ["tool:mcp"];
+        var requiredScope = endpoints.ServiceProvider.GetService<IOptions<IBeamMcpOAuthOptions>>()?
+            .Value.RequiredScope;
+        return [string.IsNullOrWhiteSpace(requiredScope)
+            ? IBeamMcpAuthenticationDefaults.DefaultRequiredScope
+            : requiredScope];
     }
 
     private static string NormalizeMcpPath(string pattern)

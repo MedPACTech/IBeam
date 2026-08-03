@@ -12,5 +12,14 @@ public sealed class IBeamMcpOAuthOptions
 
     public string ResourceName { get; set; } = "IBeam MCP";
 
+    public string RequiredScope { get; set; } = IBeamMcpAuthenticationDefaults.DefaultRequiredScope;
+
     public string[] SupportedScopes { get; set; } = ["tool:mcp"];
+}
+
+public static class IBeamMcpAuthenticationDefaults
+{
+    public const string AuthorizationPolicy = "IBeamMcp";
+    public const string OAuthAuthenticationScheme = "IBeamMcpOAuth";
+    public const string DefaultRequiredScope = "tool:mcp";
 }

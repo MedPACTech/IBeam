@@ -32,6 +32,7 @@ The MCP endpoint is an API gateway. It should authenticate the caller, delegate 
 
 ```csharp
 using IBeam.Ai;
+using IBeam.Identity.Api.DependencyInjection;
 
 builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();
@@ -61,12 +62,17 @@ builder.Services.AddIBeamAiMcp(
         oauth.SupportedScopes = [ "tool:mcp" ];
     });
 
+// Call after registering IBeam Identity services and API-key authentication.
+builder.Services.AddIBeamMcpAuthorization();
+
 var app = builder.Build();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapIBeamMcp("/api/mcp", authorizationPolicy: "AgentApi");
+app.MapIBeamMcp(
+    "/api/mcp",
+    authorizationPolicy: IBeamMcpAuthenticationDefaults.AuthorizationPolicy);
 ```
 
 With IBeam Identity API credentials, agents should call the endpoint with:
@@ -95,6 +101,8 @@ When OAuth is enabled, `MapIBeamMcp` also publishes protected-resource metadata 
 The second URL is derived from the mapped MCP path and is the canonical RFC 9728 location for a resource URI ending in `/api/mcp`. Unauthorized MCP responses append a Bearer challenge containing `resource_metadata`; forbidden responses include `insufficient_scope` and the configured MCP scopes. Existing authentication-scheme challenges remain present.
 
 Use absolute HTTPS values for `ResourceUri` and `AuthorizationServerUri`. `SupportedScopes` describes the resource's public protocol surface; do not put tenant-specific grants in this list.
+
+`AddIBeamMcpAuthorization` adds the named `IBeamMcp` policy. It accepts the existing `IBeamApiKey` scheme or the resource-bound `IBeamMcpOAuth` Bearer scheme and requires `RequiredScope` (default `tool:mcp`). OAuth validation checks the JWT issuer, signature, lifetime, exact audience and resource claim, tenant, and current client status. Disabling or revoking an OAuth client therefore stops new MCP requests immediately.
 
 ## Context Claims
 
