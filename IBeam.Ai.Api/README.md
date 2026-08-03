@@ -9,7 +9,7 @@ dotnet add package IBeam.Ai.Api
 ## When To Use This
 
 - You want to expose an MCP endpoint from an ASP.NET Core API.
-- You want API key-authenticated agents to call IBeam service-backed tools.
+- You want API key or OAuth-authenticated agents to call IBeam service-backed tools.
 - You want tool context populated from the current HTTP user/principal.
 
 ## What This Package Contains
@@ -36,9 +36,8 @@ using IBeam.Ai;
 builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();
 
-builder.Services.AddIBeamAiMcp(tools =>
-{
-    tools.AddTool(
+builder.Services.AddIBeamAiMcp(
+    tools => tools.AddTool(
         name: "hubbsly.work.list_cards",
         description: "List work cards visible to the current agent.",
         inputSchema: AgentToolSchemas.Object(
@@ -53,8 +52,14 @@ builder.Services.AddIBeamAiMcp(tools =>
         {
             var service = context.Services.GetRequiredService<IWorkItemService>();
             return await service.ListAsync(ct);
-        });
-});
+        }),
+    oauth =>
+    {
+        oauth.Enabled = true;
+        oauth.ResourceUri = "https://api.example.com/api/mcp";
+        oauth.AuthorizationServerUri = "https://identity.example.com";
+        oauth.SupportedScopes = [ "tool:mcp" ];
+    });
 
 var app = builder.Build();
 
@@ -77,6 +82,19 @@ Authorization: ApiKey {raw-api-key}
 ```
 
 Do not send API credentials as Bearer tokens unless the consuming app explicitly implements that behavior.
+
+## OAuth Protected Resource Discovery
+
+When OAuth is enabled, `MapIBeamMcp` also publishes protected-resource metadata at:
+
+```text
+/.well-known/oauth-protected-resource
+/.well-known/oauth-protected-resource/api/mcp
+```
+
+The second URL is derived from the mapped MCP path and is the canonical RFC 9728 location for a resource URI ending in `/api/mcp`. Unauthorized MCP responses append a Bearer challenge containing `resource_metadata`; forbidden responses include `insufficient_scope` and the configured MCP scopes. Existing authentication-scheme challenges remain present.
+
+Use absolute HTTPS values for `ResourceUri` and `AuthorizationServerUri`. `SupportedScopes` describes the resource's public protocol surface; do not put tenant-specific grants in this list.
 
 ## Context Claims
 
