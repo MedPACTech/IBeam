@@ -1,0 +1,148 @@
+{
+  "cards": [
+    {
+      "boardKey": "ibeam",
+      "laneKey": "triage",
+      "title": "IBeam OAuth MCP 001: Add authorization-server contracts and client registry",
+      "description": "Create the repository-independent OAuth authorization-server model without changing the existing upstream OAuth login service.\n\nAcceptance criteria:\n- Add authorization-server options under a distinct IBeam:Identity:OAuthServer section.\n- Model OAuth clients, exact redirect URIs, allowed grant types, allowed scopes, allowed resources, client type, PKCE requirements, status, and secret-hash metadata.\n- Model authorization codes and user consent records needed by later cards.\n- Add store interfaces for clients, authorization codes, and consents.\n- Add a validated in-memory client registry suitable for tests and local development.\n- Public clients require PKCE and never persist a plaintext secret.\n- Unit tests cover normalization, invalid redirect URIs, unsupported grants, duplicate clients, disabled clients, and exact redirect matching.\n- Existing upstream provider OAuth and API-key behavior remains unchanged.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-024",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 10
+    },
+    {
+      "boardKey": "ibeam",
+      "laneKey": "triage",
+      "title": "IBeam OAuth MCP 002: Add Azure Table OAuth authorization-server persistence",
+      "description": "Persist OAuth clients, authorization codes, and consent records in the Azure Table identity provider.\n\nAcceptance criteria:\n- Add Azure Table entities and deterministic partition/row-key conventions for all OAuth server records.\n- Implement the OAuth client, authorization-code, and consent store interfaces.\n- Authorization codes are stored as hashes, expire, and can be consumed exactly once.\n- Client secrets are stored only as hashes.\n- Consent records are tenant, user, client, resource, and scope aware.\n- Schema manager provisions the required tables without affecting existing identity tables.\n- Repository tests cover round trips, expiration, one-time code consumption, revoke/disable behavior, and tenant isolation.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-025",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 20
+    },
+    {
+      "boardKey": "ibeam",
+      "laneKey": "triage",
+      "title": "IBeam OAuth MCP 003: Add Entity Framework OAuth authorization-server persistence",
+      "description": "Provide OAuth authorization-server persistence parity for applications using the Entity Framework identity provider.\n\nAcceptance criteria:\n- Add EF entities and mappings for OAuth clients, authorization codes, and consents.\n- Implement the same repository-independent store interfaces as Azure Tables.\n- Enforce unique client ids and exact redirect URI storage.\n- Authorization-code consumption is atomic and one-time.\n- Consent and client queries preserve tenant and resource boundaries.\n- Repository tests cover the same behavioral contract as the Azure Table provider.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-026",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 30
+    },
+    {
+      "boardKey": "ibeam",
+      "laneKey": "triage",
+      "title": "IBeam OAuth MCP 004: Resolve effective OAuth permissions",
+      "description": "Centralize delegated permission calculation so OAuth tokens cannot exceed client, user, tenant, or consent grants.\n\nAcceptance criteria:\n- Add an effective-permission resolver shared by OAuth token issuance and claim creation.\n- Resolve the intersection of requested scopes, client allowlist, subject roles/access, tenant policy, and consent.\n- Reuse existing API scope, tool, permission, module, agent, and resource conventions.\n- Support wildcards only where the existing access catalog allows them.\n- Denied or unknown scopes are excluded and reported without elevating access.\n- Output normalized claims suitable for existing MCP authorization.\n- Unit tests cover allowed, partially allowed, wildcard, cross-tenant, unknown-scope, and no-consent cases.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-027",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 40
+    },
+    {
+      "boardKey": "ibeam",
+      "laneKey": "triage",
+      "title": "IBeam OAuth MCP 005: Add OAuth client administration APIs",
+      "description": "Allow tenant administrators to manage pre-registered OAuth clients safely.\n\nAcceptance criteria:\n- Add tenant-scoped create, list, get, update, rotate-secret, disable, and revoke endpoints.\n- Validate exact redirect URIs, client type, allowed grants, allowed scopes, resources, and PKCE policy.\n- Return a confidential-client secret only once and never return its hash.\n- Require existing IBeam tenant administration permissions.\n- Emit auditable lifecycle events without secret material.\n- API tests cover authorization, validation, rotation, disable/revoke, and tenant isolation.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-028",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 50
+    },
+    {
+      "boardKey": "ibeam",
+      "laneKey": "triage",
+      "title": "IBeam OAuth MCP 006: Add asymmetric access-token signing and JWKS",
+      "description": "Make Identity-issued access tokens independently verifiable by MCP resource servers.\n\nAcceptance criteria:\n- Support asymmetric signing keys with stable key ids and rotation overlap.\n- Publish public keys through a JWKS endpoint.\n- Keep current issuer, tenant, session, role, and permission claims compatible.\n- Validate signing material at startup and never expose private keys.\n- Define migration from current symmetric signing configuration.\n- Tests verify signing, JWKS verification, key ids, invalid keys, and rotation overlap.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-029",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 60
+    },
+    {
+      "boardKey": "ibeam",
+      "laneKey": "triage",
+      "title": "IBeam OAuth MCP 007: Implement authorization code, PKCE, tenant, and consent flow",
+      "description": "Add the interactive authorization endpoint used by MCP clients acting for a user.\n\nAcceptance criteria:\n- Add an OAuth 2.1 authorization endpoint supporting response_type=code.\n- Require and validate client_id, exact redirect_uri, state, PKCE S256, scope, and RFC 8707 resource.\n- Require an authenticated IBeam user and resolve or prompt for tenant context.\n- Reuse previous consent when valid and request approval for new scopes.\n- Issue short-lived hashed single-use codes bound to client, redirect, user, tenant, scopes, challenge, and resource.\n- Return standards-shaped OAuth errors.\n- Tests cover success, redirect mismatch, invalid resource, missing PKCE, denied consent, replay, and tenant mismatch.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-030",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 70
+    },
+    {
+      "boardKey": "ibeam",
+      "laneKey": "triage",
+      "title": "IBeam OAuth MCP 008: Implement token, refresh, and revocation endpoints",
+      "description": "Exchange OAuth grants for resource-bound IBeam access tokens and manage their lifecycle.\n\nAcceptance criteria:\n- Add a form-encoded token endpoint for authorization-code exchange with PKCE verification.\n- Issue short-lived Bearer tokens with subject, tenant, client id, effective scopes, audience/resource, session id, and token id.\n- Support refresh-token rotation for eligible clients with reuse detection.\n- Add token and consent revocation behavior.\n- Reject mismatched client, redirect, verifier, resource, expired/consumed code, and disabled client.\n- Return OAuth-compliant responses with cache-prevention headers.\n- Tests cover exchange, refresh, replay, revocation, audience, and least-privilege scopes.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-031",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 80
+    },
+    {
+      "boardKey": "ibeam",
+      "laneKey": "triage",
+      "title": "IBeam OAuth MCP 009: Publish discovery and client registration metadata",
+      "description": "Expose the metadata MCP clients need to discover and identify the IBeam authorization server.\n\nAcceptance criteria:\n- Publish OAuth Authorization Server Metadata and/or OIDC discovery from the configured issuer.\n- Advertise authorization, token, revocation, JWKS, scopes, PKCE methods, grants, and resource-indicator support.\n- Support OAuth Client ID Metadata Documents as the preferred MCP registration mechanism.\n- Add policy-controlled Dynamic Client Registration compatibility for RFC 7591 clients.\n- Validate native versus web redirect URI rules and rate-limit registration.\n- Metadata tests verify absolute URLs, enabled capabilities, and disabled-feature behavior.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-032",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 90
+    },
+    {
+      "boardKey": "ibeam",
+      "laneKey": "triage",
+      "title": "IBeam OAuth MCP 010: Add protected-resource metadata and Bearer challenges",
+      "description": "Make IBeam.Ai.Api a discoverable OAuth protected resource at the HTTP boundary.\n\nAcceptance criteria:\n- Add configurable canonical MCP resource and authorization-server URI options.\n- Publish RFC 9728 metadata at root and MCP-path well-known locations.\n- Include supported MCP scopes without exposing tenant grants.\n- Return 401 Bearer challenges with resource_metadata for missing or invalid credentials.\n- Return 403 insufficient_scope guidance when appropriate.\n- Preserve API-key challenges and behavior.\n- API tests cover metadata, challenge headers, scope guidance, and path-based MCP endpoints.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-033",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 100
+    },
+    {
+      "boardKey": "ibeam",
+      "laneKey": "triage",
+      "title": "IBeam OAuth MCP 011: Enforce dual API-key and OAuth MCP authorization",
+      "description": "Accept either an existing IBeam API key or a valid resource-bound OAuth Bearer token and normalize both into the same MCP tool context.\n\nAcceptance criteria:\n- Add a named MCP policy accepting API-key and Bearer schemes.\n- Require tool:mcp or its configured equivalent.\n- Validate issuer, signature, lifetime, tenant, client status, and exact MCP audience/resource for Bearer tokens.\n- Reject token passthrough and tokens issued for another resource.\n- Normalize OAuth scopes and roles for existing tool policy checks.\n- Preserve API credential ids and expose OAuth client/session ids appropriately.\n- Tests cover both credential types, wrong audience, insufficient scope, disabled clients, and tool filtering.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-034",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 110
+    },
+    {
+      "boardKey": "ibeam",
+      "laneKey": "triage",
+      "title": "IBeam OAuth MCP 012: Add end-to-end compatibility validation and operator docs",
+      "description": "Prove the complete flow and document safe adoption for IBeam-consuming applications.\n\nAcceptance criteria:\n- Add an end-to-end test from protected-resource discovery through authorization, token exchange, and MCP tool invocation.\n- Cover public PKCE clients and confidential clients where enabled.\n- Cover permission intersection, tenant isolation, refresh, revoke, API-key compatibility, and OAuth errors.\n- Validate against at least one consuming MCP application that requires OAuth.\n- Document host configuration, key rotation, client registration, consent, troubleshooting, and migration.\n- Include a security checklist for redirect URIs, resource binding, scope minimization, token logging, secrets, and revocation.",
+      "workType": "task",
+      "priority": "medium",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-035",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 120
+    }
+  ]
+}

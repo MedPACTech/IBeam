@@ -95,6 +95,15 @@ public static class ServiceCollectionExtensions
         services.AddOptions<OAuthOptions>()
         .Bind(configuration.GetSection(OAuthOptions.SectionName));
 
+        services.AddOptions<OAuthAuthorizationServerOptions>()
+        .Bind(configuration.GetSection(OAuthAuthorizationServerOptions.SectionName))
+        .Validate(o =>
+        {
+            o.Validate();
+            return true;
+        })
+        .ValidateOnStart();
+
         services.AddOptions<IdentityEmailTemplateOptions>()
         .Bind(configuration.GetSection(IdentityEmailTemplateOptions.SectionName));
 
@@ -132,6 +141,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IIdentityUserExtensionCoordinator, NoOpIdentityUserExtensionCoordinator>();
         services.TryAddScoped<ITenantInfoResolver, TenantInfoResolver>();
         services.TryAddScoped<IAuthAttemptStore, InMemoryAuthAttemptStore>();
+        services.TryAddSingleton<IOAuthClientStore, InMemoryOAuthClientStore>();
         services.TryAddScoped<IAuthAttemptContextProvider, NoOpAuthAttemptContextProvider>();
         services.AddScoped<IRoleAccessAuthorizer, RoleAccessAuthorizer>();
         services.TryAddSingleton<IPermissionRoleMapStore, InMemoryPermissionRoleMapStore>();

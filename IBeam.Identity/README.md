@@ -213,6 +213,7 @@ Azure Table providers currently resolve connection strings with fallback precede
 - `IBeam:Identity:Jwt`
 - `IBeam:Identity:Otp`
 - `IBeam:Identity:OAuth`
+- `IBeam:Identity:OAuthServer`
 - `IBeam:Identity:Features`
 - `IBeam:Identity:Events`
 - `IBeam:Identity:TenantProvisioning`
@@ -220,6 +221,11 @@ Azure Table providers currently resolve connection strings with fallback precede
 - `IBeam:Identity:PermissionAccess`
 - `IBeam:Identity:RoleManagement`
 - `IBeam:Identity:AccessControl`
+
+`IBeam:Identity:OAuth` configures upstream identity providers used to sign users in. The separate
+`IBeam:Identity:OAuthServer` section configures IBeam as an authorization server for downstream
+clients such as remote MCP consumers. OAuth server clients use exact redirect URI matching, public
+clients require PKCE, and configured client secrets must already be hashed.
 
 ## Tenant Provisioning Policy
 
