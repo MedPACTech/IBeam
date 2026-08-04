@@ -96,6 +96,31 @@ public sealed class OAuthEffectivePermissionResolver : IOAuthEffectivePermission
             return true;
         }
 
+        // A person delegating access through the authorization-code flow carries identity
+        // roles, never the "scope", "scp" or "tool" claims an API credential is issued
+        // with. Without this, no human subject can consent to an api-scope or tool scope
+        // at all — including an Owner with unrestricted app access — and authorization
+        // fails with invalid_scope after consent has already been approved.
+        //
+        // Delegation stays bounded by what the subject can actually reach: api-scope and
+        // module name the same underlying thing, so both resolve through module access,
+        // which already honours unrestricted roles. Tools have no per-user grant to check,
+        // so they require unrestricted access.
+        if (!HasMachineScopeClaims(subject))
+        {
+            switch (descriptor.Prefix)
+            {
+                case "api-scope":
+                    if (await _accessControl.HasModuleAccessAsync(subject, descriptor.Key, AccessLevels.View, ct).ConfigureAwait(false))
+                        return true;
+                    break;
+                case "tool":
+                    if (await HasUnrestrictedAccessAsync(subject, ct).ConfigureAwait(false))
+                        return true;
+                    break;
+            }
+        }
+
         if (descriptor.WildcardCapable &&
             (HasClaimValue(subject, "role", $"{descriptor.Prefix}:*") ||
              HasClaimValue(subject, ClaimTypes.Role, $"{descriptor.Prefix}:*")))
@@ -114,6 +139,25 @@ public sealed class OAuthEffectivePermissionResolver : IOAuthEffectivePermission
             _ => false
         };
     }
+
+    /// <summary>
+    /// True when the subject was issued as a machine credential, which carries scope and
+    /// tool claims directly. Those subjects keep the original, stricter evaluation.
+    /// </summary>
+    private static bool HasMachineScopeClaims(ClaimsPrincipal subject) =>
+        subject.FindFirst("scope") is not null ||
+        subject.FindFirst("scp") is not null ||
+        subject.FindFirst("tool") is not null;
+
+    private async Task<bool> HasUnrestrictedAccessAsync(ClaimsPrincipal subject, CancellationToken ct)
+    {
+        foreach (var role in UnrestrictedRoles)
+            if (await _accessControl.HasRoleAsync(subject, role, ct).ConfigureAwait(false))
+                return true;
+        return false;
+    }
+
+    private static readonly string[] UnrestrictedRoles = ["Owner", "Administrator"];
 
     private static ScopeDescriptor? Describe(
         string scope,
