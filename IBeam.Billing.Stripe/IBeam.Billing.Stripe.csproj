@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <PackageId>IBeam.Billing.Stripe</PackageId>
+    <Authors>MedPAC Technologies</Authors>
+    <Company>MedPAC Technologies</Company>
+    <PackageDescription>Optional Stripe checkout and verified webhook adapter for IBeam Billing.</PackageDescription>
+    <RepositoryUrl>https://github.com/MedPACTech/IBeam</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <VersionPrefix>2.0.0</VersionPrefix>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.3" />
+    <PackageReference Include="Stripe.net" Version="52.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IBeam.Billing\IBeam.Billing.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

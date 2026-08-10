@@ -34,6 +34,29 @@ public sealed class TenantLicenseService : ITenantLicenseService
         return licenses.Select(TenantLicenseInfo.FromRecord).ToList();
     }
 
+    [IBeamOperation("licensing.licenses.get-by-key")]
+    public async Task<TenantLicenseInfo?> GetLicenseByKeyAsync(
+        Guid tenantId,
+        Guid licenseKey,
+        CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => GetLicenseByKeyCoreAsync(tenantId, licenseKey, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = licenseKey },
+            ct).ConfigureAwait(false);
+
+    private async Task<TenantLicenseInfo?> GetLicenseByKeyCoreAsync(
+        Guid tenantId,
+        Guid licenseKey,
+        CancellationToken ct)
+    {
+        ValidateTenantId(tenantId);
+        ValidateLicenseId(licenseKey);
+
+        var license = await _store.GetLicenseAsync(tenantId, licenseKey, ct).ConfigureAwait(false);
+        return license is null ? null : TenantLicenseInfo.FromRecord(license);
+    }
+
     [IBeamOperation("licensing.licenses.grant")]
     public async Task<TenantLicenseInfo> GrantLicenseAsync(
         Guid tenantId,
@@ -57,6 +80,17 @@ public sealed class TenantLicenseService : ITenantLicenseService
             throw new ArgumentNullException(nameof(request));
 
         var planKey = NormalizeRequired(request.PlanKey, "planKey");
+        var requestedLicenseKey = request.LicenseKey == Guid.Empty ? null : request.LicenseKey;
+        if (requestedLicenseKey is { } stableKey)
+        {
+            var existing = await _store.GetLicenseAsync(tenantId, stableKey, ct).ConfigureAwait(false);
+            if (existing is not null)
+            {
+                if (!string.Equals(existing.PlanKey, planKey, StringComparison.OrdinalIgnoreCase))
+                    throw new LicensingException("License key is already associated with a different plan.");
+                return TenantLicenseInfo.FromRecord(existing);
+            }
+        }
         var plan = await _plans.GetPlanAsync(planKey, ct).ConfigureAwait(false);
         var entitlements = MergeEntitlements(plan?.Entitlements, request.Entitlements);
         var limits = MergeLimits(plan?.Limits, request.Limits);
@@ -72,7 +106,7 @@ public sealed class TenantLicenseService : ITenantLicenseService
         ValidateGraceWindow(starts, request.ExpiresUtc, request.GraceEndsUtc);
 
         var record = new TenantLicenseRecord(
-            LicenseId: Guid.NewGuid(),
+            LicenseId: requestedLicenseKey ?? Guid.NewGuid(),
             TenantId: tenantId,
             PlanKey: planKey,
             DisplayName: NormalizeOptional(request.DisplayName) ?? plan?.DisplayName ?? planKey,

@@ -12,6 +12,9 @@ For ASP.NET Core endpoints, use the future `IBeam.Billing.Api` package.
 
 | Area | Type(s) | Purpose |
 |---|---|---|
+| Offer catalog | `ConfigurationBillingOfferCatalogProvider` | Reads provider-neutral checkout offers and total-seat pricing from `IBeam:Billing:Offers`. |
+| Gateway resolver | `BillingCheckoutGatewayResolver` | Selects a registered checkout provider adapter by provider name. |
+| Pending purchases | `BillingPurchaseService`, `InMemoryBillingPurchaseStore` | Tracks anonymous pre-Identity purchases with correlation and provider-event idempotency. |
 | Customers | `BillingCustomerService` | Create, update, get, and list tenant billing customers. |
 | Subscriptions | `BillingSubscriptionService` | Track provider subscriptions, contract state, plan/price references, and seats. |
 | Invoices | `BillingInvoiceService` | Track invoices, payment state, due dates, and safe hosted invoice references. |
@@ -26,6 +29,44 @@ using IBeam.Billing.Services;
 
 builder.Services.AddIBeamBillingServices(builder.Configuration);
 ```
+
+Example offer configuration:
+
+```json
+{
+  "IBeam": {
+    "Billing": {
+      "Offers": [
+        {
+          "Key": "hubbsly-pro-monthly",
+          "ProductKey": "hubbsly",
+          "PlanKey": "hubbsly-pro",
+          "DisplayName": "Hubbsly Pro",
+          "BillingPeriod": "monthly",
+          "Currency": "USD",
+          "SeatPolicy": {
+            "DefaultTotalSeats": 3,
+            "MinimumTotalSeats": 3,
+            "SeatIncrement": 1
+          },
+          "Pricing": {
+            "PerSeatAmount": 25.00
+          },
+          "ProviderPrices": [
+            {
+              "ProviderName": "stripe",
+              "PriceId": "price_pro_monthly",
+              "BillingMode": "self-service-monthly"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+Provider checkout quantity should be set from the resulting quote's `TotalSeats`. The offer always represents one license.
 
 The bundled store is in-memory and intended for local development, tests, and prototypes. Production applications should replace `IBillingStore` with Azure Table, SQL, EF, or an application-owned provider.
 

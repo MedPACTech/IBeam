@@ -13,12 +13,22 @@ public static class BillingServiceCollectionExtensions
     {
         services.AddIBeamServicePolicies();
         services.AddIBeamServiceAuditing(configuration);
+        services.Configure<BillingOptions>(configuration.GetSection(BillingOptions.SectionName));
+        services.Configure<BillingPublicCheckoutOptions>(configuration.GetSection($"{BillingOptions.SectionName}:PublicCheckout"));
 
+        services.TryAddSingleton<IBillingOfferCatalogProvider, ConfigurationBillingOfferCatalogProvider>();
+        services.TryAddScoped<IBillingCheckoutGatewayResolver, BillingCheckoutGatewayResolver>();
+        services.TryAddSingleton<IBillingPurchaseStore, InMemoryBillingPurchaseStore>();
+        services.TryAddSingleton<IBillingCheckoutAttemptStore, InMemoryBillingCheckoutAttemptStore>();
+        services.TryAddScoped<IBillingPurchaseService, BillingPurchaseService>();
+        services.TryAddScoped<IBillingPublicCheckoutService, BillingPublicCheckoutService>();
+        services.TryAddScoped<IBillingWebhookProcessor, BillingWebhookProcessor>();
         services.TryAddSingleton<IBillingStore, InMemoryBillingStore>();
         services.TryAddScoped<IBillingCustomerService, BillingCustomerService>();
         services.TryAddScoped<IBillingSubscriptionService, BillingSubscriptionService>();
         services.TryAddScoped<IBillingInvoiceService, BillingInvoiceService>();
         services.TryAddScoped<IBillingProviderEventService, BillingProviderEventService>();
+        services.TryAddSingleton<IBillingSubscriptionProviderBindingStore, InMemoryBillingSubscriptionProviderBindingStore>();
 
         return services;
     }

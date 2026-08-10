@@ -249,7 +249,7 @@ Licensing mutation methods are tagged with IBeam operation names. These names ar
 
 | Service | Class Operation | Representative Method Operations |
 |---|---|---|
-| Tenant licenses | `licensing.licenses` | `licensing.licenses.list`, `licensing.licenses.grant`, `licensing.licenses.update`, `licensing.licenses.revoke` |
+| Tenant licenses | `licensing.licenses` | `licensing.licenses.list`, `licensing.licenses.get-by-key`, `licensing.licenses.grant`, `licensing.licenses.update`, `licensing.licenses.revoke` |
 | Seat assignments | `licensing.seats` | `licensing.seats.list`, `licensing.seats.assign`, `licensing.seats.revoke` |
 
 Example policy:

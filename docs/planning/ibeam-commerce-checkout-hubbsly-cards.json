@@ -1,0 +1,172 @@
+{
+  "cards": [
+    {
+      "boardKey": "hub",
+      "laneKey": "triage",
+      "title": "IBeam COM 001: Define commerce offers and total-seat pricing",
+      "description": "Add provider-neutral offer and pricing models that map a public plan selection to product, plan, billing interval, currency, and total seat quantity.\n\nAcceptance criteria:\n- An individual offer has one license and one total seat by default.\n- A multi-user offer has one license and a minimum of three total seats.\n- Provider quantity means total seats, not additional seats.\n- Pricing supports base, per-seat, tiered, and provider price references without provider SDK dependencies.\n- Tests cover individual purchase, three-seat purchase, expansion, invalid quantities, and normalization.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-037",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 10
+    },
+    {
+      "boardKey": "hub",
+      "laneKey": "triage",
+      "title": "IBeam COM 002: Add stable GUID license keys and lookup",
+      "description": "Expose a stable GUID-backed license key for support, claiming, lookup, and cross-provider correlation without exposing storage partition details.\n\nAcceptance criteria:\n- Every new license has a non-empty immutable GUID license key.\n- Existing records receive a backward-compatible key or migration strategy.\n- Services resolve licenses by key with tenant authorization where required.\n- Public responses expose only the safe key.\n- Tests cover uniqueness, lookup, compatibility, and tenant isolation.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-038",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 20
+    },
+    {
+      "boardKey": "hub",
+      "laneKey": "triage",
+      "title": "IBeam COM 003: Add provider-neutral checkout gateway contracts",
+      "description": "Define checkout, customer-portal, webhook-verification, and provider-binding contracts so hosts select a processor through dependency injection and configuration.\n\nAcceptance criteria:\n- Contracts cover checkout, provider status, portal sessions, and webhook verification.\n- Requests use offer keys, total seats, correlation ids, and allow-listed return URLs.\n- Results contain provider-neutral status and opaque references.\n- Core Billing does not reference a provider SDK.\n- Tests use two fake providers to prove replaceability.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-039",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 30
+    },
+    {
+      "boardKey": "hub",
+      "laneKey": "triage",
+      "title": "IBeam COM 004: Model purchases before Identity or tenant exists",
+      "description": "Add a pending purchase aggregate that records a public buyer and paid offer before an IBeam user or tenant exists.\n\nAcceptance criteria:\n- Pending purchases use GUID ids and may omit tenant id and user id.\n- Records capture normalized email, offer, total seats, provider binding, amounts, currency, status, and timestamps.\n- Statuses cover initiated through paid, fulfilled, claimed, expired, canceled, refunded, and failed.\n- Duplicate events cannot create duplicate purchases or licenses.\n- PII retention, redaction, expiration, and tests are included.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-040",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 40
+    },
+    {
+      "boardKey": "hub",
+      "laneKey": "triage",
+      "title": "IBeam COM 005: Add public checkout and purchase-status API",
+      "description": "Expose anonymous-safe endpoints to start checkout and report limited purchase status without an existing Identity account.\n\nAcceptance criteria:\n- POST /api/commerce/checkout-sessions validates offer and total seats, creates a pending purchase, and returns hosted checkout URL.\n- GET /api/commerce/purchases/{purchaseId}/status returns safe next-action data using a protected correlation token.\n- Success and cancel URLs are allow-listed.\n- Rate limits, idempotency, anti-enumeration, and structured errors are included.\n- Tests cover highest-plan checkout with three total seats and no tenant or user.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-041",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 50
+    },
+    {
+      "boardKey": "hub",
+      "laneKey": "triage",
+      "title": "IBeam COM 006: Normalize verified provider webhooks",
+      "description": "Verify provider signatures, record events idempotently, and map processor payloads into normalized commerce events.\n\nAcceptance criteria:\n- Unverified payloads never mutate Billing or Licensing.\n- Events cover completion, payment success/failure, renewal, seat change, cancellation, refund, and dispute.\n- Processing is idempotent by provider and event id.\n- Browser redirects do not fulfill purchases.\n- Tests cover replay, ordering, invalid signatures, retries, and unsupported events.",
+      "workType": "feature",
+      "priority": "critical",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-042",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 60
+    },
+    {
+      "boardKey": "hub",
+      "laneKey": "triage",
+      "title": "IBeam COM 007: Add optional Stripe billing adapter",
+      "description": "Implement Stripe as the first optional checkout and webhook adapter without adding Stripe dependencies to provider-neutral packages.\n\nAcceptance criteria:\n- A separate adapter implements checkout and webhook contracts.\n- Metadata carries IBeam purchase id, offer key, and total seats.\n- Stripe quantity maps to total seats including the minimum three.\n- Keys and webhook secrets come from host secret configuration and are never logged.\n- Tests cover checkout, completion, renewal, seat change, cancellation, and replay.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-043",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 70
+    },
+    {
+      "boardKey": "hub",
+      "laneKey": "triage",
+      "title": "IBeam COM 008: Fulfill paid purchases into one license",
+      "description": "Turn a normalized paid purchase into one durable license with the selected plan and total seat limit.\n\nAcceptance criteria:\n- Fulfillment creates exactly one license regardless of seat count.\n- Individual purchases create one seat; multi-user purchases create at least three total seats.\n- Repeated fulfillment returns the same license.\n- Provider references are replaceable bindings, not license identity.\n- Tests cover first purchase, replay, three seats, and expansion.",
+      "workType": "feature",
+      "priority": "critical",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-044",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 80
+    },
+    {
+      "boardKey": "hub",
+      "laneKey": "triage",
+      "title": "IBeam COM 009: Add secure purchase claim and onboarding flow",
+      "description": "Let a buyer sign up or sign in, create or select a tenant, and securely claim a paid license.\n\nAcceptance criteria:\n- One-time expiring claim tokens are separate from GUID license keys and stored hashed.\n- Claiming links purchase, billing, license, tenant, and buyer recoverably.\n- The verified buyer receives the first seat and remaining seats stay available.\n- Claims reject reuse, wrong buyer, expiration, and cross-tenant takeover.\n- Tests cover new and existing users, retries, expiration, and three-seat onboarding.",
+      "workType": "feature",
+      "priority": "critical",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-045",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 90
+    },
+    {
+      "boardKey": "hub",
+      "laneKey": "triage",
+      "title": "IBeam COM 010: Reconcile renewals, seat changes, and cancellations",
+      "description": "Update the existing license when a provider subscription renews or changes.\n\nAcceptance criteria:\n- Renewal preserves the same license GUID key and assignments.\n- Seat increases update total seats; decreases below assignments use an explicit over-assigned policy.\n- Individual licenses can expand and multi-user plans retain a minimum of three.\n- Cancellation, failed payment, refund, and grace behavior are policy driven.\n- Tests cover each lifecycle path without replacement licenses.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-046",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 100
+    },
+    {
+      "boardKey": "hub",
+      "laneKey": "triage",
+      "title": "IBeam COM 011: Support payment-provider migration",
+      "description": "Move a tenant subscription from Stripe to PayPal or another processor while retaining the same internal history and license.\n\nAcceptance criteria:\n- Internal billing, purchase, subscription, and license ids remain provider-neutral.\n- Licenses retain historical bindings and one active provider binding.\n- Migration avoids access gaps and double grants.\n- Idempotency is provider scoped and reconciliation prevents duplicate renewals.\n- Stripe-like and PayPal-like fake adapters prove the license and seats survive migration.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-047",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 110
+    },
+    {
+      "boardKey": "hub",
+      "laneKey": "triage",
+      "title": "IBeam COM 012: Persist checkout, purchase, claim, and provider bindings",
+      "description": "Extend durable commerce storage with pending purchases, checkout attempts, claim records, and provider-binding indexes.\n\nAcceptance criteria:\n- Azure Tables support lookup by GUID purchase/license key and provider references.\n- State transitions use optimistic concurrency and safe retries.\n- Claim and fulfillment idempotency survive restarts.\n- Tokens are hashed and raw provider bodies are excluded from public records.\n- Tests cover persistence, concurrency, replay, lookup, and expired-purchase cleanup.",
+      "workType": "feature",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-048",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 120
+    },
+    {
+      "boardKey": "hub",
+      "laneKey": "triage",
+      "title": "IBeam COM 013: Add commerce administration and recovery APIs",
+      "description": "Provide protected support/admin endpoints to inspect commerce state and recover failed fulfillment safely.\n\nAcceptance criteria:\n- Admins inspect purchase, billing, license, seat, claim, and provider-binding status.\n- Support retries verified event processing or fulfillment without resubmitting payment.\n- Resending onboarding creates a new claim token and invalidates the old one.\n- Manual corrections require authorization, reason, audit, and idempotency.\n- Responses redact secrets, provider payloads, and unnecessary PII.",
+      "workType": "feature",
+      "priority": "medium",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-049",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 130
+    },
+    {
+      "boardKey": "hub",
+      "laneKey": "triage",
+      "title": "IBeam COM 014: Add end-to-end commerce validation and guide",
+      "description": "Validate and document public purchase, Identity onboarding, seat fulfillment, and provider portability.\n\nAcceptance criteria:\n- E2E buys the highest plan with three total seats before Identity exists, verifies payment, creates one license, claims it, and assigns the buyer.\n- Tests cover one-seat expansion, replay, failed payment, cancellation, and provider migration.\n- Docs map public/admin endpoints with DTOs and sequence diagrams.\n- Guidance separates checkout UI, Billing, Licensing, Identity, and runtime enforcement.\n- Security guidance covers redirects, signatures, idempotency, claim tokens, PII, secrets, and audit.",
+      "workType": "task",
+      "priority": "high",
+      "sourceSystem": "codex",
+      "sourceKey": "IBM-050",
+      "sourceUrl": "https://github.com/MedPACTech/IBeam",
+      "sortOrder": 140
+    }
+  ]
+}

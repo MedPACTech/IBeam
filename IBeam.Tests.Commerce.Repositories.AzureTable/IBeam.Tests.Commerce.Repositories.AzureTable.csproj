@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IBeam.Billing.Services\IBeam.Billing.Services.csproj" />
+    <ProjectReference Include="..\IBeam.Billing.Licensing\IBeam.Billing.Licensing.csproj" />
     <ProjectReference Include="..\IBeam.Commerce.Repositories.AzureTable\IBeam.Commerce.Repositories.AzureTable.csproj" />
     <ProjectReference Include="..\IBeam.Credits.Services\IBeam.Credits.Services.csproj" />
     <ProjectReference Include="..\IBeam.Licensing.Services\IBeam.Licensing.Services.csproj" />
