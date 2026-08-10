@@ -14,6 +14,7 @@ For ASP.NET Core endpoints, use the future `IBeam.Billing.Api` package.
 |---|---|---|
 | Offer catalog | `ConfigurationBillingOfferCatalogProvider` | Reads provider-neutral checkout offers and total-seat pricing from `IBeam:Billing:Offers`. |
 | Gateway resolver | `BillingCheckoutGatewayResolver` | Selects a registered checkout provider adapter by provider name. |
+| Pending purchases | `BillingPurchaseService`, `InMemoryBillingPurchaseStore` | Tracks anonymous pre-Identity purchases with correlation and provider-event idempotency. |
 | Customers | `BillingCustomerService` | Create, update, get, and list tenant billing customers. |
 | Subscriptions | `BillingSubscriptionService` | Track provider subscriptions, contract state, plan/price references, and seats. |
 | Invoices | `BillingInvoiceService` | Track invoices, payment state, due dates, and safe hosted invoice references. |

@@ -6,6 +6,22 @@ public interface IBillingOfferCatalogProvider
     Task<BillingOfferInfo?> GetOfferAsync(string offerKey, CancellationToken ct = default);
 }
 
+public interface IBillingPurchaseService
+{
+    Task<BillingPurchaseInfo?> GetPurchaseAsync(Guid purchaseId, CancellationToken ct = default);
+    Task<BillingPurchaseInfo> CreatePendingPurchaseAsync(CreatePendingBillingPurchaseRequest request, CancellationToken ct = default);
+    Task<BillingPurchaseInfo> ApplyProviderUpdateAsync(Guid purchaseId, ApplyBillingPurchaseProviderUpdateRequest request, CancellationToken ct = default);
+    Task RedactBuyerEmailAsync(Guid purchaseId, CancellationToken ct = default);
+}
+
+public interface IBillingPurchaseStore
+{
+    Task<BillingPurchaseRecord?> GetPurchaseAsync(Guid purchaseId, CancellationToken ct = default);
+    Task<BillingPurchaseRecord?> GetPurchaseByCorrelationIdAsync(Guid correlationId, CancellationToken ct = default);
+    Task<BillingPurchaseRecord?> GetPurchaseByProviderEventAsync(string providerName, string providerEventId, CancellationToken ct = default);
+    Task<BillingPurchaseRecord> SavePurchaseAsync(BillingPurchaseRecord record, string? providerEventId = null, CancellationToken ct = default);
+}
+
 public interface IBillingCustomerService
 {
     Task<IReadOnlyList<BillingCustomerInfo>> ListCustomersAsync(Guid tenantId, CancellationToken ct = default);

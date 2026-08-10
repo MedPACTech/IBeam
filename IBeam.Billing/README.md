@@ -45,6 +45,7 @@ Use `BillingModes` to represent the commercial model without hard-coding a provi
 | Checkout offers | `BillingOfferInfo`, `BillingOfferSeatPolicyInfo`, `BillingOfferPricingInfo` | Provider-neutral product/plan offers with one-license total-seat rules and flat or graduated pricing. |
 | Checkout gateways | `IBillingCheckoutGateway`, `IBillingCheckoutGatewayResolver` | Provider-neutral hosted checkout, status, customer portal, and webhook-verification contracts. |
 | Provider bindings | `BillingProviderBindingInfo` | Opaque provider references that can be replaced without becoming IBeam billing or license identity. |
+| Pending purchases | `BillingPurchaseInfo`, `CreatePendingBillingPurchaseRequest`, `IBillingPurchaseService` | Records a public purchase before an Identity user or tenant exists. |
 | Customers | `BillingCustomerInfo`, `CreateBillingCustomerRequest` | Tenant-owned billing profile with optional buying user and provider customer reference. |
 | Subscriptions | `BillingSubscriptionInfo`, `CreateBillingSubscriptionRequest` | Commercial subscription or contract state, optional plan key, seats, provider subscription, and price reference. |
 | Invoices | `BillingInvoiceInfo`, `CreateBillingInvoiceRequest` | Invoice state, amounts, due/paid dates, hosted invoice reference, and provider invoice reference. |
@@ -93,6 +94,14 @@ var session = await gateway.CreateCheckoutSessionAsync(
 ```
 
 The same contracts can be implemented by Stripe, PayPal, a marketplace, or an application-owned processor. `VerifyWebhookAsync` must only return a `BillingVerifiedWebhookInfo` after the adapter verifies the provider signature. Normalizing verified events and mutating Billing/Licensing state belong to later orchestration layers.
+
+## Purchases Before Identity
+
+`BillingPurchaseInfo` can represent checkout and payment before the buyer has an IBeam user or tenant. `TenantId`, `UserId`, and `LicenseKey` remain empty until later fulfillment and claiming workflows link them.
+
+Purchase creation is idempotent by `CorrelationId`. Provider updates are idempotent by provider name plus provider event id, so replayed events resolve to the original purchase rather than creating another purchase or future license grant.
+
+Buyer email is normalized for matching but should be retained only as long as the host's onboarding, tax, support, and legal policies require. Call `RedactBuyerEmailAsync` after the applicable retention window; it removes the email while preserving financial and audit state. Do not place addresses, payment details, raw provider payloads, claim secrets, or access tokens in `Metadata`.
 
 ## Tenant And User Ownership
 
