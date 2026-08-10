@@ -21,6 +21,7 @@ public static class BillingServiceCollectionExtensions
         services.TryAddSingleton<IBillingPurchaseStore, InMemoryBillingPurchaseStore>();
         services.TryAddScoped<IBillingPurchaseService, BillingPurchaseService>();
         services.TryAddScoped<IBillingPublicCheckoutService, BillingPublicCheckoutService>();
+        services.TryAddScoped<IBillingWebhookProcessor, BillingWebhookProcessor>();
         services.TryAddSingleton<IBillingStore, InMemoryBillingStore>();
         services.TryAddScoped<IBillingCustomerService, BillingCustomerService>();
         services.TryAddScoped<IBillingSubscriptionService, BillingSubscriptionService>();

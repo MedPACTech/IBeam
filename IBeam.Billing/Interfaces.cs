@@ -48,6 +48,7 @@ public interface IBillingInvoiceService
 
 public interface IBillingProviderEventService
 {
+    Task<BillingProviderEventInfo?> GetEventAsync(string providerName, string providerEventId, CancellationToken ct = default);
     Task<BillingProviderEventInfo> RecordEventAsync(RecordBillingProviderEventRequest request, CancellationToken ct = default);
     Task<IReadOnlyList<BillingProviderEventInfo>> ListEventsAsync(Guid? tenantId = null, CancellationToken ct = default);
 }
