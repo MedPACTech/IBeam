@@ -49,6 +49,9 @@ var result = await reconciler.ReconcileAsync(
 - Same-user retries are idempotent; expired, wrong-buyer, reused, and cross-tenant claims are rejected.
 - Payment success creates or renews a tenant license.
 - Manual invoice, annual contract, and support-managed subscriptions can use the same reconciler.
-- Payment failure can suspend, expire, or ignore the matching license.
-- Cancellation can suspend, expire, revoke now, or schedule revocation through metadata.
+- Renewals and seat changes retain the existing license GUID and seat assignments.
+- Individual licenses start at one seat and expand into multi-user licenses; multi-user licenses default to a three-seat minimum.
+- Seat reductions can preserve assigned capacity, explicitly allow an over-assigned state, or reject the change.
+- Payment failure can suspend, expire, enter a policy-driven grace period, or ignore the matching license.
+- Cancellation and refund behavior can suspend, expire, revoke now, or schedule revocation through metadata.
 - Price mappings can come from configuration or be inferred from subscription `PlanKey` or price `PlanKey`.
