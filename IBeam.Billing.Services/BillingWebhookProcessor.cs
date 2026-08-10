@@ -5,15 +5,18 @@ public sealed class BillingWebhookProcessor : IBillingWebhookProcessor
     private readonly IBillingCheckoutGatewayResolver _gateways;
     private readonly IBillingProviderEventService _events;
     private readonly IBillingPurchaseService _purchases;
+    private readonly IReadOnlyList<IBillingPaidPurchaseHandler> _paidPurchaseHandlers;
 
     public BillingWebhookProcessor(
         IBillingCheckoutGatewayResolver gateways,
         IBillingProviderEventService events,
-        IBillingPurchaseService purchases)
+        IBillingPurchaseService purchases,
+        IEnumerable<IBillingPaidPurchaseHandler>? paidPurchaseHandlers = null)
     {
         _gateways = gateways;
         _events = events;
         _purchases = purchases;
+        _paidPurchaseHandlers = paidPurchaseHandlers?.ToList() ?? [];
     }
 
     public async Task<BillingWebhookProcessingInfo> ProcessAsync(
@@ -70,6 +73,12 @@ public sealed class BillingWebhookProcessor : IBillingWebhookProcessor
                         Metadata = new Dictionary<string, string>(verified.Metadata, StringComparer.OrdinalIgnoreCase)
                     },
                     ct).ConfigureAwait(false);
+
+                if (string.Equals(purchase.Status, BillingPurchaseStatuses.Paid, StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var handler in _paidPurchaseHandlers)
+                        await handler.HandlePaidPurchaseAsync(purchase, ct).ConfigureAwait(false);
+                }
             }
 
             await RecordAsync(verified, BillingProviderEventStatuses.Processed, purchaseId, eventType, null, ct)

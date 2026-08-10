@@ -15,6 +15,12 @@ public static class BillingLicensingServiceCollectionExtensions
             services.AddOptions<BillingLicenseReconciliationOptions>();
 
         services.TryAddScoped<IBillingLicenseReconciler, BillingLicenseReconciler>();
+        services.TryAddScoped<BillingPurchaseLicenseFulfillmentService>();
+        services.TryAddScoped<IBillingPurchaseLicenseFulfillmentService>(
+            sp => sp.GetRequiredService<BillingPurchaseLicenseFulfillmentService>());
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IBillingPaidPurchaseHandler>(
+                sp => sp.GetRequiredService<BillingPurchaseLicenseFulfillmentService>()));
         return services;
     }
 }

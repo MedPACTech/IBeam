@@ -162,6 +162,48 @@ public sealed class BillingPurchaseService : IBillingPurchaseService
         return (await _store.SavePurchaseAsync(updated, providerEventId, ct).ConfigureAwait(false)).ToInfo();
     }
 
+    [IBeamOperation("billing.purchases.fulfill")]
+    public async Task<BillingPurchaseInfo> FulfillPaidPurchaseAsync(
+        Guid purchaseId,
+        Guid licenseKey,
+        CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => FulfillPaidPurchaseCoreAsync(purchaseId, licenseKey, token),
+            new ServiceOperationExecutionOptions { EntityId = purchaseId },
+            ct).ConfigureAwait(false);
+
+    private async Task<BillingPurchaseInfo> FulfillPaidPurchaseCoreAsync(
+        Guid purchaseId,
+        Guid licenseKey,
+        CancellationToken ct)
+    {
+        ValidatePurchaseId(purchaseId);
+        if (licenseKey == Guid.Empty)
+            throw new BillingException("licenseKey is required.");
+
+        var existing = await _store.GetPurchaseAsync(purchaseId, ct).ConfigureAwait(false)
+                       ?? throw new BillingException("Purchase was not found.");
+        if (string.Equals(existing.Status, BillingPurchaseStatuses.Fulfilled, StringComparison.OrdinalIgnoreCase))
+        {
+            if (existing.LicenseKey != licenseKey)
+                throw new BillingException("Purchase is already fulfilled by a different license.");
+            return existing.ToInfo();
+        }
+        if (!string.Equals(existing.Status, BillingPurchaseStatuses.Paid, StringComparison.OrdinalIgnoreCase))
+            throw new BillingException("Only a paid purchase can be fulfilled.");
+
+        var now = _timeProvider.GetUtcNow();
+        var fulfilled = existing with
+        {
+            LicenseKey = licenseKey,
+            Status = BillingPurchaseStatuses.Fulfilled,
+            FulfilledUtc = now,
+            UpdatedUtc = now
+        };
+        return (await _store.SavePurchaseAsync(fulfilled, ct: ct).ConfigureAwait(false)).ToInfo();
+    }
+
     [IBeamOperation("billing.purchases.redact-buyer")]
     public async Task RedactBuyerEmailAsync(Guid purchaseId, CancellationToken ct = default)
         => await _operations.ExecuteAsync(
