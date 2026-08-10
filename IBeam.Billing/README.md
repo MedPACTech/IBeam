@@ -43,6 +43,8 @@ Use `BillingModes` to represent the commercial model without hard-coding a provi
 | Area | Type(s) | Purpose |
 |---|---|---|
 | Checkout offers | `BillingOfferInfo`, `BillingOfferSeatPolicyInfo`, `BillingOfferPricingInfo` | Provider-neutral product/plan offers with one-license total-seat rules and flat or graduated pricing. |
+| Checkout gateways | `IBillingCheckoutGateway`, `IBillingCheckoutGatewayResolver` | Provider-neutral hosted checkout, status, customer portal, and webhook-verification contracts. |
+| Provider bindings | `BillingProviderBindingInfo` | Opaque provider references that can be replaced without becoming IBeam billing or license identity. |
 | Customers | `BillingCustomerInfo`, `CreateBillingCustomerRequest` | Tenant-owned billing profile with optional buying user and provider customer reference. |
 | Subscriptions | `BillingSubscriptionInfo`, `CreateBillingSubscriptionRequest` | Commercial subscription or contract state, optional plan key, seats, provider subscription, and price reference. |
 | Invoices | `BillingInvoiceInfo`, `CreateBillingInvoiceRequest` | Invoice state, amounts, due/paid dates, hosted invoice reference, and provider invoice reference. |
@@ -74,6 +76,23 @@ var quote = teamOffer.Quote(requestedTotalSeats: 3);
 ```
 
 An individual offer uses a default and minimum of one. It can still expand later by quoting a higher total-seat quantity.
+
+## Checkout Provider Boundary
+
+Provider adapters implement `IBillingCheckoutGateway`. The core request carries the IBeam correlation id, offer key, total seats, and return URLs; the adapter returns opaque provider references and hosted URLs.
+
+```csharp
+var gateway = gatewayResolver.Resolve("stripe");
+var session = await gateway.CreateCheckoutSessionAsync(
+    CreateBillingCheckoutSessionRequest.Create(
+        correlationId: purchaseId,
+        offerKey: "hubbsly-pro-monthly",
+        totalSeats: 3,
+        successUrl: new Uri("https://app.example.com/purchase/success"),
+        cancelUrl: new Uri("https://app.example.com/plans")));
+```
+
+The same contracts can be implemented by Stripe, PayPal, a marketplace, or an application-owned processor. `VerifyWebhookAsync` must only return a `BillingVerifiedWebhookInfo` after the adapter verifies the provider signature. Normalizing verified events and mutating Billing/Licensing state belong to later orchestration layers.
 
 ## Tenant And User Ownership
 

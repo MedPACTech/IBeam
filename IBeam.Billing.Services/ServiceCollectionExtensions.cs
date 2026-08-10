@@ -16,6 +16,7 @@ public static class BillingServiceCollectionExtensions
         services.Configure<BillingOptions>(configuration.GetSection(BillingOptions.SectionName));
 
         services.TryAddSingleton<IBillingOfferCatalogProvider, ConfigurationBillingOfferCatalogProvider>();
+        services.TryAddScoped<IBillingCheckoutGatewayResolver, BillingCheckoutGatewayResolver>();
         services.TryAddSingleton<IBillingStore, InMemoryBillingStore>();
         services.TryAddScoped<IBillingCustomerService, BillingCustomerService>();
         services.TryAddScoped<IBillingSubscriptionService, BillingSubscriptionService>();
