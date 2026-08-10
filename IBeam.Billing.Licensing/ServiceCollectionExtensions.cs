@@ -17,6 +17,7 @@ public static class BillingLicensingServiceCollectionExtensions
 
         services.TryAddScoped<IBillingLicenseReconciler, BillingLicenseReconciler>();
         services.TryAddScoped<IBillingProviderMigrationService, BillingProviderMigrationService>();
+        services.TryAddScoped<ICommerceAdministrationService, CommerceAdministrationService>();
         services.TryAddScoped<BillingPurchaseLicenseFulfillmentService>();
         services.TryAddScoped<IBillingPurchaseLicenseFulfillmentService>(
             sp => sp.GetRequiredService<BillingPurchaseLicenseFulfillmentService>());

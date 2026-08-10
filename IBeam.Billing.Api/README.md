@@ -34,6 +34,11 @@ GET  /api/billing/tenants/{tenantId}/subscriptions
 GET  /api/billing/tenants/{tenantId}/invoices
 GET  /api/billing/tenants/{tenantId}/provider-events
 POST /api/billing/provider-events
+GET  /api/billing/commerce/tenants/{tenantId}/purchases/{purchaseId}
+POST /api/billing/commerce/tenants/{tenantId}/provider-events/{providerName}/{providerEventId}/retry
+POST /api/billing/commerce/tenants/{tenantId}/purchases/{purchaseId}/retry-fulfillment
+POST /api/billing/commerce/tenants/{tenantId}/purchases/{purchaseId}/resend-claim
+POST /api/billing/commerce/tenants/{tenantId}/purchases/{purchaseId}/corrections
 ```
 
 Configure public checkout with an adapter-owned signing secret and explicit return origins:
@@ -60,6 +65,8 @@ The read endpoints are intended for admin/internal tools. The provider-event end
 
 ## Security
 
-Admin controllers require authentication. Public checkout uses signed status tokens and explicit return-origin allow-lists; webhook authenticity is delegated to the selected provider gateway before state changes. Production APIs should require tenant admin roles or API credential scopes for billing reads.
+Commerce recovery endpoints require an authenticated principal whose tenant claim matches the route and who has the `Owner`, `Administrator`, or `Admin` role or the `billing.commerce.admin` permission. Register `AddIBeamBillingLicenseReconciliation` in the host to provide the commerce administration service. Recovery and correction requests require a support reason, corrections also require an idempotency key, and the operation executor writes the configured audit trail. Inspection responses redact buyer email and omit claim hashes and provider payload references.
+
+Public checkout uses signed status tokens and explicit return-origin allow-lists; webhook authenticity is delegated to the selected provider gateway before state changes.
 
 Billing APIs do not authorize runtime application access. Runtime services should enforce access through Licensing and Credits.

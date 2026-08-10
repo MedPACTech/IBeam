@@ -154,7 +154,7 @@ public sealed class AzureTableCommerceStore :
     {
         var idempotencyKey = record.IdempotencyKey;
         var existing = await GetProviderEventByIdempotencyKeyAsync(idempotencyKey, ct).ConfigureAwait(false);
-        if (existing is not null)
+        if (existing is not null && existing.BillingProviderEventId != record.BillingProviderEventId)
             return existing;
 
         await UpsertAsync(_options.BillingEventsTableName, _options.BillingEventPk(record.TenantId), _options.BillingEventRk(record.BillingProviderEventId), record, record.TenantId, record.BillingProviderEventId, record.Status, idempotencyKey, ct).ConfigureAwait(false);
