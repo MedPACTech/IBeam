@@ -15,6 +15,14 @@ public interface ILicenseProductCatalogProvider
 public interface ITenantLicenseService
 {
     Task<IReadOnlyList<TenantLicenseInfo>> ListTenantLicensesAsync(Guid tenantId, CancellationToken ct = default);
+    async Task<TenantLicenseInfo?> GetLicenseByKeyAsync(Guid tenantId, Guid licenseKey, CancellationToken ct = default)
+    {
+        if (licenseKey == Guid.Empty)
+            throw new LicensingException("licenseKey is required.");
+
+        var licenses = await ListTenantLicensesAsync(tenantId, ct).ConfigureAwait(false);
+        return licenses.FirstOrDefault(x => x.LicenseKey == licenseKey);
+    }
     Task<TenantLicenseInfo> GrantLicenseAsync(Guid tenantId, GrantTenantLicenseRequest request, Guid? createdByUserId = null, CancellationToken ct = default);
     Task<TenantLicenseInfo> UpdateLicenseAsync(Guid tenantId, Guid licenseId, UpdateTenantLicenseRequest request, CancellationToken ct = default);
     Task RevokeLicenseAsync(Guid tenantId, Guid licenseId, string? reason, CancellationToken ct = default);

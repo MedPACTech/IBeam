@@ -28,7 +28,7 @@ public sealed class BillingLicenseReconciliationTests
         Assert.AreEqual(BillingLicenseReconciliationActions.Created, result.Action);
         Assert.IsNotNull(result.License);
         Assert.AreEqual("hubbsly-pro", result.License.PlanKey);
-        Assert.AreEqual(5, result.License.SeatLimit);
+        Assert.AreEqual(3, result.License.SeatLimit);
         Assert.AreEqual("sub_123", result.License.ProviderSubscriptionId);
         Assert.AreEqual(LicenseCommercialStatuses.Paid, result.License.CommercialStatus);
     }
@@ -38,8 +38,9 @@ public sealed class BillingLicenseReconciliationTests
     {
         var fixture = CreateFixture();
         var first = Subscription("active", "price_pro", periodEndsUtc: DateTimeOffset.UtcNow.AddDays(30));
-        await fixture.Reconciler.ReconcileAsync(TenantId, new ReconcileBillingLicenseRequest { Subscription = first });
-        var renewal = Subscription("active", "price_pro", periodEndsUtc: DateTimeOffset.UtcNow.AddDays(60));
+        var initial = await fixture.Reconciler.ReconcileAsync(TenantId, new ReconcileBillingLicenseRequest { Subscription = first });
+        var assignment = await AssignSeatAsync(fixture, initial.License!, "renewal-user");
+        var renewal = Subscription("active", "price_pro", periodEndsUtc: DateTimeOffset.UtcNow.AddDays(60), seatQuantity: 6);
 
         var result = await fixture.Reconciler.ReconcileAsync(
             TenantId,
@@ -52,7 +53,72 @@ public sealed class BillingLicenseReconciliationTests
 
         Assert.AreEqual(BillingLicenseReconciliationActions.Renewed, result.Action);
         Assert.HasCount(1, licenses);
+        Assert.AreEqual(initial.License?.LicenseId, result.License?.LicenseId);
+        Assert.AreEqual(6, result.License?.SeatLimit);
+        Assert.AreEqual(assignment.AssignmentId, (await fixture.Assignments.ListAssignmentsAsync(TenantId, result.License!.LicenseId)).Single().AssignmentId);
         Assert.IsTrue(result.License?.ExpiresUtc >= renewal.CurrentPeriodEndsUtc);
+    }
+
+    [TestMethod]
+    public async Task ReconcileAsync_ExpandsIndividualLicenseToMinimumMultiUserSeats()
+    {
+        var fixture = CreateDynamicFixture();
+        var initial = await fixture.Reconciler.ReconcileAsync(
+            TenantId,
+            new ReconcileBillingLicenseRequest { Subscription = Subscription("active", null, "flex", seatQuantity: 1) });
+
+        var expanded = await fixture.Reconciler.ReconcileAsync(
+            TenantId,
+            new ReconcileBillingLicenseRequest { Subscription = Subscription("active", null, "flex", seatQuantity: 2) });
+
+        Assert.AreEqual(initial.License?.LicenseId, expanded.License?.LicenseId);
+        Assert.AreEqual(3, expanded.License?.SeatLimit);
+        Assert.AreEqual("multi-user", expanded.License?.Metadata["billingLicenseType"]);
+        Assert.HasCount(1, await fixture.Licenses.ListTenantLicensesAsync(TenantId));
+    }
+
+    [TestMethod]
+    public async Task ReconcileAsync_PreservesAssignedCapacityWhenSeatQuantityDrops()
+    {
+        var fixture = CreateDynamicFixture();
+        var initial = await fixture.Reconciler.ReconcileAsync(
+            TenantId,
+            new ReconcileBillingLicenseRequest { Subscription = Subscription("active", null, "flex", seatQuantity: 4) });
+        for (var index = 0; index < 4; index++)
+            await AssignSeatAsync(fixture, initial.License!, $"assigned-{index}");
+
+        var reduced = await fixture.Reconciler.ReconcileAsync(
+            TenantId,
+            new ReconcileBillingLicenseRequest { Subscription = Subscription("active", null, "flex", seatQuantity: 1) });
+
+        Assert.AreEqual(initial.License?.LicenseId, reduced.License?.LicenseId);
+        Assert.AreEqual(4, reduced.License?.SeatLimit);
+        Assert.AreEqual("1", reduced.License?.Metadata["billingRequestedSeatLimit"]);
+        Assert.AreEqual("adjusted-to-assignments", reduced.License?.Metadata["billingSeatState"]);
+        Assert.HasCount(4, await fixture.Assignments.ListAssignmentsAsync(TenantId, reduced.License!.LicenseId));
+    }
+
+    [TestMethod]
+    public async Task ReconcileAsync_CanExplicitlyAllowOverAssignedSeatReduction()
+    {
+        var fixture = CreateDynamicFixture();
+        var initial = await fixture.Reconciler.ReconcileAsync(
+            TenantId,
+            new ReconcileBillingLicenseRequest { Subscription = Subscription("active", null, "flex", seatQuantity: 4) });
+        for (var index = 0; index < 4; index++)
+            await AssignSeatAsync(fixture, initial.License!, $"over-assigned-{index}");
+
+        var reduced = await fixture.Reconciler.ReconcileAsync(
+            TenantId,
+            new ReconcileBillingLicenseRequest
+            {
+                Subscription = Subscription("active", null, "flex", seatQuantity: 1),
+                SeatDecreaseBehavior = BillingLicenseSeatDecreaseBehaviors.AllowOverAssigned
+            });
+
+        Assert.AreEqual(3, reduced.License?.SeatLimit);
+        Assert.AreEqual("over-assigned", reduced.License?.Metadata["billingSeatState"]);
+        Assert.HasCount(4, await fixture.Assignments.ListAssignmentsAsync(TenantId, reduced.License!.LicenseId));
     }
 
     [TestMethod]
@@ -94,6 +160,58 @@ public sealed class BillingLicenseReconciliationTests
     }
 
     [TestMethod]
+    public async Task ReconcileAsync_AppliesConfiguredGracePeriodOnPaymentFailure()
+    {
+        var fixture = CreateFixture();
+        var effectiveUtc = DateTimeOffset.Parse("2026-08-10T12:00:00Z");
+        var initial = await fixture.Reconciler.ReconcileAsync(
+            TenantId,
+            new ReconcileBillingLicenseRequest
+            {
+                Subscription = Subscription("active", "price_pro", periodEndsUtc: effectiveUtc)
+            });
+
+        var result = await fixture.Reconciler.ReconcileAsync(
+            TenantId,
+            new ReconcileBillingLicenseRequest
+            {
+                Subscription = Subscription(BillingSubscriptionStatuses.PastDue, "price_pro"),
+                EventType = "invoice.payment_failed",
+                PaymentFailureBehavior = BillingLicensePaymentFailureBehaviors.Grace,
+                GracePeriodDays = 5,
+                EffectiveUtc = effectiveUtc
+            });
+
+        Assert.AreEqual(initial.License?.LicenseId, result.License?.LicenseId);
+        Assert.AreEqual(BillingLicenseReconciliationActions.Grace, result.Action);
+        Assert.AreEqual(LicenseStatuses.Grace, result.License?.Status);
+        Assert.AreEqual(LicenseCommercialStatuses.Grace, result.License?.CommercialStatus);
+        Assert.AreEqual(effectiveUtc.AddDays(5), result.License?.GraceEndsUtc);
+    }
+
+    [TestMethod]
+    public async Task ReconcileAsync_RevokesSameLicenseOnRefundByDefault()
+    {
+        var fixture = CreateFixture();
+        var initial = await fixture.Reconciler.ReconcileAsync(
+            TenantId,
+            new ReconcileBillingLicenseRequest { Subscription = Subscription("active", "price_pro") });
+
+        var result = await fixture.Reconciler.ReconcileAsync(
+            TenantId,
+            new ReconcileBillingLicenseRequest
+            {
+                Subscription = Subscription("active", "price_pro"),
+                EventType = "payment.refunded"
+            });
+
+        Assert.AreEqual(initial.License?.LicenseId, result.License?.LicenseId);
+        Assert.AreEqual(BillingLicenseReconciliationActions.Revoked, result.Action);
+        Assert.AreEqual(LicenseStatuses.Revoked, result.License?.Status);
+        Assert.HasCount(1, await fixture.Licenses.ListTenantLicensesAsync(TenantId));
+    }
+
+    [TestMethod]
     public async Task ReconcileAsync_UsesSameFlowForManualGrant()
     {
         var fixture = CreateFixture();
@@ -114,11 +232,7 @@ public sealed class BillingLicenseReconciliationTests
     }
 
     private static Fixture CreateFixture()
-    {
-        var licenses = new TenantLicenseService(
-            new InMemoryLicensingStore(),
-            new ConfigurationLicensePlanCatalogProvider(Options.Create(new LicensingOptions())));
-        var options = Options.Create(new BillingLicenseReconciliationOptions
+        => CreateFixture(new BillingLicenseReconciliationOptions
         {
             PriceMappings =
             [
@@ -132,8 +246,20 @@ public sealed class BillingLicenseReconciliationTests
                 }
             ]
         });
-        var reconciler = new BillingLicenseReconciler(licenses, options);
-        return new Fixture(licenses, reconciler);
+
+    private static Fixture CreateDynamicFixture()
+        => CreateFixture(new BillingLicenseReconciliationOptions());
+
+    private static Fixture CreateFixture(BillingLicenseReconciliationOptions reconciliationOptions)
+    {
+        var store = new InMemoryLicensingStore();
+        var licenses = new TenantLicenseService(
+            store,
+            new ConfigurationLicensePlanCatalogProvider(Options.Create(new LicensingOptions())));
+        var assignments = new LicenseSeatAssignmentService(store);
+        var options = Options.Create(reconciliationOptions);
+        var reconciler = new BillingLicenseReconciler(licenses, assignments, options);
+        return new Fixture(licenses, assignments, reconciler);
     }
 
     private static BillingSubscriptionInfo Subscription(
@@ -141,7 +267,8 @@ public sealed class BillingLicenseReconciliationTests
         string? priceId,
         string? planKey = null,
         string billingMode = BillingModes.SelfServiceMonthly,
-        DateTimeOffset? periodEndsUtc = null)
+        DateTimeOffset? periodEndsUtc = null,
+        int seatQuantity = 3)
     {
         var now = DateTimeOffset.UtcNow;
         return new BillingSubscriptionInfo(
@@ -153,7 +280,7 @@ public sealed class BillingLicenseReconciliationTests
             PlanKey: planKey,
             BillingMode: billingMode,
             Status: status,
-            SeatQuantity: 3,
+            SeatQuantity: seatQuantity,
             Price: priceId is null
                 ? null
                 : BillingPriceReferenceInfo.Create("stripe", priceId, productKey: "hubbsly", planKey: planKey),
@@ -168,7 +295,14 @@ public sealed class BillingLicenseReconciliationTests
             Metadata: new Dictionary<string, string>());
     }
 
+    private static Task<LicenseSeatAssignmentInfo> AssignSeatAsync(Fixture fixture, TenantLicenseInfo license, string subjectId)
+        => fixture.Assignments.AssignSeatAsync(
+            TenantId,
+            license.LicenseId,
+            new AssignLicenseSeatRequest { Subject = new LicenseSubject(LicenseSubjectTypes.User, subjectId) });
+
     private sealed record Fixture(
         TenantLicenseService Licenses,
+        LicenseSeatAssignmentService Assignments,
         BillingLicenseReconciler Reconciler);
 }

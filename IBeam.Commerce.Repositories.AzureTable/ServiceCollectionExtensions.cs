@@ -1,5 +1,6 @@
 using Azure.Data.Tables;
 using IBeam.Billing;
+using IBeam.Billing.Licensing;
 using IBeam.Credits;
 using IBeam.Licensing;
 using Microsoft.Extensions.Configuration;
@@ -37,6 +38,10 @@ public static class AzureTableCommerceServiceCollectionExtensions
         services.TryAddSingleton<AzureTableCommerceStore>();
         services.Replace(ServiceDescriptor.Singleton<ILicensingStore>(sp => sp.GetRequiredService<AzureTableCommerceStore>()));
         services.Replace(ServiceDescriptor.Singleton<IBillingStore>(sp => sp.GetRequiredService<AzureTableCommerceStore>()));
+        services.Replace(ServiceDescriptor.Singleton<IBillingPurchaseStore>(sp => sp.GetRequiredService<AzureTableCommerceStore>()));
+        services.Replace(ServiceDescriptor.Singleton<IBillingCheckoutAttemptStore>(sp => sp.GetRequiredService<AzureTableCommerceStore>()));
+        services.Replace(ServiceDescriptor.Singleton<IBillingPurchaseClaimStore>(sp => sp.GetRequiredService<AzureTableCommerceStore>()));
+        services.Replace(ServiceDescriptor.Singleton<IBillingSubscriptionProviderBindingStore>(sp => sp.GetRequiredService<AzureTableCommerceStore>()));
         services.Replace(ServiceDescriptor.Singleton<ICreditReservationStore>(sp => sp.GetRequiredService<AzureTableCommerceStore>()));
         services.Replace(ServiceDescriptor.Singleton<ICreditLedgerStore>(sp => sp.GetRequiredService<AzureTableCommerceStore>()));
         return services;

@@ -73,6 +73,79 @@ public sealed class LicensingServiceTests
     }
 
     [TestMethod]
+    public async Task LicenseKey_AliasesExistingGuidAndSupportsTenantScopedLookup()
+    {
+        var fixture = CreateFixture();
+        var license = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "hubbsly-work",
+                ProviderName = "stripe",
+                ProviderCustomerId = "cus_private",
+                ProviderSubscriptionId = "sub_private",
+                ProviderPriceId = "price_private"
+            });
+
+        var found = await fixture.Licenses.GetLicenseByKeyAsync(TenantId, license.LicenseKey);
+        var otherTenant = await fixture.Licenses.GetLicenseByKeyAsync(Guid.NewGuid(), license.LicenseKey);
+
+        Assert.AreNotEqual(Guid.Empty, license.LicenseKey);
+        Assert.AreEqual(license.LicenseId, license.LicenseKey);
+        Assert.IsNotNull(found);
+        Assert.AreEqual(license.LicenseKey, found.LicenseKey);
+        Assert.IsNull(otherTenant);
+    }
+
+    [TestMethod]
+    public async Task LicenseKeys_AreUniqueAndCannotBeChangedByUpdate()
+    {
+        var fixture = CreateFixture();
+        var first = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest { PlanKey = "hubbsly-work" });
+        var second = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest { PlanKey = "hubbsly-work" });
+
+        var updated = await fixture.Licenses.UpdateLicenseAsync(
+            TenantId,
+            first.LicenseKey,
+            new UpdateTenantLicenseRequest { DisplayName = "Updated" });
+
+        Assert.AreNotEqual(first.LicenseKey, second.LicenseKey);
+        Assert.AreEqual(first.LicenseKey, updated.LicenseKey);
+        await Assert.ThrowsExactlyAsync<LicensingException>(
+            () => fixture.Licenses.GetLicenseByKeyAsync(TenantId, Guid.Empty));
+    }
+
+    [TestMethod]
+    public async Task LicenseLookupInfo_RedactsProviderReferences()
+    {
+        var fixture = CreateFixture();
+        var license = await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "hubbsly-work",
+                ProviderName = "stripe",
+                ProviderCustomerId = "cus_private",
+                ProviderSubscriptionId = "sub_private",
+                ProviderPriceId = "price_private",
+                ProviderStatus = "active"
+            });
+
+        var lookup = license.ToLookupInfo();
+        var propertyNames = typeof(TenantLicenseLookupInfo)
+            .GetProperties()
+            .Select(x => x.Name)
+            .ToList();
+
+        Assert.AreEqual(license.LicenseKey, lookup.LicenseKey);
+        Assert.IsFalse(propertyNames.Any(x => x.StartsWith("Provider", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
     public async Task PlanCatalog_NormalizesRichCatalogFields()
     {
         var provider = new ConfigurationLicensePlanCatalogProvider(Options.Create(new LicensingOptions

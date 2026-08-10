@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.9.45 - 2026-08-10
+
+### Added
+- Added provider-neutral public checkout, pending purchases, hosted-checkout gateway contracts, verified webhook normalization, and an optional Stripe adapter.
+- Added paid-purchase fulfillment with stable GUID license keys, pre-Identity claim onboarding, one-license seat policies, provider migration, and durable Azure Table commerce stores.
+- Added tenant-scoped commerce administration endpoints for redacted inspection, failed-event retry, fulfillment retry, claim rotation, and idempotent manual correction.
+- Added end-to-end commerce coverage for anonymous three-seat purchase, payment replay, Identity claim, first-seat assignment, failed payment, cancellation, and provider portability.
+
+### Changed
+- Billing purchases now transition idempotently from fulfilled to claimed and bind to the verified tenant and buyer.
+- Multi-user licenses use three as the minimum total seat count while individual licenses remain one license with one seat.
+- Provider migrations preserve the internal subscription, license key, assignments, and binding history while allowing one active provider binding.
+
+### Security
+- Webhook state changes require provider-adapter signature verification over the raw payload.
+- Public status and administration projections omit secrets, claim hashes, provider payload references, and unnecessary buyer PII.
+- Commerce recovery requires tenant-scoped administrative access, reasons, audit integration, and correction idempotency.
+
+### Documentation
+- Added the commerce integration guide with API DTOs, sequence diagrams, lifecycle policies, provider migration, and security guidance.
+- Added a Qurvia API and frontend implementation prompt for the complete purchase, onboarding, licensing, seat, administration, and provider migration experience.
+
+### Validation
+- Billing tests: 88 passed.
+- Licensing tests: 54 passed.
+- Full solution build completed with zero errors.
+
 ## 2.9.0 - 2026-07-21
 
 ### Added

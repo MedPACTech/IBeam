@@ -7,11 +7,26 @@ public sealed class BillingProviderEventService : IBillingProviderEventService
 {
     private readonly IBillingStore _store;
     private readonly IServiceOperationExecutor _operations;
+    private readonly TimeProvider _timeProvider;
 
-    public BillingProviderEventService(IBillingStore store, IServiceOperationExecutor? operations = null)
+    public BillingProviderEventService(
+        IBillingStore store,
+        IServiceOperationExecutor? operations = null,
+        TimeProvider? timeProvider = null)
     {
         _store = store;
         _operations = operations ?? new ServiceOperationExecutor();
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
+
+    public async Task<BillingProviderEventInfo?> GetEventAsync(
+        string providerName,
+        string providerEventId,
+        CancellationToken ct = default)
+    {
+        var idempotencyKey = BillingProviderEventInfo.CreateIdempotencyKey(providerName, providerEventId);
+        var record = await _store.GetProviderEventByIdempotencyKeyAsync(idempotencyKey, ct).ConfigureAwait(false);
+        return record?.ToInfo();
     }
 
     [IBeamOperation("billing.provider-events.record")]
@@ -39,17 +54,29 @@ public sealed class BillingProviderEventService : IBillingProviderEventService
         var providerEventId = BillingServiceValidation.Required(request.ProviderEventId, nameof(request.ProviderEventId));
         var idempotencyKey = BillingProviderEventInfo.CreateIdempotencyKey(providerName, providerEventId);
         var existing = await _store.GetProviderEventByIdempotencyKeyAsync(idempotencyKey, ct).ConfigureAwait(false);
+        var status = BillingProviderEventStatuses.Normalize(request.Status ?? BillingProviderEventStatuses.Received);
         if (existing is not null)
-            return BillingProviderEventInfo.FromRecord(existing);
+        {
+            if (!CanUpdateOutcome(existing.Status, status))
+                return existing.ToInfo();
+
+            var retried = existing with
+            {
+                Status = status,
+                ProcessedUtc = IsFinal(status) ? _timeProvider.GetUtcNow() : null,
+                Metadata = MergeMetadata(existing.Metadata, request.Metadata)
+            };
+            return (await _store.SaveProviderEventAsync(retried, ct).ConfigureAwait(false)).ToInfo();
+        }
 
         var record = new BillingProviderEventRecord(
             BillingProviderEventId: Guid.NewGuid(),
             ProviderName: providerName,
             ProviderEventId: providerEventId,
             EventType: BillingServiceValidation.Required(request.EventType, nameof(request.EventType)),
-            Status: BillingProviderEventStatuses.Normalize(request.Status ?? BillingProviderEventStatuses.Received),
-            ReceivedUtc: DateTimeOffset.UtcNow,
-            ProcessedUtc: null,
+            Status: status,
+            ReceivedUtc: _timeProvider.GetUtcNow(),
+            ProcessedUtc: IsFinal(status) ? _timeProvider.GetUtcNow() : null,
             TenantId: request.TenantId == Guid.Empty ? null : request.TenantId,
             UserId: request.UserId == Guid.Empty ? null : request.UserId,
             ProviderCustomerId: BillingPriceReferenceInfo.NormalizeOptional(request.ProviderCustomerId),
@@ -61,6 +88,24 @@ public sealed class BillingProviderEventService : IBillingProviderEventService
 
         var saved = await _store.SaveProviderEventAsync(record, ct).ConfigureAwait(false);
         return BillingProviderEventInfo.FromRecord(saved);
+    }
+
+    private static bool CanUpdateOutcome(string currentStatus, string nextStatus)
+        => (string.Equals(currentStatus, BillingProviderEventStatuses.Failed, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(currentStatus, BillingProviderEventStatuses.Received, StringComparison.OrdinalIgnoreCase)) &&
+           !string.Equals(currentStatus, nextStatus, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsFinal(string status)
+        => !string.Equals(status, BillingProviderEventStatuses.Received, StringComparison.OrdinalIgnoreCase);
+
+    private static IReadOnlyDictionary<string, string> MergeMetadata(
+        IReadOnlyDictionary<string, string> existing,
+        IReadOnlyDictionary<string, string>? changes)
+    {
+        var merged = new Dictionary<string, string>(existing, StringComparer.OrdinalIgnoreCase);
+        foreach (var item in BillingPriceReferenceInfo.NormalizeMetadata(changes))
+            merged[item.Key] = item.Value;
+        return merged;
     }
 
     private async Task<IReadOnlyList<BillingProviderEventInfo>> ListEventsCoreAsync(Guid? tenantId, CancellationToken ct)

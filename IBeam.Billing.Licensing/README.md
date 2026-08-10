@@ -39,8 +39,21 @@ var result = await reconciler.ReconcileAsync(
 
 ## Behavior
 
+- Verified paid purchases automatically receive one stable GUID license key when this bridge is registered.
+- Before Identity onboarding, the fulfilled purchase is the durable unclaimed grant and retains its plan and total seat limit.
+- One-seat and multi-seat purchases both create one license key; an expansion purchase can explicitly retain an existing key.
+- Provider customer and subscription references remain replaceable billing bindings and never become license identity.
+- `IBillingPurchaseClaimService` issues a short-lived one-time claim token after fulfillment; only its SHA-256 hash is stored.
+- After Identity verifies the signed-in user's email, the host supplies that user id, verified email, and selected tenant to `ClaimAsync`.
+- A successful claim materializes the pre-created GUID key as the tenant license and assigns the buyer the first seat.
+- Same-user retries are idempotent; expired, wrong-buyer, reused, and cross-tenant claims are rejected.
 - Payment success creates or renews a tenant license.
 - Manual invoice, annual contract, and support-managed subscriptions can use the same reconciler.
-- Payment failure can suspend, expire, or ignore the matching license.
-- Cancellation can suspend, expire, revoke now, or schedule revocation through metadata.
+- Renewals and seat changes retain the existing license GUID and seat assignments.
+- Individual licenses start at one seat and expand into multi-user licenses; multi-user licenses default to a three-seat minimum.
+- Seat reductions can preserve assigned capacity, explicitly allow an over-assigned state, or reject the change.
+- Payment failure can suspend, expire, enter a policy-driven grace period, or ignore the matching license.
+- Cancellation and refund behavior can suspend, expire, revoke now, or schedule revocation through metadata.
+- `IBillingProviderMigrationService` switches a subscription between processors only after the target state reconciles to the existing license key.
+- Provider migrations retain binding history, keep exactly one active binding, and use provider-scoped idempotency keys for safe retries.
 - Price mappings can come from configuration or be inferred from subscription `PlanKey` or price `PlanKey`.
