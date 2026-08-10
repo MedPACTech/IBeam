@@ -2,7 +2,7 @@
 
 `IBeam.Billing` contains provider-neutral billing contracts and commercial-state models for IBeam-backed applications.
 
-Install this package when shared code needs to describe customers, subscriptions, invoices, prices, payment method references, and billing-provider events without taking a dependency on a payment provider or licensing service.
+Install this package when shared code needs to describe checkout offers, total-seat pricing, customers, subscriptions, invoices, prices, payment method references, and billing-provider events without taking a dependency on a payment provider or licensing service.
 
 ```powershell
 dotnet add package IBeam.Billing
@@ -42,6 +42,7 @@ Use `BillingModes` to represent the commercial model without hard-coding a provi
 
 | Area | Type(s) | Purpose |
 |---|---|---|
+| Checkout offers | `BillingOfferInfo`, `BillingOfferSeatPolicyInfo`, `BillingOfferPricingInfo` | Provider-neutral product/plan offers with one-license total-seat rules and flat or graduated pricing. |
 | Customers | `BillingCustomerInfo`, `CreateBillingCustomerRequest` | Tenant-owned billing profile with optional buying user and provider customer reference. |
 | Subscriptions | `BillingSubscriptionInfo`, `CreateBillingSubscriptionRequest` | Commercial subscription or contract state, optional plan key, seats, provider subscription, and price reference. |
 | Invoices | `BillingInvoiceInfo`, `CreateBillingInvoiceRequest` | Invoice state, amounts, due/paid dates, hosted invoice reference, and provider invoice reference. |
@@ -49,6 +50,30 @@ Use `BillingModes` to represent the commercial model without hard-coding a provi
 | Prices | `BillingPriceReferenceInfo` | Provider price reference with product/plan keys but no dependency on Licensing. |
 | Provider events | `BillingProviderEventInfo`, `RecordBillingProviderEventRequest` | Provider webhook or marketplace event metadata with a provider/id based idempotency key. |
 | Contracts | `IBillingCustomerService`, `IBillingSubscriptionService`, `IBillingInvoiceService`, `IBillingProviderEventService`, `IBillingStore` | Service and persistence boundaries for future implementations. |
+
+## Offers And Total Seats
+
+An offer quote always represents one license. `TotalSeats` is the complete seat limit for that license, not an add-on quantity.
+
+```csharp
+var teamOffer = BillingOfferInfo.Create(
+    key: "hubbsly-pro-monthly",
+    productKey: "hubbsly",
+    planKey: "hubbsly-pro",
+    displayName: "Hubbsly Pro",
+    description: null,
+    billingPeriod: "monthly",
+    currency: "USD",
+    seatPolicy: BillingOfferSeatPolicyInfo.Create(
+        defaultTotalSeats: 3,
+        minimumTotalSeats: 3),
+    pricing: BillingOfferPricingInfo.Create(perSeatAmount: 25m));
+
+var quote = teamOffer.Quote(requestedTotalSeats: 3);
+// LicenseQuantity = 1, TotalSeats = 3, TotalAmount = 75
+```
+
+An individual offer uses a default and minimum of one. It can still expand later by quoting a higher total-seat quantity.
 
 ## Tenant And User Ownership
 

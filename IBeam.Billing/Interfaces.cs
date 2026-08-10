@@ -1,5 +1,11 @@
 namespace IBeam.Billing;
 
+public interface IBillingOfferCatalogProvider
+{
+    Task<IReadOnlyList<BillingOfferInfo>> ListOffersAsync(CancellationToken ct = default);
+    Task<BillingOfferInfo?> GetOfferAsync(string offerKey, CancellationToken ct = default);
+}
+
 public interface IBillingCustomerService
 {
     Task<IReadOnlyList<BillingCustomerInfo>> ListCustomersAsync(Guid tenantId, CancellationToken ct = default);
