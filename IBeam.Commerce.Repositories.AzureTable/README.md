@@ -31,4 +31,6 @@ The connection string can also be supplied through the common IBeam Azure Tables
 
 ## Storage Strategy
 
-Each aggregate type is stored in its own table with a stable tenant partition key and a JSON payload. Credit ledger writes use Azure Table `AddEntity` so duplicate ledger ids are treated as idempotent append attempts instead of overwriting existing usage. Reservations and billing/license records use replace upserts for normal lifecycle updates.
+Each aggregate type is stored in its own table with stable partition and row keys plus a JSON payload. Purchases have hashed correlation, provider-event, and license-key indexes; checkout attempts are retained separately. Claim-token hashes and provider-binding history are durable, while raw claim tokens and provider webhook bodies are never stored.
+
+Claim issuance and provider-binding switches use same-partition Azure Table transactions. Claim consumption and provider migration use ETags to reject stale concurrent writes. Expired, unclaimed purchases can be removed in bounded batches through `IBillingPurchaseStore.DeleteExpiredPurchasesAsync`.

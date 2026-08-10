@@ -19,6 +19,7 @@ public static class BillingServiceCollectionExtensions
         services.TryAddSingleton<IBillingOfferCatalogProvider, ConfigurationBillingOfferCatalogProvider>();
         services.TryAddScoped<IBillingCheckoutGatewayResolver, BillingCheckoutGatewayResolver>();
         services.TryAddSingleton<IBillingPurchaseStore, InMemoryBillingPurchaseStore>();
+        services.TryAddSingleton<IBillingCheckoutAttemptStore, InMemoryBillingCheckoutAttemptStore>();
         services.TryAddScoped<IBillingPurchaseService, BillingPurchaseService>();
         services.TryAddScoped<IBillingPublicCheckoutService, BillingPublicCheckoutService>();
         services.TryAddScoped<IBillingWebhookProcessor, BillingWebhookProcessor>();

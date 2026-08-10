@@ -127,6 +127,21 @@ public sealed class BillingPurchaseTests
     }
 
     [TestMethod]
+    public async Task PurchaseStore_RejectsStaleOptimisticConcurrencyVersion()
+    {
+        var store = new InMemoryBillingPurchaseStore();
+        var service = new BillingPurchaseService(store);
+        var purchase = await service.CreatePendingPurchaseAsync(CreateRequest());
+        var original = await store.GetPurchaseAsync(purchase.PurchaseId);
+        var updated = original! with { Status = BillingPurchaseStatuses.AwaitingPayment, UpdatedUtc = original.UpdatedUtc.AddSeconds(1) };
+        await store.SavePurchaseAsync(updated, expectedUpdatedUtc: original.UpdatedUtc);
+
+        var stale = original with { Status = BillingPurchaseStatuses.Expired, UpdatedUtc = original.UpdatedUtc.AddSeconds(2) };
+        await Assert.ThrowsExactlyAsync<BillingException>(() =>
+            store.SavePurchaseAsync(stale, expectedUpdatedUtc: original.UpdatedUtc));
+    }
+
+    [TestMethod]
     public void PurchaseStatuses_CoverAnonymousPurchaseLifecycle()
     {
         var statuses = new[]

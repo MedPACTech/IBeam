@@ -12,13 +12,15 @@ public sealed class BillingPublicCheckoutService : IBillingPublicCheckoutService
     private readonly IBillingCheckoutGatewayResolver _gateways;
     private readonly BillingPublicCheckoutOptions _options;
     private readonly TimeProvider _timeProvider;
+    private readonly IBillingCheckoutAttemptStore? _attempts;
 
     public BillingPublicCheckoutService(
         IBillingOfferCatalogProvider offers,
         IBillingPurchaseService purchases,
         IBillingCheckoutGatewayResolver gateways,
         IOptions<BillingPublicCheckoutOptions> options,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IBillingCheckoutAttemptStore? attempts = null)
     {
         _offers = offers;
         _purchases = purchases;
@@ -26,6 +28,7 @@ public sealed class BillingPublicCheckoutService : IBillingPublicCheckoutService
         _options = options.Value;
         _options.Validate();
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _attempts = attempts;
     }
 
     public async Task<BillingCheckoutStartInfo> StartCheckoutAsync(
@@ -114,6 +117,19 @@ public sealed class BillingPublicCheckoutService : IBillingPublicCheckoutService
                 OccurredUtc = now
             },
             ct).ConfigureAwait(false);
+
+        if (_attempts is not null)
+        {
+            await _attempts.SaveAttemptAsync(
+                BillingCheckoutAttemptInfo.Create(
+                    purchase.PurchaseId,
+                    providerName,
+                    session.CheckoutSessionId,
+                    session.Status,
+                    now,
+                    session.Metadata),
+                ct).ConfigureAwait(false);
+        }
 
         return CreateStartInfo(purchase, quote, session.CheckoutUrl, now);
     }

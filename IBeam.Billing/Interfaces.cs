@@ -25,7 +25,19 @@ public interface IBillingPurchaseStore
     Task<BillingPurchaseRecord?> GetPurchaseAsync(Guid purchaseId, CancellationToken ct = default);
     Task<BillingPurchaseRecord?> GetPurchaseByCorrelationIdAsync(Guid correlationId, CancellationToken ct = default);
     Task<BillingPurchaseRecord?> GetPurchaseByProviderEventAsync(string providerName, string providerEventId, CancellationToken ct = default);
-    Task<BillingPurchaseRecord> SavePurchaseAsync(BillingPurchaseRecord record, string? providerEventId = null, CancellationToken ct = default);
+    Task<BillingPurchaseRecord?> GetPurchaseByLicenseKeyAsync(Guid licenseKey, CancellationToken ct = default);
+    Task<BillingPurchaseRecord> SavePurchaseAsync(
+        BillingPurchaseRecord record,
+        string? providerEventId = null,
+        DateTimeOffset? expectedUpdatedUtc = null,
+        CancellationToken ct = default);
+    Task<int> DeleteExpiredPurchasesAsync(DateTimeOffset cutoffUtc, int maxCount = 100, CancellationToken ct = default);
+}
+
+public interface IBillingCheckoutAttemptStore
+{
+    Task<IReadOnlyList<BillingCheckoutAttemptInfo>> ListAttemptsAsync(Guid purchaseId, CancellationToken ct = default);
+    Task<BillingCheckoutAttemptInfo> SaveAttemptAsync(BillingCheckoutAttemptInfo attempt, CancellationToken ct = default);
 }
 
 public interface IBillingCustomerService

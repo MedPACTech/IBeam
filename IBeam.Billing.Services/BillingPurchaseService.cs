@@ -159,7 +159,7 @@ public sealed class BillingPurchaseService : IBillingPurchaseService
             Metadata = MergeMetadata(existing.Metadata, request.Metadata)
         };
 
-        return (await _store.SavePurchaseAsync(updated, providerEventId, ct).ConfigureAwait(false)).ToInfo();
+        return (await _store.SavePurchaseAsync(updated, providerEventId, existing.UpdatedUtc, ct).ConfigureAwait(false)).ToInfo();
     }
 
     [IBeamOperation("billing.purchases.fulfill")]
@@ -201,7 +201,7 @@ public sealed class BillingPurchaseService : IBillingPurchaseService
             FulfilledUtc = now,
             UpdatedUtc = now
         };
-        return (await _store.SavePurchaseAsync(fulfilled, ct: ct).ConfigureAwait(false)).ToInfo();
+        return (await _store.SavePurchaseAsync(fulfilled, expectedUpdatedUtc: existing.UpdatedUtc, ct: ct).ConfigureAwait(false)).ToInfo();
     }
 
     [IBeamOperation("billing.purchases.redact-buyer")]
@@ -226,7 +226,7 @@ public sealed class BillingPurchaseService : IBillingPurchaseService
             BuyerEmail = null,
             BuyerEmailRedactedUtc = now,
             UpdatedUtc = now
-        }, ct: ct).ConfigureAwait(false);
+        }, expectedUpdatedUtc: existing.UpdatedUtc, ct: ct).ConfigureAwait(false);
     }
 
     private static IReadOnlyDictionary<string, string> MergeMetadata(

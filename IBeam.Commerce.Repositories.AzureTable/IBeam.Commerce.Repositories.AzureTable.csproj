@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IBeam.Billing\IBeam.Billing.csproj" />
+    <ProjectReference Include="..\IBeam.Billing.Licensing\IBeam.Billing.Licensing.csproj" />
     <ProjectReference Include="..\IBeam.Credits\IBeam.Credits.csproj" />
     <ProjectReference Include="..\IBeam.Licensing\IBeam.Licensing.csproj" />
   </ItemGroup>

@@ -2,13 +2,21 @@ using System.Text.Json;
 using Azure;
 using Azure.Data.Tables;
 using IBeam.Billing;
+using IBeam.Billing.Licensing;
 using IBeam.Credits;
 using IBeam.Licensing;
 using Microsoft.Extensions.Options;
 
 namespace IBeam.Commerce.Repositories.AzureTable;
 
-public sealed class AzureTableCommerceStore : ILicensingStore, IBillingStore, ICreditReservationStore
+public sealed class AzureTableCommerceStore :
+    ILicensingStore,
+    IBillingStore,
+    IBillingPurchaseStore,
+    IBillingCheckoutAttemptStore,
+    IBillingPurchaseClaimStore,
+    IBillingSubscriptionProviderBindingStore,
+    ICreditReservationStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly TableServiceClient _serviceClient;
@@ -197,6 +205,346 @@ public sealed class AzureTableCommerceStore : ILicensingStore, IBillingStore, IC
         return results.OrderByDescending(x => x.ReceivedUtc).ToList();
     }
 
+    public async Task<BillingPurchaseRecord?> GetPurchaseAsync(Guid purchaseId, CancellationToken ct = default)
+        => await GetAsync<BillingPurchaseRecord>(
+            _options.BillingPurchasesTableName,
+            _options.BillingPurchasePk(),
+            _options.BillingPurchaseRk(purchaseId),
+            ct).ConfigureAwait(false);
+
+    public Task<BillingPurchaseRecord?> GetPurchaseByCorrelationIdAsync(Guid correlationId, CancellationToken ct = default)
+        => GetPurchaseByIndexAsync("COR", correlationId.ToString("D"), ct);
+
+    public Task<BillingPurchaseRecord?> GetPurchaseByProviderEventAsync(
+        string providerName,
+        string providerEventId,
+        CancellationToken ct = default)
+        => GetPurchaseByIndexAsync("EVT", $"{providerName}:{providerEventId}", ct);
+
+    public Task<BillingPurchaseRecord?> GetPurchaseByLicenseKeyAsync(Guid licenseKey, CancellationToken ct = default)
+        => GetPurchaseByIndexAsync("LIC", licenseKey.ToString("D"), ct);
+
+    public async Task<BillingPurchaseRecord> SavePurchaseAsync(
+        BillingPurchaseRecord record,
+        string? providerEventId = null,
+        DateTimeOffset? expectedUpdatedUtc = null,
+        CancellationToken ct = default)
+    {
+        var byCorrelation = await GetPurchaseByCorrelationIdAsync(record.CorrelationId, ct).ConfigureAwait(false);
+        if (byCorrelation is not null && byCorrelation.PurchaseId != record.PurchaseId)
+            return byCorrelation;
+        if (!string.IsNullOrWhiteSpace(providerEventId) && !string.IsNullOrWhiteSpace(record.ProviderName))
+        {
+            var byEvent = await GetPurchaseByProviderEventAsync(record.ProviderName, providerEventId, ct).ConfigureAwait(false);
+            if (byEvent is not null && byEvent.PurchaseId != record.PurchaseId)
+                return byEvent;
+        }
+
+        var table = await GetTableAsync(_options.BillingPurchasesTableName, ct).ConfigureAwait(false);
+        var partitionKey = _options.BillingPurchasePk();
+        var rowKey = _options.BillingPurchaseRk(record.PurchaseId);
+        var existing = await GetEntityAsync(_options.BillingPurchasesTableName, partitionKey, rowKey, ct).ConfigureAwait(false);
+        if (expectedUpdatedUtc is { } expected && existing is not null)
+        {
+            var current = Deserialize<BillingPurchaseRecord>(existing.PayloadJson);
+            if (current.UpdatedUtc != expected)
+                throw new BillingException("Purchase changed concurrently; reload it before retrying.");
+        }
+        var entity = ToEntity(partitionKey, rowKey, record, record.TenantId, record.PurchaseId, record.Status);
+        try
+        {
+            if (existing is null)
+                await table.AddEntityAsync(entity, ct).ConfigureAwait(false);
+            else
+                await table.UpdateEntityAsync(entity, existing.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+        }
+        catch (RequestFailedException ex) when (ex.Status is 409 or 412)
+        {
+            var current = await GetPurchaseAsync(record.PurchaseId, ct).ConfigureAwait(false);
+            if (current is not null && current.UpdatedUtc >= record.UpdatedUtc)
+                return current;
+            throw new BillingException("Purchase changed concurrently; reload it before retrying.");
+        }
+
+        await SavePurchaseIndexAsync("COR", record.CorrelationId.ToString("D"), record.PurchaseId, ct).ConfigureAwait(false);
+        if (record.LicenseKey is { } licenseKey)
+            await SavePurchaseIndexAsync("LIC", licenseKey.ToString("D"), record.PurchaseId, ct).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(providerEventId) && !string.IsNullOrWhiteSpace(record.ProviderName))
+            await SavePurchaseIndexAsync("EVT", $"{record.ProviderName}:{providerEventId}", record.PurchaseId, ct).ConfigureAwait(false);
+
+        var canonicalIndex = await GetEntityAsync(
+            _options.BillingPurchasesTableName,
+            _options.BillingPurchaseIndexPk(),
+            _options.BillingPurchaseIndexRk("COR", record.CorrelationId.ToString("D")),
+            ct).ConfigureAwait(false);
+        if (canonicalIndex is not null &&
+            Guid.TryParse(canonicalIndex.EntityId, out var canonicalId) &&
+            canonicalId != record.PurchaseId)
+        {
+            await DeleteAsync(_options.BillingPurchasesTableName, partitionKey, rowKey, ct).ConfigureAwait(false);
+            return await GetPurchaseAsync(canonicalId, ct).ConfigureAwait(false)
+                   ?? throw new BillingException("The canonical purchase is still being created; retry the request.");
+        }
+        return record;
+    }
+
+    public async Task<int> DeleteExpiredPurchasesAsync(DateTimeOffset cutoffUtc, int maxCount = 100, CancellationToken ct = default)
+    {
+        if (maxCount <= 0)
+            throw new ArgumentOutOfRangeException(nameof(maxCount));
+        var table = await GetTableAsync(_options.BillingPurchasesTableName, ct).ConfigureAwait(false);
+        var expired = new List<BillingPurchaseRecord>();
+        await foreach (var entity in table.QueryAsync<AzureTableJsonEntity>(
+                           x => x.PartitionKey == _options.BillingPurchasePk(),
+                           cancellationToken: ct).ConfigureAwait(false))
+        {
+            if (!entity.RowKey.StartsWith("PUR|", StringComparison.OrdinalIgnoreCase))
+                continue;
+            var purchase = Deserialize<BillingPurchaseRecord>(entity.PayloadJson);
+            if (purchase.ExpiresUtc <= cutoffUtc &&
+                purchase.Status is BillingPurchaseStatuses.Initiated or BillingPurchaseStatuses.AwaitingPayment or BillingPurchaseStatuses.Expired)
+            {
+                expired.Add(purchase);
+                if (expired.Count == maxCount)
+                    break;
+            }
+        }
+
+        foreach (var purchase in expired)
+        {
+            await DeleteAsync(_options.BillingPurchasesTableName, _options.BillingPurchasePk(), _options.BillingPurchaseRk(purchase.PurchaseId), ct).ConfigureAwait(false);
+            await DeleteAsync(_options.BillingPurchasesTableName, _options.BillingPurchaseIndexPk(), _options.BillingPurchaseIndexRk("COR", purchase.CorrelationId.ToString("D")), ct).ConfigureAwait(false);
+            if (purchase.LicenseKey is { } licenseKey)
+                await DeleteAsync(_options.BillingPurchasesTableName, _options.BillingPurchaseIndexPk(), _options.BillingPurchaseIndexRk("LIC", licenseKey.ToString("D")), ct).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(purchase.ProviderName) && !string.IsNullOrWhiteSpace(purchase.LastProviderEventId))
+                await DeleteAsync(_options.BillingPurchasesTableName, _options.BillingPurchaseIndexPk(), _options.BillingPurchaseIndexRk("EVT", $"{purchase.ProviderName}:{purchase.LastProviderEventId}"), ct).ConfigureAwait(false);
+        }
+
+        return expired.Count;
+    }
+
+    public async Task<IReadOnlyList<BillingCheckoutAttemptInfo>> ListAttemptsAsync(Guid purchaseId, CancellationToken ct = default)
+    {
+        var table = await GetTableAsync(_options.BillingCheckoutAttemptsTableName, ct).ConfigureAwait(false);
+        var results = new List<BillingCheckoutAttemptInfo>();
+        await foreach (var entity in table.QueryAsync<AzureTableJsonEntity>(
+                           x => x.PartitionKey == _options.BillingCheckoutAttemptPk(purchaseId),
+                           cancellationToken: ct).ConfigureAwait(false))
+        {
+            results.Add(Deserialize<BillingCheckoutAttemptInfo>(entity.PayloadJson));
+        }
+
+        return results.OrderBy(x => x.CreatedUtc).ToList();
+    }
+
+    public async Task<BillingCheckoutAttemptInfo> SaveAttemptAsync(BillingCheckoutAttemptInfo attempt, CancellationToken ct = default)
+    {
+        var table = await GetTableAsync(_options.BillingCheckoutAttemptsTableName, ct).ConfigureAwait(false);
+        var entity = ToEntity(
+            _options.BillingCheckoutAttemptPk(attempt.PurchaseId),
+            _options.BillingCheckoutAttemptRk(attempt.CheckoutAttemptId),
+            attempt,
+            null,
+            attempt.CheckoutAttemptId,
+            attempt.Status);
+        try
+        {
+            await table.AddEntityAsync(entity, ct).ConfigureAwait(false);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 409)
+        {
+        }
+        return attempt;
+    }
+
+    public async Task<BillingPurchaseClaimRecord?> GetByTokenHashAsync(string tokenHash, CancellationToken ct = default)
+        => await GetClaimByIndexAsync("TOK", tokenHash, ct).ConfigureAwait(false);
+
+    public async Task<BillingPurchaseClaimRecord?> GetByPurchaseAsync(Guid purchaseId, CancellationToken ct = default)
+        => await GetClaimByIndexAsync("PUR", purchaseId.ToString("D"), ct).ConfigureAwait(false);
+
+    public async Task<BillingPurchaseClaimRecord> SaveIssuedAsync(BillingPurchaseClaimRecord record, CancellationToken ct = default)
+    {
+        var existing = await GetByPurchaseAsync(record.PurchaseId, ct).ConfigureAwait(false);
+        if (existing?.ClaimedUtc is not null)
+            throw new BillingException("Purchase has already been claimed.");
+        var table = await GetTableAsync(_options.BillingPurchaseClaimsTableName, ct).ConfigureAwait(false);
+        var actions = new List<TableTransactionAction>();
+        var purchaseIndexRow = _options.BillingClaimIndexRk("PUR", record.PurchaseId.ToString("D"));
+        var purchaseIndex = await GetEntityAsync(_options.BillingPurchaseClaimsTableName, _options.BillingClaimIndexPk(), purchaseIndexRow, ct).ConfigureAwait(false);
+        if (existing is not null)
+        {
+            var existingClaimEntity = await GetEntityAsync(_options.BillingPurchaseClaimsTableName, _options.BillingClaimPk(), _options.BillingClaimRk(existing.ClaimId), ct).ConfigureAwait(false);
+            var existingTokenIndex = await GetEntityAsync(_options.BillingPurchaseClaimsTableName, _options.BillingClaimIndexPk(), _options.BillingClaimIndexRk("TOK", existing.TokenHash), ct).ConfigureAwait(false);
+            if (existingClaimEntity is not null)
+                actions.Add(new TableTransactionAction(TableTransactionActionType.Delete, existingClaimEntity, existingClaimEntity.ETag));
+            if (existingTokenIndex is not null)
+                actions.Add(new TableTransactionAction(TableTransactionActionType.Delete, existingTokenIndex, existingTokenIndex.ETag));
+        }
+
+        actions.Add(new TableTransactionAction(
+            TableTransactionActionType.Add,
+            ToEntity(_options.BillingClaimPk(), _options.BillingClaimRk(record.ClaimId), record, null, record.ClaimId, "issued")));
+        actions.Add(new TableTransactionAction(
+            TableTransactionActionType.Add,
+            ClaimIndexEntity("TOK", record.TokenHash, record.ClaimId)));
+        var nextPurchaseIndex = ClaimIndexEntity("PUR", record.PurchaseId.ToString("D"), record.ClaimId);
+        if (purchaseIndex is null)
+            actions.Add(new TableTransactionAction(TableTransactionActionType.Add, nextPurchaseIndex));
+        else
+            actions.Add(new TableTransactionAction(TableTransactionActionType.UpdateReplace, nextPurchaseIndex, purchaseIndex.ETag));
+
+        try
+        {
+            await table.SubmitTransactionAsync(actions, ct).ConfigureAwait(false);
+            return record;
+        }
+        catch (RequestFailedException ex) when (ex.Status is 409 or 412)
+        {
+            throw new BillingException("Purchase claim changed concurrently; issue a new claim token and retry.");
+        }
+    }
+
+    public async Task<BillingPurchaseClaimRecord?> TryClaimAsync(
+        string tokenHash,
+        Guid tenantId,
+        Guid userId,
+        DateTimeOffset claimedUtc,
+        CancellationToken ct = default)
+    {
+        var index = await GetEntityAsync(
+            _options.BillingPurchaseClaimsTableName,
+            _options.BillingClaimIndexPk(),
+            _options.BillingClaimIndexRk("TOK", tokenHash),
+            ct).ConfigureAwait(false);
+        if (index is null || !Guid.TryParse(index.EntityId, out var claimId))
+            return null;
+
+        var table = await GetTableAsync(_options.BillingPurchaseClaimsTableName, ct).ConfigureAwait(false);
+        var entity = await GetEntityAsync(_options.BillingPurchaseClaimsTableName, _options.BillingClaimPk(), _options.BillingClaimRk(claimId), ct).ConfigureAwait(false);
+        if (entity is null)
+            return null;
+        var claim = Deserialize<BillingPurchaseClaimRecord>(entity.PayloadJson);
+        if (claim.ClaimedUtc is not null)
+            return claim;
+
+        var claimed = claim with { ClaimedTenantId = tenantId, ClaimedUserId = userId, ClaimedUtc = claimedUtc };
+        var updatedEntity = ToEntity(entity.PartitionKey, entity.RowKey, claimed, tenantId, claimId, "claimed");
+        try
+        {
+            await table.UpdateEntityAsync(updatedEntity, entity.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+            return claimed;
+        }
+        catch (RequestFailedException ex) when (ex.Status == 412)
+        {
+            return await GetByTokenHashAsync(tokenHash, ct).ConfigureAwait(false);
+        }
+    }
+
+    public async Task<BillingProviderMigrationRecord?> GetMigrationAsync(
+        Guid tenantId,
+        Guid billingSubscriptionId,
+        string targetProviderName,
+        string idempotencyKey,
+        CancellationToken ct = default)
+        => await GetAsync<BillingProviderMigrationRecord>(
+            _options.BillingProviderBindingsTableName,
+            _options.BillingProviderBindingPk(tenantId),
+            _options.BillingProviderMigrationRk(billingSubscriptionId, targetProviderName, idempotencyKey),
+            ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<BillingSubscriptionProviderBindingInfo>> ListBindingsAsync(
+        Guid tenantId,
+        Guid billingSubscriptionId,
+        CancellationToken ct = default)
+    {
+        var table = await GetTableAsync(_options.BillingProviderBindingsTableName, ct).ConfigureAwait(false);
+        var prefix = $"SUB|{billingSubscriptionId:D}|BND|";
+        var results = new List<BillingSubscriptionProviderBindingInfo>();
+        await foreach (var entity in table.QueryAsync<AzureTableJsonEntity>(
+                           x => x.PartitionKey == _options.BillingProviderBindingPk(tenantId),
+                           cancellationToken: ct).ConfigureAwait(false))
+        {
+            if (entity.RowKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                results.Add(Deserialize<BillingSubscriptionProviderBindingInfo>(entity.PayloadJson));
+        }
+        return results.OrderBy(x => x.ActivatedUtc).ToList();
+    }
+
+    public async Task<BillingProviderMigrationRecord> CommitMigrationAsync(
+        BillingProviderMigrationRecord migration,
+        BillingSubscriptionProviderBindingInfo sourceBinding,
+        BillingSubscriptionProviderBindingInfo targetBinding,
+        CancellationToken ct = default)
+    {
+        var existing = await GetMigrationAsync(
+            migration.TenantId,
+            migration.BillingSubscriptionId,
+            migration.TargetProviderName,
+            migration.IdempotencyKey,
+            ct).ConfigureAwait(false);
+        if (existing is not null)
+            return existing;
+
+        var table = await GetTableAsync(_options.BillingProviderBindingsTableName, ct).ConfigureAwait(false);
+        var partitionKey = _options.BillingProviderBindingPk(migration.TenantId);
+        var currentEntities = new List<AzureTableJsonEntity>();
+        await foreach (var entity in table.QueryAsync<AzureTableJsonEntity>(
+                           x => x.PartitionKey == partitionKey,
+                           cancellationToken: ct).ConfigureAwait(false))
+        {
+            if (entity.RowKey.StartsWith($"SUB|{migration.BillingSubscriptionId:D}|BND|", StringComparison.OrdinalIgnoreCase))
+                currentEntities.Add(entity);
+        }
+
+        var actions = new List<TableTransactionAction>();
+        foreach (var entity in currentEntities)
+        {
+            var binding = Deserialize<BillingSubscriptionProviderBindingInfo>(entity.PayloadJson);
+            if (!binding.IsActive)
+                continue;
+            var retired = binding with { IsActive = false, RetiredUtc = migration.CompletedUtc };
+            var retiredEntity = ToEntity(entity.PartitionKey, entity.RowKey, retired, migration.TenantId, binding.BindingId, "retired");
+            retiredEntity.ETag = entity.ETag;
+            actions.Add(new TableTransactionAction(TableTransactionActionType.UpdateReplace, retiredEntity, entity.ETag));
+        }
+
+        var sourceExists = currentEntities.Any(entity =>
+        {
+            var binding = Deserialize<BillingSubscriptionProviderBindingInfo>(entity.PayloadJson);
+            return string.Equals(binding.ProviderName, sourceBinding.ProviderName, StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(binding.ProviderSubscriptionId, sourceBinding.ProviderSubscriptionId, StringComparison.OrdinalIgnoreCase);
+        });
+        if (!sourceExists)
+        {
+            actions.Add(new TableTransactionAction(
+                TableTransactionActionType.Add,
+                ToEntity(partitionKey, _options.BillingProviderBindingRk(sourceBinding.BillingSubscriptionId, sourceBinding.BindingId), sourceBinding, migration.TenantId, sourceBinding.BindingId, "retired")));
+        }
+        actions.Add(new TableTransactionAction(
+            TableTransactionActionType.Add,
+            ToEntity(partitionKey, _options.BillingProviderBindingRk(targetBinding.BillingSubscriptionId, targetBinding.BindingId), targetBinding, migration.TenantId, targetBinding.BindingId, "active")));
+        actions.Add(new TableTransactionAction(
+            TableTransactionActionType.Add,
+            ToEntity(partitionKey, _options.BillingProviderMigrationRk(migration.BillingSubscriptionId, migration.TargetProviderName, migration.IdempotencyKey), migration, migration.TenantId, migration.MigrationId, "completed", migration.IdempotencyKey)));
+
+        try
+        {
+            await table.SubmitTransactionAsync(actions, ct).ConfigureAwait(false);
+            return migration;
+        }
+        catch (RequestFailedException ex) when (ex.Status is 409 or 412)
+        {
+            return await GetMigrationAsync(
+                       migration.TenantId,
+                       migration.BillingSubscriptionId,
+                       migration.TargetProviderName,
+                       migration.IdempotencyKey,
+                       ct).ConfigureAwait(false)
+                   ?? throw new BillingException("Provider migration changed concurrently; retry the operation.");
+        }
+    }
+
     public async Task AppendLedgerEntryAsync(CreditLedgerEntryInfo entry, CancellationToken ct = default)
     {
         var table = await GetTableAsync(_options.CreditLedgerTableName, ct).ConfigureAwait(false);
@@ -266,6 +614,65 @@ public sealed class AzureTableCommerceStore : ILicensingStore, IBillingStore, IC
             .OrderBy(x => x.CreatedUtc)
             .ToList();
     }
+
+    private async Task<BillingPurchaseRecord?> GetPurchaseByIndexAsync(
+        string indexType,
+        string value,
+        CancellationToken ct)
+    {
+        var index = await GetEntityAsync(
+            _options.BillingPurchasesTableName,
+            _options.BillingPurchaseIndexPk(),
+            _options.BillingPurchaseIndexRk(indexType, value),
+            ct).ConfigureAwait(false);
+        return index is not null && Guid.TryParse(index.EntityId, out var purchaseId)
+            ? await GetPurchaseAsync(purchaseId, ct).ConfigureAwait(false)
+            : null;
+    }
+
+    private Task SavePurchaseIndexAsync(
+        string indexType,
+        string value,
+        Guid purchaseId,
+        CancellationToken ct)
+        => AddOrIgnoreAsync(
+            _options.BillingPurchasesTableName,
+            new AzureTableJsonEntity
+            {
+                PartitionKey = _options.BillingPurchaseIndexPk(),
+                RowKey = _options.BillingPurchaseIndexRk(indexType, value),
+                PayloadJson = "{}",
+                EntityId = purchaseId.ToString("D")
+            },
+            ct);
+
+    private async Task<BillingPurchaseClaimRecord?> GetClaimByIndexAsync(
+        string indexType,
+        string value,
+        CancellationToken ct)
+    {
+        var index = await GetEntityAsync(
+            _options.BillingPurchaseClaimsTableName,
+            _options.BillingClaimIndexPk(),
+            _options.BillingClaimIndexRk(indexType, value),
+            ct).ConfigureAwait(false);
+        return index is not null && Guid.TryParse(index.EntityId, out var claimId)
+            ? await GetAsync<BillingPurchaseClaimRecord>(
+                _options.BillingPurchaseClaimsTableName,
+                _options.BillingClaimPk(),
+                _options.BillingClaimRk(claimId),
+                ct).ConfigureAwait(false)
+            : null;
+    }
+
+    private AzureTableJsonEntity ClaimIndexEntity(string indexType, string value, Guid claimId)
+        => new()
+        {
+            PartitionKey = _options.BillingClaimIndexPk(),
+            RowKey = _options.BillingClaimIndexRk(indexType, value),
+            PayloadJson = "{}",
+            EntityId = claimId.ToString("D")
+        };
 
     private async Task<IReadOnlyList<T>> ListTenantEntitiesAsync<T>(string tableName, Guid tenantId, CancellationToken ct)
     {

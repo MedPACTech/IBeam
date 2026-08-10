@@ -18,6 +18,7 @@ public sealed class BillingPublicCheckoutTests
         var fixture = CreateFixture();
         var result = await fixture.Service.StartCheckoutAsync(CreateRequest());
         var purchase = await fixture.Purchases.GetPurchaseAsync(result.PurchaseId);
+        var attempts = await fixture.Attempts.ListAttemptsAsync(result.PurchaseId);
         var status = await fixture.Service.GetPurchaseStatusAsync(result.PurchaseId, result.StatusToken);
 
         Assert.AreEqual(1, result.LicenseQuantity);
@@ -27,6 +28,8 @@ public sealed class BillingPublicCheckoutTests
         Assert.IsNull(purchase.TenantId);
         Assert.IsNull(purchase.UserId);
         Assert.AreEqual(BillingPurchaseStatuses.AwaitingPayment, purchase.Status);
+        Assert.HasCount(1, attempts);
+        Assert.AreEqual("cs_123", attempts[0].ProviderCheckoutSessionId);
         Assert.IsNotNull(status);
         Assert.AreEqual(BillingPurchaseNextActions.AwaitPayment, status.NextAction);
     }
@@ -92,6 +95,7 @@ public sealed class BillingPublicCheckoutTests
         var gateway = new FakeGateway();
         var time = new TestTimeProvider(Now);
         var purchases = new BillingPurchaseService(new InMemoryBillingPurchaseStore(), timeProvider: time);
+        var attempts = new InMemoryBillingCheckoutAttemptStore();
         var service = new BillingPublicCheckoutService(
             new StaticOfferCatalog(offer), purchases, new BillingCheckoutGatewayResolver([gateway]),
             Options.Create(new BillingPublicCheckoutOptions
@@ -101,8 +105,8 @@ public sealed class BillingPublicCheckoutTests
                 StatusTokenSigningKey = "test-signing-key-at-least-thirty-two-characters",
                 StatusTokenLifetimeMinutes = 30,
                 PurchaseLifetimeMinutes = 60
-            }), time);
-        return new Fixture(service, purchases, gateway, time);
+            }), time, attempts);
+        return new Fixture(service, purchases, attempts, gateway, time);
     }
 
     private static StartBillingCheckoutRequest CreateRequest()
@@ -116,7 +120,7 @@ public sealed class BillingPublicCheckoutTests
             CancelUrl = new Uri("https://app.example.test/plans")
         };
 
-    private sealed record Fixture(BillingPublicCheckoutService Service, BillingPurchaseService Purchases, FakeGateway Gateway, TestTimeProvider Time);
+    private sealed record Fixture(BillingPublicCheckoutService Service, BillingPurchaseService Purchases, InMemoryBillingCheckoutAttemptStore Attempts, FakeGateway Gateway, TestTimeProvider Time);
 
     private sealed class StaticOfferCatalog(BillingOfferInfo offer) : IBillingOfferCatalogProvider
     {
