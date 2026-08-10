@@ -48,7 +48,7 @@ public sealed class BillingWebhookProcessor : IBillingWebhookProcessor
             return await RecordIgnoredAsync(verified, purchaseId, "purchase-not-found", ct, eventType).ConfigureAwait(false);
 
         var nextStatus = PurchaseStatusFor(eventType);
-        if (nextStatus is not null && verified.OccurredUtc < purchase.UpdatedUtc)
+        if (nextStatus is not null && verified.OccurredUtc.AddSeconds(1) < purchase.UpdatedUtc)
             return await RecordIgnoredAsync(verified, purchaseId, "stale-event", ct, eventType, purchase.Status).ConfigureAwait(false);
 
         try
