@@ -27,6 +27,7 @@ public static class BillingServiceCollectionExtensions
         services.TryAddScoped<IBillingSubscriptionService, BillingSubscriptionService>();
         services.TryAddScoped<IBillingInvoiceService, BillingInvoiceService>();
         services.TryAddScoped<IBillingProviderEventService, BillingProviderEventService>();
+        services.TryAddSingleton<IBillingSubscriptionProviderBindingStore, InMemoryBillingSubscriptionProviderBindingStore>();
 
         return services;
     }

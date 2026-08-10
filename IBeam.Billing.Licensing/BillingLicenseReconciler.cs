@@ -75,7 +75,7 @@ public sealed class BillingLicenseReconciler : IBillingLicenseReconciler
     {
         var plan = ResolvePlan(request, subscription)
             ?? throw new BillingException("Unable to map billing subscription to a license plan.");
-        var existing = await FindExistingLicenseAsync(tenantId, subscription, ct).ConfigureAwait(false);
+        var existing = await FindExistingLicenseAsync(tenantId, subscription, request.LicenseKey, ct).ConfigureAwait(false);
         var now = request.EffectiveUtc ?? DateTimeOffset.UtcNow;
         var starts = subscription.CurrentPeriodStartsUtc ?? now;
         var expires = subscription.CurrentPeriodEndsUtc ?? now.AddDays(request.RenewalPeriodDays ?? _options.Value.DefaultRenewalPeriodDays);
@@ -97,6 +97,7 @@ public sealed class BillingLicenseReconciler : IBillingLicenseReconciler
                     StartsUtc = starts,
                     ExpiresUtc = expires,
                     ProviderName = subscription.ProviderName ?? subscription.Price?.ProviderName,
+                    ProviderCustomerId = request.ProviderCustomerId,
                     ProviderSubscriptionId = subscription.ProviderSubscriptionId,
                     ProviderPriceId = subscription.Price?.PriceId,
                     ProviderStatus = subscription.ProviderStatus ?? subscription.Status,
@@ -119,6 +120,7 @@ public sealed class BillingLicenseReconciler : IBillingLicenseReconciler
                 StartsUtc = existing.StartsUtc,
                 ExpiresUtc = existing.ExpiresUtc is { } current && current > expires ? current : expires,
                 ProviderName = subscription.ProviderName ?? subscription.Price?.ProviderName,
+                ProviderCustomerId = request.ProviderCustomerId ?? existing.ProviderCustomerId,
                 ProviderSubscriptionId = subscription.ProviderSubscriptionId,
                 ProviderPriceId = subscription.Price?.PriceId,
                 ProviderStatus = subscription.ProviderStatus ?? subscription.Status,
@@ -180,7 +182,7 @@ public sealed class BillingLicenseReconciler : IBillingLicenseReconciler
             throw new BillingException($"Unknown termination behavior '{behavior}'.");
         }
 
-        var existing = await FindExistingLicenseAsync(tenantId, subscription, ct).ConfigureAwait(false);
+        var existing = await FindExistingLicenseAsync(tenantId, subscription, request.LicenseKey, ct).ConfigureAwait(false);
         if (existing is null)
             return new BillingLicenseReconciliationResult(BillingLicenseReconciliationActions.NoOp, null, "No matching license was found.");
 
@@ -238,7 +240,7 @@ public sealed class BillingLicenseReconciler : IBillingLicenseReconciler
         BillingSubscriptionInfo subscription,
         CancellationToken ct)
     {
-        var existing = await FindExistingLicenseAsync(tenantId, subscription, ct).ConfigureAwait(false);
+        var existing = await FindExistingLicenseAsync(tenantId, subscription, request.LicenseKey, ct).ConfigureAwait(false);
         if (existing is null)
             return new BillingLicenseReconciliationResult(BillingLicenseReconciliationActions.NoOp, null, "No matching license was found.");
 
@@ -292,8 +294,18 @@ public sealed class BillingLicenseReconciler : IBillingLicenseReconciler
             null);
     }
 
-    private async Task<TenantLicenseInfo?> FindExistingLicenseAsync(Guid tenantId, BillingSubscriptionInfo subscription, CancellationToken ct)
+    private async Task<TenantLicenseInfo?> FindExistingLicenseAsync(
+        Guid tenantId,
+        BillingSubscriptionInfo subscription,
+        Guid? licenseKey,
+        CancellationToken ct)
     {
+        if (licenseKey is { } explicitLicenseKey)
+        {
+            var explicitLicense = await _licenses.GetLicenseByKeyAsync(tenantId, explicitLicenseKey, ct).ConfigureAwait(false);
+            return explicitLicense ?? throw new BillingException($"License '{explicitLicenseKey}' was not found for provider reconciliation.");
+        }
+
         var licenses = await _licenses.ListTenantLicensesAsync(tenantId, ct).ConfigureAwait(false);
         return licenses.FirstOrDefault(x =>
             !string.IsNullOrWhiteSpace(subscription.ProviderSubscriptionId) &&

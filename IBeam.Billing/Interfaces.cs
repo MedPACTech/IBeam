@@ -59,6 +59,27 @@ public interface IBillingProviderEventService
     Task<IReadOnlyList<BillingProviderEventInfo>> ListEventsAsync(Guid? tenantId = null, CancellationToken ct = default);
 }
 
+public interface IBillingSubscriptionProviderBindingStore
+{
+    Task<BillingProviderMigrationRecord?> GetMigrationAsync(
+        Guid tenantId,
+        Guid billingSubscriptionId,
+        string targetProviderName,
+        string idempotencyKey,
+        CancellationToken ct = default);
+
+    Task<IReadOnlyList<BillingSubscriptionProviderBindingInfo>> ListBindingsAsync(
+        Guid tenantId,
+        Guid billingSubscriptionId,
+        CancellationToken ct = default);
+
+    Task<BillingProviderMigrationRecord> CommitMigrationAsync(
+        BillingProviderMigrationRecord migration,
+        BillingSubscriptionProviderBindingInfo sourceBinding,
+        BillingSubscriptionProviderBindingInfo targetBinding,
+        CancellationToken ct = default);
+}
+
 public interface IBillingStore
 {
     Task<IReadOnlyList<BillingCustomerRecord>> ListCustomersAsync(Guid tenantId, CancellationToken ct = default);

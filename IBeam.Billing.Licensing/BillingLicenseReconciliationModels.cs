@@ -29,6 +29,8 @@ public sealed class BillingPricePlanMappingOptions
 public sealed class ReconcileBillingLicenseRequest
 {
     public BillingSubscriptionInfo Subscription { get; set; } = null!;
+    public Guid? LicenseKey { get; set; }
+    public string? ProviderCustomerId { get; set; }
     public string? EventType { get; set; }
     public string? PlanKey { get; set; }
     public int? RenewalPeriodDays { get; set; }

@@ -54,4 +54,6 @@ var result = await reconciler.ReconcileAsync(
 - Seat reductions can preserve assigned capacity, explicitly allow an over-assigned state, or reject the change.
 - Payment failure can suspend, expire, enter a policy-driven grace period, or ignore the matching license.
 - Cancellation and refund behavior can suspend, expire, revoke now, or schedule revocation through metadata.
+- `IBillingProviderMigrationService` switches a subscription between processors only after the target state reconciles to the existing license key.
+- Provider migrations retain binding history, keep exactly one active binding, and use provider-scoped idempotency keys for safe retries.
 - Price mappings can come from configuration or be inferred from subscription `PlanKey` or price `PlanKey`.
