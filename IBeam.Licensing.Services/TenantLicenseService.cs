@@ -34,6 +34,29 @@ public sealed class TenantLicenseService : ITenantLicenseService
         return licenses.Select(TenantLicenseInfo.FromRecord).ToList();
     }
 
+    [IBeamOperation("licensing.licenses.get-by-key")]
+    public async Task<TenantLicenseInfo?> GetLicenseByKeyAsync(
+        Guid tenantId,
+        Guid licenseKey,
+        CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => GetLicenseByKeyCoreAsync(tenantId, licenseKey, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = licenseKey },
+            ct).ConfigureAwait(false);
+
+    private async Task<TenantLicenseInfo?> GetLicenseByKeyCoreAsync(
+        Guid tenantId,
+        Guid licenseKey,
+        CancellationToken ct)
+    {
+        ValidateTenantId(tenantId);
+        ValidateLicenseId(licenseKey);
+
+        var license = await _store.GetLicenseAsync(tenantId, licenseKey, ct).ConfigureAwait(false);
+        return license is null ? null : TenantLicenseInfo.FromRecord(license);
+    }
+
     [IBeamOperation("licensing.licenses.grant")]
     public async Task<TenantLicenseInfo> GrantLicenseAsync(
         Guid tenantId,

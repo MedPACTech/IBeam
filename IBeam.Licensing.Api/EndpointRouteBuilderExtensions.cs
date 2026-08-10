@@ -43,6 +43,25 @@ public static class LicensingEndpointRouteBuilderExtensions
             }
         });
 
+        group.MapGet("/tenants/{tenantId:guid}/licenses/by-key/{licenseKey:guid}", async (
+            Guid tenantId,
+            Guid licenseKey,
+            ITenantLicenseService licenses,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await licenses.GetLicenseByKeyAsync(tenantId, licenseKey, ct).ConfigureAwait(false);
+                return result is null
+                    ? Results.NotFound()
+                    : Results.Ok(result.ToLookupInfo());
+            }
+            catch (LicensingException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
         group.MapPost("/tenants/{tenantId:guid}/licenses", async (
             Guid tenantId,
             GrantTenantLicenseRequest request,

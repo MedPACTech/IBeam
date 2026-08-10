@@ -60,6 +60,7 @@ app.Run();
 ```http
 GET    /api/license-plans
 GET    /api/tenants/{tenantId}/licenses
+GET    /api/tenants/{tenantId}/licenses/by-key/{licenseKey}
 POST   /api/tenants/{tenantId}/licenses
 PUT    /api/tenants/{tenantId}/licenses/{licenseId}
 POST   /api/tenants/{tenantId}/licenses/{licenseId}/revoke
@@ -70,6 +71,8 @@ GET    /api/tenants/{tenantId}/license-entitlements
 POST   /api/tenants/{tenantId}/license-entitlements/check
 POST   /api/licensing/tenants/{tenantId}/runtime-context
 ```
+
+The key lookup returns the redacted `TenantLicenseLookupInfo` shape. It does not include billing-provider customer, subscription, price, or status references.
 
 Example license grant:
 

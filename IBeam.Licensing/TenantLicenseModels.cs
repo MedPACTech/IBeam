@@ -24,6 +24,8 @@ public sealed record TenantLicenseRecord(
     string CommercialStatus = LicenseCommercialStatuses.Unknown,
     DateTimeOffset? GraceEndsUtc = null)
 {
+    public Guid LicenseKey => LicenseId;
+
     public bool IsActive(DateTimeOffset now)
         => EvaluateRuntimeEligibility(now).IsEligible;
 
@@ -98,6 +100,8 @@ public sealed record TenantLicenseInfo(
     string CommercialStatus = LicenseCommercialStatuses.Unknown,
     DateTimeOffset? GraceEndsUtc = null)
 {
+    public Guid LicenseKey => LicenseId;
+
     public static TenantLicenseInfo FromRecord(TenantLicenseRecord record)
         => new(
             record.LicenseId,
@@ -122,7 +126,36 @@ public sealed record TenantLicenseInfo(
             record.Metadata,
             record.CommercialStatus,
             record.GraceEndsUtc);
+
+    public TenantLicenseLookupInfo ToLookupInfo()
+        => new(
+            LicenseKey,
+            TenantId,
+            PlanKey,
+            DisplayName,
+            Status,
+            CommercialStatus,
+            SeatLimit,
+            StartsUtc,
+            ExpiresUtc,
+            CreatedUtc,
+            RevokedUtc,
+            GraceEndsUtc);
 }
+
+public sealed record TenantLicenseLookupInfo(
+    Guid LicenseKey,
+    Guid TenantId,
+    string PlanKey,
+    string DisplayName,
+    string Status,
+    string CommercialStatus,
+    int? SeatLimit,
+    DateTimeOffset StartsUtc,
+    DateTimeOffset? ExpiresUtc,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset? RevokedUtc,
+    DateTimeOffset? GraceEndsUtc);
 
 public sealed record LicenseRuntimeEligibilityInfo(
     bool IsEligible,

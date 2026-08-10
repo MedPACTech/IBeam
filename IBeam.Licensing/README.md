@@ -65,6 +65,16 @@ Tenant licenses distinguish runtime grant status from commercial billing state:
 
 Use `EvaluateRuntimeEligibility(now)` when you need a structured runtime decision. `IsActive(now)` remains available for existing consumers and returns the runtime eligibility result.
 
+## Stable License Keys
+
+`LicenseKey` is the stable GUID used to look up and correlate a license. It is a compatibility alias for the existing immutable `LicenseId`, so licenses stored before this feature keep the same key and do not require a data migration.
+
+```csharp
+var license = await licenses.GetLicenseByKeyAsync(tenantId, licenseKey);
+```
+
+Lookups are always tenant-scoped. The optional API route `GET /api/tenants/{tenantId}/licenses/by-key/{licenseKey}` returns `TenantLicenseLookupInfo`, which intentionally omits provider customer, subscription, price, and status references. A license key is an identifier, not a secret; use one-time expiring claim tokens for purchase claiming.
+
 ## Code Example
 
 Typical service-layer usage:
