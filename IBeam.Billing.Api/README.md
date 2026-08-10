@@ -70,3 +70,5 @@ Commerce recovery endpoints require an authenticated principal whose tenant clai
 Public checkout uses signed status tokens and explicit return-origin allow-lists; webhook authenticity is delegated to the selected provider gateway before state changes.
 
 Billing APIs do not authorize runtime application access. Runtime services should enforce access through Licensing and Credits.
+
+See [the commerce integration guide](https://github.com/MedPACTech/IBeam/blob/development/docs/commerce-integration-guide.md) for the public purchase, Identity onboarding, seat, recovery, and provider migration sequence.

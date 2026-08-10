@@ -12,6 +12,7 @@ public interface IBillingPurchaseService
     Task<BillingPurchaseInfo> CreatePendingPurchaseAsync(CreatePendingBillingPurchaseRequest request, CancellationToken ct = default);
     Task<BillingPurchaseInfo> ApplyProviderUpdateAsync(Guid purchaseId, ApplyBillingPurchaseProviderUpdateRequest request, CancellationToken ct = default);
     Task<BillingPurchaseInfo> FulfillPaidPurchaseAsync(Guid purchaseId, Guid licenseKey, CancellationToken ct = default);
+    Task<BillingPurchaseInfo> MarkClaimedAsync(Guid purchaseId, Guid tenantId, Guid userId, CancellationToken ct = default);
     Task RedactBuyerEmailAsync(Guid purchaseId, CancellationToken ct = default);
 }
 
