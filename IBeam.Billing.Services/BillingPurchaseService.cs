@@ -204,6 +204,66 @@ public sealed class BillingPurchaseService : IBillingPurchaseService
         return (await _store.SavePurchaseAsync(fulfilled, expectedUpdatedUtc: existing.UpdatedUtc, ct: ct).ConfigureAwait(false)).ToInfo();
     }
 
+    [IBeamOperation("billing.purchases.claim")]
+    public Task<BillingPurchaseInfo> MarkClaimedAsync(
+        Guid purchaseId,
+        Guid tenantId,
+        Guid userId,
+        CancellationToken ct = default)
+        => _operations.ExecuteAsync(
+            this,
+            token => MarkClaimedCoreAsync(purchaseId, tenantId, userId, token),
+            new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = purchaseId },
+            ct);
+
+    private async Task<BillingPurchaseInfo> MarkClaimedCoreAsync(
+        Guid purchaseId,
+        Guid tenantId,
+        Guid userId,
+        CancellationToken ct)
+    {
+        ValidatePurchaseId(purchaseId);
+        if (tenantId == Guid.Empty || userId == Guid.Empty)
+            throw new BillingException("tenantId and userId are required.");
+
+        var existing = await _store.GetPurchaseAsync(purchaseId, ct).ConfigureAwait(false)
+                       ?? throw new BillingException("Purchase was not found.");
+        if (string.Equals(existing.Status, BillingPurchaseStatuses.Claimed, StringComparison.OrdinalIgnoreCase))
+        {
+            if (existing.TenantId != tenantId || existing.UserId != userId)
+                throw new BillingException("Purchase has already been claimed by another tenant or buyer.");
+            return existing.ToInfo();
+        }
+        if (!string.Equals(existing.Status, BillingPurchaseStatuses.Fulfilled, StringComparison.OrdinalIgnoreCase))
+            throw new BillingException("Only a fulfilled purchase can be claimed.");
+
+        var now = _timeProvider.GetUtcNow();
+        var claimed = existing with
+        {
+            TenantId = tenantId,
+            UserId = userId,
+            Status = BillingPurchaseStatuses.Claimed,
+            ClaimedUtc = now,
+            UpdatedUtc = now
+        };
+        try
+        {
+            return (await _store.SavePurchaseAsync(claimed, expectedUpdatedUtc: existing.UpdatedUtc, ct: ct).ConfigureAwait(false)).ToInfo();
+        }
+        catch (BillingException)
+        {
+            var replay = await _store.GetPurchaseAsync(purchaseId, ct).ConfigureAwait(false);
+            if (replay is not null &&
+                string.Equals(replay.Status, BillingPurchaseStatuses.Claimed, StringComparison.OrdinalIgnoreCase) &&
+                replay.TenantId == tenantId &&
+                replay.UserId == userId)
+            {
+                return replay.ToInfo();
+            }
+            throw;
+        }
+    }
+
     [IBeamOperation("billing.purchases.redact-buyer")]
     public async Task RedactBuyerEmailAsync(Guid purchaseId, CancellationToken ct = default)
         => await _operations.ExecuteAsync(

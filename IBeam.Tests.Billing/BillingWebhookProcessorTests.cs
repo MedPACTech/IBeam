@@ -256,6 +256,9 @@ public sealed class BillingWebhookProcessorTests
         public Task<BillingPurchaseInfo> FulfillPaidPurchaseAsync(Guid purchaseId, Guid licenseKey, CancellationToken ct = default)
             => _inner.FulfillPaidPurchaseAsync(purchaseId, licenseKey, ct);
 
+        public Task<BillingPurchaseInfo> MarkClaimedAsync(Guid purchaseId, Guid tenantId, Guid userId, CancellationToken ct = default)
+            => _inner.MarkClaimedAsync(purchaseId, tenantId, userId, ct);
+
         public Task RedactBuyerEmailAsync(Guid purchaseId, CancellationToken ct = default)
             => _inner.RedactBuyerEmailAsync(purchaseId, ct);
     }

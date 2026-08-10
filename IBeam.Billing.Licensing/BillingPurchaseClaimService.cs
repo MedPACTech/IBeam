@@ -81,7 +81,7 @@ public sealed class BillingPurchaseClaimService : IBillingPurchaseClaimService
         var purchase = await _purchases.GetPurchaseAsync(claim.PurchaseId, ct).ConfigureAwait(false)
                        ?? throw new BillingException("Claim purchase was not found.");
         if (purchase.LicenseKey != claim.LicenseKey ||
-            !string.Equals(purchase.Status, BillingPurchaseStatuses.Fulfilled, StringComparison.OrdinalIgnoreCase))
+            purchase.Status is not (BillingPurchaseStatuses.Fulfilled or BillingPurchaseStatuses.Claimed))
         {
             throw new BillingException("Claim purchase is not fulfilled by the expected license.");
         }
@@ -125,6 +125,7 @@ public sealed class BillingPurchaseClaimService : IBillingPurchaseClaimService
             },
             request.UserId,
             ct).ConfigureAwait(false);
+        await _purchases.MarkClaimedAsync(purchase.PurchaseId, request.TenantId, request.UserId, ct).ConfigureAwait(false);
 
         return new ClaimedBillingPurchaseLicenseInfo(
             claim.ClaimId,
