@@ -43,6 +43,10 @@ var result = await reconciler.ReconcileAsync(
 - Before Identity onboarding, the fulfilled purchase is the durable unclaimed grant and retains its plan and total seat limit.
 - One-seat and multi-seat purchases both create one license key; an expansion purchase can explicitly retain an existing key.
 - Provider customer and subscription references remain replaceable billing bindings and never become license identity.
+- `IBillingPurchaseClaimService` issues a short-lived one-time claim token after fulfillment; only its SHA-256 hash is stored.
+- After Identity verifies the signed-in user's email, the host supplies that user id, verified email, and selected tenant to `ClaimAsync`.
+- A successful claim materializes the pre-created GUID key as the tenant license and assigns the buyer the first seat.
+- Same-user retries are idempotent; expired, wrong-buyer, reused, and cross-tenant claims are rejected.
 - Payment success creates or renews a tenant license.
 - Manual invoice, annual contract, and support-managed subscriptions can use the same reconciler.
 - Payment failure can suspend, expire, or ignore the matching license.

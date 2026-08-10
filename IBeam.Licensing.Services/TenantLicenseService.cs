@@ -80,6 +80,17 @@ public sealed class TenantLicenseService : ITenantLicenseService
             throw new ArgumentNullException(nameof(request));
 
         var planKey = NormalizeRequired(request.PlanKey, "planKey");
+        var requestedLicenseKey = request.LicenseKey == Guid.Empty ? null : request.LicenseKey;
+        if (requestedLicenseKey is { } stableKey)
+        {
+            var existing = await _store.GetLicenseAsync(tenantId, stableKey, ct).ConfigureAwait(false);
+            if (existing is not null)
+            {
+                if (!string.Equals(existing.PlanKey, planKey, StringComparison.OrdinalIgnoreCase))
+                    throw new LicensingException("License key is already associated with a different plan.");
+                return TenantLicenseInfo.FromRecord(existing);
+            }
+        }
         var plan = await _plans.GetPlanAsync(planKey, ct).ConfigureAwait(false);
         var entitlements = MergeEntitlements(plan?.Entitlements, request.Entitlements);
         var limits = MergeLimits(plan?.Limits, request.Limits);
@@ -95,7 +106,7 @@ public sealed class TenantLicenseService : ITenantLicenseService
         ValidateGraceWindow(starts, request.ExpiresUtc, request.GraceEndsUtc);
 
         var record = new TenantLicenseRecord(
-            LicenseId: Guid.NewGuid(),
+            LicenseId: requestedLicenseKey ?? Guid.NewGuid(),
             TenantId: tenantId,
             PlanKey: planKey,
             DisplayName: NormalizeOptional(request.DisplayName) ?? plan?.DisplayName ?? planKey,

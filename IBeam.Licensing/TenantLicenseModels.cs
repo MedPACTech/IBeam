@@ -171,6 +171,7 @@ public sealed record LicenseRuntimeEligibilityInfo(
 
 public sealed class GrantTenantLicenseRequest
 {
+    public Guid? LicenseKey { get; set; }
     public string PlanKey { get; set; } = string.Empty;
     public string? DisplayName { get; set; }
     public string? Status { get; set; }

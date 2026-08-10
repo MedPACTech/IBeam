@@ -135,6 +135,7 @@ public sealed class LicenseSeatPolicyService : ILicenseSeatPolicyService
 
         return new GrantTenantLicenseRequest
         {
+            LicenseKey = source.LicenseKey,
             PlanKey = source.PlanKey,
             DisplayName = source.DisplayName,
             Status = source.Status,

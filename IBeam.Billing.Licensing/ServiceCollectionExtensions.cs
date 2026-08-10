@@ -13,6 +13,7 @@ public static class BillingLicensingServiceCollectionExtensions
             services.Configure(configure);
         else
             services.AddOptions<BillingLicenseReconciliationOptions>();
+        services.AddOptions<BillingPurchaseClaimOptions>();
 
         services.TryAddScoped<IBillingLicenseReconciler, BillingLicenseReconciler>();
         services.TryAddScoped<BillingPurchaseLicenseFulfillmentService>();
@@ -21,6 +22,8 @@ public static class BillingLicensingServiceCollectionExtensions
         services.TryAddEnumerable(
             ServiceDescriptor.Scoped<IBillingPaidPurchaseHandler>(
                 sp => sp.GetRequiredService<BillingPurchaseLicenseFulfillmentService>()));
+        services.TryAddSingleton<IBillingPurchaseClaimStore, InMemoryBillingPurchaseClaimStore>();
+        services.TryAddScoped<IBillingPurchaseClaimService, BillingPurchaseClaimService>();
         return services;
     }
 }
