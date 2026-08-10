@@ -7,11 +7,16 @@ public sealed class BillingPurchaseService : IBillingPurchaseService
 {
     private readonly IBillingPurchaseStore _store;
     private readonly IServiceOperationExecutor _operations;
+    private readonly TimeProvider _timeProvider;
 
-    public BillingPurchaseService(IBillingPurchaseStore store, IServiceOperationExecutor? operations = null)
+    public BillingPurchaseService(
+        IBillingPurchaseStore store,
+        IServiceOperationExecutor? operations = null,
+        TimeProvider? timeProvider = null)
     {
         _store = store;
         _operations = operations ?? new ServiceOperationExecutor();
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     [IBeamOperation("billing.purchases.get")]
@@ -60,7 +65,7 @@ public sealed class BillingPurchaseService : IBillingPurchaseService
         if (request.AmountSubtotal + request.AmountTax != request.AmountTotal)
             throw new BillingException("amountTotal must equal amountSubtotal plus amountTax.");
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         if (request.ExpiresUtc is { } expiresUtc && expiresUtc <= now)
             throw new BillingException("expiresUtc must be in the future.");
 
@@ -137,7 +142,7 @@ public sealed class BillingPurchaseService : IBillingPurchaseService
 
         var nextStatus = BillingPurchaseStatuses.Normalize(request.Status);
         BillingPurchaseStatuses.RequireTransition(existing.Status, nextStatus);
-        var occurredUtc = request.OccurredUtc ?? DateTimeOffset.UtcNow;
+        var occurredUtc = request.OccurredUtc ?? _timeProvider.GetUtcNow();
         var updated = existing with
         {
             Status = nextStatus,
@@ -173,7 +178,7 @@ public sealed class BillingPurchaseService : IBillingPurchaseService
         if (existing.BuyerEmail is null)
             return;
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         await _store.SavePurchaseAsync(existing with
         {
             BuyerEmail = null,

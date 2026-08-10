@@ -63,7 +63,7 @@ public sealed record CreateBillingCheckoutSessionRequest(
             BillingPriceReferenceInfo.NormalizeMetadata(metadata));
     }
 
-    internal static Uri NormalizeAbsoluteHttpUri(Uri value, string parameterName)
+    public static Uri NormalizeAbsoluteHttpUri(Uri value, string parameterName)
     {
         ArgumentNullException.ThrowIfNull(value, parameterName);
         if (!value.IsAbsoluteUri ||
