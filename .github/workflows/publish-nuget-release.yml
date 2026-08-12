@@ -1,9 +1,14 @@
-name: Publish Stable (NuGet.org)
+name: Publish Production Packages
 
 on:
   release:
-    types: [published]
+    types: [ published ]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Stable release tag to publish, for example v2.0.61.
+        required: true
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,26 +19,24 @@ permissions:
   id-token: write
 
 jobs:
-  publish-stable:
-    if: startsWith(github.event.release.tag_name, 'v') || github.event_name == 'workflow_dispatch'
+  resolve-release:
+    name: Resolve Release Version
     runs-on: ubuntu-latest
-    environment: production
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
-
-      - name: Resolve release package version
-        id: release_version
+      - name: Resolve version
+        id: version
         shell: bash
         run: |
+          set -euo pipefail
+
           if [ "${{ github.event_name }}" = "release" ]; then
             tag="${{ github.event.release.tag_name }}"
           else
-            tag="${GITHUB_REF_NAME}"
+            tag="${{ inputs.tag }}"
           fi
 
           if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -41,33 +44,17 @@ jobs:
             exit 1
           fi
 
-          version="${tag#v}"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Resolved package version: $version"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Login to NuGet.org (Trusted Publishing)
-        id: login
-        uses: NuGet/login@v1
-        with:
-          user: ${{ secrets.NUGET_USER }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Restore
-        run: dotnet restore IBeam.sln
-
-      - name: Build
-        run: dotnet build IBeam.sln -c Release --no-restore -p:ReleasePackageVersion=${{ steps.release_version.outputs.version }}
-
-      - name: Pack
-        run: dotnet pack IBeam.sln -c Release --no-build -p:ReleasePackageVersion=${{ steps.release_version.outputs.version }} -o ./artifacts/packages
-
-      - name: Push stable packages to NuGet.org
-        run: |
-          dotnet nuget push "./artifacts/packages/*.nupkg" \
-            --source "https://api.nuget.org/v3/index.json" \
-            --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
-            --skip-duplicate
+  publish:
+    needs: resolve-release
+    uses: ./.github/workflows/_nuget-publish.yml
+    with:
+      dotnet-version: ${{ vars.DOTNET_VERSION || '10.0.x' }}
+      configuration: ${{ vars.BUILD_CONFIGURATION || 'Release' }}
+      package-version: ${{ needs.resolve-release.outputs.version }}
+      ref: ${{ needs.resolve-release.outputs.tag }}
+      environment-name: production
+      nuget-source: ${{ vars.NUGET_SOURCE || 'https://api.nuget.org/v3/index.json' }}
+    secrets: inherit

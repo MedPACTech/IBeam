@@ -1,0 +1,19 @@
+name: Package Preview
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    uses: ./.github/workflows/_dotnet-build.yml
+    with:
+      dotnet-version: ${{ vars.DOTNET_VERSION || '10.0.x' }}
+      configuration: ${{ vars.BUILD_CONFIGURATION || 'Release' }}
+      artifact-name: preview-nupkgs

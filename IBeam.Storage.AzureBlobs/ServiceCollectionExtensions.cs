@@ -10,6 +10,11 @@ public static class ServiceCollectionExtensions
     {
         services.AddOptions<AzureBlobStorageOptions>()
             .Bind(configuration.GetSection(AzureBlobStorageOptions.SectionName))
+            .PostConfigure(o =>
+            {
+                if (string.IsNullOrWhiteSpace(o.ServiceUri))
+                    o.ConnectionString = ResolveConnectionString(configuration, o.ConnectionString);
+            })
             .Validate(o =>
             {
                 o.Validate();
@@ -20,4 +25,24 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IBlobStorageService, AzureBlobStorageService>();
         return services;
     }
+
+    private static string? ResolveConnectionString(IConfiguration configuration, string? scopedConnectionString)
+    {
+        var resolved =
+            FirstNonEmpty(
+                scopedConnectionString,
+                configuration["IBeam:AzureStorage"],
+                configuration["IBeam:Storage:ConnectionString"],
+                configuration["IBeam:ConnectionString"],
+                configuration.GetConnectionString("AzureBlobs"),
+                configuration.GetConnectionString("AzureBlobStorage"),
+                configuration.GetConnectionString("AzureStorage"),
+                configuration.GetConnectionString("IBeam"),
+                configuration.GetConnectionString("DefaultConnection"));
+
+        return resolved;
+    }
+
+    private static string? FirstNonEmpty(params string?[] values)
+        => values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
 }

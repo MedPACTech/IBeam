@@ -1,0 +1,23 @@
+name: Validate Production
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    uses: ./.github/workflows/_dotnet-build.yml
+    with:
+      dotnet-version: ${{ vars.DOTNET_VERSION || '10.0.x' }}
+      configuration: ${{ vars.BUILD_CONFIGURATION || 'Release' }}
+      artifact-name: production-validation-nupkgs

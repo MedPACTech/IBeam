@@ -1,0 +1,101 @@
+name: Reusable NuGet Publish
+
+on:
+  workflow_call:
+    inputs:
+      solution:
+        description: Solution or project to publish.
+        required: false
+        type: string
+        default: IBeam.sln
+      dotnet-version:
+        description: .NET SDK version.
+        required: false
+        type: string
+        default: 10.0.x
+      configuration:
+        description: Build configuration.
+        required: false
+        type: string
+        default: Release
+      package-version:
+        description: Stable package version, without a leading v.
+        required: true
+        type: string
+      ref:
+        description: Git ref to publish from.
+        required: true
+        type: string
+      environment-name:
+        description: GitHub environment that protects publishing.
+        required: false
+        type: string
+        default: production
+      nuget-source:
+        description: NuGet package source.
+        required: false
+        type: string
+        default: https://api.nuget.org/v3/index.json
+    secrets:
+      NUGET_USER:
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish NuGet Packages
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment-name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          ref: ${{ inputs.ref }}
+
+      - name: Login to NuGet.org
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Restore
+        run: dotnet restore "${{ inputs.solution }}"
+
+      - name: Build
+        run: dotnet build "${{ inputs.solution }}" --configuration "${{ inputs.configuration }}" --no-restore -p:ReleasePackageVersion=${{ inputs.package-version }}
+
+      - name: Pack
+        run: dotnet pack "${{ inputs.solution }}" --configuration "${{ inputs.configuration }}" --no-build -p:ReleasePackageVersion=${{ inputs.package-version }} --output ./artifacts/packages
+
+      - name: Push packages
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+          NUGET_SOURCE: ${{ inputs.nuget-source }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          packages=(./artifacts/packages/*.nupkg)
+          if [ "${#packages[@]}" -eq 0 ]; then
+            echo "No packages were created."
+            exit 1
+          fi
+
+          for package in "${packages[@]}"; do
+            dotnet nuget push "$package" \
+              --source "$NUGET_SOURCE" \
+              --api-key "$NUGET_API_KEY" \
+              --skip-duplicate
+          done

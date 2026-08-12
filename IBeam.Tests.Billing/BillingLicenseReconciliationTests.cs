@@ -163,7 +163,7 @@ public sealed class BillingLicenseReconciliationTests
     public async Task ReconcileAsync_AppliesConfiguredGracePeriodOnPaymentFailure()
     {
         var fixture = CreateFixture();
-        var effectiveUtc = DateTimeOffset.Parse("2026-08-10T12:00:00Z");
+        var effectiveUtc = DateTimeOffset.UtcNow.AddDays(30);
         var initial = await fixture.Reconciler.ReconcileAsync(
             TenantId,
             new ReconcileBillingLicenseRequest

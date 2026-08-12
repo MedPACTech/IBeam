@@ -40,12 +40,45 @@ public sealed class SmokeTests
         Assert.AreEqual("endpoint=https://ibeam.communication.azure.com/;accesskey=fakeKey", options.ConnectionString);
     }
 
+    [TestMethod]
+    public void AddIBeamAzureCommunicationsEmail_UsesScopedConnectionString_First()
+    {
+        var scoped = "endpoint=https://scoped.communication.azure.com/;accesskey=scopedKey";
+        var @default = "endpoint=https://default.communication.azure.com/;accesskey=defaultKey";
+
+        var options = BuildOptions(new Dictionary<string, string?>
+        {
+            [ConnectionStringKey] = scoped,
+            ["ConnectionStrings:DefaultConnection"] = @default
+        });
+
+        Assert.AreEqual(scoped, options.ConnectionString);
+    }
+
+    [TestMethod]
+    public void AddIBeamAzureCommunicationsEmail_FallsBackToDefaultConnection()
+    {
+        var @default = "endpoint=https://default.communication.azure.com/;accesskey=defaultKey";
+
+        var options = BuildOptions(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:DefaultConnection"] = @default
+        });
+
+        Assert.AreEqual(@default, options.ConnectionString);
+    }
+
     private static AzureCommunicationsEmailOptions BuildOptions(string? connectionString)
     {
         var values = connectionString is null
             ? new Dictionary<string, string?>()
             : new Dictionary<string, string?> { [ConnectionStringKey] = connectionString };
 
+        return BuildOptions(values);
+    }
+
+    private static AzureCommunicationsEmailOptions BuildOptions(Dictionary<string, string?> values)
+    {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(values)
             .Build();

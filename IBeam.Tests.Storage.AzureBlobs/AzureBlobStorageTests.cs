@@ -53,4 +53,59 @@ public sealed class AzureBlobStorageTests
 
         Assert.IsInstanceOfType<AzureBlobStorageService>(storage);
     }
+
+    [TestMethod]
+    public void AddIBeamAzureBlobStorage_UsesScopedConnectionString_First()
+    {
+        var scoped = "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1/scoped";
+        var @default = "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1/default";
+
+        var options = BuildOptions(new Dictionary<string, string?>
+        {
+            [$"{AzureBlobStorageOptions.SectionName}:ConnectionString"] = scoped,
+            ["ConnectionStrings:DefaultConnection"] = @default
+        });
+
+        Assert.AreEqual(scoped, options.ConnectionString);
+    }
+
+    [TestMethod]
+    public void AddIBeamAzureBlobStorage_FallsBackToDefaultConnection()
+    {
+        var @default = "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1/default";
+
+        var options = BuildOptions(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:DefaultConnection"] = @default
+        });
+
+        Assert.AreEqual(@default, options.ConnectionString);
+    }
+
+    [TestMethod]
+    public void AddIBeamAzureBlobStorage_ServiceUriOverridesDefaultConnection()
+    {
+        var options = BuildOptions(new Dictionary<string, string?>
+        {
+            [$"{AzureBlobStorageOptions.SectionName}:ServiceUri"] = "https://ibeam.blob.core.windows.net",
+            ["ConnectionStrings:DefaultConnection"] = "UseDevelopmentStorage=true"
+        });
+
+        Assert.IsNull(options.ConnectionString);
+        Assert.AreEqual("https://ibeam.blob.core.windows.net", options.ServiceUri);
+    }
+
+    private static AzureBlobStorageOptions BuildOptions(Dictionary<string, string?> values)
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddIBeamAzureBlobStorage(config);
+
+        using var provider = services.BuildServiceProvider();
+        return provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AzureBlobStorageOptions>>().Value;
+    }
 }
