@@ -1,0 +1,25 @@
+name: Publish Test Packages
+
+on:
+  push:
+    branches: [ test ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    uses: ./.github/workflows/_github-packages-publish.yml
+    with:
+      dotnet-version: ${{ vars.DOTNET_VERSION || '10.0.x' }}
+      configuration: ${{ vars.BUILD_CONFIGURATION || 'Release' }}
+      environment-name: test
+      prerelease-channel: beta
+      artifact-name: test-beta-nupkgs
+

@@ -1,0 +1,161 @@
+name: Reusable GitHub Packages Publish
+
+on:
+  workflow_call:
+    inputs:
+      solution:
+        description: Solution or project to restore, build, test, pack, and publish.
+        required: false
+        type: string
+        default: IBeam.sln
+      dotnet-version:
+        description: .NET SDK version.
+        required: false
+        type: string
+        default: 10.0.x
+      configuration:
+        description: Build configuration.
+        required: false
+        type: string
+        default: Release
+      environment-name:
+        description: GitHub environment that supplies package variables.
+        required: false
+        type: string
+        default: development
+      package-version-prefix:
+        description: Version prefix for prerelease packages. Falls back to vars.PRERELEASE_VERSION_PREFIX.
+        required: false
+        type: string
+        default: ''
+      prerelease-channel:
+        description: Prerelease channel suffix, such as dev or beta.
+        required: true
+        type: string
+      package-source:
+        description: GitHub Packages NuGet source.
+        required: false
+        type: string
+        default: ''
+      artifact-name:
+        description: Name for uploaded package artifacts.
+        required: false
+        type: string
+        default: prerelease-nupkgs
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Build, Test, Pack, Publish
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment-name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Resolve package version
+        id: package-version
+        shell: bash
+        env:
+          INPUT_PREFIX: ${{ inputs.package-version-prefix }}
+          VARIABLE_PREFIX: ${{ vars.PRERELEASE_VERSION_PREFIX }}
+          CHANNEL: ${{ inputs.prerelease-channel }}
+        run: |
+          set -euo pipefail
+
+          prefix="$INPUT_PREFIX"
+          if [ -z "$prefix" ]; then
+            prefix="$VARIABLE_PREFIX"
+          fi
+
+          if [ -z "$prefix" ]; then
+            echo "Set PRERELEASE_VERSION_PREFIX as a repository or environment variable, or pass package-version-prefix." >&2
+            exit 1
+          fi
+
+          if [[ ! "$prefix" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "PRERELEASE_VERSION_PREFIX must look like 2.1.0. Got '$prefix'." >&2
+            exit 1
+          fi
+
+          if [[ ! "$CHANNEL" =~ ^[0-9A-Za-z][0-9A-Za-z-]*$ ]]; then
+            echo "prerelease-channel must be a NuGet-compatible identifier. Got '$CHANNEL'." >&2
+            exit 1
+          fi
+
+          version="$prefix-$CHANNEL.${{ github.run_number }}.${{ github.run_attempt }}"
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+          echo "Resolved package version $version"
+
+      - name: Resolve package source
+        id: package-source
+        shell: bash
+        env:
+          INPUT_SOURCE: ${{ inputs.package-source }}
+          VARIABLE_SOURCE: ${{ vars.GITHUB_PACKAGES_NUGET_SOURCE }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+
+          source="$INPUT_SOURCE"
+          if [ -z "$source" ]; then
+            source="$VARIABLE_SOURCE"
+          fi
+          if [ -z "$source" ]; then
+            source="https://nuget.pkg.github.com/$OWNER/index.json"
+          fi
+
+          echo "value=$source" >> "$GITHUB_OUTPUT"
+
+      - name: Restore
+        run: dotnet restore "${{ inputs.solution }}"
+
+      - name: Build
+        run: dotnet build "${{ inputs.solution }}" --configuration "${{ inputs.configuration }}" --no-restore -p:ReleasePackageVersion=${{ steps.package-version.outputs.value }}
+
+      - name: Test
+        run: dotnet test "${{ inputs.solution }}" --configuration "${{ inputs.configuration }}" --no-build
+
+      - name: Pack
+        run: dotnet pack "${{ inputs.solution }}" --configuration "${{ inputs.configuration }}" --no-build -p:ReleasePackageVersion=${{ steps.package-version.outputs.value }} --output ./artifacts/packages
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: artifacts/packages/*.nupkg
+          if-no-files-found: error
+
+      - name: Push packages
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_PACKAGES_SOURCE: ${{ steps.package-source.outputs.value }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          packages=(./artifacts/packages/*.nupkg)
+          if [ "${#packages[@]}" -eq 0 ]; then
+            echo "No packages were created."
+            exit 1
+          fi
+
+          for package in "${packages[@]}"; do
+            dotnet nuget push "$package" \
+              --source "$GITHUB_PACKAGES_SOURCE" \
+              --api-key "$GITHUB_TOKEN" \
+              --skip-duplicate
+          done
