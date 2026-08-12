@@ -51,8 +51,8 @@ jobs:
             exit 1
           fi
 
-          if [[ ! "$ref" =~ ^release/.+ ]]; then
-            echo "Release candidate publishing must target a release/* ref. Got '$ref'." >&2
+          if [[ "$ref" != "release" && ! "$ref" =~ ^release/.+ ]]; then
+            echo "Release candidate publishing must target release or a release/* ref. Got '$ref'." >&2
             exit 1
           fi
 

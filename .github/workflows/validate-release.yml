@@ -3,9 +3,11 @@ name: Validate Release Candidate
 on:
   push:
     branches:
+      - release
       - 'release/**'
   pull_request:
     branches:
+      - release
       - 'release/**'
   workflow_dispatch:
 

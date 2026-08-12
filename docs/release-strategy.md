@@ -10,7 +10,7 @@ IBeam uses a release-train model for NuGet packages. All packages produced by a 
 | --- | --- | --- | --- | --- |
 | `development` | `development` | Development prerelease | GitHub Packages | `2.10.0-dev.123.1` |
 | `test` | `test` | Beta prerelease | GitHub Packages | `2.10.0-beta.124.1` |
-| `release/*` | `test` | Release candidate | NuGet.org prerelease | `2.10.0-rc.1` |
+| `release` or `release/*` | `test` | Release candidate | NuGet.org prerelease | `2.10.0-rc.1` |
 | `main` release tag | `production` | Stable | NuGet.org | `2.10.0` |
 
 Pull requests and validation workflows build, test, and pack artifacts. Publishing workflows are reserved for branch pushes, release-candidate dispatches, and production releases.
@@ -40,11 +40,11 @@ vMAJOR.MINOR.PATCH
 
 - `.github/workflows/validate-development.yml`: validates pushes and pull requests targeting `development`.
 - `.github/workflows/validate-test.yml`: validates pushes and pull requests targeting `test`.
-- `.github/workflows/validate-release.yml`: validates `release/*` branches.
+- `.github/workflows/validate-release.yml`: validates `release` and `release/*` branches.
 - `.github/workflows/validate-production.yml`: validates `main`.
 - `.github/workflows/publish-development-packages.yml`: publishes `dev` packages to GitHub Packages from `development`.
 - `.github/workflows/publish-test-packages.yml`: publishes `beta` packages to GitHub Packages from `test`.
-- `.github/workflows/publish-release-candidate.yml`: manually publishes `rc` packages to NuGet.org from `release/*`.
+- `.github/workflows/publish-release-candidate.yml`: manually publishes `rc` packages to NuGet.org from `release` or `release/*`.
 - `.github/workflows/publish-nuget-release.yml`: publishes stable packages to NuGet.org from a GitHub Release or manual stable tag dispatch.
 
 Reusable templates keep the mechanics centralized:
@@ -78,7 +78,7 @@ GitHub Packages publishing uses the built-in `GITHUB_TOKEN` with `packages: writ
 1. Merge approved work into `development`.
 2. Let development validation and development package publishing run.
 3. Promote to `test` when the train is ready for wider prerelease testing.
-4. Create or update a `release/*` branch for release-candidate hardening.
+4. Create or update the `release` branch, or a `release/*` branch, for release-candidate hardening.
 5. Run `Publish Release Candidate Packages` with a version like `2.10.0-rc.1`.
 6. Merge the release branch to `main` after RC validation.
 7. Create a GitHub Release with a stable tag like `v2.10.0`; this publishes stable NuGet.org packages.
