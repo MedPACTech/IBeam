@@ -19,7 +19,7 @@ on:
         type: string
         default: Release
       package-version:
-        description: Stable package version, without a leading v.
+        description: Package version, without a leading v.
         required: true
         type: string
       ref:

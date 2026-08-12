@@ -1,0 +1,72 @@
+name: Publish Release Candidate Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release candidate package version, for example 2.1.0-rc.1.
+        required: true
+        type: string
+      ref:
+        description: Release branch or commit to publish. Defaults to the selected workflow ref.
+        required: false
+        type: string
+        default: ''
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.version }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  resolve-release-candidate:
+    name: Resolve Release Candidate
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.version.outputs.ref }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Resolve version
+        id: version
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_REF: ${{ inputs.ref }}
+          WORKFLOW_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          version="$INPUT_VERSION"
+          ref="$INPUT_REF"
+          if [ -z "$ref" ]; then
+            ref="$WORKFLOW_REF"
+          fi
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
+            echo "Release candidate publishing requires a SemVer prerelease like 2.1.0-rc.1. Got '$version'." >&2
+            exit 1
+          fi
+
+          if [[ ! "$ref" =~ ^release/.+ ]]; then
+            echo "Release candidate publishing must target a release/* ref. Got '$ref'." >&2
+            exit 1
+          fi
+
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: resolve-release-candidate
+    uses: ./.github/workflows/_nuget-publish.yml
+    with:
+      dotnet-version: ${{ vars.DOTNET_VERSION || '10.0.x' }}
+      configuration: ${{ vars.BUILD_CONFIGURATION || 'Release' }}
+      package-version: ${{ needs.resolve-release-candidate.outputs.version }}
+      ref: ${{ needs.resolve-release-candidate.outputs.ref }}
+      environment-name: test
+      nuget-source: ${{ vars.NUGET_SOURCE || 'https://api.nuget.org/v3/index.json' }}
+    secrets: inherit
