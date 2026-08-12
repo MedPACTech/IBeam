@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "behavior": {
+    "createMissing": true,
+    "updateExisting": true
+  },
+  "bootstrapActor": {
+    "key": "bootstrap-admin",
+    "userName": "admin@ibeam.local",
+    "email": "admin@ibeam.local",
+    "displayName": "Bootstrap Admin",
+    "passwordEnv": "IBEAM_BOOTSTRAP_ADMIN_PASSWORD",
+    "emailConfirmed": true,
+    "twoFactor": {
+      "enabled": false,
+      "preferredMethod": "email"
+    },
+    "memberships": [
+      {
+        "tenantKey": "demo",
+        "roleKeys": [ "owner" ],
+        "setAsDefaultTenant": true
+      }
+    ]
+  },
+  "tenants": [
+    {
+      "key": "demo",
+      "tenantId": "22222222-2222-2222-2222-222222222222",
+      "name": "IBeam Demo Tenant",
+      "roles": [
+        {
+          "key": "owner",
+          "name": "Owner",
+          "description": "Full tenant ownership."
+        },
+        {
+          "key": "admin",
+          "name": "Admin",
+          "description": "Tenant administration without owner-only actions."
+        },
+        {
+          "key": "member",
+          "name": "Member",
+          "description": "Standard demo user."
+        }
+      ],
+      "permissionMappings": [
+        {
+          "permissionName": "identity.tenantusers.manage",
+          "roleKeys": [ "owner", "admin" ]
+        },
+        {
+          "permissionName": "identity.tenantroles.manage",
+          "roleKeys": [ "owner" ]
+        },
+        {
+          "permissionName": "identity.accesscontrol.manage",
+          "roleKeys": [ "owner", "admin" ]
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "key": "demo-user",
+      "userName": "demo.user@ibeam.local",
+      "email": "demo.user@ibeam.local",
+      "displayName": "Demo User",
+      "passwordEnv": "IBEAM_DEMO_USER_PASSWORD",
+      "emailConfirmed": true,
+      "phoneConfirmed": false,
+      "twoFactor": {
+        "enabled": false,
+        "preferredMethod": "email"
+      },
+      "memberships": [
+        {
+          "tenantKey": "demo",
+          "roleKeys": [ "member" ],
+          "setAsDefaultTenant": true,
+          "accessGrants": [
+            {
+              "resourceType": "demo-resource",
+              "resourceId": "welcome",
+              "accessLevel": "view",
+              "metadata": {
+                "source": "identity.seed.sample"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

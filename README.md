@@ -94,6 +94,7 @@ For repository work, agents should start with the root guide at [`.agent/impleme
 - [service operation permissions](docs/service-operation-permissions.md)
 - [roles, permissions, and grants](docs/roles-permissions-and-grants.md)
 - [identity Azure Table schema inventory](docs/identity-azure-table-schema-inventory.md)
+- [identity local seeder](docs/identity-local-seeder.md)
 - [consuming API migration prompt](IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
 - [IBeam 2.8 consuming API upgrade prompt](IBeam.AI.Enablement/examples/ibeam-2.8-consuming-api-upgrade-prompt.md)
 
@@ -141,6 +142,14 @@ For the cross-package architecture, frontend bootstrap flow, service-base exampl
 - `IBeam.Identity.Services`: identity orchestration (OTP, password, OAuth, tokens, tenant selection, tenant invitations)
 - `IBeam.Identity.Repositories.AzureTable`: Azure Table-backed identity stores and schema bootstrap
 - `IBeam.Identity.Repositories.EntityFramework`: EF-backed identity store wiring (Sqlite currently active)
+
+Local/demo identity seeding is provided as source-only repository tooling, not as a NuGet package.
+Use [Identity Local Seeder](docs/identity-local-seeder.md) when working from this repo checkout:
+
+```powershell
+.\scripts\identity\seed-identity.ps1 -ConfigPath .\scripts\identity\identity.seed.local.json
+.\scripts\identity\seed-identity.ps1 -ConfigPath .\scripts\identity\identity.seed.local.json -Apply
+```
 
 ## Unified Roles, Permissions, and Access Grants
 
