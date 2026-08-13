@@ -1,6 +1,6 @@
 # Open Source Release Checklist
 
-Last updated: 2026-03-24
+Last updated: 2026-08-13
 
 ## Core Release Readiness
 - [x] 1. Produce a full production (`Release`) build for all solution projects.
@@ -13,7 +13,7 @@ Last updated: 2026-03-24
 - [ ] 6. Add repository About summary, website link, and topic tags. (Prepared in `docs/github-repo-profile.md`; pending manual apply)
 - [x] 7. Create release strategy (stable tags + prerelease tags).
 - [x] 8. Add/verify CI workflows for build + test + pack.
-- [x] 9. Add publish workflows for NuGet stable and GitHub Packages prerelease/dev feeds.
+- [x] 9. Add publish workflows for NuGet stable, NuGet release candidates, and GitHub Packages alpha/beta feeds.
 - [x] 10. Add README badges (build, NuGet version/downloads, license, latest release).
 
 ## NuGet Publishing Readiness
@@ -54,10 +54,16 @@ Last updated: 2026-03-24
   - release strategy: `docs/release-strategy.md`
   - release notes template: `docs/release-notes-template.md`
   - changelog release entry added for `2.0.10`
-  - CI workflow: `.github/workflows/ci.yml`
-  - prerelease publish workflow (GitHub Packages): `.github/workflows/publish-prerelease-gpr.yml`
+  - CI workflow, later replaced by branch-specific validation workflows
+  - prerelease publish workflow (GitHub Packages), later replaced by alpha/beta package workflows
   - stable publish workflow (NuGet.org): `.github/workflows/publish-nuget-release.yml`
   - README badges for CI/NuGet/license/release
+
+- 2026-08-13: GitHub Actions migration cleanup completed:
+  - removed Azure Pipelines YAML and helper scripts
+  - removed redundant manual `ci.yml` and `package-preview.yml` workflows
+  - branch validation now uses `validate-development.yml`, `validate-test.yml`, `validate-release.yml`, and `validate-production.yml`
+  - prerelease publishing now uses `publish-development-packages.yml` for alpha packages and `publish-test-packages.yml` for beta packages
 
 - 2026-03-24: package readiness checks completed:
   - `dotnet pack IBeam.sln -c Release -o artifacts/packages` succeeded

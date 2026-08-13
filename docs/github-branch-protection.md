@@ -1,6 +1,6 @@
 # GitHub Branch Protection
 
-Last updated: 2026-03-24
+Last updated: 2026-08-13
 
 ## Ruleset
 - Name: `main-protection`
@@ -16,10 +16,10 @@ Last updated: 2026-03-24
 - Require branches to be up to date before merging: enabled
 
 ## Required Status Checks
-- `build-test-pack`
+- `validate / Build, Test, Pack`
 
 This check is produced by:
-- [ci.yml](c:/Projects/medpactech/IBeam/.github/workflows/ci.yml)
+- `.github/workflows/validate-production.yml`
 
 ## NuGet Trusted Publishing Alignment
 - Workflow file: `.github/workflows/publish-nuget-release.yml`
@@ -37,5 +37,5 @@ Create the environment in GitHub:
 3. Set name to `main-protection`.
 4. Target `main`.
 5. Enable settings listed above.
-6. Add required status check `build-test-pack`.
+6. Add required status check `validate / Build, Test, Pack`.
 7. Save and verify by opening a PR into `main`.

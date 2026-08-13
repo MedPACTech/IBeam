@@ -1,5 +1,5 @@
 # IBeam
-[![CI](https://github.com/MedPACTech/IBeam/actions/workflows/ci.yml/badge.svg)](https://github.com/MedPACTech/IBeam/actions/workflows/ci.yml)
+[![Validate Development](https://github.com/MedPACTech/IBeam/actions/workflows/validate-development.yml/badge.svg)](https://github.com/MedPACTech/IBeam/actions/workflows/validate-development.yml)
 [![NuGet](https://img.shields.io/nuget/v/IBeam.Services)](https://www.nuget.org/packages/IBeam.Services)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/IBeam.Services)](https://www.nuget.org/packages/IBeam.Services)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
