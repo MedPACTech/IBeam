@@ -20,6 +20,6 @@ jobs:
       dotnet-version: ${{ vars.DOTNET_VERSION || '10.0.x' }}
       configuration: ${{ vars.BUILD_CONFIGURATION || 'Release' }}
       environment-name: development
-      prerelease-channel: dev
-      artifact-name: development-dev-nupkgs
+      prerelease-channel: alpha
+      artifact-name: development-alpha-nupkgs
 

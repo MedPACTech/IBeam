@@ -8,7 +8,7 @@ IBeam uses a release-train model for NuGet packages. All packages produced by a 
 
 | Branch or ref | GitHub environment | Package channel | Feed | Version example |
 | --- | --- | --- | --- | --- |
-| `development` | `development` | Development prerelease | GitHub Packages | `2.10.0-dev.123.1` |
+| `development` | `development` | Alpha prerelease | GitHub Packages | `2.10.0-alpha.123.1` |
 | `test` | `test` | Beta prerelease | GitHub Packages | `2.10.0-beta.124.1` |
 | `release` or `release/*` | `test` | Release candidate | NuGet.org prerelease | `2.10.0-rc.1` |
 | `main` release tag | `production` | Stable | NuGet.org | `2.10.0` |
@@ -20,8 +20,14 @@ Pull requests and validation workflows build, test, and pack artifacts. Publishi
 Set `PRERELEASE_VERSION_PREFIX` to the next intended stable version, such as `2.10.0`. Development and test publishing append the channel and GitHub run identity:
 
 ```text
-{PRERELEASE_VERSION_PREFIX}-dev.{github.run_number}.{github.run_attempt}
+{PRERELEASE_VERSION_PREFIX}-alpha.{github.run_number}.{github.run_attempt}
 {PRERELEASE_VERSION_PREFIX}-beta.{github.run_number}.{github.run_attempt}
+```
+
+NuGet sorts these prerelease channels in the expected release-train order:
+
+```text
+alpha < beta < rc < stable
 ```
 
 Release candidates are manually supplied as exact package versions and must match:
@@ -42,7 +48,7 @@ vMAJOR.MINOR.PATCH
 - `.github/workflows/validate-test.yml`: validates pushes and pull requests targeting `test`.
 - `.github/workflows/validate-release.yml`: validates `release` and `release/*` branches.
 - `.github/workflows/validate-production.yml`: validates `main`.
-- `.github/workflows/publish-development-packages.yml`: publishes `dev` packages to GitHub Packages from `development`.
+- `.github/workflows/publish-development-packages.yml`: publishes `alpha` packages to GitHub Packages from `development`.
 - `.github/workflows/publish-test-packages.yml`: publishes `beta` packages to GitHub Packages from `test`.
 - `.github/workflows/publish-release-candidate.yml`: manually publishes `rc` packages to NuGet.org from `release` or `release/*`.
 - `.github/workflows/publish-nuget-release.yml`: publishes stable packages to NuGet.org from a GitHub Release or manual stable tag dispatch.
@@ -59,7 +65,7 @@ Configure these as repository or environment variables:
 
 | Name | Required | Suggested scope | Notes |
 | --- | --- | --- | --- |
-| `PRERELEASE_VERSION_PREFIX` | Yes for dev/test publishing | `development` and `test` environments, or repository | Keep both environments on the same next stable version when the release train is shared. |
+| `PRERELEASE_VERSION_PREFIX` | Yes for alpha/beta publishing | `development` and `test` environments, or repository | Keep both environments on the same next stable version when the release train is shared. |
 | `DOTNET_VERSION` | No | Repository | Defaults to `10.0.x`. |
 | `BUILD_CONFIGURATION` | No | Repository | Defaults to `Release`. |
 | `GITHUB_PACKAGES_NUGET_SOURCE` | No | Repository | Defaults to `https://nuget.pkg.github.com/{repository_owner}/index.json`. |
