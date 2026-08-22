@@ -57,6 +57,8 @@ public sealed class ApiKeyAuthenticationHandler : AuthenticationHandler<ApiKeyAu
             return authorization["ApiKey ".Length..].Trim();
         if (authorization.StartsWith("Key ", StringComparison.OrdinalIgnoreCase))
             return authorization["Key ".Length..].Trim();
+        if (authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            return authorization["Bearer ".Length..].Trim();
 
         return null;
     }

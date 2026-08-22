@@ -80,11 +80,11 @@ public static class ServiceCollectionExtensions
                         context.Token = token;
                         return Task.CompletedTask;
                     },
-                    OnAuthenticationFailed = context =>
+                    OnAuthenticationFailed = async context =>
                     {
                         var raw = context.Request.Headers.Authorization.ToString();
                         if (string.IsNullOrWhiteSpace(raw) || !raw.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-                            return Task.CompletedTask;
+                            return;
 
                         var token = raw["Bearer ".Length..].Trim();
                         if (token.Length > 1 && token[0] == '"' && token[^1] == '"')
@@ -95,13 +95,21 @@ public static class ServiceCollectionExtensions
                         if (token.Count(c => c == '.') != 2)
                         {
                             context.NoResult();
+
+                            // The default JWT scheme runs on every request regardless of which policy the
+                            // target endpoint actually needs. Endpoints whose resolved policy accepts a
+                            // scheme other than JWT (e.g. a combined API-key/OAuth policy for machine
+                            // clients) must get a real chance at that other scheme instead of having this
+                            // scheme pre-empt the response with a diagnostic meant for JWT-only endpoints.
+                            if (await AcceptsNonJwtSchemeAsync(context.HttpContext).ConfigureAwait(false))
+                                return;
+
                             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                             context.Response.ContentType = "application/json";
-                            return context.Response.WriteAsync(
-                                """{"message":"Invalid bearer token format. Use token.accessToken (JWT), not OTP code or refresh token."}""");
+                            await context.Response.WriteAsync(
+                                """{"message":"Invalid bearer token format. Use token.accessToken (JWT), not OTP code or refresh token."}""")
+                                .ConfigureAwait(false);
                         }
-
-                        return Task.CompletedTask;
                     }
                 };
 
@@ -136,6 +144,37 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IIBeamCurrentAccessControlService, IBeamCurrentAccessControlService>();
 
         return services;
+    }
+
+    // The default JWT scheme's OnAuthenticationFailed handler above runs on every request
+    // regardless of which policy the target endpoint actually needs (UseAuthentication() always
+    // evaluates the default scheme). This resolves the endpoint's real, effective policy the same
+    // way AuthorizationMiddleware does, so the diagnostic only fires when JWT genuinely is the
+    // sole scheme in play — a combined policy (e.g. one that also accepts an API-key scheme) gets
+    // a real chance at that other scheme instead of having this scheme pre-empt the response.
+    internal static async Task<bool> AcceptsNonJwtSchemeAsync(HttpContext httpContext)
+    {
+        var endpoint = httpContext.GetEndpoint();
+        var authorizeData = endpoint?.Metadata.GetOrderedMetadata<IAuthorizeData>();
+        if (authorizeData is null || authorizeData.Count == 0)
+            return false;
+
+        var policyProvider = httpContext.RequestServices.GetRequiredService<IAuthorizationPolicyProvider>();
+        AuthorizationPolicy? policy;
+        try
+        {
+            policy = await AuthorizationPolicy.CombineAsync(policyProvider, authorizeData).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Unresolvable/malformed policy reference — fall back to the existing behavior rather
+            // than risk silently swallowing a real authentication failure.
+            return false;
+        }
+
+        return policy is not null
+            && policy.AuthenticationSchemes.Count > 0
+            && policy.AuthenticationSchemes.Any(scheme => !string.Equals(scheme, JwtBearerDefaults.AuthenticationScheme, StringComparison.Ordinal));
     }
 
     public static IMvcBuilder AddIBeamIdentityApiControllers(this IServiceCollection services)
