@@ -1,6 +1,15 @@
 # IBeam.Ai
 
-`IBeam.Ai` contains the core AI agent, tool, and MCP contracts shared by IBeam-backed applications.
+`IBeam.Ai` contains the core AI agent, tool, and MCP contracts shared by IBeam-backed applications, plus the vendor-neutral outbound completion contracts under `IBeam.Ai.Completions`.
+
+## Outbound Completions (`IBeam.Ai.Completions`)
+
+Two halves live in this package family:
+
+- **Inbound MCP hosting** (external agents calling into an IBeam app) — the contracts below, registered via `AddIBeamAiServices`.
+- **Outbound model invocation** (an IBeam app calling a model) — `IAiCompletionService`, registered via `AddIBeamAiCompletions(configuration)` from `IBeam.Ai.Services` plus a provider adapter such as `IBeam.Ai.Anthropic`.
+
+Consumers declare providers and named profiles under `IBeam:Ai` in configuration (model, effort, max tokens, credit bucket) and inject `IAiCompletionService`. Switching a feature between models or effort levels is a configuration edit, not a code change. Failure is modelled, not thrown: results carry `AiCompletionStatus` (`Ok`, `NotConfigured`, `Refused`, `Unavailable`, `Malformed`, `Filtered`, `Denied`) so a missing API key, a refusal, and a rate limit can each be handled differently. Profiles with a `CreditBucketKey` are credit-metered through `ILicenseCreditGate` when it is registered: reserve the estimate, settle actual token usage, release on failure.
 
 ```powershell
 dotnet add package IBeam.Ai
