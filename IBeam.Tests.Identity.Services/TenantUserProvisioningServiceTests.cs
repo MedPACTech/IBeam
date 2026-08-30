@@ -1,4 +1,4 @@
-using IBeam.Identity.Interfaces;
+﻿using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Services.Tenants;
 using Moq;
@@ -15,7 +15,7 @@ public sealed class TenantUserProvisioningServiceTests
         var provisionedBy = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var roleId = Guid.NewGuid();
-        var user = new IdentityUser(userId, "ada@example.com", false, DisplayName: "Ada Lovelace");
+        var user = new IdentityUser(userId, "ada@example.com", false);
         var role = new TenantRole(tenantId, roleId, "Member", false, true, DateTimeOffset.UtcNow);
         var tenants = new Mock<IIdentityTenantService>(MockBehavior.Strict);
         var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
@@ -32,8 +32,7 @@ public sealed class TenantUserProvisioningServiceTests
         users.Setup(x => x.CreateAsync(
                 It.Is<RegisterUserRequest>(r =>
                     r.Email == "ada@example.com" &&
-                    r.Password == string.Empty &&
-                    r.DisplayName == "Ada Lovelace"),
+                    r.Password == string.Empty),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateUserResult.Success(user));
         users.Setup(x => x.FindByIdAsync(userId, It.IsAny<CancellationToken>()))
@@ -44,8 +43,7 @@ public sealed class TenantUserProvisioningServiceTests
                     r.TenantId == tenantId &&
                     r.UserId == userId &&
                     r.SetAsDefault &&
-                    r.RoleNames!.SequenceEqual(new[] { "Member" }) &&
-                    r.UserDisplayName == "Ada Lovelace"),
+                    r.RoleNames!.SequenceEqual(new[] { "Member" })),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UserTenantRoleAssignment(tenantId, userId, [role]));
 
@@ -53,7 +51,7 @@ public sealed class TenantUserProvisioningServiceTests
             .ReturnsAsync(new TenantInfo(tenantId, "Workspace", ["Member"], true, [roleId]));
 
         extensions.Setup(x => x.EnsureExtensionAsync(
-                It.Is<IdentityUser>(u => u.UserId == userId && u.DisplayName == "Ada Lovelace"),
+                It.Is<IdentityUser>(u => u.UserId == userId),
                 It.Is<UserExtensionContext>(c =>
                     c.Operation == UserExtensionOperations.AdminProvisioned &&
                     c.UserId == userId &&
@@ -69,7 +67,6 @@ public sealed class TenantUserProvisioningServiceTests
                 tenantId,
                 It.Is<TenantInviteCreateRequest>(r =>
                     r.Email == "ada@example.com" &&
-                    r.DisplayName == "Ada Lovelace" &&
                     r.RequirePasswordSetup &&
                     r.RoleNames!.SequenceEqual(new[] { "Member" })),
                 provisionedBy,
@@ -90,7 +87,7 @@ public sealed class TenantUserProvisioningServiceTests
                     null,
                     null,
                     null,
-                    new TenantInviteProfileHints("Ada Lovelace", "Ada", "Lovelace"),
+                    new TenantInviteProfileHints("Ada", "Lovelace"),
                     [],
                     ["Member"],
                     true,
@@ -114,7 +111,6 @@ public sealed class TenantUserProvisioningServiceTests
             tenantId,
             new ProvisionTenantUserRequest(
                 Email: " Ada@Example.com ",
-                DisplayName: "Ada Lovelace",
                 FirstName: "Ada",
                 LastName: "Lovelace",
                 RoleNames: ["Member"],

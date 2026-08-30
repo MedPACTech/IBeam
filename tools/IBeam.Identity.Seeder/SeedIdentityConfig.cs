@@ -156,7 +156,6 @@ internal sealed class SeedUserConfig
     public string? UserName { get; set; }
     public string? Email { get; set; }
     public string? PhoneNumber { get; set; }
-    public string? DisplayName { get; set; }
     public string? PasswordEnv { get; set; }
     public string? Password { get; set; }
     public bool? EmailConfirmed { get; set; }

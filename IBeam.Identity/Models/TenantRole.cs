@@ -24,7 +24,6 @@ public sealed record TenantMembershipRoleBootstrapRequest(
     IReadOnlyList<Guid>? RoleIds = null,
     IReadOnlyList<string>? RoleNames = null,
     bool SetAsDefault = false,
-    string? UserDisplayName = null,
     string? UserEmail = null,
     string? UserPhoneNumber = null
 );

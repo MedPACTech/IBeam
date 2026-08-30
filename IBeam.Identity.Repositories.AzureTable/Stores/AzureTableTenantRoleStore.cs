@@ -1,4 +1,4 @@
-using Azure;
+﻿using Azure;
 using Azure.Data.Tables;
 using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
@@ -428,7 +428,6 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         var tenantName = request.TenantName;
         var setAsDefault = request.SetAsDefault;
         var displayName = string.IsNullOrWhiteSpace(tenantName) ? null : tenantName.Trim();
-        var userDisplayName = NormalizeOptional(request.UserDisplayName);
         var userEmail = NormalizeEmail(request.UserEmail);
         var userPhoneNumber = NormalizeOptional(request.UserPhoneNumber);
 
@@ -445,8 +444,6 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
             tenantUser.Status = "Active";
             tenantUser.DisabledAt = null;
             tenantUser.DisabledReason = null;
-            if (!string.IsNullOrWhiteSpace(userDisplayName))
-                tenantUser.UserDisplayName = userDisplayName;
             if (!string.IsNullOrWhiteSpace(userEmail))
                 tenantUser.Email = userEmail;
             if (!string.IsNullOrWhiteSpace(userPhoneNumber))
@@ -464,7 +461,6 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                     TenantId = tenantIdStr,
                     UserId = userIdStr,
                     Status = "Active",
-                    UserDisplayName = userDisplayName,
                     Email = userEmail,
                     PhoneNumber = userPhoneNumber,
                     CreatedAt = now
@@ -483,8 +479,6 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                 tenantUser.Status = "Active";
                 tenantUser.DisabledAt = null;
                 tenantUser.DisabledReason = null;
-                if (!string.IsNullOrWhiteSpace(userDisplayName))
-                    tenantUser.UserDisplayName = userDisplayName;
                 if (!string.IsNullOrWhiteSpace(userEmail))
                     tenantUser.Email = userEmail;
                 if (!string.IsNullOrWhiteSpace(userPhoneNumber))

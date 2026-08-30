@@ -75,7 +75,6 @@ public class AuthController : ControllerBase
                 req.ChallengeId,
                 req.Code,
                 req.Destination,
-                req.DisplayName,
                 ct);
             return Ok(result);
         }
@@ -611,7 +610,6 @@ public class CompleteOtpRequest
     public string ChallengeId { get; set; } = string.Empty;
     public string Destination { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
-    public string? DisplayName { get; set; }
 }
 
 public class StartEmailPasswordRegistrationRequest
