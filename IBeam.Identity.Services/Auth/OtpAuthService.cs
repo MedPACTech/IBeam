@@ -38,6 +38,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
     private readonly IIdentityUserExtensionCoordinator _userExtensions;
     private readonly ILogger<OtpAuthService> _logger;
     private readonly IServiceOperationExecutor _operations;
+    private readonly IOtpRecipientNameProvider? _recipientNames;
 
     public OtpAuthService(
         IIdentityUserStore users,
@@ -124,8 +125,10 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         ITenantExtensionCoordinator tenantExtensions,
         IIdentityUserExtensionCoordinator userExtensions,
         ILogger<OtpAuthService> logger,
-        IServiceOperationExecutor? operations = null)
+        IServiceOperationExecutor? operations = null,
+        IOtpRecipientNameProvider? recipientNames = null)
     {
+        _recipientNames = recipientNames;
         _users = users ?? throw new ArgumentNullException(nameof(users));
         _tenants = tenants ?? throw new ArgumentNullException(nameof(tenants));
         _tenantProvisioning = tenantProvisioning ?? throw new ArgumentNullException(nameof(tenantProvisioning));
@@ -223,7 +226,8 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             (hook, evt, token) => hook.OnBeforeOtpChallengeCreateAsync(evt, token),
             ct);
 
-        var request = new OtpChallengeRequest(channel, normalized, SenderPurpose.LoginMfa, effectiveTenantId);
+        var displayName = await ResolveRecipientNameAsync(existingUser, effectiveTenantId, ct).ConfigureAwait(false);
+        var request = new OtpChallengeRequest(channel, normalized, SenderPurpose.LoginMfa, effectiveTenantId, displayName);
         var challenge = await _otpService.CreateChallengeAsync(request, ct);
 
         var challengeCreated = new OtpChallengeCreatedEvent
@@ -242,6 +246,23 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             ct);
 
         return challenge;
+    }
+
+    private async Task<string?> ResolveRecipientNameAsync(IdentityUser? user, Guid? tenantId, CancellationToken ct)
+    {
+        if (user is null || _recipientNames is null)
+            return null;
+
+        try
+        {
+            return await _recipientNames.GetDisplayNameAsync(user, tenantId, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Greeting personalization must never block sign-in.
+            _logger.LogWarning(ex, "OTP recipient name provider failed for user {UserId}; using neutral greeting.", user.UserId);
+            return null;
+        }
     }
 
     [IBeamOperation("identity.auth.otp.complete", Permission = false)]
