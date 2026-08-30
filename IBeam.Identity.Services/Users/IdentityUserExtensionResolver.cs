@@ -46,8 +46,7 @@ public sealed class IdentityUserExtensionResolver<TUserExtension> : IIdentityUse
             identityUser.UserId,
             tenantId,
             identityUser.Email,
-            identityUser.PhoneNumber,
-            identityUser.DisplayName);
+            identityUser.PhoneNumber);
 
     private static void ValidateIdentityUser(IdentityUser identityUser)
     {

@@ -169,7 +169,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         if (result.User is null)
             throw new IdentityProviderException("UnknownProvider", "User store returned success but no user.");
 
-        var extensionUser = result.User with { DisplayName = request.DisplayName ?? result.User.DisplayName };
+        var extensionUser = result.User;
         var created = new AuthUserCreatedEvent
         {
             AuthUserId = result.User.UserId.ToString("D"),
@@ -583,13 +583,13 @@ public sealed class PasswordAuthService : IIdentityAuthService
             await InvokeLifecycleAndPublishAsync(preCreate, (hook, evt, token) => hook.OnBeforeAuthUserCreateAsync(evt, token), ct);
 
             var createResult = await _users.CreateAsync(
-                new RegisterUserRequest(normalizedEmail, null, string.Empty, displayName),
+                new RegisterUserRequest(normalizedEmail, null, string.Empty),
                 ct);
 
             if (!createResult.Succeeded || createResult.User is null)
                 throw new IdentityValidationException("User creation failed.", createResult.Errors);
 
-            user = createResult.User with { DisplayName = displayName ?? createResult.User.DisplayName };
+            user = createResult.User;
             createdNewUser = true;
 
             var created = new AuthUserCreatedEvent
@@ -645,7 +645,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         if (existing is not null && existing.UserId != user.UserId)
             throw new IdentityValidationException("Email is already bound to another user.");
 
-        return await StartEmailPasswordRegistrationCoreAsync(normalizedEmail, displayName ?? user.DisplayName, resetUrlBase, ct);
+        return await StartEmailPasswordRegistrationCoreAsync(normalizedEmail, displayName, resetUrlBase, ct);
     }
 
     [IBeamOperation("identity.auth.password.email.link.complete", Permission = false)]
@@ -1123,7 +1123,6 @@ public sealed class PasswordAuthService : IIdentityAuthService
             tenantId,
             user.Email,
             user.PhoneNumber,
-            user.DisplayName,
             correlationId: correlationId,
             causationId: causationId,
             traceId: traceId,

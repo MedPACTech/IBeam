@@ -4,6 +4,8 @@ using IBeam.Communications.Abstractions;
 using IBeam.Communications.Abstractions.Options;
 using IBeam.Communications.Abstractions.Policies;
 using IBeam.Communications.Abstractions.Validation;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace IBeam.Communications.Sms.AzureCommunications;
@@ -13,13 +15,16 @@ public sealed class AzureCommunicationsSmsService : ISmsService
     private const string ProviderName = "AzureCommunicationsSms";
     private readonly SmsClient _client;
     private readonly SmsOptions _defaults;
+    private readonly ILogger<AzureCommunicationsSmsService> _logger;
 
     public AzureCommunicationsSmsService(
         IOptions<AzureCommunicationsSmsOptions> providerOptions,
-        IOptions<SmsOptions> defaults)
+        IOptions<SmsOptions> defaults,
+        ILogger<AzureCommunicationsSmsService>? logger = null)
     {
         var opt = providerOptions?.Value ?? throw new ArgumentNullException(nameof(providerOptions));
         _defaults = defaults?.Value ?? throw new ArgumentNullException(nameof(defaults));
+        _logger = logger ?? NullLogger<AzureCommunicationsSmsService>.Instance;
 
         if (!AzureCommunicationsSmsConnectionStringValidator.IsValid(opt.ConnectionString))
             throw new SmsConfigurationException(AzureCommunicationsSmsConnectionStringValidator.FailureMessage);
@@ -49,6 +54,9 @@ public sealed class AzureCommunicationsSmsService : ISmsService
 
                 if (!result.Successful)
                 {
+                    _logger.LogError(
+                        "Azure Communications SMS submission failed. To={To} MessageId={MessageId} HttpStatus={HttpStatus} Error={Error}",
+                        to, result.MessageId, result.HttpStatusCode, result.ErrorMessage);
                     throw new SmsProviderException(
                         provider: ProviderName,
                         message: BuildProviderMessage(
@@ -62,15 +70,27 @@ public sealed class AzureCommunicationsSmsService : ISmsService
                         isTransient: false,
                         providerCode: result.HttpStatusCode.ToString());
                 }
+
+                // Submission acceptance is not delivery; log the MessageId so it can be
+                // correlated with Event Grid delivery reports when delivery breaks down.
+                _logger.LogInformation(
+                    "Azure Communications SMS accepted for delivery. To={To} MessageId={MessageId} HttpStatus={HttpStatus}",
+                    to, result.MessageId, result.HttpStatusCode);
             }
         }
         catch (SmsProviderException) { throw; }
         catch (RequestFailedException ex)
         {
+            _logger.LogError(ex,
+                "Azure Communications SMS request failed. HttpStatus={HttpStatus} ErrorCode={ErrorCode} Recipients={Recipients}",
+                ex.Status, ex.ErrorCode, context.Recipients);
             throw TranslateAzureException(ex, context);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            _logger.LogError(ex,
+                "Unexpected Azure Communications SMS provider error. Recipients={Recipients}",
+                context.Recipients);
             throw new SmsProviderException(
                 provider: ProviderName,
                 message: BuildProviderMessage(

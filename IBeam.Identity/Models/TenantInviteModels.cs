@@ -24,7 +24,6 @@ public static class TenantInviteAcceptModes
 }
 
 public sealed record TenantInviteProfileHints(
-    string? DisplayName = null,
     string? FirstName = null,
     string? LastName = null,
     IReadOnlyDictionary<string, string>? Metadata = null);
@@ -40,7 +39,6 @@ public sealed record TenantInviteCreateRequest(
     string DestinationType,
     string? Email = null,
     string? PhoneNumber = null,
-    string? DisplayName = null,
     string? FirstName = null,
     string? LastName = null,
     IReadOnlyList<Guid>? RoleIds = null,
@@ -69,7 +67,6 @@ public sealed record TenantInviteAcceptRequest(
     string? Code = null,
     string? VerificationToken = null,
     string? Password = null,
-    string? DisplayName = null,
     string? FirstName = null,
     string? LastName = null,
     bool? SetAsDefaultTenant = null,

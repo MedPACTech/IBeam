@@ -29,7 +29,6 @@ public sealed record TenantUserDirectoryItem(
     Guid? InviteId = null,
     string? Email = null,
     string? PhoneNumber = null,
-    string? DisplayName = null,
     string? FirstName = null,
     string? LastName = null,
     string Status = TenantUserDirectoryStatuses.Active,

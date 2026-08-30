@@ -46,6 +46,9 @@ public abstract class BaseRepositoryAsync<T> : IBaseRepositoryAsync<T>
     // Keep cache keys centralized so ClearCache never drifts
     protected virtual string CacheKey_AllGlobal => $"{RepositoryCacheName}:All:Global";
 
+    // Per-repository override point for select-all cache freshness; null means no expiration.
+    protected virtual TimeSpan? CacheDuration => Options.CacheDuration;
+
     protected Guid? CurrentTenantIdOrNull()
         => IsTenantSpecific ? TenantContext.TenantId : null;
 
@@ -107,12 +110,10 @@ public abstract class BaseRepositoryAsync<T> : IBaseRepositoryAsync<T>
 
         if (canCache)
         {
-            //TODO Add Chaeche Expiration Options Later
-            // Use options-based expiration if provided
-            //if (Options.CacheDuration.HasValue && Options.CacheDuration.Value > TimeSpan.Zero)
-            //    MemoryCache.Set(CacheKey_AllGlobal, filtered, Options.CacheDuration.Value);
-            //else
-            MemoryCache.Set(CacheKey_AllGlobal, filtered);
+            if (CacheDuration is { } duration && duration > TimeSpan.Zero)
+                MemoryCache.Set(CacheKey_AllGlobal, filtered, duration);
+            else
+                MemoryCache.Set(CacheKey_AllGlobal, filtered);
         }
 
         return filtered;

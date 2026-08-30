@@ -21,5 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IBeam.Ai.Api\IBeam.Ai.Api.csproj" />
+    <ProjectReference Include="..\IBeam.Ai.Anthropic\IBeam.Ai.Anthropic.csproj" />
+    <ProjectReference Include="..\IBeam.Ai.Services\IBeam.Ai.Services.csproj" />
   </ItemGroup>
 </Project>

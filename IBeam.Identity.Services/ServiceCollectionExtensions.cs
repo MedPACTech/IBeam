@@ -352,6 +352,18 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Registers the host app's greeting-name source for OTP sign-in messages.
+    /// Identity records carry no person names, so the app resolves one from its own
+    /// profile data; without a registration the OTP email greets with "Hi there,".
+    /// </summary>
+    public static IServiceCollection AddIBeamIdentityOtpRecipientNameProvider<TProvider>(this IServiceCollection services)
+        where TProvider : class, IOtpRecipientNameProvider
+    {
+        services.AddScoped<IOtpRecipientNameProvider, TProvider>();
+        return services;
+    }
+
     public static IServiceCollection AddIBeamIdentityAuthOAuthService(this IServiceCollection services)
     {
         services.AddScoped<IIdentityOAuthAuthService, OAuthAuthService>();

@@ -1,4 +1,4 @@
-using IBeam.Identity.Events;
+﻿using IBeam.Identity.Events;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
@@ -26,7 +26,6 @@ public sealed class TenantInviteServiceTests
             new TenantInviteCreateRequest(
                 TenantInviteDestinationTypes.Email,
                 Email: " Invited@Example.com ",
-                DisplayName: "Invited Person",
                 RoleNames: ["Member"],
                 RedirectUrl: "https://app.example.com/invites"),
             invitedBy);
@@ -48,7 +47,7 @@ public sealed class TenantInviteServiceTests
         var invitedBy = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var roleId = Guid.NewGuid();
-        var user = new IdentityUser(userId, "invited@example.com", true, PhoneNumber: "+16145551212", DisplayName: "Existing User");
+        var user = new IdentityUser(userId, "invited@example.com", true, PhoneNumber: "+16145551212");
         var sender = new RecordingIdentitySender();
         var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
         var roles = new Mock<ITenantRoleService>(MockBehavior.Strict);
@@ -65,7 +64,6 @@ public sealed class TenantInviteServiceTests
                     r.UserId == userId &&
                     r.RoleNames!.SequenceEqual(new[] { "Member" }) &&
                     r.SetAsDefault &&
-                    r.UserDisplayName == "Invite Name" &&
                     r.UserEmail == "invited@example.com" &&
                     r.UserPhoneNumber == "+16145551212"),
                 It.IsAny<CancellationToken>()))
@@ -78,13 +76,12 @@ public sealed class TenantInviteServiceTests
             .ReturnsAsync(new TenantInfo(tenantId, "Workspace", ["Member"], true, [roleId]));
 
         extensions.Setup(x => x.EnsureExtensionAsync(
-                It.Is<IdentityUser>(u => u.UserId == userId && u.DisplayName == "Invite Name"),
+                It.Is<IdentityUser>(u => u.UserId == userId),
                 It.Is<UserExtensionContext>(c =>
                     c.Operation == "invite-accepted" &&
                     c.TenantId == tenantId &&
                     c.UserId == userId &&
                     c.NormalizedEmail == "invited@example.com" &&
-                    c.DisplayName == "Invite Name" &&
                     c.FirstName == "Ada" &&
                     c.Metadata!["source"] == "test"),
                 It.IsAny<CancellationToken>()))
@@ -114,7 +111,6 @@ public sealed class TenantInviteServiceTests
             new TenantInviteCreateRequest(
                 TenantInviteDestinationTypes.Email,
                 Email: "invited@example.com",
-                DisplayName: "Invite Name",
                 FirstName: "Ada",
                 RoleNames: ["Member"],
                 SetAsDefaultTenant: true,
@@ -201,7 +197,7 @@ public sealed class TenantInviteServiceTests
         var invitedBy = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var roleId = Guid.NewGuid();
-        var user = new IdentityUser(userId, "invited@example.com", false, DisplayName: "Existing User");
+        var user = new IdentityUser(userId, "invited@example.com", false);
         var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
         var roles = new Mock<ITenantRoleService>(MockBehavior.Strict);
         var memberships = new Mock<ITenantMembershipStore>(MockBehavior.Strict);

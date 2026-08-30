@@ -458,7 +458,6 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
             Roles: SplitRoles(entity.RolesCsv),
             IsActive: IsActiveStatus(entity.Status),
             RoleIds: SplitRoleIds(entity.RoleIdsCsv),
-            DisplayName: entity.UserDisplayName,
             Email: entity.Email,
             PhoneNumber: entity.PhoneNumber,
             CreatedAt: entity.CreatedAt,

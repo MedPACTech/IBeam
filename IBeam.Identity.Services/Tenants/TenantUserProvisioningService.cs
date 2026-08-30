@@ -77,7 +77,6 @@ public sealed class TenantUserProvisioningService : ITenantUserProvisioningServi
             throw new IdentityValidationException("Email or phoneNumber is required.");
 
         var (user, createdNewUser) = await FindOrCreateUserAsync(request, email, phone, ct).ConfigureAwait(false);
-        user = user with { DisplayName = FirstNonEmpty(request.DisplayName, user.DisplayName, email, phone) };
 
         var roles = await EnsureMembershipAndRolesAsync(tenantId, user, request, ct).ConfigureAwait(false);
         await ApplyAccessGrantsAsync(tenantId, user.UserId, provisionedByUserId, request.AccessGrants, ct).ConfigureAwait(false);
@@ -90,7 +89,6 @@ public sealed class TenantUserProvisioningService : ITenantUserProvisioningServi
                 tenantId,
                 email ?? user.Email,
                 phone ?? user.PhoneNumber,
-                request.DisplayName ?? user.DisplayName,
                 request.FirstName,
                 request.LastName,
                 request.CorrelationId,
@@ -134,8 +132,7 @@ public sealed class TenantUserProvisioningService : ITenantUserProvisioningServi
                 new RegisterUserRequest(
                     email,
                     phone,
-                    Password: string.Empty,
-                    DisplayName: FirstNonEmpty(request.DisplayName, email, phone)),
+                    Password: string.Empty),
                 ct)
             .ConfigureAwait(false);
 
@@ -164,7 +161,6 @@ public sealed class TenantUserProvisioningService : ITenantUserProvisioningServi
                         RoleIds: roleIds,
                         RoleNames: roleNames,
                         SetAsDefault: request.SetAsDefaultTenant,
-                        UserDisplayName: request.DisplayName ?? user.DisplayName,
                         UserEmail: user.Email,
                         UserPhoneNumber: user.PhoneNumber),
                     ct)
@@ -225,7 +221,6 @@ public sealed class TenantUserProvisioningService : ITenantUserProvisioningServi
             destinationType,
             Email: email,
             PhoneNumber: phone,
-            DisplayName: request.DisplayName,
             FirstName: request.FirstName,
             LastName: request.LastName,
             RoleIds: NormalizeRoleIds(request.RoleIds),

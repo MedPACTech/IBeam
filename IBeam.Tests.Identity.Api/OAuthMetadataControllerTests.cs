@@ -1,3 +1,4 @@
+using System.Text.Json;
 using IBeam.Identity.Api.Controllers;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
@@ -42,6 +43,70 @@ public sealed class OAuthMetadataControllerTests
         Assert.AreEqual("client", document.ClientId);
         Assert.IsNull(typeof(OAuthClientMetadataDocument).GetProperty("ClientSecret"));
         Assert.IsNull(typeof(OAuthClientMetadataDocument).GetProperty("ClientSecretHash"));
+    }
+
+    [TestMethod]
+    public async Task Metadata_SerializesRfc8414MemberNamesRegardlessOfHostPolicy()
+    {
+        var sut = CreateController(enabled: true, dynamicRegistration: true);
+        var metadata = (OAuthAuthorizationServerMetadata)((OkObjectResult)await sut.Metadata(CancellationToken.None)).Value!;
+
+        var json = JsonSerializer.Serialize(metadata, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        using var document = JsonDocument.Parse(json);
+
+        foreach (var name in new[]
+        {
+            "issuer", "authorization_endpoint", "token_endpoint", "revocation_endpoint", "jwks_uri",
+            "registration_endpoint", "response_types_supported", "grant_types_supported",
+            "code_challenge_methods_supported", "token_endpoint_auth_methods_supported",
+            "scopes_supported", "resource_indicators_supported"
+        })
+        {
+            Assert.IsTrue(document.RootElement.TryGetProperty(name, out _), $"Missing RFC member {name}");
+        }
+        Assert.IsFalse(json.Contains("authorizationEndpoint", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task Metadata_OmitsRegistrationEndpointWhenDynamicRegistrationDisabled()
+    {
+        var sut = CreateController(enabled: true, dynamicRegistration: false);
+        var metadata = (OAuthAuthorizationServerMetadata)((OkObjectResult)await sut.Metadata(CancellationToken.None)).Value!;
+
+        var json = JsonSerializer.Serialize(metadata, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        using var document = JsonDocument.Parse(json);
+
+        Assert.IsFalse(document.RootElement.TryGetProperty("registration_endpoint", out _));
+    }
+
+    [TestMethod]
+    public async Task ClientMetadata_SerializesRfc7591MemberNames()
+    {
+        var result = (OkObjectResult)await CreateController(enabled: true).ClientMetadata("client", CancellationToken.None);
+        var json = JsonSerializer.Serialize((OAuthClientMetadataDocument)result.Value!, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        using var document = JsonDocument.Parse(json);
+
+        foreach (var name in new[]
+        {
+            "client_id", "client_name", "redirect_uris", "grant_types", "scope", "resources", "token_endpoint_auth_method"
+        })
+        {
+            Assert.IsTrue(document.RootElement.TryGetProperty(name, out _), $"Missing RFC member {name}");
+        }
+    }
+
+    [TestMethod]
+    public void RegistrationRequest_BindsRfc7591SnakeCaseMemberNames()
+    {
+        var request = JsonSerializer.Deserialize<DynamicOAuthClientRegistrationRequest>(
+            """{"client_name":"probe","redirect_uris":["https://claude.ai/api/mcp/auth_callback"],"grant_types":["authorization_code"],"scope":"tool:mcp","token_endpoint_auth_method":"none"}""",
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+
+        Assert.AreEqual("probe", request.ClientName);
+        CollectionAssert.AreEqual(new[] { "https://claude.ai/api/mcp/auth_callback" }, request.RedirectUris);
+        CollectionAssert.AreEqual(new[] { OAuthGrantTypes.AuthorizationCode }, request.GrantTypes);
+        Assert.AreEqual("tool:mcp", request.Scope);
+        Assert.AreEqual("none", request.TokenEndpointAuthMethod);
     }
 
     [TestMethod]

@@ -156,7 +156,6 @@ public sealed class AzureTableTenantInviteStore : ITenantInviteStore
             RevokedUtc = invite.RevokedUtc,
             RevokedByUserId = invite.RevokedByUserId?.ToString("D"),
             RevokedReason = invite.RevokedReason,
-            DisplayName = invite.ProfileHints?.DisplayName,
             FirstName = invite.ProfileHints?.FirstName,
             LastName = invite.ProfileHints?.LastName,
             ProfileMetadataJson = Serialize(invite.ProfileHints?.Metadata),
@@ -192,7 +191,6 @@ public sealed class AzureTableTenantInviteStore : ITenantInviteStore
             ParseNullableGuid(entity.RevokedByUserId),
             entity.RevokedReason,
             new TenantInviteProfileHints(
-                entity.DisplayName,
                 entity.FirstName,
                 entity.LastName,
                 Deserialize<Dictionary<string, string>>(entity.ProfileMetadataJson)),

@@ -308,11 +308,11 @@ When configured, IBeam hydrates the app-owned tenant extension during tenant cre
 
 `ITenantMetadataProvider` lets an app project app-owned metadata back into IBeam tenant displays. For example, a Hubbsly provider can return `DisplayName = Tenant.DisplayName` and `IsActive = Tenant.IsActive && !Tenant.IsDeleted`; IBeam then uses that metadata when returning tenant selections and before issuing tenant-scoped tokens.
 
-Tenant-user profile fields are projections from `IdentityUser`, not separate tenant-owned profile data. `TenantUserInfo` exposes `DisplayName`, `Email`, and `PhoneNumber` so tenant user lists align with `IdentityUser.DisplayName`, `IdentityUser.Email`, and `IdentityUser.PhoneNumber`.
+Tenant-user profile fields are projections from `IdentityUser`, not separate tenant-owned profile data. `TenantUserInfo` exposes `Email` and `PhoneNumber` so tenant user lists align with `IdentityUser.Email` and `IdentityUser.PhoneNumber`. Identity records do not carry person names; consumer applications derive display names from their app-owned profile fields (for example `Users.FirstName + Users.LastName`).
 
 ### User extensions
 
-IBeam owns identity/security primitives only: identity user id, login identifiers, verification/auth state, passwords, OTP, sessions, refresh tokens, tenant membership, and role/token claims. Applications own extended user profile data such as first and last name, preferences, onboarding state, contact preferences, and tenant-scoped profile metadata. `IdentityUser.DisplayName` is the canonical identity display value; when a user is created without one, IBeam defaults it from explicit display name, then email, then phone number.
+IBeam owns identity/security primitives only: identity user id, login identifiers, verification/auth state, passwords, OTP, sessions, refresh tokens, tenant membership, and role/token claims. Applications own extended user profile data such as first and last name, display names, preferences, onboarding state, contact preferences, and tenant-scoped profile metadata. Identity records carry no person names: apps derive display names from their own profile fields (for example `Users.FirstName + Users.LastName`).
 
 Register a host-owned user extension store when the app wants IBeam lifecycle events to project identity users into its own user table:
 
@@ -352,9 +352,9 @@ public sealed class AppUserProfile : IIdentityUserProfileExtension, IIdentityUse
     public Guid UserId { get; set; }
     public Guid? TenantId { get; set; }
 
-    public string DisplayName { get; set; } = string.Empty;
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
+    public string DisplayName => $"{FirstName} {LastName}".Trim();
 
     public string? IdentityEmail { get; set; }
     public string? IdentityPhoneNumber { get; set; }
@@ -393,7 +393,6 @@ public sealed class AppUserProfileStore : IIdentityUserExtensionStore<AppUserPro
         {
             UserId = identityUser.UserId,
             TenantId = context.TenantId,
-            DisplayName = context.DisplayName ?? string.Empty,
             FirstName = context.FirstName ?? string.Empty,
             LastName = context.LastName ?? string.Empty,
             Theme = "dark-mode",
@@ -413,7 +412,6 @@ public sealed class AppUserProfileStore : IIdentityUserExtensionStore<AppUserPro
         UserExtensionContext context,
         CancellationToken ct = default)
     {
-        profile.DisplayName = context.DisplayName ?? profile.DisplayName;
         IdentityUserDefaults.SyncIdentityContact(profile, identityUser);
         profile.UpdatedUtc = DateTimeOffset.UtcNow;
 
@@ -525,7 +523,7 @@ Example Azure Table shape for the app-owned profile row:
 | `RowKey` | `USER|{userId:D}` for point lookup by IBeam user id. |
 | `TenantId` | Tenant scope for tenant-specific profile values. |
 | `UserId` | Stable IBeam identity user id. |
-| `DisplayName` | App display name, initialized from IBeam identity context. Identity-owned display changes should be explicit; app fields should not silently override `IdentityUser.DisplayName`. |
+| `DisplayName` | App-owned display name, derived from app profile fields such as `FirstName` + `LastName`. Identity records carry no person names. |
 | `IdentityEmail` | Read-only projection from `IdentityUser.Email`. |
 | `IdentityPhoneNumber` | Read-only projection from `IdentityUser.PhoneNumber`. |
 | `ContactEmail` | App-owned contact email, not used for auth unless routed through an IBeam verification flow. |
@@ -600,7 +598,7 @@ Create request highlights:
 
 - `DestinationType`: `email` or `sms`
 - `Email` or `PhoneNumber`
-- profile hints: `DisplayName`, `FirstName`, `LastName`, `Metadata`
+- profile hints: `FirstName`, `LastName`, `Metadata`
 - initial tenant access: `RoleIds`, `RoleNames`, `SetAsDefaultTenant`
 - optional resource grants: `ResourceType`, `ResourceId`, `AccessLevel`, `ExpirationUtc`, `Metadata`
 - delivery/context: `ExpiresUtc`, `RedirectUrl`, `CorrelationId`, `CausationId`
@@ -648,7 +646,6 @@ var created = await tenantInvites.CreateInviteAsync(
     new TenantInviteCreateRequest(
         DestinationType: TenantInviteDestinationTypes.Email,
         Email: "ada@example.com",
-        DisplayName: "Ada Lovelace",
         FirstName: "Ada",
         LastName: "Lovelace",
         RoleNames: ["Member"],
