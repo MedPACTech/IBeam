@@ -10,6 +10,14 @@ public sealed class JwtOptions
     public int PreTenantTokenMinutes { get; init; } = 10;
     public int RefreshTokenDays { get; init; } = 30;
 
+    // Sliding inactivity window: when set, each refresh extends the session by this many
+    // minutes instead of RefreshTokenDays, so the session ends after that much inactivity.
+    public int? SessionInactivityMinutes { get; init; }
+
+    // Hard cap on total session age: sliding refreshes never extend a session beyond
+    // CreatedAt + this many days. Unset means the window can slide indefinitely.
+    public int? SessionAbsoluteLifetimeDays { get; init; }
+
     public int ClockSkewSeconds { get; init; } = 60;
     public string? KeyId { get; init; }
     public string SigningMode { get; init; } = JwtSigningModes.Symmetric;
@@ -36,6 +44,10 @@ public sealed class JwtOptions
             throw new InvalidOperationException("JwtOptions.PreTenantTokenMinutes must be > 0.");
         if (RefreshTokenDays <= 0)
             throw new InvalidOperationException("JwtOptions.RefreshTokenDays must be > 0.");
+        if (SessionInactivityMinutes is { } inactivity && inactivity < AccessTokenMinutes)
+            throw new InvalidOperationException("JwtOptions.SessionInactivityMinutes must be >= AccessTokenMinutes; a shorter window cannot be enforced because issued access tokens stay valid for AccessTokenMinutes.");
+        if (SessionAbsoluteLifetimeDays is <= 0)
+            throw new InvalidOperationException("JwtOptions.SessionAbsoluteLifetimeDays must be > 0.");
     }
 }
 
