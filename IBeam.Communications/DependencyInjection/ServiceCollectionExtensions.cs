@@ -44,4 +44,27 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Registers the provider-neutral inbound-SMS STOP/START/HELP compliance pipeline.
+    /// The host app must also register an ISmsConsentStore implementation (where its
+    /// consent state lives) and a provider webhook adapter such as
+    /// AddIBeamCommunicationsSmsAzureInbound to parse the provider payload.
+    /// </summary>
+    public static IServiceCollection AddIBeamSmsInboundCompliance(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services
+            .AddOptions<SmsInboundOptions>()
+              .Configure(o => configuration
+                .GetSection(SmsInboundOptions.SectionName)
+                .Bind(o))
+              .Validate(o => o.Validate(), "Invalid SMS inbound options: set BrandName (and SupportContact for the HELP reply) or override all three reply texts")
+              .ValidateOnStart();
+
+        services.AddScoped<ISmsInboundProcessor, SmsInboundProcessor>();
+
+        return services;
+    }
 }
