@@ -49,6 +49,55 @@ public sealed class OtpServiceTests
     }
 
     [TestMethod]
+    public async Task CreateChallengeAsync_WithDisplayName_SendsPersonalizedGreetingName()
+    {
+        var store = new Mock<IOtpChallengeStore>(MockBehavior.Strict);
+        store.Setup(x => x.SaveAsync(It.IsAny<OtpChallengeRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var sender = new Mock<IIdentityCommunicationSender>(MockBehavior.Strict);
+        sender.Setup(x => x.SendAsync(
+                It.Is<IdentitySenderMessage>(m => m.Name == "Jonathan"),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var sut = CreateSut(store.Object, sender.Object);
+
+        await sut.CreateChallengeAsync(new OtpChallengeRequest(
+            SenderChannel.Email,
+            "abram.cookson@outlook.com",
+            SenderPurpose.LoginMfa,
+            null,
+            DisplayName: "  Jonathan  "));
+
+        sender.VerifyAll();
+    }
+
+    [TestMethod]
+    public async Task CreateChallengeAsync_WithoutDisplayName_FallsBackToNeutralGreeting()
+    {
+        var store = new Mock<IOtpChallengeStore>(MockBehavior.Strict);
+        store.Setup(x => x.SaveAsync(It.IsAny<OtpChallengeRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var sender = new Mock<IIdentityCommunicationSender>(MockBehavior.Strict);
+        sender.Setup(x => x.SendAsync(
+                It.Is<IdentitySenderMessage>(m => m.Name == "there"),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var sut = CreateSut(store.Object, sender.Object);
+
+        await sut.CreateChallengeAsync(new OtpChallengeRequest(
+            SenderChannel.Email,
+            "abram.cookson@outlook.com",
+            SenderPurpose.LoginMfa,
+            null));
+
+        sender.VerifyAll();
+    }
+
+    [TestMethod]
     public async Task VerifyAsync_WhenCodeIsValid_MarksConsumedAndReturnsToken()
     {
         var opts = CreateOptions();
