@@ -4,5 +4,6 @@ public sealed record OtpChallengeRequest(
     SenderChannel Channel,
     string Destination,
     SenderPurpose Purpose,
-    Guid? TenantId);
+    Guid? TenantId,
+    string? DisplayName = null);
 

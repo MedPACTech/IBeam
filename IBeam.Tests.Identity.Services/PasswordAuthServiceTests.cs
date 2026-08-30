@@ -1,4 +1,4 @@
-using IBeam.Identity.Exceptions;
+﻿using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Services.Auth;
@@ -26,7 +26,6 @@ public sealed class PasswordAuthServiceTests
             EmailConfirmed: true,
             PhoneNumber: null,
             PhoneConfirmed: false,
-            DisplayName: "Abram",
             TwoFactorEnabled: true,
             PreferredTwoFactorMethod: "email");
 

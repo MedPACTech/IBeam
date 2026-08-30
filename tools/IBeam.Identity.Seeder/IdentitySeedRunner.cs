@@ -311,7 +311,7 @@ internal sealed class IdentitySeedRunner
                 return null;
             }
 
-            Add(result, "user", config.Key, "create", $"Create user '{config.DisplayName ?? config.EffectiveEmail ?? config.PhoneNumber}'.");
+            Add(result, "user", config.Key, "create", $"Create user '{config.EffectiveEmail ?? config.PhoneNumber}'.");
             if (!options.Apply)
             {
                 return new IdentityUser(
@@ -320,7 +320,6 @@ internal sealed class IdentitySeedRunner
                     config.EmailConfirmed == true,
                     config.PhoneNumber,
                     config.PhoneConfirmed == true,
-                    config.DisplayName,
                     config.TwoFactor?.Enabled == true,
                     config.TwoFactor?.PreferredMethod);
             }
@@ -329,8 +328,7 @@ internal sealed class IdentitySeedRunner
                     new RegisterUserRequest(
                         config.EffectiveEmail,
                         config.PhoneNumber,
-                        Password: string.Empty,
-                        config.DisplayName),
+                        Password: string.Empty),
                     ct)
                 .ConfigureAwait(false);
 
@@ -468,7 +466,6 @@ internal sealed class IdentitySeedRunner
                             RoleIds: roleIds,
                             RoleNames: roleNames,
                             SetAsDefault: membership.SetAsDefaultTenant,
-                            UserDisplayName: userConfig.DisplayName ?? user.DisplayName,
                             UserEmail: user.Email,
                             UserPhoneNumber: user.PhoneNumber),
                         ct)

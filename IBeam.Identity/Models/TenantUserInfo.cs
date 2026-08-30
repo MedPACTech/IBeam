@@ -6,7 +6,6 @@ public sealed record TenantUserInfo(
     IReadOnlyList<string> Roles,
     bool IsActive,
     IReadOnlyList<Guid>? RoleIds = null,
-    string? DisplayName = null,
     string? Email = null,
     string? PhoneNumber = null,
     DateTimeOffset? CreatedAt = null,

@@ -58,6 +58,52 @@ public sealed class OtpAuthServiceTests
     }
 
     [TestMethod]
+    public async Task StartOtpAsync_WithRecipientNameProvider_FlowsGreetingNameIntoChallenge()
+    {
+        var userId = Guid.NewGuid();
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Loose);
+        users.Setup(x => x.FindByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(userId, "abram.cookson@outlook.com", true));
+
+        var otpService = new Mock<IOtpService>(MockBehavior.Strict);
+        otpService.Setup(x => x.CreateChallengeAsync(
+                It.Is<OtpChallengeRequest>(r => r.DisplayName == "Jonathan"),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpChallengeResult("otp-1", DateTimeOffset.UtcNow.AddMinutes(10)));
+
+        var sut = new OtpAuthService(
+            users.Object,
+            Mock.Of<ITenantMembershipStore>(),
+            Mock.Of<ITenantProvisioningService>(),
+            Mock.Of<ITokenService>(),
+            otpService.Object,
+            Mock.Of<IOtpChallengeStore>(),
+            new IBeam.Identity.Services.Auth.Attempts.InMemoryAuthAttemptStore(),
+            new IBeam.Identity.Services.Auth.Attempts.NoOpAuthAttemptContextProvider(),
+            new NoOpAuthEventPublisher(),
+            new NoOpAuthLifecycleHook(),
+            Options.Create(new AuthEventOptions()),
+            Options.Create(new OtpOptions { AllowAutoProvisionForUnknownUser = true }),
+            Options.Create(new TenantProvisioningOptions()),
+            new IBeam.Identity.Services.Tenants.TenantInfoResolver(new IBeam.Identity.Services.Tenants.NoOpTenantMetadataProvider()),
+            new IBeam.Identity.Services.Tenants.NoOpTenantExtensionCoordinator(),
+            new IBeam.Identity.Services.Users.NoOpIdentityUserExtensionCoordinator(),
+            NullLogger<OtpAuthService>.Instance,
+            recipientNames: new FixedNameProvider("Jonathan"));
+
+        var result = await sut.StartOtpAsync("abram.cookson@outlook.com");
+
+        Assert.AreEqual("otp-1", result.ChallengeId);
+        otpService.VerifyAll();
+    }
+
+    private sealed class FixedNameProvider(string name) : IOtpRecipientNameProvider
+    {
+        public Task<string?> GetDisplayNameAsync(IdentityUser user, Guid? tenantId, CancellationToken ct = default)
+            => Task.FromResult<string?>(name);
+    }
+
+    [TestMethod]
     public async Task CompleteOtpAsync_WhenVerificationFails_ThrowsValidation()
     {
         var otpService = new Mock<IOtpService>(MockBehavior.Strict);

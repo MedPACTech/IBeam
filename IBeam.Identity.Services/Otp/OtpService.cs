@@ -62,8 +62,10 @@ public sealed class OtpService : IOtpService
             Code = code,
             Purpose = request.Purpose,
             TenantId = request.TenantId,
-            ExpiresAt = expiresAt
-            // Add more properties as needed
+            ExpiresAt = expiresAt,
+            // Template renderers have no conditionals, so the neutral fallback is
+            // applied here: "Hi {{Name}}," renders "Hi there," for unknown recipients.
+            Name = string.IsNullOrWhiteSpace(request.DisplayName) ? "there" : request.DisplayName.Trim()
         };
         await _sender.SendAsync(message, ct);
 

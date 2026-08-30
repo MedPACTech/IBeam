@@ -7,6 +7,5 @@ public interface IIdentityOtpAuthService
         string challengeId,
         string code,
         string destination,
-        string? displayName = null,
         CancellationToken ct = default);
 }

@@ -25,7 +25,6 @@ public sealed class TenantInviteEntity : ITableEntity
     public DateTimeOffset? RevokedUtc { get; set; }
     public string? RevokedByUserId { get; set; }
     public string? RevokedReason { get; set; }
-    public string? DisplayName { get; set; }
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
     public string? RoleIdsCsv { get; set; }

@@ -29,6 +29,17 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Registers the Event Grid webhook adapter for inbound Azure Communication
+    /// Services SMS. Pair with AddIBeamSmsInboundCompliance (core pipeline) and a
+    /// host-registered ISmsConsentStore.
+    /// </summary>
+    public static IServiceCollection AddIBeamCommunicationsSmsAzureInbound(this IServiceCollection services)
+    {
+        services.AddScoped<IAzureSmsInboundWebhookHandler, AzureEventGridSmsInboundHandler>();
+        return services;
+    }
+
     private static string ResolveConnectionString(IConfiguration configuration, string? scopedConnectionString)
     {
         // Precedence:

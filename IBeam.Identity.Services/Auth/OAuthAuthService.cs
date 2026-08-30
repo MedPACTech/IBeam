@@ -318,13 +318,12 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
             var createResult = await _users.CreateAsync(new RegisterUserRequest(
                 Email: normalizedEmail,
                 PhoneNumber: null,
-                Password: string.Empty,
-                DisplayName: externalUser.DisplayName), ct);
+                Password: string.Empty), ct);
 
             if (!createResult.Succeeded || createResult.User is null)
                 throw new IdentityValidationException("User creation failed.", createResult.Errors);
 
-            user = createResult.User with { DisplayName = externalUser.DisplayName ?? createResult.User.DisplayName };
+            user = createResult.User;
             createdNewUser = true;
 
             var created = new AuthUserCreatedEvent
@@ -725,7 +724,6 @@ public sealed class OAuthAuthService : IIdentityOAuthAuthService
             tenantId,
             user.Email,
             user.PhoneNumber,
-            user.DisplayName,
             correlationId: correlationId,
             causationId: causationId,
             traceId: traceId,

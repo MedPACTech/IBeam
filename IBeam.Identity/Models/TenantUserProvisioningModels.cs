@@ -3,7 +3,6 @@ namespace IBeam.Identity.Models;
 public sealed record ProvisionTenantUserRequest(
     string? Email = null,
     string? PhoneNumber = null,
-    string? DisplayName = null,
     string? FirstName = null,
     string? LastName = null,
     IReadOnlyList<Guid>? RoleIds = null,
