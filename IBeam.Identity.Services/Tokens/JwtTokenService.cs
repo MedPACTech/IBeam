@@ -115,7 +115,7 @@ public sealed class JwtTokenService : ITokenService
 
         var refreshToken = CreateRefreshToken();
         var refreshHash = HashRefreshToken(refreshToken);
-        var refreshExpiresAt = now.AddDays(_options.RefreshTokenDays);
+        var refreshExpiresAt = ComputeRefreshExpiry(now, sessionCreatedAt: now);
 
         var session = new AuthSessionRecord(
             RefreshTokenHash: refreshHash,
@@ -175,7 +175,9 @@ public sealed class JwtTokenService : ITokenService
 
         var newRefreshToken = CreateRefreshToken();
         var newHash = HashRefreshToken(newRefreshToken);
-        var newRefreshExpiresAt = now.AddDays(_options.RefreshTokenDays);
+        var newRefreshExpiresAt = ComputeRefreshExpiry(now, existing.CreatedAt);
+        if (newRefreshExpiresAt <= now)
+            throw new IdentityUnauthorizedException("Session absolute lifetime exceeded.");
 
         var rotated = existing with
         {
@@ -418,6 +420,22 @@ public sealed class JwtTokenService : ITokenService
         return _handler.WriteToken(token);
     }
 
+    private DateTimeOffset ComputeRefreshExpiry(DateTimeOffset now, DateTimeOffset sessionCreatedAt)
+    {
+        var window = _options.SessionInactivityMinutes is { } minutes
+            ? TimeSpan.FromMinutes(minutes)
+            : TimeSpan.FromDays(_options.RefreshTokenDays);
+
+        var expiry = now.Add(window);
+        if (_options.SessionAbsoluteLifetimeDays is { } lifetimeDays)
+        {
+            var cap = sessionCreatedAt.AddDays(lifetimeDays);
+            if (expiry > cap) expiry = cap;
+        }
+
+        return expiry;
+    }
+
     private static string CreateRefreshToken()
     {
         var bytes = new byte[48];
@@ -445,6 +463,10 @@ public sealed class JwtTokenService : ITokenService
             throw new IdentityValidationException("TokenOptions.PreTenantTokenMinutes must be > 0.");
         if (o.RefreshTokenDays <= 0)
             throw new IdentityValidationException("TokenOptions.RefreshTokenDays must be > 0.");
+        if (o.SessionInactivityMinutes is { } inactivity && inactivity < o.AccessTokenMinutes)
+            throw new IdentityValidationException("TokenOptions.SessionInactivityMinutes must be >= AccessTokenMinutes.");
+        if (o.SessionAbsoluteLifetimeDays is <= 0)
+            throw new IdentityValidationException("TokenOptions.SessionAbsoluteLifetimeDays must be > 0.");
     }
 
     private async Task EmitTokenIssuedAsync(

@@ -273,11 +273,142 @@ public sealed class JwtTokenServiceTests
             sut.RefreshAccessTokenAsync(refreshToken));
     }
 
+    [TestMethod]
+    public async Task CreateAccessTokenAsync_WithInactivityWindow_UsesMinutesNotDays()
+    {
+        AuthSessionRecord? saved = null;
+        var sessions = new Mock<IAuthSessionStore>(MockBehavior.Strict);
+        sessions.Setup(x => x.SaveAsync(It.IsAny<AuthSessionRecord>(), It.IsAny<CancellationToken>()))
+            .Callback<AuthSessionRecord, CancellationToken>((record, _) => saved = record)
+            .Returns(Task.CompletedTask);
+
+        var sut = CreateSut(sessions.Object, options: SlidingOptions(inactivityMinutes: 120));
+
+        await sut.CreateAccessTokenAsync(Guid.NewGuid(), Guid.NewGuid(), []);
+
+        Assert.IsNotNull(saved);
+        var window = saved!.RefreshTokenExpiresAt - DateTimeOffset.UtcNow;
+        Assert.IsTrue(window > TimeSpan.FromMinutes(118) && window <= TimeSpan.FromMinutes(120),
+            $"Expected ~120 minute window, got {window}.");
+    }
+
+    [TestMethod]
+    public async Task RefreshAccessTokenAsync_WithInactivityWindow_SlidesExpiryFromNow()
+    {
+        const string oldRefresh = "refresh-1";
+        var oldHash = HashRefreshToken(oldRefresh);
+        var existing = SessionRecord(oldHash, createdAt: DateTimeOffset.UtcNow.AddHours(-6),
+            refreshExpiresAt: DateTimeOffset.UtcNow.AddMinutes(30));
+
+        AuthSessionRecord? rotated = null;
+        var sessions = RotatingStore(oldHash, existing, record => rotated = record);
+
+        var sut = CreateSut(sessions.Object, options: SlidingOptions(inactivityMinutes: 120));
+
+        await sut.RefreshAccessTokenAsync(oldRefresh);
+
+        Assert.IsNotNull(rotated);
+        var window = rotated!.RefreshTokenExpiresAt - DateTimeOffset.UtcNow;
+        Assert.IsTrue(window > TimeSpan.FromMinutes(118) && window <= TimeSpan.FromMinutes(120),
+            $"Expected the window to slide to ~120 minutes from now, got {window}.");
+    }
+
+    [TestMethod]
+    public async Task RefreshAccessTokenAsync_CapsSlidingWindowAtAbsoluteLifetime()
+    {
+        const string oldRefresh = "refresh-1";
+        var oldHash = HashRefreshToken(oldRefresh);
+        var createdAt = DateTimeOffset.UtcNow.AddHours(-12);
+        var existing = SessionRecord(oldHash, createdAt, refreshExpiresAt: DateTimeOffset.UtcNow.AddMinutes(30));
+
+        AuthSessionRecord? rotated = null;
+        var sessions = RotatingStore(oldHash, existing, record => rotated = record);
+
+        var sut = CreateSut(sessions.Object,
+            options: SlidingOptions(inactivityMinutes: 24 * 60, absoluteLifetimeDays: 1));
+
+        await sut.RefreshAccessTokenAsync(oldRefresh);
+
+        Assert.IsNotNull(rotated);
+        Assert.AreEqual(createdAt.AddDays(1), rotated!.RefreshTokenExpiresAt);
+    }
+
+    [TestMethod]
+    public async Task RefreshAccessTokenAsync_WhenAbsoluteLifetimeExceeded_ThrowsUnauthorized()
+    {
+        const string oldRefresh = "refresh-1";
+        var oldHash = HashRefreshToken(oldRefresh);
+        var existing = SessionRecord(oldHash, createdAt: DateTimeOffset.UtcNow.AddDays(-2),
+            refreshExpiresAt: DateTimeOffset.UtcNow.AddMinutes(30));
+
+        var sessions = RotatingStore(oldHash, existing, _ => { });
+
+        var sut = CreateSut(sessions.Object,
+            options: SlidingOptions(inactivityMinutes: 120, absoluteLifetimeDays: 1));
+
+        await AssertThrowsAsync<IdentityUnauthorizedException>(() =>
+            sut.RefreshAccessTokenAsync(oldRefresh));
+    }
+
+    [TestMethod]
+    public void Constructor_WhenInactivityWindowShorterThanAccessToken_Throws()
+    {
+        Assert.ThrowsExactly<IdentityValidationException>(() =>
+            CreateSut(Mock.Of<IAuthSessionStore>(), options: new JwtOptions
+            {
+                Issuer = "ibeam.test",
+                Audience = "ibeam.clients",
+                SigningKey = "test-signing-key-with-enough-length-1234567890",
+                AccessTokenMinutes = 60,
+                SessionInactivityMinutes = 30
+            }));
+    }
+
+    private static JwtOptions SlidingOptions(int inactivityMinutes, int? absoluteLifetimeDays = null) => new()
+    {
+        Issuer = "ibeam.test",
+        Audience = "ibeam.clients",
+        SigningKey = "test-signing-key-with-enough-length-1234567890",
+        AccessTokenMinutes = 60,
+        PreTenantTokenMinutes = 10,
+        RefreshTokenDays = 30,
+        SessionInactivityMinutes = inactivityMinutes,
+        SessionAbsoluteLifetimeDays = absoluteLifetimeDays
+    };
+
+    private static AuthSessionRecord SessionRecord(string refreshTokenHash, DateTimeOffset createdAt, DateTimeOffset refreshExpiresAt)
+    {
+        var userId = Guid.NewGuid();
+        return new AuthSessionRecord(
+            RefreshTokenHash: refreshTokenHash,
+            SessionId: "session-1",
+            UserId: userId,
+            TenantId: Guid.NewGuid(),
+            ClaimsJson: "[]",
+            CreatedAt: createdAt,
+            LastSeenAt: DateTimeOffset.UtcNow.AddMinutes(-30),
+            RefreshTokenExpiresAt: refreshExpiresAt);
+    }
+
+    private static Mock<IAuthSessionStore> RotatingStore(string oldHash, AuthSessionRecord existing, Action<AuthSessionRecord> onSave)
+    {
+        var sessions = new Mock<IAuthSessionStore>(MockBehavior.Strict);
+        sessions.Setup(x => x.GetByRefreshTokenHashAsync(oldHash, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+        sessions.Setup(x => x.DeleteByRefreshTokenHashAsync(oldHash, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        sessions.Setup(x => x.SaveAsync(It.IsAny<AuthSessionRecord>(), It.IsAny<CancellationToken>()))
+            .Callback<AuthSessionRecord, CancellationToken>((record, _) => onSave(record))
+            .Returns(Task.CompletedTask);
+        return sessions;
+    }
+
     private static JwtTokenService CreateSut(
         IAuthSessionStore sessions,
-        IEnumerable<IClaimsEnricher>? claimsEnrichers = null)
+        IEnumerable<IClaimsEnricher>? claimsEnrichers = null,
+        JwtOptions? options = null)
     {
-        var options = new JwtOptions
+        options ??= new JwtOptions
         {
             Issuer = "ibeam.test",
             Audience = "ibeam.clients",
