@@ -1,4 +1,4 @@
-using Azure;
+﻿using Azure;
 using Azure.Data.Tables;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
@@ -96,8 +96,7 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
                 Id = Guid.NewGuid().ToString("D"),
                 UserName = userName,
                 Email = string.IsNullOrWhiteSpace(email) ? null : email,
-                PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone,
-                DisplayName = IdentityUserDefaults.ResolveDisplayName(request.DisplayName, email, phone)
+                PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone
             };
 
             if (!string.IsNullOrWhiteSpace(request.Password))
@@ -356,8 +355,7 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
             Id = reservedUserId,
             UserName = userName,
             Email = string.IsNullOrWhiteSpace(email) ? null : email,
-            PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone,
-            DisplayName = IdentityUserDefaults.ResolveDisplayName(request.DisplayName, email, phone)
+            PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone
         };
 
         var result = await _store.CreateAsync(appUser).ConfigureAwait(false);
@@ -574,7 +572,6 @@ public sealed class AzureTableIdentityUserStore : IIdentityUserStore
             EmailConfirmed: u.EmailConfirmed,
             PhoneNumber: u.PhoneNumber,
             PhoneConfirmed: u.PhoneNumberConfirmed,
-            DisplayName: u.DisplayName,
             TwoFactorEnabled: u.TwoFactorEnabled,
             PreferredTwoFactorMethod: u.PreferredTwoFactorMethod
         );

@@ -46,8 +46,15 @@ public sealed class DefaultTenantInviteMessageFactory : ITenantInviteMessageFact
             ExpiresAt = invite.ExpiresUtc,
             Subject = "You're invited",
             Body = $"You have been invited to join a workspace. Open this invite link: {inviteUrl}",
-            Name = invite.ProfileHints?.DisplayName,
+            Name = ComposeInviteeName(invite.ProfileHints),
             Metadata = metadata
         };
+    }
+
+    private static string? ComposeInviteeName(TenantInviteProfileHints? hints)
+    {
+        var name = string.Join(' ', new[] { hints?.FirstName, hints?.LastName }
+            .Where(x => !string.IsNullOrWhiteSpace(x)));
+        return name.Length > 0 ? name : null;
     }
 }

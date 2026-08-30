@@ -148,8 +148,7 @@ public sealed class TenantSelectionService : ITenantSelectionService
                 user.UserId,
                 tenantId,
                 user.Email,
-                user.PhoneNumber,
-                user.DisplayName),
+                user.PhoneNumber),
             ct).ConfigureAwait(false);
     }
 }

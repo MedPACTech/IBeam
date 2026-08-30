@@ -249,11 +249,10 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         string challengeId,
         string code,
         string destination,
-        string? displayName = null,
         CancellationToken ct = default)
         => await _operations.ExecuteAsync(
             this,
-            token => CompleteOtpCoreAsync(challengeId, code, destination, displayName, token),
+            token => CompleteOtpCoreAsync(challengeId, code, destination, token),
             new ServiceOperationExecutionOptions { PermissionEnabled = false },
             ct).ConfigureAwait(false);
 
@@ -261,7 +260,6 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         string challengeId,
         string code,
         string destination,
-        string? displayName,
         CancellationToken ct)
     {
         return await CompleteOtpInternalAsync(
@@ -269,7 +267,6 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             code,
             destination,
             expectedPurposes: new[] { SenderPurpose.LoginMfa, SenderPurpose.UserRegistration },
-            displayName,
             ct);
     }
 
@@ -278,7 +275,6 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         string code,
         string destination,
         IReadOnlyCollection<SenderPurpose> expectedPurposes,
-        string? displayName,
         CancellationToken ct)
     {
         IdentityUtils.ThrowIfNullOrWhiteSpace(challengeId, nameof(challengeId));
@@ -394,8 +390,8 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             }
 
             var createRequest = channel == SenderChannel.Email
-                ? new RegisterUserRequest(normalizedDestination, null, string.Empty, displayName)
-                : new RegisterUserRequest(null, normalizedDestination, string.Empty, displayName);
+                ? new RegisterUserRequest(normalizedDestination, null, string.Empty)
+                : new RegisterUserRequest(null, normalizedDestination, string.Empty);
 
             var userCreateRequested = new AuthUserCreateRequestedEvent
             {
@@ -446,7 +442,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
 
             if (user is null)
             {
-                user = createResult.User with { DisplayName = displayName ?? createResult.User.DisplayName };
+                user = createResult.User;
                 createdNewUser = true;
             }
 
@@ -961,7 +957,6 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             tenantId,
             user.Email,
             user.PhoneNumber,
-            user.DisplayName,
             correlationId: correlationId,
             causationId: causationId,
             traceId: traceId,

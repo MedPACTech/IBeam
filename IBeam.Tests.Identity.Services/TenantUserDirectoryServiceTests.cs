@@ -1,4 +1,4 @@
-using IBeam.Identity.Interfaces;
+﻿using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Services.Tenants;
 using Moq;
@@ -18,8 +18,8 @@ public sealed class TenantUserDirectoryServiceTests
 
         memberships.Setup(x => x.GetUsersForTenantAsync(tenantId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([
-                new TenantUserInfo(tenantId, Guid.NewGuid(), ["Member"], true, DisplayName: "Active"),
-                new TenantUserInfo(tenantId, Guid.NewGuid(), ["Member"], false, DisplayName: "Disabled")
+                new TenantUserInfo(tenantId, Guid.NewGuid(), ["Member"], true),
+                new TenantUserInfo(tenantId, Guid.NewGuid(), ["Member"], false)
             ]);
 
         var sut = new TenantUserDirectoryService(memberships.Object, invites.Object, roles.Object);
@@ -62,7 +62,7 @@ public sealed class TenantUserDirectoryServiceTests
                     null,
                     null,
                     null,
-                    new TenantInviteProfileHints("Pending Person", "Pending", "Person"),
+                    new TenantInviteProfileHints("Pending", "Person"),
                     [roleId],
                     [],
                     true,

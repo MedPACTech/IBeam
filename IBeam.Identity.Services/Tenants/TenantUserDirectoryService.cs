@@ -68,7 +68,7 @@ public sealed class TenantUserDirectoryService : ITenantUserDirectoryService
 
         return items
             .OrderBy(x => x.Kind, StringComparer.Ordinal)
-            .ThenBy(x => x.DisplayName ?? x.Email ?? x.PhoneNumber ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.Email ?? x.PhoneNumber ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ThenByDescending(x => x.CreatedUtc)
             .ToList();
     }
@@ -95,7 +95,6 @@ public sealed class TenantUserDirectoryService : ITenantUserDirectoryService
             UserId: user.UserId,
             Email: user.Email,
             PhoneNumber: user.PhoneNumber,
-            DisplayName: user.DisplayName,
             Status: user.IsActive ? TenantUserDirectoryStatuses.Active : TenantUserDirectoryStatuses.Disabled,
             RoleIds: user.RoleIds ?? [],
             RoleNames: user.Roles,
@@ -125,7 +124,6 @@ public sealed class TenantUserDirectoryService : ITenantUserDirectoryService
             InviteId: invite.InviteId,
             Email: email,
             PhoneNumber: phone,
-            DisplayName: invite.ProfileHints?.DisplayName,
             FirstName: invite.ProfileHints?.FirstName,
             LastName: invite.ProfileHints?.LastName,
             Status: invite.Status,

@@ -8,7 +8,6 @@ public interface IIdentityUserExtension
 
 public interface IIdentityUserProfileExtension : IIdentityUserExtension
 {
-    string DisplayName { get; set; }
     string FirstName { get; set; }
     string LastName { get; set; }
 }

@@ -181,7 +181,6 @@ public sealed class TenantInviteService : ITenantInviteService
             invitedByUserId,
             expiresUtc,
             ProfileHints: new TenantInviteProfileHints(
-                NormalizeOptional(request.DisplayName),
                 NormalizeOptional(request.FirstName),
                 NormalizeOptional(request.LastName),
                 NormalizeMetadata(request.Metadata)),
@@ -384,14 +383,13 @@ public sealed class TenantInviteService : ITenantInviteService
         var assignment = await EnsureMembershipAndRolesAsync(invite, request, user, ct).ConfigureAwait(false);
 
         await _userExtensions.EnsureExtensionAsync(
-            user with { DisplayName = FirstNonEmpty(request.DisplayName, invite.ProfileHints?.DisplayName, user.DisplayName) },
+            user,
             UserExtensionContext.Create(
                 "invite-accepted",
                 user.UserId,
                 invite.TenantId,
                 user.Email,
                 user.PhoneNumber,
-                FirstNonEmpty(request.DisplayName, invite.ProfileHints?.DisplayName, user.DisplayName),
                 FirstNonEmpty(request.FirstName, invite.ProfileHints?.FirstName),
                 FirstNonEmpty(request.LastName, invite.ProfileHints?.LastName),
                 request.CorrelationId ?? invite.CorrelationId,
@@ -520,7 +518,7 @@ public sealed class TenantInviteService : ITenantInviteService
         if (mode == TenantInviteAcceptModes.Otp || mode == TenantInviteAcceptModes.SmsOtp)
         {
             await VerifyOtpAsync(invite, request, ct).ConfigureAwait(false);
-            return await FindOrCreateUserForInviteAsync(invite, request.Password, request.DisplayName, ct).ConfigureAwait(false);
+            return await FindOrCreateUserForInviteAsync(invite, request.Password, ct).ConfigureAwait(false);
         }
 
         if (mode == TenantInviteAcceptModes.EmailPassword)
@@ -554,7 +552,7 @@ public sealed class TenantInviteService : ITenantInviteService
             if (string.IsNullOrWhiteSpace(request.Password))
                 throw new IdentityValidationException("Password is required.");
 
-            return await CreateUserForInviteAsync(invite, request.Password, request.DisplayName, ct).ConfigureAwait(false);
+            return await CreateUserForInviteAsync(invite, request.Password, ct).ConfigureAwait(false);
         }
 
         throw new IdentityValidationException("Invite acceptance mode is not supported.");
@@ -598,7 +596,6 @@ public sealed class TenantInviteService : ITenantInviteService
     private async Task<(IdentityUser User, bool CreatedNewUser)> FindOrCreateUserForInviteAsync(
         TenantInviteRecord invite,
         string? password,
-        string? displayName,
         CancellationToken ct)
     {
         var existing = invite.DestinationType == TenantInviteDestinationTypes.Email
@@ -608,18 +605,17 @@ public sealed class TenantInviteService : ITenantInviteService
         if (existing is not null)
             return (existing, false);
 
-        return await CreateUserForInviteAsync(invite, password ?? string.Empty, displayName, ct).ConfigureAwait(false);
+        return await CreateUserForInviteAsync(invite, password ?? string.Empty, ct).ConfigureAwait(false);
     }
 
     private async Task<(IdentityUser User, bool CreatedNewUser)> CreateUserForInviteAsync(
         TenantInviteRecord invite,
         string password,
-        string? displayName,
         CancellationToken ct)
     {
         var create = invite.DestinationType == TenantInviteDestinationTypes.Email
-            ? new RegisterUserRequest(invite.NormalizedDestination, null, password, FirstNonEmpty(displayName, invite.ProfileHints?.DisplayName))
-            : new RegisterUserRequest(null, invite.NormalizedDestination, password, FirstNonEmpty(displayName, invite.ProfileHints?.DisplayName));
+            ? new RegisterUserRequest(invite.NormalizedDestination, null, password)
+            : new RegisterUserRequest(null, invite.NormalizedDestination, password);
 
         var result = await _users.CreateAsync(create, ct).ConfigureAwait(false);
         if (!result.Succeeded || result.User is null)
@@ -715,7 +711,6 @@ public sealed class TenantInviteService : ITenantInviteService
     {
         var roleIds = invite.RoleIds?.Where(x => x != Guid.Empty).Distinct().ToList() ?? [];
         var roleNames = invite.RoleNames?.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? [];
-        var displayName = FirstNonEmpty(request.DisplayName, invite.ProfileHints?.DisplayName, user.DisplayName);
         var setAsDefault = request.SetAsDefaultTenant ?? invite.SetAsDefaultTenant;
 
         if (roleIds.Count > 0 || roleNames.Count > 0)
@@ -727,7 +722,6 @@ public sealed class TenantInviteService : ITenantInviteService
                     RoleIds: roleIds,
                     RoleNames: roleNames,
                     SetAsDefault: setAsDefault,
-                    UserDisplayName: displayName,
                     UserEmail: user.Email,
                     UserPhoneNumber: user.PhoneNumber),
                 ct).ConfigureAwait(false);

@@ -13,7 +13,7 @@ public sealed class UserExtensionTests
     {
         var userId = Guid.NewGuid();
         var tenantId = Guid.NewGuid();
-        var identityUser = new IdentityUser(userId, "abram@example.com", true, DisplayName: "Abram");
+        var identityUser = new IdentityUser(userId, "abram@example.com", true);
         var created = new AppUser(userId, tenantId, "Abram");
         var store = new Mock<IIdentityUserExtensionStore<AppUser>>(MockBehavior.Strict);
 
@@ -25,8 +25,7 @@ public sealed class UserExtensionTests
                     c.Operation == UserExtensionOperations.Created &&
                     c.UserId == userId &&
                     c.TenantId == tenantId &&
-                    c.NormalizedEmail == "abram@example.com" &&
-                    c.DisplayName == "Abram"),
+                    c.NormalizedEmail == "abram@example.com"),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(created);
 
@@ -39,8 +38,7 @@ public sealed class UserExtensionTests
                 userId,
                 tenantId,
                 identityUser.Email,
-                identityUser.PhoneNumber,
-                identityUser.DisplayName));
+                identityUser.PhoneNumber));
 
         Assert.AreSame(created, result);
         store.VerifyAll();
@@ -76,33 +74,6 @@ public sealed class UserExtensionTests
     }
 
     [TestMethod]
-    public void ResolveDisplayName_UsesExplicitValueBeforeEmailOrPhone()
-    {
-        var result = IdentityUserDefaults.ResolveDisplayName(
-            "  Abram  ",
-            "abram@example.com",
-            "+16145551212");
-
-        Assert.AreEqual("Abram", result);
-    }
-
-    [TestMethod]
-    public void ResolveDisplayName_FallsBackToEmailThenPhone()
-    {
-        var emailResult = IdentityUserDefaults.ResolveDisplayName(
-            null,
-            "  abram@example.com  ",
-            "+16145551212");
-        var phoneResult = IdentityUserDefaults.ResolveDisplayName(
-            null,
-            null,
-            "  +16145551212  ");
-
-        Assert.AreEqual("abram@example.com", emailResult);
-        Assert.AreEqual("+16145551212", phoneResult);
-    }
-
-    [TestMethod]
     public void SyncIdentityContact_CopiesIdentityEmailAndPhoneWithoutContactFields()
     {
         var userId = Guid.NewGuid();
@@ -127,17 +98,16 @@ public sealed class UserExtensionTests
 
     public sealed class AppUser : IIdentityUserProfileExtension, IIdentityUserContactProjection
     {
-        public AppUser(Guid userId, Guid? tenantId, string displayName)
+        public AppUser(Guid userId, Guid? tenantId, string firstName)
         {
             UserId = userId;
             TenantId = tenantId;
-            DisplayName = displayName;
+            FirstName = firstName;
         }
 
         public Guid UserId { get; set; }
         public Guid? TenantId { get; set; }
-        public string DisplayName { get; set; }
-        public string FirstName { get; set; } = string.Empty;
+        public string FirstName { get; set; }
         public string LastName { get; set; } = string.Empty;
         public string? IdentityEmail { get; set; }
         public string? IdentityPhoneNumber { get; set; }
