@@ -32,6 +32,8 @@ public sealed class AzureEventGridSmsInboundHandler : IAzureSmsInboundWebhookHan
 {
     public const string SubscriptionValidationEventType = "Microsoft.EventGrid.SubscriptionValidationEvent";
     public const string SmsReceivedEventType = "Microsoft.Communication.SMSReceived";
+    public const string SmsDeliveryReportEventType = "Microsoft.Communication.SMSDeliveryReportReceived";
+    public const string DeliveredStatus = "Delivered";
 
     private readonly ISmsInboundProcessor _processor;
     private readonly ILogger<AzureEventGridSmsInboundHandler> _logger;
@@ -71,6 +73,14 @@ public sealed class AzureEventGridSmsInboundHandler : IAzureSmsInboundWebhookHan
                 continue;
             }
 
+            if (string.Equals(eventType, SmsDeliveryReportEventType, StringComparison.OrdinalIgnoreCase))
+            {
+                // Submission returns 202 whether or not the message ever arrives; the
+                // delivery report is the only place a downstream breakdown surfaces.
+                LogDeliveryReport(data);
+                continue;
+            }
+
             if (!string.Equals(eventType, SmsReceivedEventType, StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogDebug("Ignoring Event Grid event of type {EventType}.", eventType);
@@ -87,6 +97,25 @@ public sealed class AzureEventGridSmsInboundHandler : IAzureSmsInboundWebhookHan
         }
 
         return new AzureSmsInboundWebhookResult(validation, processed);
+    }
+
+    private void LogDeliveryReport(JsonElement data)
+    {
+        var status = GetString(data, "deliveryStatus");
+        var messageId = GetString(data, "messageId");
+        var to = GetString(data, "to");
+
+        if (string.Equals(status, DeliveredStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogInformation(
+                "Azure Communications SMS delivered. To={To} MessageId={MessageId}",
+                to, messageId);
+            return;
+        }
+
+        _logger.LogError(
+            "Azure Communications SMS delivery failed. To={To} MessageId={MessageId} DeliveryStatus={DeliveryStatus} Details={Details}",
+            to, messageId, status, GetString(data, "deliveryStatusDetails"));
     }
 
     private static string? GetString(JsonElement element, string propertyName)

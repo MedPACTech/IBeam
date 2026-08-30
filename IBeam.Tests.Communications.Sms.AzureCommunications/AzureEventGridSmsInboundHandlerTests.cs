@@ -1,5 +1,6 @@
 using IBeam.Communications.Abstractions;
 using IBeam.Communications.Sms.AzureCommunications;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IBeam.Tests.Communications.Sms.AzureCommunications;
@@ -56,10 +57,57 @@ public sealed class AzureEventGridSmsInboundHandlerTests
         Assert.IsEmpty(processor.Messages);
     }
 
+    [TestMethod]
+    public async Task HandleAsync_FailedDeliveryReport_LogsErrorInsteadOfStayingSilent()
+    {
+        var logger = new CapturingLogger();
+        var sut = new AzureEventGridSmsInboundHandler(new RecordingProcessor(), logger);
+
+        await sut.HandleAsync("""
+            [{"eventType":"Microsoft.Communication.SMSDeliveryReportReceived","data":{"to":"+16145551212","messageId":"msg-1","deliveryStatus":"Failed","deliveryStatusDetails":"Carrier rejected"}}]
+            """);
+
+        var entry = logger.Entries.Single();
+        Assert.AreEqual(LogLevel.Error, entry.Level);
+        StringAssert.Contains(entry.Message, "delivery failed");
+        StringAssert.Contains(entry.Message, "msg-1");
+        StringAssert.Contains(entry.Message, "Carrier rejected");
+    }
+
+    [TestMethod]
+    public async Task HandleAsync_SuccessfulDeliveryReport_LogsInformation()
+    {
+        var logger = new CapturingLogger();
+        var sut = new AzureEventGridSmsInboundHandler(new RecordingProcessor(), logger);
+
+        await sut.HandleAsync("""
+            [{"eventType":"Microsoft.Communication.SMSDeliveryReportReceived","data":{"to":"+16145551212","messageId":"msg-1","deliveryStatus":"Delivered"}}]
+            """);
+
+        var entry = logger.Entries.Single();
+        Assert.AreEqual(LogLevel.Information, entry.Level);
+        StringAssert.Contains(entry.Message, "delivered");
+    }
+
     private static AzureEventGridSmsInboundHandler CreateSut(out RecordingProcessor processor)
     {
         processor = new RecordingProcessor();
         return new AzureEventGridSmsInboundHandler(processor, NullLogger<AzureEventGridSmsInboundHandler>.Instance);
+    }
+
+    private sealed class CapturingLogger : ILogger<AzureEventGridSmsInboundHandler>
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (IsEnabled(logLevel))
+                Entries.Add((logLevel, formatter(state, exception)));
+        }
     }
 
     private sealed class RecordingProcessor : ISmsInboundProcessor
