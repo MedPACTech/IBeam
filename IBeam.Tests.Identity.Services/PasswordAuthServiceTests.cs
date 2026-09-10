@@ -205,6 +205,123 @@ public sealed class PasswordAuthServiceTests
     }
 
     [TestMethod]
+    public async Task CompleteEmailLinkAsync_BindsConfirmedEmailToCurrentUserWithoutAPassword()
+    {
+        // OTP sign-in resolves an account on the user's email alone, so a confirmed email is the
+        // whole of what makes an address a working sign-in method. No password is set here, which
+        // is the entire point of this flow existing beside the email-password one.
+        var userId = Guid.NewGuid();
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var otp = new Mock<IOtpService>(MockBehavior.Strict);
+        var otpChallenges = new Mock<IOtpChallengeStore>(MockBehavior.Strict);
+
+        users.Setup(x => x.FindByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(userId, null, false));
+        users.Setup(x => x.FindByEmailAsync("adam@test.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IdentityUser?)null);
+        users.Setup(x => x.UpdateEmailAsync(userId, "adam@test.com", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        users.Setup(x => x.SetEmailConfirmedAsync(userId, true, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        otp.Setup(x => x.VerifyAsync(
+                It.Is<OtpVerifyRequest>(r => r.ChallengeId == "challenge-1" && r.Code == "123456"),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpVerifyResult(true, "vt", DateTimeOffset.UtcNow.AddMinutes(10)));
+
+        otpChallenges.Setup(x => x.GetAsync("challenge-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpChallengeRecord(
+                ChallengeId: "challenge-1",
+                Destination: "ADAM@TEST.COM",
+                Purpose: SenderPurpose.EmailVerification,
+                CodeHash: "hash",
+                ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10),
+                AttemptCount: 0,
+                TenantId: null,
+                IsConsumed: true,
+                VerificationToken: "vt",
+                VerificationTokenExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10),
+                Channel: SenderChannel.Email));
+
+        var sut = new PasswordAuthService(
+            users.Object,
+            Mock.Of<ITenantMembershipStore>(),
+            Mock.Of<ITenantProvisioningService>(),
+            Mock.Of<ITokenService>(),
+            otp.Object,
+            otpChallenges.Object,
+            Mock.Of<IIdentityCommunicationSender>());
+
+        await sut.CompleteEmailLinkAsync(userId, "Adam@Test.com ", "challenge-1", "123456");
+
+        users.VerifyAll();
+        otp.VerifyAll();
+        otpChallenges.VerifyAll();
+    }
+
+    [TestMethod]
+    public async Task CompleteEmailLinkAsync_EmailBoundToAnotherUser_IsRefused()
+    {
+        // Attaching an address someone else already signs in with would hand this user that
+        // account. Refused on complete as well as on start, so a race that binds the address
+        // between the two cannot still take it.
+        var userId = Guid.NewGuid();
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+
+        users.Setup(x => x.FindByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(userId, null, false));
+        users.Setup(x => x.FindByEmailAsync("adam@test.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(Guid.NewGuid(), "adam@test.com", true));
+
+        var sut = new PasswordAuthService(
+            users.Object,
+            Mock.Of<ITenantMembershipStore>(),
+            Mock.Of<ITenantProvisioningService>(),
+            Mock.Of<ITokenService>(),
+            Mock.Of<IOtpService>(MockBehavior.Strict),
+            Mock.Of<IOtpChallengeStore>(MockBehavior.Strict),
+            Mock.Of<IIdentityCommunicationSender>());
+
+        await AssertThrowsAsync<IdentityValidationException>(() =>
+            sut.CompleteEmailLinkAsync(userId, "adam@test.com", "challenge-1", "123456"));
+
+        users.VerifyAll();
+    }
+
+    [TestMethod]
+    public async Task StartEmailLinkAsync_EmailBoundToAnotherUser_SendsNoCode()
+    {
+        // Caught before a code goes out, so someone probing addresses cannot make this mail a
+        // stranger, and the caller learns immediately rather than after a pointless round trip.
+        var userId = Guid.NewGuid();
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+
+        users.Setup(x => x.FindByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(userId, null, false));
+        users.Setup(x => x.FindByEmailAsync("adam@test.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(Guid.NewGuid(), "adam@test.com", true));
+
+        var otp = new Mock<IOtpService>(MockBehavior.Strict);
+
+        var sut = new PasswordAuthService(
+            users.Object,
+            Mock.Of<ITenantMembershipStore>(),
+            Mock.Of<ITenantProvisioningService>(),
+            Mock.Of<ITokenService>(),
+            otp.Object,
+            Mock.Of<IOtpChallengeStore>(MockBehavior.Strict),
+            Mock.Of<IIdentityCommunicationSender>());
+
+        await AssertThrowsAsync<IdentityValidationException>(() =>
+            sut.StartEmailLinkAsync(userId, "adam@test.com"));
+
+        users.VerifyAll();
+        otp.Verify(
+            x => x.CreateChallengeAsync(It.IsAny<OtpChallengeRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
     public async Task CompletePhoneLinkAsync_BindsPhoneToCurrentUser()
     {
         var userId = Guid.NewGuid();

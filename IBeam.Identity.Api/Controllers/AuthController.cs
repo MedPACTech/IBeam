@@ -210,6 +210,58 @@ public class AuthController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Adds a verified email to the signed-in account as an OTP sign-in method, by emailed code.
+    /// The email counterpart of phone/link/start — unlike email-password/link/start it sets no
+    /// password, because OTP sign-in resolves an account on the email alone.
+    /// </summary>
+    [Authorize]
+    [HttpPost("email/link/start")]
+    public async Task<IActionResult> StartEmailLink([FromBody] StartEmailLinkRequest req, CancellationToken ct)
+    {
+        if (!_features.Otp) return NotFound(new { message = "OTP authentication is disabled." });
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+        if (string.IsNullOrWhiteSpace(req.Email))
+            return BadRequest(new { message = "Email is required." });
+
+        try
+        {
+            var result = await _passwordAuth.StartEmailLinkAsync(userId, req.Email, ct);
+            return Ok(result);
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
+    [Authorize]
+    [HttpPost("email/link/complete")]
+    public async Task<IActionResult> CompleteEmailLink([FromBody] CompleteEmailLinkRequest req, CancellationToken ct)
+    {
+        if (!_features.Otp) return NotFound(new { message = "OTP authentication is disabled." });
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(new { message = "Authenticated user id claim is missing." });
+
+        if (string.IsNullOrWhiteSpace(req.Email))
+            return BadRequest(new { message = "Email is required." });
+        if (string.IsNullOrWhiteSpace(req.ChallengeId))
+            return BadRequest(new { message = "ChallengeId is required." });
+        if (string.IsNullOrWhiteSpace(req.Code))
+            return BadRequest(new { message = "Code is required." });
+
+        try
+        {
+            await _passwordAuth.CompleteEmailLinkAsync(userId, req.Email, req.ChallengeId, req.Code, ct);
+            return Ok(new { linked = true, email = req.Email.Trim().ToLowerInvariant() });
+        }
+        catch (IdentityValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message, errors = ex.Errors });
+        }
+    }
+
     [Authorize]
     [HttpPost("phone/link/start")]
     public async Task<IActionResult> StartPhoneLink([FromBody] StartPhoneLinkRequest req, CancellationToken ct)
@@ -626,6 +678,18 @@ public class CompleteEmailPasswordRegistrationRequest
     public string VerificationToken { get; set; } = string.Empty;
     public string NewPassword { get; set; } = string.Empty;
     public string? DisplayName { get; set; }
+}
+
+public class StartEmailLinkRequest
+{
+    public string Email { get; set; } = string.Empty;
+}
+
+public class CompleteEmailLinkRequest
+{
+    public string Email { get; set; } = string.Empty;
+    public string ChallengeId { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
 }
 
 public class StartPhoneLinkRequest
