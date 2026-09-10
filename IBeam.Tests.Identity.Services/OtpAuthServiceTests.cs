@@ -165,6 +165,7 @@ public sealed class OtpAuthServiceTests
                 userId,
                 tenantId,
                 It.IsAny<IReadOnlyList<ClaimItem>>(),
+                It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TokenResult("jwt-token", DateTimeOffset.UtcNow.AddMinutes(60), new List<ClaimItem>()));
 
@@ -182,6 +183,67 @@ public sealed class OtpAuthServiceTests
         Assert.AreEqual("jwt-token", result.Token!.AccessToken);
         Assert.IsFalse(result.RequiresTenantSelection);
         Assert.IsFalse(result.IsNewUser);
+    }
+
+    [TestMethod]
+    public async Task CompleteOtpAsync_WithRememberDevice_ThreadsFlagToTokenCreation()
+    {
+        var userId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var tenants = new Mock<ITenantMembershipStore>(MockBehavior.Strict);
+        var tenantProvisioning = new Mock<ITenantProvisioningService>(MockBehavior.Strict);
+        var tokens = new Mock<ITokenService>(MockBehavior.Strict);
+        var otpService = new Mock<IOtpService>(MockBehavior.Strict);
+        var otpChallenges = new Mock<IOtpChallengeStore>(MockBehavior.Strict);
+
+        otpService.Setup(x => x.VerifyAsync(
+                It.IsAny<OtpVerifyRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpVerifyResult(true, "vt", DateTimeOffset.UtcNow.AddMinutes(10)));
+
+        otpChallenges.Setup(x => x.GetAsync("challenge-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpChallengeRecord(
+                ChallengeId: "challenge-1",
+                Destination: "abram.cookson@outlook.com",
+                Purpose: SenderPurpose.LoginMfa,
+                CodeHash: "hash",
+                ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10),
+                AttemptCount: 0,
+                TenantId: null,
+                IsConsumed: true,
+                VerificationToken: "vt",
+                VerificationTokenExpiresAt: DateTimeOffset.UtcNow.AddMinutes(10)));
+
+        users.Setup(x => x.FindByEmailAsync("ABRAM.COOKSON@OUTLOOK.COM", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(userId, "abram.cookson@outlook.com", true));
+
+        tenants.Setup(x => x.GetTenantsForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TenantInfo> { new(tenantId, "Tenant A", new List<string> { "User" }, true) });
+
+        // Strict setup keyed on rememberDevice=true specifically (not It.IsAny<bool>()) - fails if
+        // CompleteOtpAsync's rememberDevice parameter isn't actually reaching CreateAccessTokenAsync.
+        tokens.Setup(x => x.CreateAccessTokenAsync(
+                userId,
+                tenantId,
+                It.IsAny<IReadOnlyList<ClaimItem>>(),
+                true,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TokenResult("jwt-token", DateTimeOffset.UtcNow.AddMinutes(60), new List<ClaimItem>()));
+
+        var sut = new OtpAuthService(
+            users.Object,
+            tenants.Object,
+            tenantProvisioning.Object,
+            tokens.Object,
+            otpService.Object,
+            otpChallenges.Object);
+
+        var result = await sut.CompleteOtpAsync("challenge-1", "123456", "abram.cookson@outlook.com", rememberDevice: true);
+
+        Assert.IsNotNull(result.Token);
+        Assert.AreEqual("jwt-token", result.Token!.AccessToken);
     }
 
     [TestMethod]
@@ -224,6 +286,7 @@ public sealed class OtpAuthServiceTests
                 userId,
                 tenantId,
                 It.IsAny<IReadOnlyList<ClaimItem>>(),
+                It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TokenResult("jwt-token", DateTimeOffset.UtcNow.AddMinutes(60), new List<ClaimItem>()));
 
@@ -285,6 +348,7 @@ public sealed class OtpAuthServiceTests
                 userId,
                 tenantId,
                 It.IsAny<IReadOnlyList<ClaimItem>>(),
+                It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TokenResult("jwt-token", DateTimeOffset.UtcNow.AddMinutes(60), new List<ClaimItem>()));
 
@@ -430,6 +494,7 @@ public sealed class OtpAuthServiceTests
                 userId,
                 tenantId,
                 It.IsAny<IReadOnlyList<ClaimItem>>(),
+                It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TokenResult("jwt-token", DateTimeOffset.UtcNow.AddMinutes(60), new List<ClaimItem>()));
 
@@ -505,7 +570,7 @@ public sealed class OtpAuthServiceTests
         tenantProvisioning.Setup(x => x.CreateTenantForNewUserAsync(userId, "ABRAM.COOKSON@OUTLOOK.COM", It.IsAny<CancellationToken>()))
             .ReturnsAsync(tenantId);
 
-        tokens.Setup(x => x.CreateAccessTokenAsync(userId, tenantId, It.IsAny<IReadOnlyList<ClaimItem>>(), It.IsAny<CancellationToken>()))
+        tokens.Setup(x => x.CreateAccessTokenAsync(userId, tenantId, It.IsAny<IReadOnlyList<ClaimItem>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TokenResult("jwt-token", DateTimeOffset.UtcNow.AddMinutes(60), new List<ClaimItem>()));
 
         publisher.Setup(x => x.PublishAsync(It.IsAny<AuthUserCreatedEvent>(), It.IsAny<CancellationToken>()))
@@ -634,6 +699,7 @@ public sealed class OtpAuthServiceTests
                 userId,
                 tenantId,
                 It.IsAny<IReadOnlyList<ClaimItem>>(),
+                It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TokenResult("jwt-token", DateTimeOffset.UtcNow.AddMinutes(60), Array.Empty<ClaimItem>()));
 
@@ -706,6 +772,7 @@ public sealed class OtpAuthServiceTests
                 userId,
                 tenantId,
                 It.IsAny<IReadOnlyList<ClaimItem>>(),
+                It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TokenResult("jwt-token", DateTimeOffset.UtcNow.AddMinutes(60), Array.Empty<ClaimItem>()));
 

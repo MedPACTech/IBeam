@@ -8,4 +8,12 @@ public interface IIdentityOtpAuthService
         string code,
         string destination,
         CancellationToken ct = default);
+
+    /// <summary>Same as the 4-argument overload, but <paramref name="rememberDevice"/> requests a longer-lived session (see IBeam.Identity.Interfaces.ITokenService.CreateAccessTokenAsync).</summary>
+    Task<AuthResultResponse> CompleteOtpAsync(
+        string challengeId,
+        string code,
+        string destination,
+        bool rememberDevice,
+        CancellationToken ct = default);
 }

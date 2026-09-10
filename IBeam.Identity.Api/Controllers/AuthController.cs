@@ -75,6 +75,7 @@ public class AuthController : ControllerBase
                 req.ChallengeId,
                 req.Code,
                 req.Destination,
+                req.RememberDevice,
                 ct);
             return Ok(result);
         }
@@ -322,7 +323,7 @@ public class AuthController : ControllerBase
         try
         {
             var result = await _passwordAuth.PasswordLoginAsync(
-                new PasswordLoginRequest(req.Email, req.Password),
+                new PasswordLoginRequest(req.Email, req.Password, req.RememberDevice),
                 ct);
 
             return Ok(result);
@@ -662,6 +663,9 @@ public class CompleteOtpRequest
     public string ChallengeId { get; set; } = string.Empty;
     public string Destination { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
+
+    /// <summary>Requests a longer-lived session for this device (see JwtOptions.RememberedRefreshTokenDays).</summary>
+    public bool RememberDevice { get; set; }
 }
 
 public class StartEmailPasswordRegistrationRequest
@@ -708,6 +712,9 @@ public class PasswordLoginApiRequest
 {
     public string Email { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
+
+    /// <summary>Requests a longer-lived session for this device (see JwtOptions.RememberedRefreshTokenDays).</summary>
+    public bool RememberDevice { get; set; }
 }
 
 public class StartTwoFactorSetupRequest

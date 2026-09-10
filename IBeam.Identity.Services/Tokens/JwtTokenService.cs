@@ -78,10 +78,18 @@ public sealed class JwtTokenService : ITokenService
     {
     }
 
+    public Task<TokenResult> CreateAccessTokenAsync(
+        Guid userId,
+        Guid tenantId,
+        IReadOnlyList<ClaimItem> claims,
+        CancellationToken ct = default)
+        => CreateAccessTokenAsync(userId, tenantId, claims, rememberDevice: false, ct);
+
     public async Task<TokenResult> CreateAccessTokenAsync(
         Guid userId,
         Guid tenantId,
         IReadOnlyList<ClaimItem> claims,
+        bool rememberDevice,
         CancellationToken ct = default)
     {
         if (userId == Guid.Empty) throw new IdentityValidationException("userId is required.");
@@ -115,7 +123,7 @@ public sealed class JwtTokenService : ITokenService
 
         var refreshToken = CreateRefreshToken();
         var refreshHash = HashRefreshToken(refreshToken);
-        var refreshExpiresAt = ComputeRefreshExpiry(now, sessionCreatedAt: now);
+        var refreshExpiresAt = ComputeRefreshExpiry(now, sessionCreatedAt: now, remembered: rememberDevice);
 
         var session = new AuthSessionRecord(
             RefreshTokenHash: refreshHash,
@@ -127,7 +135,8 @@ public sealed class JwtTokenService : ITokenService
             LastSeenAt: now,
             RefreshTokenExpiresAt: refreshExpiresAt,
             RevokedAt: null,
-            DeviceInfo: null);
+            DeviceInfo: null,
+            Remembered: rememberDevice);
 
         await _sessions.SaveAsync(session, ct);
 
@@ -175,7 +184,7 @@ public sealed class JwtTokenService : ITokenService
 
         var newRefreshToken = CreateRefreshToken();
         var newHash = HashRefreshToken(newRefreshToken);
-        var newRefreshExpiresAt = ComputeRefreshExpiry(now, existing.CreatedAt);
+        var newRefreshExpiresAt = ComputeRefreshExpiry(now, existing.CreatedAt, existing.Remembered);
         if (newRefreshExpiresAt <= now)
             throw new IdentityUnauthorizedException("Session absolute lifetime exceeded.");
 
@@ -222,7 +231,8 @@ public sealed class JwtTokenService : ITokenService
                 LastSeenAt: s.LastSeenAt,
                 RefreshTokenExpiresAt: s.RefreshTokenExpiresAt,
                 RevokedAt: s.RevokedAt,
-                DeviceInfo: s.DeviceInfo))
+                DeviceInfo: s.DeviceInfo,
+                Remembered: s.Remembered))
             .ToList();
     }
 
@@ -420,14 +430,22 @@ public sealed class JwtTokenService : ITokenService
         return _handler.WriteToken(token);
     }
 
-    private DateTimeOffset ComputeRefreshExpiry(DateTimeOffset now, DateTimeOffset sessionCreatedAt)
+    private DateTimeOffset ComputeRefreshExpiry(DateTimeOffset now, DateTimeOffset sessionCreatedAt, bool remembered = false)
     {
+        var refreshTokenDays = remembered
+            ? _options.RememberedRefreshTokenDays ?? _options.RefreshTokenDays
+            : _options.RefreshTokenDays;
+
         var window = _options.SessionInactivityMinutes is { } minutes
             ? TimeSpan.FromMinutes(minutes)
-            : TimeSpan.FromDays(_options.RefreshTokenDays);
+            : TimeSpan.FromDays(refreshTokenDays);
 
         var expiry = now.Add(window);
-        if (_options.SessionAbsoluteLifetimeDays is { } lifetimeDays)
+
+        var absoluteLifetimeDays = remembered
+            ? _options.RememberedSessionAbsoluteLifetimeDays ?? _options.SessionAbsoluteLifetimeDays
+            : _options.SessionAbsoluteLifetimeDays;
+        if (absoluteLifetimeDays is { } lifetimeDays)
         {
             var cap = sessionCreatedAt.AddDays(lifetimeDays);
             if (expiry > cap) expiry = cap;
@@ -467,6 +485,10 @@ public sealed class JwtTokenService : ITokenService
             throw new IdentityValidationException("TokenOptions.SessionInactivityMinutes must be >= AccessTokenMinutes.");
         if (o.SessionAbsoluteLifetimeDays is <= 0)
             throw new IdentityValidationException("TokenOptions.SessionAbsoluteLifetimeDays must be > 0.");
+        if (o.RememberedRefreshTokenDays is <= 0)
+            throw new IdentityValidationException("TokenOptions.RememberedRefreshTokenDays must be > 0.");
+        if (o.RememberedSessionAbsoluteLifetimeDays is <= 0)
+            throw new IdentityValidationException("TokenOptions.RememberedSessionAbsoluteLifetimeDays must be > 0.");
     }
 
     private async Task EmitTokenIssuedAsync(

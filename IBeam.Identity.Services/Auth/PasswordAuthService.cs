@@ -276,7 +276,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
             AddRoleIdClaims(claims, tenant.RoleIds);
             await EnsureUserExtensionAsync(user, tenant.TenantId, UserExtensionOperations.Login, null, null, traceId, ct)
                 .ConfigureAwait(false);
-            var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
+            var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, request.RememberDevice, ct);
             await EmitLoginSucceededAsync("password", user.UserId, tenant.TenantId, false, traceId, ct);
             return AuthResultResponse.WithToken(token);
         }
@@ -293,7 +293,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
             AddRoleIdClaims(claims, t.RoleIds);
             await EnsureUserExtensionAsync(user, t.TenantId, UserExtensionOperations.Login, null, null, traceId, ct)
                 .ConfigureAwait(false);
-            var token = await _tokens.CreateAccessTokenAsync(user.UserId, t.TenantId, claims, ct);
+            var token = await _tokens.CreateAccessTokenAsync(user.UserId, t.TenantId, claims, request.RememberDevice, ct);
             await EmitLoginSucceededAsync("password", user.UserId, t.TenantId, false, traceId, ct);
             return AuthResultResponse.WithToken(token);
         }
@@ -310,7 +310,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
                 AddRoleIdClaims(claims, def.RoleIds);
                 await EnsureUserExtensionAsync(user, def.TenantId, UserExtensionOperations.Login, null, null, traceId, ct)
                     .ConfigureAwait(false);
-                var token = await _tokens.CreateAccessTokenAsync(user.UserId, def.TenantId, claims, ct);
+                var token = await _tokens.CreateAccessTokenAsync(user.UserId, def.TenantId, claims, request.RememberDevice, ct);
                 await EmitLoginSucceededAsync("password", user.UserId, def.TenantId, false, traceId, ct);
                 return AuthResultResponse.WithToken(token);
             }

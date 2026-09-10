@@ -63,6 +63,49 @@ public sealed class PasswordAuthServiceTests
     }
 
     [TestMethod]
+    public async Task PasswordLoginAsync_WithRememberDevice_ThreadsFlagToTokenCreation()
+    {
+        var userId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var tenants = new Mock<ITenantMembershipStore>(MockBehavior.Strict);
+        var tokens = new Mock<ITokenService>(MockBehavior.Strict);
+
+        users.Setup(x => x.FindByEmailAsync("abram.cookson@outlook.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityUser(userId, "abram.cookson@outlook.com", true));
+        users.Setup(x => x.ValidatePasswordAsync("abram.cookson@outlook.com", "Pass123!", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        tenants.Setup(x => x.GetTenantsForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TenantInfo> { new(tenantId, "Tenant A", new List<string> { "User" }, true) });
+
+        // Strict setup keyed on rememberDevice=true specifically (not It.IsAny<bool>()) - fails if
+        // PasswordLoginRequest.RememberDevice isn't actually reaching CreateAccessTokenAsync.
+        tokens.Setup(x => x.CreateAccessTokenAsync(
+                userId,
+                tenantId,
+                It.IsAny<IReadOnlyList<ClaimItem>>(),
+                true,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TokenResult("jwt-token", DateTimeOffset.UtcNow.AddMinutes(60), new List<ClaimItem>()));
+
+        var sut = new PasswordAuthService(
+            users.Object,
+            tenants.Object,
+            Mock.Of<ITenantProvisioningService>(),
+            tokens.Object,
+            Mock.Of<IOtpService>(),
+            Mock.Of<IOtpChallengeStore>(),
+            Mock.Of<IIdentityCommunicationSender>());
+
+        var result = await sut.PasswordLoginAsync(new PasswordLoginRequest("abram.cookson@outlook.com", "Pass123!", RememberDevice: true));
+
+        Assert.IsNotNull(result.Token);
+        Assert.AreEqual("jwt-token", result.Token!.AccessToken);
+    }
+
+    [TestMethod]
     public async Task PasswordLoginAsync_WhenPasswordInvalid_ThrowsUnauthorized()
     {
         var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
