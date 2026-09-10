@@ -164,6 +164,7 @@ public sealed class TenantProvisioningPolicyTests
                 userId,
                 defaultTenantId,
                 It.IsAny<IReadOnlyList<ClaimItem>>(),
+                It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TokenResult("jwt-token", DateTimeOffset.UtcNow.AddMinutes(60), Array.Empty<ClaimItem>()));
 
