@@ -18,6 +18,13 @@ public sealed class JwtOptions
     // CreatedAt + this many days. Unset means the window can slide indefinitely.
     public int? SessionAbsoluteLifetimeDays { get; init; }
 
+    // "Remember this device" overrides, used only when a login explicitly opts in
+    // (CreateAccessTokenAsync's rememberDevice parameter). Unset means a remembered session
+    // gets the same lifetime as any other - these exist to let a remembered session outlive
+    // RefreshTokenDays/SessionAbsoluteLifetimeDays without changing the default for everyone.
+    public int? RememberedRefreshTokenDays { get; init; }
+    public int? RememberedSessionAbsoluteLifetimeDays { get; init; }
+
     public int ClockSkewSeconds { get; init; } = 60;
     public string? KeyId { get; init; }
     public string SigningMode { get; init; } = JwtSigningModes.Symmetric;
@@ -48,6 +55,10 @@ public sealed class JwtOptions
             throw new InvalidOperationException("JwtOptions.SessionInactivityMinutes must be >= AccessTokenMinutes; a shorter window cannot be enforced because issued access tokens stay valid for AccessTokenMinutes.");
         if (SessionAbsoluteLifetimeDays is <= 0)
             throw new InvalidOperationException("JwtOptions.SessionAbsoluteLifetimeDays must be > 0.");
+        if (RememberedRefreshTokenDays is <= 0)
+            throw new InvalidOperationException("JwtOptions.RememberedRefreshTokenDays must be > 0.");
+        if (RememberedSessionAbsoluteLifetimeDays is <= 0)
+            throw new InvalidOperationException("JwtOptions.RememberedSessionAbsoluteLifetimeDays must be > 0.");
     }
 }
 

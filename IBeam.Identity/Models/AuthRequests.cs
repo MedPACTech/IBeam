@@ -7,7 +7,8 @@ public sealed record RegisterRequest(
 
 public sealed record PasswordLoginRequest(
     string Email,
-    string Password);
+    string Password,
+    bool RememberDevice = false);
 
 public sealed record RequestOtpRequest(
     string Identifier,      // email or phone (we'll support both)
