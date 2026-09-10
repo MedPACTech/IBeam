@@ -271,9 +271,17 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         string code,
         string destination,
         CancellationToken ct = default)
+        => await CompleteOtpAsync(challengeId, code, destination, rememberDevice: false, ct).ConfigureAwait(false);
+
+    public async Task<AuthResultResponse> CompleteOtpAsync(
+        string challengeId,
+        string code,
+        string destination,
+        bool rememberDevice,
+        CancellationToken ct = default)
         => await _operations.ExecuteAsync(
             this,
-            token => CompleteOtpCoreAsync(challengeId, code, destination, token),
+            token => CompleteOtpCoreAsync(challengeId, code, destination, rememberDevice, token),
             new ServiceOperationExecutionOptions { PermissionEnabled = false },
             ct).ConfigureAwait(false);
 
@@ -281,6 +289,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         string challengeId,
         string code,
         string destination,
+        bool rememberDevice,
         CancellationToken ct)
     {
         return await CompleteOtpInternalAsync(
@@ -288,6 +297,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             code,
             destination,
             expectedPurposes: new[] { SenderPurpose.LoginMfa, SenderPurpose.UserRegistration },
+            rememberDevice,
             ct);
     }
 
@@ -296,6 +306,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
         string code,
         string destination,
         IReadOnlyCollection<SenderPurpose> expectedPurposes,
+        bool rememberDevice,
         CancellationToken ct)
     {
         IdentityUtils.ThrowIfNullOrWhiteSpace(challengeId, nameof(challengeId));
@@ -530,7 +541,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
             AddRoleIdClaims(claims, tenant.RoleIds);
             await EnsureUserExtensionAsync(user, tenant.TenantId, UserExtensionOperations.Login, challengeId, challengeId, traceId, ct)
                 .ConfigureAwait(false);
-            var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
+            var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, rememberDevice, ct);
             await RegisterOtpSuccessAsync(normalizedDestination, attemptContext, ct).ConfigureAwait(false);
             await EmitLoginSucceededAsync("otp", user.UserId, tenant.TenantId, false, challengeId, traceId, ct);
             return AuthResultResponse.WithToken(token, createdNewUser);
@@ -548,7 +559,7 @@ public sealed class OtpAuthService : IIdentityOtpAuthService
                 AddRoleIdClaims(claims, defaultTenant.RoleIds);
                 await EnsureUserExtensionAsync(user, defaultTenant.TenantId, UserExtensionOperations.Login, challengeId, challengeId, traceId, ct)
                     .ConfigureAwait(false);
-                var token = await _tokens.CreateAccessTokenAsync(user.UserId, defaultTenant.TenantId, claims, ct);
+                var token = await _tokens.CreateAccessTokenAsync(user.UserId, defaultTenant.TenantId, claims, rememberDevice, ct);
                 await RegisterOtpSuccessAsync(normalizedDestination, attemptContext, ct).ConfigureAwait(false);
                 await EmitLoginSucceededAsync("otp", user.UserId, defaultTenant.TenantId, false, challengeId, traceId, ct);
                 return AuthResultResponse.WithToken(token, createdNewUser);

@@ -276,7 +276,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
             AddRoleIdClaims(claims, tenant.RoleIds);
             await EnsureUserExtensionAsync(user, tenant.TenantId, UserExtensionOperations.Login, null, null, traceId, ct)
                 .ConfigureAwait(false);
-            var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, ct);
+            var token = await _tokens.CreateAccessTokenAsync(user.UserId, tenant.TenantId, claims, request.RememberDevice, ct);
             await EmitLoginSucceededAsync("password", user.UserId, tenant.TenantId, false, traceId, ct);
             return AuthResultResponse.WithToken(token);
         }
@@ -293,7 +293,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
             AddRoleIdClaims(claims, t.RoleIds);
             await EnsureUserExtensionAsync(user, t.TenantId, UserExtensionOperations.Login, null, null, traceId, ct)
                 .ConfigureAwait(false);
-            var token = await _tokens.CreateAccessTokenAsync(user.UserId, t.TenantId, claims, ct);
+            var token = await _tokens.CreateAccessTokenAsync(user.UserId, t.TenantId, claims, request.RememberDevice, ct);
             await EmitLoginSucceededAsync("password", user.UserId, t.TenantId, false, traceId, ct);
             return AuthResultResponse.WithToken(token);
         }
@@ -310,7 +310,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
                 AddRoleIdClaims(claims, def.RoleIds);
                 await EnsureUserExtensionAsync(user, def.TenantId, UserExtensionOperations.Login, null, null, traceId, ct)
                     .ConfigureAwait(false);
-                var token = await _tokens.CreateAccessTokenAsync(user.UserId, def.TenantId, claims, ct);
+                var token = await _tokens.CreateAccessTokenAsync(user.UserId, def.TenantId, claims, request.RememberDevice, ct);
                 await EmitLoginSucceededAsync("password", user.UserId, def.TenantId, false, traceId, ct);
                 return AuthResultResponse.WithToken(token);
             }
@@ -704,6 +704,119 @@ public sealed class PasswordAuthService : IIdentityAuthService
         await _users.UpdateEmailAsync(user.UserId, normalizedEmail, ct);
         await _users.SetPasswordAsync(user.UserId, newPassword, ct);
         await _users.SetEmailConfirmedAsync(user.UserId, true, ct);
+    }
+
+    /// <summary>
+    /// Email counterpart of <see cref="StartPhoneLinkAsync"/>: adds a verified email to an existing
+    /// account as an OTP sign-in method, without setting a password.
+    /// <para>
+    /// OTP sign-in resolves an account on the user's email alone (OtpAuthService.StartOtpCoreAsync
+    /// calls FindByEmailAsync), so setting a confirmed email is the whole of what makes an address a
+    /// working sign-in method. StartEmailPasswordLinkAsync also sets a password because it exists to
+    /// create an email+password login, not because OTP needs one.
+    /// </para>
+    /// </summary>
+    [IBeamOperation("identity.auth.password.email.otp.link.start", Permission = false)]
+    public async Task<OtpChallengeResult> StartEmailLinkAsync(Guid userId, string email, CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => StartEmailLinkCoreAsync(userId, email, token),
+            new ServiceOperationExecutionOptions { EntityId = userId, PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task<OtpChallengeResult> StartEmailLinkCoreAsync(Guid userId, string email, CancellationToken ct)
+    {
+        if (userId == Guid.Empty)
+            throw new IdentityValidationException("UserId is required.");
+        if (string.IsNullOrWhiteSpace(email))
+            throw new IdentityValidationException("Email is required.");
+
+        var user = await _users.FindByIdAsync(userId, ct)
+            ?? throw new IdentityValidationException("User not found.");
+
+        var (channel, otpDestination, storedEmail) = NormalizeEmailForLink(email);
+        if (channel != SenderChannel.Email)
+            throw new IdentityValidationException("Destination must be a valid email address.");
+
+        // Refused here as well as on complete. Checking at start means the caller finds out before
+        // a code is sent to an address they cannot claim, and checking again on complete means a
+        // race that binds the address in between cannot still take it.
+        var existing = await _users.FindByEmailAsync(storedEmail, ct);
+        if (existing is not null && existing.UserId != user.UserId)
+            throw new IdentityValidationException("Email is already bound to another user.");
+
+        return await _otpService.CreateChallengeAsync(
+            new OtpChallengeRequest(SenderChannel.Email, otpDestination, SenderPurpose.EmailVerification, null),
+            ct);
+    }
+
+    [IBeamOperation("identity.auth.password.email.otp.link.complete", Permission = false)]
+    public async Task CompleteEmailLinkAsync(
+        Guid userId,
+        string email,
+        string challengeId,
+        string code,
+        CancellationToken ct = default)
+        => await _operations.ExecuteAsync(
+            this,
+            token => CompleteEmailLinkCoreAsync(userId, email, challengeId, code, token),
+            new ServiceOperationExecutionOptions { EntityId = userId, PermissionEnabled = false },
+            ct).ConfigureAwait(false);
+
+    private async Task CompleteEmailLinkCoreAsync(
+        Guid userId,
+        string email,
+        string challengeId,
+        string code,
+        CancellationToken ct)
+    {
+        if (userId == Guid.Empty)
+            throw new IdentityValidationException("UserId is required.");
+        if (string.IsNullOrWhiteSpace(email))
+            throw new IdentityValidationException("Email is required.");
+        if (string.IsNullOrWhiteSpace(challengeId))
+            throw new IdentityValidationException("ChallengeId is required.");
+        if (string.IsNullOrWhiteSpace(code))
+            throw new IdentityValidationException("Code is required.");
+
+        var user = await _users.FindByIdAsync(userId, ct)
+            ?? throw new IdentityValidationException("User not found.");
+
+        var (channel, otpDestination, storedEmail) = NormalizeEmailForLink(email);
+        if (channel != SenderChannel.Email)
+            throw new IdentityValidationException("Destination must be a valid email address.");
+
+        var existing = await _users.FindByEmailAsync(storedEmail, ct);
+        if (existing is not null && existing.UserId != user.UserId)
+            throw new IdentityValidationException("Email is already bound to another user.");
+
+        // Verify before writing: the code is the only proof the caller controls this address, and
+        // without that check this would let any signed-in user attach any unclaimed address and
+        // then sign in as themselves through it.
+        await VerifyOtpChallengeAsync(challengeId, code, otpDestination, SenderPurpose.EmailVerification, ct);
+        await _users.UpdateEmailAsync(user.UserId, storedEmail, ct);
+        await _users.SetEmailConfirmedAsync(user.UserId, true, ct);
+    }
+
+    /// <summary>
+    /// Splits an email into the two forms this flow needs, because IBeam already uses both and
+    /// picking one would break something.
+    /// <para>
+    /// <c>IdentityUtils.NormalizeDestination</c> upper-cases email, and that upper-cased form is
+    /// what OtpAuthService stores as an OTP challenge's Destination — so the challenge must be
+    /// created and verified against it or the destination comparison fails. Every place that
+    /// persists an address, including CompleteEmailPasswordLinkAsync, writes lower-case instead.
+    /// Storing the upper-cased form here would leave two casings of the same address in the user
+    /// table depending on which flow attached it.
+    /// </para>
+    /// <para>
+    /// Lookups are unaffected either way: the user store lower-cases internally before matching.
+    /// </para>
+    /// </summary>
+    private static (SenderChannel Channel, string OtpDestination, string StoredEmail) NormalizeEmailForLink(string email)
+    {
+        var (channel, otpDestination) = IdentityUtils.NormalizeDestination(email);
+        return (channel, otpDestination, otpDestination.ToLowerInvariant());
     }
 
     [IBeamOperation("identity.auth.password.phone.link.start", Permission = false)]

@@ -7,4 +7,5 @@ public sealed record AuthSessionInfo(
     DateTimeOffset LastSeenAt,
     DateTimeOffset RefreshTokenExpiresAt,
     DateTimeOffset? RevokedAt,
-    string? DeviceInfo);
+    string? DeviceInfo,
+    bool Remembered = false);
