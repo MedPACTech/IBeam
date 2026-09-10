@@ -351,6 +351,154 @@ public sealed class JwtTokenServiceTests
     }
 
     [TestMethod]
+    public async Task CreateAccessTokenAsync_WhenRemembered_UsesRememberedRefreshTokenDays()
+    {
+        AuthSessionRecord? saved = null;
+        var sessions = new Mock<IAuthSessionStore>(MockBehavior.Strict);
+        sessions.Setup(x => x.SaveAsync(It.IsAny<AuthSessionRecord>(), It.IsAny<CancellationToken>()))
+            .Callback<AuthSessionRecord, CancellationToken>((record, _) => saved = record)
+            .Returns(Task.CompletedTask);
+
+        var sut = CreateSut(sessions.Object, options: RememberedOptions(refreshTokenDays: 7, rememberedRefreshTokenDays: 60));
+
+        await sut.CreateAccessTokenAsync(Guid.NewGuid(), Guid.NewGuid(), [], rememberDevice: true);
+
+        Assert.IsNotNull(saved);
+        Assert.IsTrue(saved!.Remembered);
+        var window = saved.RefreshTokenExpiresAt - DateTimeOffset.UtcNow;
+        Assert.IsTrue(window > TimeSpan.FromDays(59) && window <= TimeSpan.FromDays(60),
+            $"Expected ~60 day remembered window, got {window}.");
+    }
+
+    [TestMethod]
+    public async Task CreateAccessTokenAsync_WhenNotRemembered_UsesNormalRefreshTokenDays()
+    {
+        AuthSessionRecord? saved = null;
+        var sessions = new Mock<IAuthSessionStore>(MockBehavior.Strict);
+        sessions.Setup(x => x.SaveAsync(It.IsAny<AuthSessionRecord>(), It.IsAny<CancellationToken>()))
+            .Callback<AuthSessionRecord, CancellationToken>((record, _) => saved = record)
+            .Returns(Task.CompletedTask);
+
+        var sut = CreateSut(sessions.Object, options: RememberedOptions(refreshTokenDays: 7, rememberedRefreshTokenDays: 60));
+
+        await sut.CreateAccessTokenAsync(Guid.NewGuid(), Guid.NewGuid(), [], rememberDevice: false);
+
+        Assert.IsNotNull(saved);
+        Assert.IsFalse(saved!.Remembered);
+        var window = saved.RefreshTokenExpiresAt - DateTimeOffset.UtcNow;
+        Assert.IsTrue(window > TimeSpan.FromDays(6) && window <= TimeSpan.FromDays(7),
+            $"Expected ~7 day normal window, got {window}.");
+    }
+
+    [TestMethod]
+    public async Task CreateAccessTokenAsync_WhenRememberedButNoRememberedDaysConfigured_FallsBackToRefreshTokenDays()
+    {
+        AuthSessionRecord? saved = null;
+        var sessions = new Mock<IAuthSessionStore>(MockBehavior.Strict);
+        sessions.Setup(x => x.SaveAsync(It.IsAny<AuthSessionRecord>(), It.IsAny<CancellationToken>()))
+            .Callback<AuthSessionRecord, CancellationToken>((record, _) => saved = record)
+            .Returns(Task.CompletedTask);
+
+        // No RememberedRefreshTokenDays set - unset means "remembered gets the same lifetime as everyone else".
+        var sut = CreateSut(sessions.Object);
+
+        await sut.CreateAccessTokenAsync(Guid.NewGuid(), Guid.NewGuid(), [], rememberDevice: true);
+
+        Assert.IsNotNull(saved);
+        Assert.IsTrue(saved!.Remembered);
+        var window = saved.RefreshTokenExpiresAt - DateTimeOffset.UtcNow;
+        Assert.IsTrue(window > TimeSpan.FromDays(29) && window <= TimeSpan.FromDays(30),
+            $"Expected the default 30 day RefreshTokenDays window, got {window}.");
+    }
+
+    [TestMethod]
+    public async Task RefreshAccessTokenAsync_PreservesRememberedAcrossRotation()
+    {
+        const string oldRefresh = "refresh-1";
+        var oldHash = HashRefreshToken(oldRefresh);
+        var existing = SessionRecord(oldHash, createdAt: DateTimeOffset.UtcNow.AddDays(-1),
+            refreshExpiresAt: DateTimeOffset.UtcNow.AddDays(1)) with { Remembered = true };
+
+        AuthSessionRecord? rotated = null;
+        var sessions = RotatingStore(oldHash, existing, record => rotated = record);
+
+        var sut = CreateSut(sessions.Object, options: RememberedOptions(refreshTokenDays: 7, rememberedRefreshTokenDays: 60));
+
+        await sut.RefreshAccessTokenAsync(oldRefresh);
+
+        Assert.IsNotNull(rotated);
+        Assert.IsTrue(rotated!.Remembered, "A remembered session's rotation must not silently downgrade to the normal window.");
+        var window = rotated.RefreshTokenExpiresAt - DateTimeOffset.UtcNow;
+        Assert.IsTrue(window > TimeSpan.FromDays(59) && window <= TimeSpan.FromDays(60),
+            $"Expected the remembered 60 day window to carry through rotation, got {window}.");
+    }
+
+    [TestMethod]
+    public async Task RefreshAccessTokenAsync_WhenNotRemembered_KeepsNormalWindowOnRotation()
+    {
+        const string oldRefresh = "refresh-1";
+        var oldHash = HashRefreshToken(oldRefresh);
+        var existing = SessionRecord(oldHash, createdAt: DateTimeOffset.UtcNow.AddDays(-1),
+            refreshExpiresAt: DateTimeOffset.UtcNow.AddDays(1)); // Remembered defaults to false
+
+        AuthSessionRecord? rotated = null;
+        var sessions = RotatingStore(oldHash, existing, record => rotated = record);
+
+        var sut = CreateSut(sessions.Object, options: RememberedOptions(refreshTokenDays: 7, rememberedRefreshTokenDays: 60));
+
+        await sut.RefreshAccessTokenAsync(oldRefresh);
+
+        Assert.IsNotNull(rotated);
+        Assert.IsFalse(rotated!.Remembered);
+        var window = rotated.RefreshTokenExpiresAt - DateTimeOffset.UtcNow;
+        Assert.IsTrue(window > TimeSpan.FromDays(6) && window <= TimeSpan.FromDays(7),
+            $"Expected the normal 7 day window, got {window}.");
+    }
+
+    [TestMethod]
+    public async Task RefreshAccessTokenAsync_WhenRemembered_CapsAtRememberedAbsoluteLifetime()
+    {
+        const string oldRefresh = "refresh-1";
+        var oldHash = HashRefreshToken(oldRefresh);
+        var createdAt = DateTimeOffset.UtcNow.AddDays(-89);
+        var existing = SessionRecord(oldHash, createdAt, refreshExpiresAt: DateTimeOffset.UtcNow.AddMinutes(30))
+            with { Remembered = true };
+
+        AuthSessionRecord? rotated = null;
+        var sessions = RotatingStore(oldHash, existing, record => rotated = record);
+
+        var sut = CreateSut(sessions.Object, options: RememberedOptions(
+            refreshTokenDays: 7,
+            rememberedRefreshTokenDays: 60,
+            rememberedAbsoluteLifetimeDays: 90));
+
+        await sut.RefreshAccessTokenAsync(oldRefresh);
+
+        Assert.IsNotNull(rotated);
+        Assert.AreEqual(createdAt.AddDays(90), rotated!.RefreshTokenExpiresAt);
+    }
+
+    [TestMethod]
+    public async Task GetUserSessionsAsync_SurfacesRememberedFlag()
+    {
+        var userId = Guid.NewGuid();
+        var sessions = new Mock<IAuthSessionStore>(MockBehavior.Strict);
+        sessions.Setup(x => x.GetByUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AuthSessionRecord>
+            {
+                new("h1", "s1", userId, Guid.NewGuid(), "[]", DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddMinutes(-5), DateTimeOffset.UtcNow.AddDays(60), Remembered: true),
+                new("h2", "s2", userId, Guid.NewGuid(), "[]", DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddMinutes(-10), DateTimeOffset.UtcNow.AddDays(7), Remembered: false)
+            });
+
+        var sut = CreateSut(sessions.Object);
+
+        var result = await sut.GetUserSessionsAsync(userId);
+
+        Assert.IsTrue(result.Single(s => s.SessionId == "s1").Remembered);
+        Assert.IsFalse(result.Single(s => s.SessionId == "s2").Remembered);
+    }
+
+    [TestMethod]
     public void Constructor_WhenInactivityWindowShorterThanAccessToken_Throws()
     {
         Assert.ThrowsExactly<IdentityValidationException>(() =>
@@ -374,6 +522,21 @@ public sealed class JwtTokenServiceTests
         RefreshTokenDays = 30,
         SessionInactivityMinutes = inactivityMinutes,
         SessionAbsoluteLifetimeDays = absoluteLifetimeDays
+    };
+
+    private static JwtOptions RememberedOptions(
+        int refreshTokenDays,
+        int? rememberedRefreshTokenDays = null,
+        int? rememberedAbsoluteLifetimeDays = null) => new()
+    {
+        Issuer = "ibeam.test",
+        Audience = "ibeam.clients",
+        SigningKey = "test-signing-key-with-enough-length-1234567890",
+        AccessTokenMinutes = 60,
+        PreTenantTokenMinutes = 10,
+        RefreshTokenDays = refreshTokenDays,
+        RememberedRefreshTokenDays = rememberedRefreshTokenDays,
+        RememberedSessionAbsoluteLifetimeDays = rememberedAbsoluteLifetimeDays
     };
 
     private static AuthSessionRecord SessionRecord(string refreshTokenHash, DateTimeOffset createdAt, DateTimeOffset refreshExpiresAt)
