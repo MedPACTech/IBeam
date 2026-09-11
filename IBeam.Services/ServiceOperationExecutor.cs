@@ -18,6 +18,7 @@ public sealed class ServiceOperationExecutor : IServiceOperationExecutor
     private readonly IServiceOperationPrincipalProvider _serviceOperationPrincipalProvider;
     private readonly IOptionsMonitor<ServiceAuditOptions> _auditOptionsMonitor;
     private readonly ITenantContext? _tenantContext;
+    private readonly IServiceOperationSystemContext? _systemContext;
 
     public ServiceOperationExecutor(
         IAuditTrailSink? auditTrailSink = null,
@@ -26,7 +27,8 @@ public sealed class ServiceOperationExecutor : IServiceOperationExecutor
         IServiceOperationAuthorizer? serviceOperationAuthorizer = null,
         IServiceOperationPrincipalProvider? serviceOperationPrincipalProvider = null,
         IOptionsMonitor<ServiceAuditOptions>? auditOptionsMonitor = null,
-        ITenantContext? tenantContext = null)
+        ITenantContext? tenantContext = null,
+        IServiceOperationSystemContext? systemContext = null)
     {
         _auditTrailSink = auditTrailSink ?? new NoOpAuditTrailSink();
         _auditActorProvider = auditActorProvider ?? new NoOpAuditActorProvider();
@@ -35,6 +37,7 @@ public sealed class ServiceOperationExecutor : IServiceOperationExecutor
         _serviceOperationPrincipalProvider = serviceOperationPrincipalProvider ?? new NoOpServiceOperationPrincipalProvider();
         _auditOptionsMonitor = auditOptionsMonitor ?? new StaticOptionsMonitor<ServiceAuditOptions>(new ServiceAuditOptions());
         _tenantContext = tenantContext;
+        _systemContext = systemContext;
     }
 
     public async Task ExecuteAsync(
@@ -130,6 +133,14 @@ public sealed class ServiceOperationExecutor : IServiceOperationExecutor
     private async Task DemandAccessAsync(ResolvedServiceOperation operation, CancellationToken ct)
     {
         if (!operation.PermissionEnabled || _serviceOperationAuthorizer is null)
+        {
+            return;
+        }
+
+        // A verified machine callback has no principal and no tenant to authorize against — see
+        // IServiceOperationSystemContext. Checked before the tenant demand rather than after,
+        // because the demand is exactly what such a caller can never satisfy.
+        if (_systemContext?.IsActive == true)
         {
             return;
         }
