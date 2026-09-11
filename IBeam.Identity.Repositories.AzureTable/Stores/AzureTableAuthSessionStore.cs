@@ -205,7 +205,8 @@ public sealed class AzureTableAuthSessionStore : IAuthSessionStore
             LastSeenAt = r.LastSeenAt,
             RefreshTokenExpiresAt = r.RefreshTokenExpiresAt,
             RevokedAt = r.RevokedAt,
-            DeviceInfo = r.DeviceInfo
+            DeviceInfo = r.DeviceInfo,
+            Remembered = r.Remembered
         };
 
     private static AuthSessionEntity ToUserSessionEntity(AuthSessionRecord r)
@@ -222,7 +223,8 @@ public sealed class AzureTableAuthSessionStore : IAuthSessionStore
             LastSeenAt = r.LastSeenAt,
             RefreshTokenExpiresAt = r.RefreshTokenExpiresAt,
             RevokedAt = r.RevokedAt,
-            DeviceInfo = r.DeviceInfo
+            DeviceInfo = r.DeviceInfo,
+            Remembered = r.Remembered
         };
 
     private static AuthSessionRecord ToModel(AuthSessionEntity e)
@@ -236,7 +238,8 @@ public sealed class AzureTableAuthSessionStore : IAuthSessionStore
             LastSeenAt: e.LastSeenAt,
             RefreshTokenExpiresAt: e.RefreshTokenExpiresAt,
             RevokedAt: e.RevokedAt,
-            DeviceInfo: e.DeviceInfo);
+            DeviceInfo: e.DeviceInfo,
+            Remembered: e.Remembered);
 
     private static string ResolveRefreshTokenHash(AuthSessionEntity e)
         => string.IsNullOrWhiteSpace(e.RefreshTokenHash)
