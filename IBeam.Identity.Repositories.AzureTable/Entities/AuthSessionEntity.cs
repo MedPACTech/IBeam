@@ -20,4 +20,5 @@ internal sealed class AuthSessionEntity : ITableEntity
     public DateTimeOffset RefreshTokenExpiresAt { get; set; }
     public DateTimeOffset? RevokedAt { get; set; }
     public string? DeviceInfo { get; set; }
+    public bool Remembered { get; set; }
 }
