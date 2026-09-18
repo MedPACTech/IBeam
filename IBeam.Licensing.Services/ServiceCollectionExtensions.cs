@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using IBeam.AccessControl;
 using IBeam.Services.Abstractions;
 
 namespace IBeam.Licensing.Services;
@@ -42,6 +43,11 @@ public static class LicensingServiceCollectionExtensions
     public static IServiceCollection AddIBeamLicensedServiceOperations(this IServiceCollection services)
     {
         services.TryAddScoped<ILicenseSubjectResolver, ClaimsPrincipalLicenseSubjectResolver>();
+
+        // Scoped, and TryAdd so a host (or AddIBeamServicePolicies) that already registered it keeps
+        // its registration: the webhook processor and this executor must share one instance per
+        // request, or a scope opened by one is never seen by the other.
+        services.TryAddScoped<IServiceOperationSystemContext, ServiceOperationSystemContext>();
         services.RemoveAll<IServiceOperationExecutor>();
         services.AddScoped<IServiceOperationExecutor, LicensedServiceOperationExecutor>();
         return services;
