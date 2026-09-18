@@ -15,6 +15,7 @@ public sealed class LicensedServiceOperationExecutor : IServiceOperationExecutor
     private readonly IServiceOperationPrincipalProvider _principalProvider;
     private readonly IOptionsMonitor<LicensingOptions> _licensingOptionsMonitor;
     private readonly ITenantContext? _tenantContext;
+    private readonly IServiceOperationSystemContext? _systemContext;
     private readonly ServiceOperationExecutor _inner;
 
     public LicensedServiceOperationExecutor(
@@ -27,13 +28,21 @@ public sealed class LicensedServiceOperationExecutor : IServiceOperationExecutor
         IServiceOperationPrincipalProvider? serviceOperationPrincipalProvider = null,
         IOptionsMonitor<LicensingOptions>? licensingOptionsMonitor = null,
         IOptionsMonitor<ServiceAuditOptions>? auditOptionsMonitor = null,
-        ITenantContext? tenantContext = null)
+        ITenantContext? tenantContext = null,
+        IServiceOperationSystemContext? systemContext = null)
     {
         _gate = gate;
         _subjectResolver = subjectResolver ?? new ClaimsPrincipalLicenseSubjectResolver();
         _principalProvider = serviceOperationPrincipalProvider ?? new NoOpServiceOperationPrincipalProvider();
         _licensingOptionsMonitor = licensingOptionsMonitor ?? new StaticOptionsMonitor<LicensingOptions>(new LicensingOptions());
         _tenantContext = tenantContext;
+        _systemContext = systemContext;
+
+        // The inner executor does the authorization demand, and it is the one that honours a
+        // system scope. It has to be handed the same scoped context the webhook processor opens,
+        // or the scope is invisible to it and a verified provider callback is asked for a tenant
+        // it cannot have -- which is what happened in every host that calls
+        // AddIBeamLicensedServiceOperations().
         _inner = new ServiceOperationExecutor(
             auditTrailSink,
             auditActorProvider,
@@ -41,7 +50,8 @@ public sealed class LicensedServiceOperationExecutor : IServiceOperationExecutor
             serviceOperationAuthorizer,
             _principalProvider,
             auditOptionsMonitor,
-            tenantContext);
+            tenantContext,
+            systemContext);
     }
 
     public async Task ExecuteAsync(
@@ -93,6 +103,14 @@ public sealed class LicensedServiceOperationExecutor : IServiceOperationExecutor
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(serviceInstance);
+
+        // A verified machine callback has no licence subject: no signed-in user, agent or API
+        // credential, and no tenant until its payload has been read. Demanding a licence of it
+        // fails the same way the authorization demand did. Exempt only while the scope is held,
+        // exactly as ServiceOperationExecutor does; authenticated callers of the same operations
+        // are licence-checked as before. See IServiceOperationSystemContext.
+        if (_systemContext?.IsActive == true)
+            return;
 
         var serviceType = serviceInstance.GetType();
         var method = ResolveMethod(serviceType, callerMemberName);
