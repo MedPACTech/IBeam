@@ -93,6 +93,8 @@ You can also configure a default entitlement and operation-specific exceptions:
 
 Attributes override configuration. No-license patterns skip licensing entirely for operations such as auth, billing portal, or renewal flows.
 
+Inside an open `IServiceOperationSystemContext` scope, such as the one `BillingWebhookProcessor` opens after verifying a provider webhook's signature, neither the licence check nor service-operation authorization is demanded: a verified machine callback has no tenant and no licence subject. The exemption lasts only while the scope is held; the same operations called by a signed-in user are licence-checked and authorized as usual. `AddIBeamLicensedServiceOperations()` registers the context scoped (if nothing has yet) so the processor and the executor share one instance per request.
+
 Configure plans:
 
 ```json

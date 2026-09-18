@@ -1,3 +1,4 @@
+using IBeam.AccessControl;
 using IBeam.Licensing;
 using IBeam.Licensing.Services;
 using IBeam.Services.Abstractions;
@@ -1037,6 +1038,95 @@ public sealed class LicensingServiceTests
     }
 
     [TestMethod]
+    public async Task LicensedServiceOperationExecutor_InsideASystemScope_RunsWithNoTenantAndNoLicence()
+    {
+        // A verified provider callback: no tenant, no principal, no licence anywhere. The licensed
+        // executor used to build its inner executor without the system context, so the scope the
+        // webhook processor opened was invisible and every provider webhook was asked for a tenant.
+        var fixture = CreateFixture();
+        var authorizer = new CountingAuthorizer(allow: false);
+        var systemContext = new ServiceOperationSystemContext();
+        var service = new LicensedNotesService(CreateLicensedExecutor(
+            fixture,
+            new ClaimsPrincipal(new ClaimsIdentity()),
+            tenantId: null,
+            authorizer: authorizer,
+            systemContext: systemContext));
+
+        using (systemContext.Enter("billing.provider-webhook"))
+        {
+            await service.ReadAsync();
+            await service.WriteAsync();
+        }
+
+        Assert.IsTrue(service.ReadCalled);
+        Assert.IsTrue(service.WriteCalled);
+        Assert.AreEqual(0, authorizer.Calls);
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_OutsideASystemScope_StillRefusesWithNoTenant()
+    {
+        // The exemption is the scope, not the absence of a tenant. Holding a context that is not
+        // entered, or one that has been closed again, must change nothing.
+        var fixture = CreateFixture();
+        var authorizer = new CountingAuthorizer(allow: false);
+        var systemContext = new ServiceOperationSystemContext();
+        var executor = CreateLicensedExecutor(
+            fixture,
+            new ClaimsPrincipal(new ClaimsIdentity()),
+            tenantId: null,
+            authorizer: authorizer,
+            systemContext: systemContext);
+        var unlicensed = new PolicyOperationService(executor);
+        var licensed = new LicensedNotesService(executor);
+
+        await Assert.ThrowsExactlyAsync<AccessControlException>(() => unlicensed.DefaultAsync());
+        await Assert.ThrowsExactlyAsync<LicensingException>(() => licensed.ReadAsync());
+
+        using (systemContext.Enter("billing.provider-webhook"))
+        {
+            await licensed.ReadAsync();
+        }
+
+        await Assert.ThrowsExactlyAsync<AccessControlException>(() => unlicensed.DefaultAsync());
+        await Assert.ThrowsExactlyAsync<LicensingException>(() => licensed.ReadAsync());
+        Assert.IsFalse(unlicensed.DefaultCalled);
+    }
+
+    [TestMethod]
+    public async Task LicensedServiceOperationExecutor_OutsideASystemScope_StillEnforcesTheLicenceForAnAuthenticatedCaller()
+    {
+        // A signed-in caller in a tenant, authorized for the operation, but without the licence.
+        // Having a system context registered must not weaken the licence check for them.
+        var fixture = CreateFixture();
+        var authorizer = new CountingAuthorizer(allow: true);
+        var systemContext = new ServiceOperationSystemContext();
+        var service = new LicensedNotesService(CreateLicensedExecutor(
+            fixture,
+            Principal(new Claim(ClaimTypes.NameIdentifier, "user-1")),
+            TenantId,
+            authorizer: authorizer,
+            systemContext: systemContext));
+
+        await Assert.ThrowsExactlyAsync<LicensingException>(() => service.ReadAsync());
+        Assert.IsFalse(service.ReadCalled);
+
+        await fixture.Licenses.GrantLicenseAsync(
+            TenantId,
+            new GrantTenantLicenseRequest
+            {
+                PlanKey = "notes",
+                Entitlements = ["notes:use"]
+            });
+
+        await service.ReadAsync();
+
+        Assert.IsTrue(service.ReadCalled);
+        Assert.AreEqual(1, authorizer.Calls);
+    }
+
+    [TestMethod]
     public void ClaimsPrincipalLicenseSubjectResolver_ResolvesKnownSubjectClaims()
     {
         var resolver = new ClaimsPrincipalLicenseSubjectResolver();
@@ -1218,13 +1308,17 @@ public sealed class LicensingServiceTests
         Fixture fixture,
         ClaimsPrincipal principal,
         Guid? tenantId,
-        LicensingOptions? options = null)
+        LicensingOptions? options = null,
+        IServiceOperationAuthorizer? authorizer = null,
+        IServiceOperationSystemContext? systemContext = null)
         => new(
             fixture.Gate,
             subjectResolver: new ClaimsPrincipalLicenseSubjectResolver(),
+            serviceOperationAuthorizer: authorizer,
             serviceOperationPrincipalProvider: new FixedPrincipalProvider(principal),
             licensingOptionsMonitor: new StaticOptionsMonitor<LicensingOptions>(options ?? new LicensingOptions()),
-            tenantContext: tenantId.HasValue ? new FixedTenantContext(tenantId.Value) : null);
+            tenantContext: tenantId.HasValue ? new FixedTenantContext(tenantId.Value) : null,
+            systemContext: systemContext);
 
     private static ClaimsPrincipal Principal(params Claim[] claims)
         => new(new ClaimsIdentity(claims, "test"));
@@ -1400,6 +1494,29 @@ public sealed class LicensingServiceTests
         }
 
         public ClaimsPrincipal? GetPrincipal() => _principal;
+    }
+
+    private sealed class CountingAuthorizer : IServiceOperationAuthorizer
+    {
+        private readonly bool _allow;
+        private int _calls;
+
+        public CountingAuthorizer(bool allow)
+        {
+            _allow = allow;
+        }
+
+        public int Calls => _calls;
+
+        public Task<ServiceOperationAuthorizationResult> AuthorizeAsync(
+            ServiceOperationAuthorizationRequest request,
+            CancellationToken ct = default)
+        {
+            Interlocked.Increment(ref _calls);
+            return Task.FromResult(_allow
+                ? ServiceOperationAuthorizationResult.Allow(request.OperationName, "test")
+                : ServiceOperationAuthorizationResult.Deny(request.OperationName, "test"));
+        }
     }
 
     private sealed class FixedTenantContext : IBeam.Repositories.Abstractions.ITenantContext
