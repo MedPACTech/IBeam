@@ -167,6 +167,7 @@ public sealed class OAuthMcpEndToEndTests
         store,
         store,
         store,
+        store,
         new TestSecretHasher(),
         new JwtSigningKeyProvider(Options.Create(jwt)),
         Options.Create(jwt));
@@ -309,10 +310,12 @@ public sealed class OAuthMcpEndToEndTests
     private sealed class OAuthMemoryStore(OAuthClientRecord client) :
         IOAuthClientStore,
         IOAuthAuthorizationCodeStore,
+        IOAuthDeviceAuthorizationStore,
         IOAuthConsentStore,
         IAuthSessionStore
     {
         private OAuthAuthorizationCodeRecord? _code;
+        private OAuthDeviceAuthorizationRecord? _device;
         private OAuthConsentRecord? _consent;
         private readonly Dictionary<string, AuthSessionRecord> _sessions = new(StringComparer.Ordinal);
 
@@ -343,6 +346,48 @@ public sealed class OAuthMcpEndToEndTests
                 return Task.FromResult<OAuthAuthorizationCodeRecord?>(null);
             _code = _code with { ConsumedUtc = consumedUtc };
             return Task.FromResult<OAuthAuthorizationCodeRecord?>(_code);
+        }
+
+        public Task<OAuthDeviceAuthorizationRecord> CreateAsync(OAuthDeviceAuthorizationRecord authorization, CancellationToken ct = default)
+        {
+            _device = authorization;
+            return Task.FromResult(authorization);
+        }
+
+        public Task<OAuthDeviceAuthorizationRecord?> GetByDeviceCodeHashAsync(string deviceCodeHash, CancellationToken ct = default) =>
+            Task.FromResult(_device?.DeviceCodeHash == deviceCodeHash ? _device : null);
+
+        public Task<OAuthDeviceAuthorizationRecord?> GetByUserCodeAsync(string userCode, CancellationToken ct = default) =>
+            Task.FromResult(_device?.UserCode == userCode ? _device : null);
+
+        public Task<OAuthDeviceAuthorizationRecord?> TryApproveAsync(string userCode, Guid userId, Guid tenantId, IReadOnlyList<string> grantedScopes, DateTimeOffset approvedUtc, CancellationToken ct = default)
+        {
+            if (_device?.UserCode != userCode || !_device.IsPending) return Task.FromResult<OAuthDeviceAuthorizationRecord?>(null);
+            _device = _device with { UserId = userId, TenantId = tenantId, GrantedScopes = grantedScopes, ApprovedUtc = approvedUtc };
+            return Task.FromResult<OAuthDeviceAuthorizationRecord?>(_device);
+        }
+
+        public Task<OAuthDeviceAuthorizationRecord?> TryDenyAsync(string userCode, DateTimeOffset deniedUtc, CancellationToken ct = default)
+        {
+            if (_device?.UserCode != userCode || !_device.IsPending) return Task.FromResult<OAuthDeviceAuthorizationRecord?>(null);
+            _device = _device with { DeniedUtc = deniedUtc };
+            return Task.FromResult<OAuthDeviceAuthorizationRecord?>(_device);
+        }
+
+        Task<OAuthDeviceAuthorizationRecord?> IOAuthDeviceAuthorizationStore.TryConsumeAsync(string deviceCodeHash, DateTimeOffset consumedUtc, CancellationToken ct)
+        {
+            if (_device?.DeviceCodeHash != deviceCodeHash || (!_device.IsDenied && !_device.IsUsable(consumedUtc)))
+                return Task.FromResult<OAuthDeviceAuthorizationRecord?>(null);
+            _device = _device with { ConsumedUtc = consumedUtc };
+            return Task.FromResult<OAuthDeviceAuthorizationRecord?>(_device);
+        }
+
+        public Task<bool> RecordPollAsync(string deviceCodeHash, DateTimeOffset polledUtc, int minIntervalSeconds, CancellationToken ct = default)
+        {
+            if (_device?.DeviceCodeHash != deviceCodeHash) return Task.FromResult(false);
+            var tooSoon = _device.LastPolledUtc is { } last && (polledUtc - last).TotalSeconds < minIntervalSeconds;
+            _device = _device with { LastPolledUtc = polledUtc };
+            return Task.FromResult(tooSoon);
         }
 
         public Task<OAuthConsentRecord?> GetAsync(Guid userId, Guid tenantId, string clientId, string resource, CancellationToken ct = default) =>

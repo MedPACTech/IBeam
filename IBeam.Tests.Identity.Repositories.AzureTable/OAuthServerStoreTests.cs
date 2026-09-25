@@ -98,6 +98,59 @@ public sealed class OAuthServerStoreTests
     }
 
     [TestMethod]
+    public async Task DeviceAuthorizationStore_FullLifecycle_PollDenyApproveAndConsume()
+    {
+        var store = new AzureTableOAuthDeviceAuthorizationStore(_service, Options.Create(_options));
+        var now = DateTimeOffset.UtcNow;
+        var userId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+
+        var record = new OAuthDeviceAuthorizationRecord(
+            "sha256:device-code", "WDJBMJHT", "client-a", ["tool:mcp"], "https://api.example/mcp",
+            now, now.AddMinutes(15), 5);
+        await store.CreateAsync(record);
+
+        // Findable by both of its independent secrets.
+        Assert.IsNotNull(await store.GetByDeviceCodeHashAsync(record.DeviceCodeHash));
+        var byUserCode = await store.GetByUserCodeAsync(record.UserCode);
+        Assert.IsNotNull(byUserCode);
+        Assert.IsTrue(byUserCode.IsPending);
+
+        // Polling before approval reports pending, and enforces the interval politely.
+        Assert.IsFalse(await store.RecordPollAsync(record.DeviceCodeHash, now, minIntervalSeconds: 5));
+        Assert.IsTrue(await store.RecordPollAsync(record.DeviceCodeHash, now.AddSeconds(1), minIntervalSeconds: 5));
+
+        var approved = await store.TryApproveAsync(record.UserCode, userId, tenantId, ["tool:mcp"], now, CancellationToken.None);
+        Assert.IsNotNull(approved);
+        Assert.IsTrue(approved.IsApproved);
+
+        // Consuming works exactly once.
+        var consumed = await Task.WhenAll(
+            store.TryConsumeAsync(record.DeviceCodeHash, now),
+            store.TryConsumeAsync(record.DeviceCodeHash, now));
+        Assert.AreEqual(1, consumed.Count(x => x is not null));
+        Assert.IsNull(await store.TryConsumeAsync(record.DeviceCodeHash, now.AddSeconds(1)));
+    }
+
+    [TestMethod]
+    public async Task DeviceAuthorizationStore_Deny_IsTerminalAndStillConsumable()
+    {
+        var store = new AzureTableOAuthDeviceAuthorizationStore(_service, Options.Create(_options));
+        var now = DateTimeOffset.UtcNow;
+        var record = new OAuthDeviceAuthorizationRecord(
+            "sha256:device-code-2", "MNPQRSTV", "client-a", ["tool:mcp"], "https://api.example/mcp",
+            now, now.AddMinutes(15), 5);
+        await store.CreateAsync(record);
+
+        var denied = await store.TryDenyAsync(record.UserCode, now);
+        Assert.IsNotNull(denied);
+        Assert.IsTrue(denied.IsDenied);
+
+        Assert.IsNull(await store.TryApproveAsync(record.UserCode, Guid.NewGuid(), Guid.NewGuid(), ["tool:mcp"], now, CancellationToken.None));
+        Assert.IsNotNull(await store.TryConsumeAsync(record.DeviceCodeHash, now));
+    }
+
+    [TestMethod]
     public async Task ConsentStore_IsTenantScopedAndRevokesConsent()
     {
         var tenantId = Guid.NewGuid();
@@ -166,6 +219,7 @@ public sealed class OAuthServerStoreTests
             tables.Add(table.Name);
         Assert.Contains(_options.FullTableName(_options.OAuthClientsTableName), tables);
         Assert.Contains(_options.FullTableName(_options.OAuthAuthorizationCodesTableName), tables);
+        Assert.Contains(_options.FullTableName(_options.OAuthDeviceAuthorizationsTableName), tables);
         Assert.Contains(_options.FullTableName(_options.OAuthConsentsTableName), tables);
 
         var status = await manager.GetStatusAsync();
@@ -192,6 +246,7 @@ public sealed class OAuthServerStoreTests
     {
         await _service.CreateTableIfNotExistsAsync(_options.FullTableName(_options.OAuthClientsTableName));
         await _service.CreateTableIfNotExistsAsync(_options.FullTableName(_options.OAuthAuthorizationCodesTableName));
+        await _service.CreateTableIfNotExistsAsync(_options.FullTableName(_options.OAuthDeviceAuthorizationsTableName));
         await _service.CreateTableIfNotExistsAsync(_options.FullTableName(_options.OAuthConsentsTableName));
     }
 
@@ -199,6 +254,7 @@ public sealed class OAuthServerStoreTests
     {
         await DeleteIfExistsAsync(_options.FullTableName(_options.OAuthClientsTableName));
         await DeleteIfExistsAsync(_options.FullTableName(_options.OAuthAuthorizationCodesTableName));
+        await DeleteIfExistsAsync(_options.FullTableName(_options.OAuthDeviceAuthorizationsTableName));
         await DeleteIfExistsAsync(_options.FullTableName(_options.OAuthConsentsTableName));
     }
 
