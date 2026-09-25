@@ -1,3 +1,4 @@
+using IBeam.AccessControl;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -16,6 +17,7 @@ namespace IBeam.Services.Abstractions
                 services.Configure(configure);
 
             services.AddSingleton<IServiceOperationPolicyResolver, ServiceOperationPolicyResolver>();
+            services.TryAddScoped<IServiceOperationSystemContext, ServiceOperationSystemContext>();
             services.TryAddScoped<IServiceOperationExecutor, ServiceOperationExecutor>();
             return services;
         }
@@ -44,6 +46,7 @@ namespace IBeam.Services.Abstractions
             services.TryAddScoped<IAuditActorProvider, NoOpAuditActorProvider>();
             services.TryAddScoped<IAuditRequestContextProvider, NoOpAuditRequestContextProvider>();
             services.TryAddScoped<IServiceOperationPrincipalProvider, NoOpServiceOperationPrincipalProvider>();
+            services.TryAddScoped<IServiceOperationSystemContext, ServiceOperationSystemContext>();
             services.TryAddScoped<IServiceOperationExecutor, ServiceOperationExecutor>();
 
             return services;

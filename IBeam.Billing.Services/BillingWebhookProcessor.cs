@@ -1,3 +1,5 @@
+using IBeam.AccessControl;
+
 namespace IBeam.Billing.Services;
 
 public sealed class BillingWebhookProcessor : IBillingWebhookProcessor
@@ -6,17 +8,20 @@ public sealed class BillingWebhookProcessor : IBillingWebhookProcessor
     private readonly IBillingProviderEventService _events;
     private readonly IBillingPurchaseService _purchases;
     private readonly IReadOnlyList<IBillingPaidPurchaseHandler> _paidPurchaseHandlers;
+    private readonly IServiceOperationSystemContext? _systemContext;
 
     public BillingWebhookProcessor(
         IBillingCheckoutGatewayResolver gateways,
         IBillingProviderEventService events,
         IBillingPurchaseService purchases,
-        IEnumerable<IBillingPaidPurchaseHandler>? paidPurchaseHandlers = null)
+        IEnumerable<IBillingPaidPurchaseHandler>? paidPurchaseHandlers = null,
+        IServiceOperationSystemContext? systemContext = null)
     {
         _gateways = gateways;
         _events = events;
         _purchases = purchases;
         _paidPurchaseHandlers = paidPurchaseHandlers?.ToList() ?? [];
+        _systemContext = systemContext;
     }
 
     public async Task<BillingWebhookProcessingInfo> ProcessAsync(
@@ -31,6 +36,17 @@ public sealed class BillingWebhookProcessor : IBillingWebhookProcessor
         var verified = await gateway.VerifyWebhookAsync(request, ct).ConfigureAwait(false);
         if (!string.Equals(gateway.ProviderName, verified.ProviderName, StringComparison.OrdinalIgnoreCase))
             throw new BillingException("Verified webhook provider does not match the requested provider.");
+
+        // Everything from here runs as a verified provider callback rather than as a signed-in
+        // caller. Service-operation authorization asks which principal is acting and in which
+        // tenant; a payment processor can answer neither, and the tenant is not known until the
+        // payload below has been read. Without this, recording the provider event threw
+        // "tenantId is required for service operation authorization" and every webhook 500'd.
+        //
+        // Opened strictly after verification, never before: the signature over the raw body is what
+        // establishes that this request is genuine, and this scope only suppresses a check that
+        // cannot apply to such a caller — it proves nothing on its own.
+        using var systemScope = _systemContext?.Enter("billing.provider-webhook");
 
         var existingEvent = await _events.GetEventAsync(
             verified.ProviderName,

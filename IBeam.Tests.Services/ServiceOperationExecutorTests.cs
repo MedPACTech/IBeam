@@ -147,6 +147,92 @@ public sealed class ServiceOperationExecutorTests
                 ct);
     }
 
+    [TestMethod]
+    public async Task ExecuteAsync_InsideASystemScope_SkipsAuthorizationWhenThereIsNoTenant()
+    {
+        // A verified machine callback has no principal and no tenant. Without the scope this is
+        // exactly the "tenantId is required for service operation authorization" failure that made
+        // every provider webhook 500 in a host that registers an authorizer.
+        var authorizer = new Mock<IServiceOperationAuthorizer>(MockBehavior.Strict);
+        var systemContext = new ServiceOperationSystemContext();
+        var executor = new ServiceOperationExecutor(
+            serviceOperationAuthorizer: authorizer.Object,
+            tenantContext: new FixedTenantContext(Guid.Empty),
+            systemContext: systemContext);
+        var service = new PatientWorkflowService(executor);
+
+        using (systemContext.Enter("billing.provider-webhook"))
+        {
+            await service.DischargeAsync(Guid.NewGuid());
+        }
+
+        // Strict mock: the authorizer being consulted at all would fail the test.
+        authorizer.VerifyNoOtherCalls();
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_WithNoTenantAndNoSystemScope_StillRefuses()
+    {
+        // The exemption must be the scope, not the absence of a tenant. If this ever passes, an
+        // unauthenticated caller with no tenant would sail through every service operation.
+        var authorizer = new Mock<IServiceOperationAuthorizer>(MockBehavior.Strict);
+        var executor = new ServiceOperationExecutor(
+            serviceOperationAuthorizer: authorizer.Object,
+            tenantContext: new FixedTenantContext(Guid.Empty),
+            systemContext: new ServiceOperationSystemContext());
+        var service = new PatientWorkflowService(executor);
+
+        await Assert.ThrowsExactlyAsync<AccessControlException>(() => service.DischargeAsync(Guid.NewGuid()));
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_AfterASystemScopeCloses_AuthorizesAgain()
+    {
+        // The exemption must not outlive the callback that opened it.
+        var authorizer = new Mock<IServiceOperationAuthorizer>(MockBehavior.Strict);
+        var systemContext = new ServiceOperationSystemContext();
+        var executor = new ServiceOperationExecutor(
+            serviceOperationAuthorizer: authorizer.Object,
+            tenantContext: new FixedTenantContext(Guid.Empty),
+            systemContext: systemContext);
+        var service = new PatientWorkflowService(executor);
+
+        using (systemContext.Enter("billing.provider-webhook"))
+        {
+            await service.DischargeAsync(Guid.NewGuid());
+        }
+
+        Assert.IsFalse(systemContext.IsActive);
+        await Assert.ThrowsExactlyAsync<AccessControlException>(() => service.DischargeAsync(Guid.NewGuid()));
+    }
+
+    [TestMethod]
+    public void SystemScope_NestsAndSurvivesADoubleDispose()
+    {
+        // A double dispose must not pop an outer scope and silently exempt work meant to be checked.
+        var systemContext = new ServiceOperationSystemContext();
+
+        var outer = systemContext.Enter("outer");
+        var inner = systemContext.Enter("inner");
+        Assert.AreEqual("inner", systemContext.Reason);
+
+        inner.Dispose();
+        inner.Dispose();
+        Assert.IsTrue(systemContext.IsActive);
+        Assert.AreEqual("outer", systemContext.Reason);
+
+        outer.Dispose();
+        Assert.IsFalse(systemContext.IsActive);
+    }
+
+    [TestMethod]
+    public void SystemScope_RequiresAReason()
+    {
+        var systemContext = new ServiceOperationSystemContext();
+
+        Assert.ThrowsExactly<ArgumentException>(() => systemContext.Enter("  "));
+    }
+
     private sealed record PatientOperationState(Guid PatientId, string Status);
 
     private sealed class FixedPrincipalProvider : IServiceOperationPrincipalProvider

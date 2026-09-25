@@ -16,6 +16,7 @@ public sealed class OAuthTokenService : IOAuthTokenService
 {
     private readonly IOAuthClientStore _clients;
     private readonly IOAuthAuthorizationCodeStore _codes;
+    private readonly IOAuthDeviceAuthorizationStore _devices;
     private readonly IOAuthConsentStore _consents;
     private readonly IAuthSessionStore _sessions;
     private readonly IApiCredentialSecretHasher _secretHasher;
@@ -26,6 +27,7 @@ public sealed class OAuthTokenService : IOAuthTokenService
     public OAuthTokenService(
         IOAuthClientStore clients,
         IOAuthAuthorizationCodeStore codes,
+        IOAuthDeviceAuthorizationStore devices,
         IOAuthConsentStore consents,
         IAuthSessionStore sessions,
         IApiCredentialSecretHasher secretHasher,
@@ -34,6 +36,7 @@ public sealed class OAuthTokenService : IOAuthTokenService
     {
         _clients = clients;
         _codes = codes;
+        _devices = devices;
         _consents = consents;
         _sessions = sessions;
         _secretHasher = secretHasher;
@@ -54,6 +57,7 @@ public sealed class OAuthTokenService : IOAuthTokenService
             OAuthGrantTypes.AuthorizationCode => await ExchangeCodeAsync(client, request, ct).ConfigureAwait(false),
             OAuthGrantTypes.RefreshToken => await RefreshAsync(client, request, ct).ConfigureAwait(false),
             OAuthGrantTypes.ClientCredentials => await ClientCredentialsAsync(client, request, ct).ConfigureAwait(false),
+            OAuthGrantTypes.DeviceCode => await DeviceCodeAsync(client, request, ct).ConfigureAwait(false),
             _ => throw Error("unsupported_grant_type", "The grant type is not supported.")
         };
     }
@@ -87,6 +91,38 @@ public sealed class OAuthTokenService : IOAuthTokenService
         var claims = ScopeClaims(code.Scopes, code.UserId.ToString("D"), code.TenantId, client.ClientId, code.Resource);
         var allowRefresh = client.AllowsGrantType(OAuthGrantTypes.RefreshToken);
         return await IssueAsync(code.UserId, code.TenantId, client, code.Resource, claims, allowRefresh, null, ct).ConfigureAwait(false);
+    }
+
+    private async Task<OAuthTokenResponse> DeviceCodeAsync(OAuthClientRecord client, OAuthTokenRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.DeviceCode)) throw Error("invalid_request", "device_code is required.");
+        var deviceCodeHash = Hash(request.DeviceCode);
+        var record = await _devices.GetByDeviceCodeHashAsync(deviceCodeHash, ct).ConfigureAwait(false);
+        if (record is null || record.ClientId != client.ClientId)
+            throw Error("invalid_grant", "The device code is invalid.");
+
+        var now = DateTimeOffset.UtcNow;
+        if (record.IsDenied)
+        {
+            await _devices.TryConsumeAsync(deviceCodeHash, now, ct).ConfigureAwait(false);
+            throw Error("access_denied", "The user denied the request.");
+        }
+        if (record.IsExpired(now))
+            throw Error(OAuthDeviceErrors.ExpiredToken, "The device code has expired.");
+        if (record.IsPending)
+        {
+            var tooSoon = await _devices.RecordPollAsync(deviceCodeHash, now, record.IntervalSeconds, ct).ConfigureAwait(false);
+            throw Error(tooSoon ? OAuthDeviceErrors.SlowDown : OAuthDeviceErrors.AuthorizationPending, "The user has not yet approved this request.");
+        }
+
+        var consumed = await _devices.TryConsumeAsync(deviceCodeHash, now, ct).ConfigureAwait(false);
+        if (consumed is null || consumed.UserId is null || consumed.TenantId is null)
+            throw Error("invalid_grant", "The device code is invalid.");
+
+        var scopes = consumed.GrantedScopes ?? consumed.Scopes;
+        var claims = ScopeClaims(scopes, consumed.UserId.Value.ToString("D"), consumed.TenantId.Value, client.ClientId, consumed.Resource);
+        var allowRefresh = client.AllowsGrantType(OAuthGrantTypes.RefreshToken);
+        return await IssueAsync(consumed.UserId.Value, consumed.TenantId.Value, client, consumed.Resource, claims, allowRefresh, null, ct).ConfigureAwait(false);
     }
 
     private async Task<OAuthTokenResponse> ClientCredentialsAsync(OAuthClientRecord client, OAuthTokenRequest request, CancellationToken ct)

@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IBeam.Identity.Repositories.EntityFramework.Extensions;
 
@@ -36,6 +37,7 @@ public static class EntityFrameworkIdentityServiceCollectionExtensions
         services.AddScoped<ITenantMembershipStore, EntityFrameworkTenantMembershipStore>();
         services.AddScoped<IOAuthClientStore, EntityFrameworkOAuthClientStore>();
         services.AddScoped<IOAuthAuthorizationCodeStore, EntityFrameworkOAuthAuthorizationCodeStore>();
+        services.TryAddScoped<IOAuthDeviceAuthorizationStore, NotImplementedOAuthDeviceAuthorizationStore>();
         services.AddScoped<IOAuthConsentStore, EntityFrameworkOAuthConsentStore>();
 
         services.AddDbContext<IBeamIdentityDbContext>(db =>
