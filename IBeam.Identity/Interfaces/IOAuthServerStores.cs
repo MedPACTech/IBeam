@@ -26,6 +26,48 @@ public interface IOAuthAuthorizationCodeStore
         CancellationToken ct = default);
 }
 
+public interface IOAuthDeviceAuthorizationStore
+{
+    Task<OAuthDeviceAuthorizationRecord> CreateAsync(
+        OAuthDeviceAuthorizationRecord authorization,
+        CancellationToken ct = default);
+
+    Task<OAuthDeviceAuthorizationRecord?> GetByDeviceCodeHashAsync(
+        string deviceCodeHash,
+        CancellationToken ct = default);
+
+    Task<OAuthDeviceAuthorizationRecord?> GetByUserCodeAsync(
+        string userCode,
+        CancellationToken ct = default);
+
+    Task<OAuthDeviceAuthorizationRecord?> TryApproveAsync(
+        string userCode,
+        Guid userId,
+        Guid tenantId,
+        IReadOnlyList<string> grantedScopes,
+        DateTimeOffset approvedUtc,
+        CancellationToken ct = default);
+
+    Task<OAuthDeviceAuthorizationRecord?> TryDenyAsync(
+        string userCode,
+        DateTimeOffset deniedUtc,
+        CancellationToken ct = default);
+
+    Task<OAuthDeviceAuthorizationRecord?> TryConsumeAsync(
+        string deviceCodeHash,
+        DateTimeOffset consumedUtc,
+        CancellationToken ct = default);
+
+    // Best-effort: used only to enforce RFC 8628's `slow_down` politeness response. A lost update
+    // under a race just means a poll that arrived a moment early isn't caught - never a security
+    // concern, so this doesn't need the optimistic-concurrency retry loop the other mutators use.
+    Task<bool> RecordPollAsync(
+        string deviceCodeHash,
+        DateTimeOffset polledUtc,
+        int minIntervalSeconds,
+        CancellationToken ct = default);
+}
+
 public interface IOAuthConsentStore
 {
     Task<OAuthConsentRecord?> GetAsync(
