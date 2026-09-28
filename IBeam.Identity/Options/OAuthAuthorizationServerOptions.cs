@@ -53,7 +53,14 @@ public sealed class OAuthClientRegistrationOptions
     public string DisplayName { get; set; } = string.Empty;
     public string ClientType { get; set; } = OAuthClientTypes.Public;
     public List<string> RedirectUris { get; set; } = [];
-    public List<string> AllowedGrantTypes { get; set; } = [OAuthGrantTypes.AuthorizationCode];
+    /// <summary>
+    /// Grant types this client may use. Empty by default ON PURPOSE (IBM-0072): these options are
+    /// populated with IConfiguration.Bind, which ADDS to a collection rather than replacing it, so a
+    /// non-empty initializer can never be narrowed by configuration — only widened. A client configured
+    /// for device_code alone would silently also allow authorization_code, and an operator reading the
+    /// config file would have no way to know. The default is applied in NormalizeAndValidate instead.
+    /// </summary>
+    public List<string> AllowedGrantTypes { get; set; } = [];
     public List<string> AllowedScopes { get; set; } = [];
     public List<string> AllowedResources { get; set; } = [];
     public bool RequirePkce { get; set; } = true;
@@ -87,8 +94,11 @@ public sealed class OAuthClientRegistrationOptions
         AllowedScopes = NormalizeList(AllowedScopes, StringComparer.Ordinal);
         AllowedResources = NormalizeList(AllowedResources, StringComparer.Ordinal);
 
+        // Applied here, not as a property initializer, so that configuration replaces this default
+        // instead of being appended to it (IBM-0072). A client that says nothing still gets the same
+        // grant it has always got; a client that names its grants now gets exactly those.
         if (AllowedGrantTypes.Count == 0)
-            throw new InvalidOperationException($"OAuth client '{ClientId}' must allow at least one grant type.");
+            AllowedGrantTypes = [OAuthGrantTypes.AuthorizationCode];
 
         var unsupportedGrant = AllowedGrantTypes.FirstOrDefault(x => !OAuthGrantTypes.Supported.Contains(x));
         if (unsupportedGrant is not null)

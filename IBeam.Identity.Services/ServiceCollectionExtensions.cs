@@ -8,6 +8,7 @@ using IBeam.Identity.Services.ApiCredentials;
 using IBeam.Identity.Services.Auth;
 using IBeam.Identity.Services.Auth.Attempts;
 using IBeam.Identity.Services.Authorization;
+using IBeam.Identity.Services.Configuration;
 using IBeam.Identity.Services.Invites;
 using IBeam.Identity.Services.Tenants;
 using IBeam.Identity.Services.Tokens;
@@ -110,8 +111,14 @@ public static class ServiceCollectionExtensions
         services.AddOptions<PermissionAccessOptions>()
         .Bind(configuration.GetSection(PermissionAccessOptions.SectionName));
 
+        // Not .Bind(): every role- and permission-name list on this type carries a non-empty default,
+        // and Bind appends to a collection rather than replacing it, so configuration could widen these
+        // lists but never narrow them (IBM-0073). These lists decide who is an owner or an
+        // administrator, so "the operator's configuration did not take effect" is a security defect,
+        // not an inconvenience.
+        var accessControlSection = configuration.GetSection(IBeamAccessControlOptions.SectionName);
         services.AddOptions<IBeamAccessControlOptions>()
-        .Bind(configuration.GetSection(IBeamAccessControlOptions.SectionName));
+        .Configure(options => ConfigurationCollectionBinder.BindReplacingSpecifiedCollections(accessControlSection, options));
 
         services.AddOptions<ApiCredentialOptions>()
         .Bind(configuration.GetSection(ApiCredentialOptions.SectionName))

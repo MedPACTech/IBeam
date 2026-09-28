@@ -1,4 +1,5 @@
 using IBeam.Identity.Exceptions;
+using Microsoft.Extensions.Configuration;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
 using IBeam.Identity.Services.Auth;
@@ -9,6 +10,55 @@ namespace IBeam.Tests.Identity.Services;
 [TestClass]
 public sealed class OAuthAuthorizationServerOptionsTests
 {
+    [TestMethod]
+    public void ConfiguredGrantTypes_ReplaceTheDefault_RatherThanAddingToIt()
+    {
+        // IBM-0072. AllowedGrantTypes used to default to [authorization_code] in its property
+        // initializer, and IConfiguration.Bind adds to a collection rather than replacing it — so a
+        // client registered for the device flow alone silently also allowed authorization_code, and the
+        // config file gave no hint of it. Bound from configuration, not set in code, because an object
+        // initializer replaces the list and would pass either way.
+        var options = BindFromConfiguration(new Dictionary<string, string?>
+        {
+            ["Clients:0:ClientId"] = "cli",
+            ["Clients:0:ClientType"] = OAuthClientTypes.Public,
+            ["Clients:0:DeviceVerificationUri"] = "https://example.test/device",
+            ["Clients:0:AllowedGrantTypes:0"] = OAuthGrantTypes.DeviceCode
+        });
+
+        options.Validate();
+
+        CollectionAssert.AreEqual(new[] { OAuthGrantTypes.DeviceCode }, options.Clients.Single().AllowedGrantTypes);
+    }
+
+    [TestMethod]
+    public void AClientThatConfiguresNoGrantTypes_StillGetsTheAuthorizationCodeDefault()
+    {
+        // The default did not go away, it moved: it is applied after binding instead of before, so
+        // configuration can replace it. Zero-config behaviour is unchanged.
+        var options = BindFromConfiguration(new Dictionary<string, string?>
+        {
+            ["Clients:0:ClientId"] = "cli",
+            ["Clients:0:ClientType"] = OAuthClientTypes.Public,
+            ["Clients:0:RedirectUris:0"] = "https://example.test/callback"
+        });
+
+        options.Validate();
+
+        CollectionAssert.AreEqual(new[] { OAuthGrantTypes.AuthorizationCode }, options.Clients.Single().AllowedGrantTypes);
+    }
+
+    private static OAuthAuthorizationServerOptions BindFromConfiguration(IDictionary<string, string?> values)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+
+        var options = new OAuthAuthorizationServerOptions();
+        configuration.Bind(options);
+        return options;
+    }
+
     [TestMethod]
     public void Validate_NormalizesConfiguredPublicClient()
     {
