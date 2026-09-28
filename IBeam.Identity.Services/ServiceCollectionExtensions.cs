@@ -142,6 +142,10 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ITenantInviteStore, InMemoryTenantInviteStore>();
         services.TryAddScoped<ITenantInviteUrlBuilder, DefaultTenantInviteUrlBuilder>();
         services.TryAddScoped<ITenantInviteMessageFactory, DefaultTenantInviteMessageFactory>();
+        // Where invite links may point (IBM-0068). Registered with configuration only; an app that wants to
+        // add origins or an IsAllowed delegate in code calls AddIBeamTenantInviteLinks again, and its
+        // Configure runs after this one.
+        services.AddIBeamTenantInviteLinks(configuration);
         services.TryAddScoped<ITenantMetadataProvider, NoOpTenantMetadataProvider>();
         services.TryAddScoped<ITenantLifecycleHook, NoOpTenantLifecycleHook>();
         services.TryAddScoped<ITenantExtensionCoordinator, NoOpTenantExtensionCoordinator>();

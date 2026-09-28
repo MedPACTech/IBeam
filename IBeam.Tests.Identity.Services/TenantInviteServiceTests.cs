@@ -288,7 +288,15 @@ public sealed class TenantInviteServiceTests
             memberships ?? Mock.Of<ITenantMembershipStore>(MockBehavior.Strict),
             extensions ?? Mock.Of<IIdentityUserExtensionCoordinator>(MockBehavior.Strict),
             sender ?? new RecordingIdentitySender(),
-            new DefaultTenantInviteUrlBuilder(),
+            new DefaultTenantInviteUrlBuilder(new DefaultTenantInviteLinkPolicy(
+                Microsoft.Extensions.Options.Options.Create(new IBeam.Identity.Options.TenantInviteLinkOptions
+                {
+                    // The existing invite tests assert on the delivered link, so give them one allowed
+                    // origin rather than letting every invite fall back (IBM-0068).
+                    AllowedOrigins = { "https://localhost:3000" },
+                    DefaultAcceptUrl = "https://localhost:3000/invites/accept"
+                }),
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<DefaultTenantInviteLinkPolicy>.Instance)),
             new DefaultTenantInviteMessageFactory(),
             Mock.Of<IOtpService>(MockBehavior.Strict),
             Mock.Of<IOtpChallengeStore>(MockBehavior.Strict),
