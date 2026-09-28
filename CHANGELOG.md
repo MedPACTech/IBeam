@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Security
+- Configuration can now narrow `IBeam:Identity:AccessControl` role and permission lists, not only widen them. `IConfiguration.Bind` adds to a collection rather than replacing it, so every list on `IBeamAccessControlOptions` — which defines who is an owner or an administrator — kept its built-in names no matter what an app configured. An app that set `AdminRoleNames` to `["RegionalAdmin"]` to restrict administrator access still treated anyone holding a role named `Administrator` or `Admin` as an administrator, with no warning that its configuration had not taken effect.
+- OAuth clients configured with explicit `AllowedGrantTypes` no longer silently also allow `authorization_code`. A client registered for the device-code grant alone previously permitted both.
+
+### Changed
+- **Breaking for apps that configure access-control lists.** If your app both configures a list under `IBeam:Identity:AccessControl` and relies on IBeam's built-in values still being present, add those values to your configuration explicitly. Apps that configure nothing are unaffected and keep every default. The lists: `OwnerRoleNames`, `AdminRoleNames`, `ApplicationRoleNames`, `TenantManagementPermissionNames`, `TenantUserManagementPermissionNames`, `TenantRoleManagementPermissionNames`, `TenantAccessControlManagementPermissionNames`, `ApiCredentialManagementPermissionNames`, `OAuthClientManagementPermissionNames`, `AuthAttemptManagementRoleNames`, `AuthAttemptManagementPermissionNames`, `AccessLevels`.
+- **Breaking for apps that configure OAuth client grant types.** A configured `AllowedGrantTypes` now means exactly those grants. An app relying on the implicit `authorization_code` alongside its configured grants must list it.
+- An OAuth client that specifies no grant types in configuration continues to default to `authorization_code`, per RFC 7591 §2. Registering a client programmatically or through the administration API with an explicitly empty grant list is still rejected — configuration cannot express an empty list, but a caller can, and meaning it should not silently earn a grant.
+
+### Validation
+- Identity service tests: 193 passed, including new coverage that binds these options from `IConfiguration` and asserts the bound values equal exactly what was configured.
+- Full solution: 623 passed across 31 suites, zero failures.
+
 ## 2.9.45 - 2026-08-10
 
 ### Added
