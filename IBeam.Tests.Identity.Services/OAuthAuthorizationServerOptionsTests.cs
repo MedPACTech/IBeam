@@ -48,6 +48,25 @@ public sealed class OAuthAuthorizationServerOptionsTests
         CollectionAssert.AreEqual(new[] { OAuthGrantTypes.AuthorizationCode }, options.Clients.Single().AllowedGrantTypes);
     }
 
+    [TestMethod]
+    public void AProgrammaticallyRegisteredClientWithNoGrantTypes_IsStillRejected()
+    {
+        // The default applies only on the configuration path, where an empty list cannot be told apart
+        // from an omitted one. A caller registering a client in code — or through the administration
+        // API, which turns this into a 400 — can genuinely say "no grant types", and silently handing
+        // them authorization_code would grant a permission nobody asked for.
+        var client = new OAuthClientRegistrationOptions
+        {
+            ClientId = "cli",
+            ClientType = OAuthClientTypes.Public,
+            AllowedGrantTypes = []
+        };
+
+        var error = Assert.ThrowsExactly<InvalidOperationException>(() => client.NormalizeAndValidate());
+
+        StringAssert.Contains(error.Message, "at least one grant type");
+    }
+
     private static OAuthAuthorizationServerOptions BindFromConfiguration(IDictionary<string, string?> values)
     {
         var configuration = new ConfigurationBuilder()

@@ -36,7 +36,11 @@ public sealed class OAuthAuthorizationServerOptions
 
         Clients ??= [];
         foreach (var client in Clients)
-            client.NormalizeAndValidate();
+            // Configuration cannot express an empty list: a JSON "AllowedGrantTypes": [] and an omitted
+            // key are both invisible to the binder (Exists() is false for each). So on this path an
+            // absent grant list can only mean "not specified", which RFC 7591 §2 says defaults to
+            // authorization_code. The programmatic paths keep rejecting it — see NormalizeAndValidate.
+            client.NormalizeAndValidate(applyDefaultGrantTypes: true);
 
         var duplicate = Clients
             .GroupBy(x => x.ClientId, StringComparer.Ordinal)
@@ -70,7 +74,17 @@ public sealed class OAuthClientRegistrationOptions
     public DateTimeOffset? ClientSecretExpiresUtc { get; set; }
     public string? DeviceVerificationUri { get; set; }
 
-    public void NormalizeAndValidate()
+    /// <summary>
+    /// Normalizes and validates this registration.
+    /// </summary>
+    /// <param name="applyDefaultGrantTypes">
+    /// When true, an empty <see cref="AllowedGrantTypes"/> becomes <c>authorization_code</c> instead of
+    /// being rejected — the behaviour RFC 7591 §2 defines for a client that does not specify grant types.
+    /// Set only on the configuration-bound path, where an empty list is indistinguishable from an
+    /// omitted one. A caller registering a client programmatically CAN say "no grant types", and meaning
+    /// it should not silently earn them authorization_code, so that path still refuses.
+    /// </param>
+    public void NormalizeAndValidate(bool applyDefaultGrantTypes = false)
     {
         ClientId = RequireValue(ClientId, nameof(ClientId), 200);
         DisplayName = string.IsNullOrWhiteSpace(DisplayName) ? ClientId : DisplayName.Trim();
@@ -94,11 +108,16 @@ public sealed class OAuthClientRegistrationOptions
         AllowedScopes = NormalizeList(AllowedScopes, StringComparer.Ordinal);
         AllowedResources = NormalizeList(AllowedResources, StringComparer.Ordinal);
 
-        // Applied here, not as a property initializer, so that configuration replaces this default
-        // instead of being appended to it (IBM-0072). A client that says nothing still gets the same
-        // grant it has always got; a client that names its grants now gets exactly those.
+        // The default lives here rather than in the property initializer, so that configuration replaces
+        // it instead of being appended to it (IBM-0072). A client that names its grants gets exactly
+        // those; one that names none still gets what it always got.
         if (AllowedGrantTypes.Count == 0)
+        {
+            if (!applyDefaultGrantTypes)
+                throw new InvalidOperationException($"OAuth client '{ClientId}' must allow at least one grant type.");
+
             AllowedGrantTypes = [OAuthGrantTypes.AuthorizationCode];
+        }
 
         var unsupportedGrant = AllowedGrantTypes.FirstOrDefault(x => !OAuthGrantTypes.Supported.Contains(x));
         if (unsupportedGrant is not null)
