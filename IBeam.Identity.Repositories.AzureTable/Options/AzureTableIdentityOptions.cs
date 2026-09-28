@@ -35,6 +35,7 @@ public sealed class AzureTableIdentityOptions
     public string AuthSessionsTableName { get; set; } = "AuthSessions";
     public string OAuthClientsTableName { get; set; } = "OAuthClients";
     public string OAuthAuthorizationCodesTableName { get; set; } = "OAuthAuthorizationCodes";
+    public string OAuthDeviceAuthorizationsTableName { get; set; } = "OAuthDeviceAuthorizations";
     public string OAuthConsentsTableName { get; set; } = "OAuthConsents";
     public string ApiCredentialsTableName { get; set; } = "ApiCredentials";
     public string AgentUsersTableName { get; set; } = "AgentUsers";
@@ -100,6 +101,14 @@ public sealed class AzureTableIdentityOptions
     public string OAuthClientsRk(string clientId) => $"CLIENT|{StableKeyHash(clientId)}";
     public string OAuthAuthorizationCodesPk(string codeHash) => $"OAUTHCODE|{StableKeyHash(codeHash)[..2]}";
     public string OAuthAuthorizationCodesRk(string codeHash) => StableKeyHash(codeHash);
+
+    // Primary row - looked up by the polling device, which only ever knows the device_code.
+    public string OAuthDeviceAuthorizationsPk(string deviceCodeHash) => $"OAUTHDEVICE|{StableKeyHash(deviceCodeHash)[..2]}";
+    public string OAuthDeviceAuthorizationsRk(string deviceCodeHash) => StableKeyHash(deviceCodeHash);
+
+    // Pointer row - looked up by the approving browser, which only ever knows the user_code.
+    public string OAuthDeviceUserCodeIndexPk(string userCode) => $"OAUTHDEVICEUC|{StableKeyHash(userCode)[..2]}";
+    public string OAuthDeviceUserCodeIndexRk(string userCode) => StableKeyHash(userCode);
     public string OAuthConsentsPk(Guid tenantId, Guid userId) => $"TEN|{tenantId:D}|USR|{userId:D}";
     public string OAuthConsentsRk(string clientId, string resource) =>
         $"CONSENT|{StableKeyHash($"{clientId.Trim()}\n{resource.Trim()}")}";
@@ -143,6 +152,7 @@ public sealed class AzureTableIdentityOptions
         AuthSessionsTableName = NormalizeOrDefault(AuthSessionsTableName, "AuthSessions");
         OAuthClientsTableName = NormalizeOrDefault(OAuthClientsTableName, "OAuthClients");
         OAuthAuthorizationCodesTableName = NormalizeOrDefault(OAuthAuthorizationCodesTableName, "OAuthAuthorizationCodes");
+        OAuthDeviceAuthorizationsTableName = NormalizeOrDefault(OAuthDeviceAuthorizationsTableName, "OAuthDeviceAuthorizations");
         OAuthConsentsTableName = NormalizeOrDefault(OAuthConsentsTableName, "OAuthConsents");
         ApiCredentialsTableName = NormalizeOrDefault(ApiCredentialsTableName, "ApiCredentials");
         AgentUsersTableName = NormalizeOrDefault(AgentUsersTableName, "AgentUsers");
@@ -168,6 +178,7 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(AuthSessionsTableName, nameof(AuthSessionsTableName));
         ValidateTableName(OAuthClientsTableName, nameof(OAuthClientsTableName));
         ValidateTableName(OAuthAuthorizationCodesTableName, nameof(OAuthAuthorizationCodesTableName));
+        ValidateTableName(OAuthDeviceAuthorizationsTableName, nameof(OAuthDeviceAuthorizationsTableName));
         ValidateTableName(OAuthConsentsTableName, nameof(OAuthConsentsTableName));
         ValidateTableName(ApiCredentialsTableName, nameof(ApiCredentialsTableName));
         ValidateTableName(AgentUsersTableName, nameof(AgentUsersTableName));
@@ -193,6 +204,7 @@ public sealed class AzureTableIdentityOptions
         ValidateTableName(FullTableName(AuthSessionsTableName), nameof(TablePrefix) + "+" + nameof(AuthSessionsTableName));
         ValidateTableName(FullTableName(OAuthClientsTableName), nameof(TablePrefix) + "+" + nameof(OAuthClientsTableName));
         ValidateTableName(FullTableName(OAuthAuthorizationCodesTableName), nameof(TablePrefix) + "+" + nameof(OAuthAuthorizationCodesTableName));
+        ValidateTableName(FullTableName(OAuthDeviceAuthorizationsTableName), nameof(TablePrefix) + "+" + nameof(OAuthDeviceAuthorizationsTableName));
         ValidateTableName(FullTableName(OAuthConsentsTableName), nameof(TablePrefix) + "+" + nameof(OAuthConsentsTableName));
         ValidateTableName(FullTableName(ApiCredentialsTableName), nameof(TablePrefix) + "+" + nameof(ApiCredentialsTableName));
         ValidateTableName(FullTableName(AgentUsersTableName), nameof(TablePrefix) + "+" + nameof(AgentUsersTableName));

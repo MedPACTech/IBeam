@@ -23,7 +23,7 @@ public sealed class OAuthTokenController(IOAuthTokenService tokens) : Controller
             var result = await tokens.ExchangeAsync(new(
                 request.GrantType, credentials.ClientId, credentials.Secret, request.Code,
                 request.RedirectUri, request.CodeVerifier, request.RefreshToken, request.Resource,
-                SplitScopes(request.Scope)), ct).ConfigureAwait(false);
+                SplitScopes(request.Scope), request.DeviceCode), ct).ConfigureAwait(false);
             return Ok(new
             {
                 access_token = result.AccessToken,
@@ -95,6 +95,7 @@ public class OAuthTokenHttpRequest
     [ModelBinder(Name = "refresh_token")] public string? RefreshToken { get; set; }
     [ModelBinder(Name = "resource")] public string? Resource { get; set; }
     [ModelBinder(Name = "scope")] public string? Scope { get; set; }
+    [ModelBinder(Name = "device_code")] public string? DeviceCode { get; set; }
 }
 
 public sealed class OAuthRevocationHttpRequest

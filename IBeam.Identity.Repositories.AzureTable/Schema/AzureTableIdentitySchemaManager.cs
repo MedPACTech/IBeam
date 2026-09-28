@@ -136,6 +136,7 @@ internal sealed class AzureTableIdentitySchemaManager : IIdentitySchemaManager
         yield return ($"{_opts.TablePrefix}{_opts.SystemErrorsTableName}", 1);
         yield return ($"{_opts.TablePrefix}{_opts.OAuthClientsTableName}", 2);
         yield return ($"{_opts.TablePrefix}{_opts.OAuthAuthorizationCodesTableName}", 2);
+        yield return ($"{_opts.TablePrefix}{_opts.OAuthDeviceAuthorizationsTableName}", 2);
         yield return ($"{_opts.TablePrefix}{_opts.OAuthConsentsTableName}", 2);
     }
 

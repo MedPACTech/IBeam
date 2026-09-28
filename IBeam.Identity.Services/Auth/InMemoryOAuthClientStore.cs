@@ -86,7 +86,8 @@ public sealed class InMemoryOAuthClientStore : IOAuthClientStore
             DateTimeOffset.UtcNow,
             ClientSecretExpiresUtc: options.ClientSecretExpiresUtc,
             DisabledUtc: options.Status == OAuthClientStatuses.Disabled ? DateTimeOffset.UtcNow : null,
-            RevokedUtc: options.Status == OAuthClientStatuses.Revoked ? DateTimeOffset.UtcNow : null);
+            RevokedUtc: options.Status == OAuthClientStatuses.Revoked ? DateTimeOffset.UtcNow : null,
+            DeviceVerificationUri: options.DeviceVerificationUri);
 
     private static OAuthClientRecord Normalize(OAuthClientRecord client)
     {
@@ -104,7 +105,8 @@ public sealed class InMemoryOAuthClientStore : IOAuthClientStore
             Status = client.Status,
             ClientSecretHash = client.ClientSecretHash,
             ClientSecretHashAlgorithm = client.ClientSecretHashAlgorithm,
-            ClientSecretExpiresUtc = client.ClientSecretExpiresUtc
+            ClientSecretExpiresUtc = client.ClientSecretExpiresUtc,
+            DeviceVerificationUri = client.DeviceVerificationUri
         };
         registration.NormalizeAndValidate();
 
@@ -120,7 +122,8 @@ public sealed class InMemoryOAuthClientStore : IOAuthClientStore
             Status = registration.Status,
             ClientSecretHash = registration.ClientSecretHash,
             ClientSecretHashAlgorithm = registration.ClientSecretHashAlgorithm,
-            ClientSecretExpiresUtc = registration.ClientSecretExpiresUtc
+            ClientSecretExpiresUtc = registration.ClientSecretExpiresUtc,
+            DeviceVerificationUri = registration.DeviceVerificationUri
         };
     }
 }

@@ -9,6 +9,8 @@ public sealed class OAuthAuthorizationServerOptions
     public bool Enabled { get; set; }
     public string Issuer { get; set; } = string.Empty;
     public int AuthorizationCodeLifetimeMinutes { get; set; } = 5;
+    public int DeviceCodeLifetimeMinutes { get; set; } = 15;
+    public int DeviceCodePollIntervalSeconds { get; set; } = 5;
     public bool ClientIdMetadataDocumentsEnabled { get; set; } = true;
     public bool DynamicClientRegistrationEnabled { get; set; }
     public int DynamicRegistrationRequestsPerMinute { get; set; } = 10;
@@ -27,6 +29,10 @@ public sealed class OAuthAuthorizationServerOptions
         }
         if (DynamicRegistrationRequestsPerMinute is < 1 or > 1000)
             throw new InvalidOperationException($"{SectionName}:{nameof(DynamicRegistrationRequestsPerMinute)} must be between 1 and 1000.");
+        if (DeviceCodeLifetimeMinutes is < 1 or > 30)
+            throw new InvalidOperationException($"{SectionName}:{nameof(DeviceCodeLifetimeMinutes)} must be between 1 and 30 minutes.");
+        if (DeviceCodePollIntervalSeconds is < 5 or > 60)
+            throw new InvalidOperationException($"{SectionName}:{nameof(DeviceCodePollIntervalSeconds)} must be between 5 and 60 seconds.");
 
         Clients ??= [];
         foreach (var client in Clients)
@@ -55,6 +61,7 @@ public sealed class OAuthClientRegistrationOptions
     public string? ClientSecretHash { get; set; }
     public string? ClientSecretHashAlgorithm { get; set; }
     public DateTimeOffset? ClientSecretExpiresUtc { get; set; }
+    public string? DeviceVerificationUri { get; set; }
 
     public void NormalizeAndValidate()
     {
@@ -64,6 +71,7 @@ public sealed class OAuthClientRegistrationOptions
         Status = RequireValue(Status, nameof(Status), 32).ToLowerInvariant();
         ClientSecretHash = NormalizeOptional(ClientSecretHash);
         ClientSecretHashAlgorithm = NormalizeOptional(ClientSecretHashAlgorithm);
+        DeviceVerificationUri = NormalizeOptional(DeviceVerificationUri);
 
         if (ClientType is not OAuthClientTypes.Public and not OAuthClientTypes.Confidential)
             throw new InvalidOperationException($"OAuth client '{ClientId}' has unsupported client type '{ClientType}'.");
@@ -88,6 +96,13 @@ public sealed class OAuthClientRegistrationOptions
 
         if (AllowedGrantTypes.Contains(OAuthGrantTypes.AuthorizationCode, StringComparer.Ordinal) && RedirectUris.Count == 0)
             throw new InvalidOperationException($"OAuth client '{ClientId}' must configure at least one redirect URI.");
+
+        if (AllowedGrantTypes.Contains(OAuthGrantTypes.DeviceCode, StringComparer.Ordinal))
+        {
+            if (DeviceVerificationUri is null)
+                throw new InvalidOperationException($"OAuth client '{ClientId}' must configure a device verification URI to use the device_code grant.");
+            OAuthServerUriValidation.RequireResource(DeviceVerificationUri, ClientId);
+        }
 
         if (AllowedGrantTypes.Contains(OAuthGrantTypes.RefreshToken, StringComparer.Ordinal) &&
             !AllowedGrantTypes.Contains(OAuthGrantTypes.AuthorizationCode, StringComparer.Ordinal))

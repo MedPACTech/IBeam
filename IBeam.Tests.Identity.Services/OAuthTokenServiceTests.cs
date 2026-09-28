@@ -123,10 +123,120 @@ public sealed class OAuthTokenServiceTests
         Assert.AreEqual("invalid_client", ex.Error);
     }
 
+    [TestMethod]
+    public async Task DeviceCode_Pending_ReturnsAuthorizationPendingWithoutConsuming()
+    {
+        var client = Client(OAuthGrantTypes.DeviceCode);
+        var record = DeviceRecord(client.ClientId);
+        var devices = new Mock<IOAuthDeviceAuthorizationStore>();
+        devices.Setup(x => x.GetByDeviceCodeHashAsync(record.DeviceCodeHash, It.IsAny<CancellationToken>())).ReturnsAsync(record);
+        devices.Setup(x => x.RecordPollAsync(record.DeviceCodeHash, It.IsAny<DateTimeOffset>(), record.IntervalSeconds, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        var sut = CreateService(client, devices: devices);
+
+        var ex = await Assert.ThrowsExactlyAsync<OAuthProtocolException>(() => sut.ExchangeAsync(new(
+            OAuthGrantTypes.DeviceCode, client.ClientId, "secret", DeviceCode: "raw-device-code")));
+
+        Assert.AreEqual(OAuthDeviceErrors.AuthorizationPending, ex.Error);
+        devices.Verify(x => x.TryConsumeAsync(It.IsAny<string>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task DeviceCode_PolledTooSoon_ReturnsSlowDown()
+    {
+        var client = Client(OAuthGrantTypes.DeviceCode);
+        var record = DeviceRecord(client.ClientId);
+        var devices = new Mock<IOAuthDeviceAuthorizationStore>();
+        devices.Setup(x => x.GetByDeviceCodeHashAsync(record.DeviceCodeHash, It.IsAny<CancellationToken>())).ReturnsAsync(record);
+        devices.Setup(x => x.RecordPollAsync(record.DeviceCodeHash, It.IsAny<DateTimeOffset>(), record.IntervalSeconds, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var sut = CreateService(client, devices: devices);
+
+        var ex = await Assert.ThrowsExactlyAsync<OAuthProtocolException>(() => sut.ExchangeAsync(new(
+            OAuthGrantTypes.DeviceCode, client.ClientId, "secret", DeviceCode: "raw-device-code")));
+
+        Assert.AreEqual(OAuthDeviceErrors.SlowDown, ex.Error);
+    }
+
+    [TestMethod]
+    public async Task DeviceCode_Expired_ReturnsExpiredToken()
+    {
+        var client = Client(OAuthGrantTypes.DeviceCode);
+        var record = DeviceRecord(client.ClientId) with { ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(-1) };
+        var devices = new Mock<IOAuthDeviceAuthorizationStore>();
+        devices.Setup(x => x.GetByDeviceCodeHashAsync(record.DeviceCodeHash, It.IsAny<CancellationToken>())).ReturnsAsync(record);
+        var sut = CreateService(client, devices: devices);
+
+        var ex = await Assert.ThrowsExactlyAsync<OAuthProtocolException>(() => sut.ExchangeAsync(new(
+            OAuthGrantTypes.DeviceCode, client.ClientId, "secret", DeviceCode: "raw-device-code")));
+
+        Assert.AreEqual(OAuthDeviceErrors.ExpiredToken, ex.Error);
+    }
+
+    [TestMethod]
+    public async Task DeviceCode_Denied_ReturnsAccessDeniedAndConsumes()
+    {
+        var client = Client(OAuthGrantTypes.DeviceCode);
+        var record = DeviceRecord(client.ClientId) with { DeniedUtc = DateTimeOffset.UtcNow };
+        var devices = new Mock<IOAuthDeviceAuthorizationStore>();
+        devices.Setup(x => x.GetByDeviceCodeHashAsync(record.DeviceCodeHash, It.IsAny<CancellationToken>())).ReturnsAsync(record);
+        devices.Setup(x => x.TryConsumeAsync(record.DeviceCodeHash, It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(record with { ConsumedUtc = DateTimeOffset.UtcNow });
+        var sut = CreateService(client, devices: devices);
+
+        var ex = await Assert.ThrowsExactlyAsync<OAuthProtocolException>(() => sut.ExchangeAsync(new(
+            OAuthGrantTypes.DeviceCode, client.ClientId, "secret", DeviceCode: "raw-device-code")));
+
+        Assert.AreEqual("access_denied", ex.Error);
+    }
+
+    [TestMethod]
+    public async Task DeviceCode_Approved_ConsumesAndIssuesTokenBoundToGrantedScopes()
+    {
+        var client = Client(OAuthGrantTypes.DeviceCode);
+        var userId = Guid.NewGuid();
+        var record = DeviceRecord(client.ClientId) with
+        {
+            UserId = userId,
+            TenantId = TenantId,
+            GrantedScopes = ["tool:mcp"],
+            ApprovedUtc = DateTimeOffset.UtcNow
+        };
+        var devices = new Mock<IOAuthDeviceAuthorizationStore>();
+        devices.Setup(x => x.GetByDeviceCodeHashAsync(record.DeviceCodeHash, It.IsAny<CancellationToken>())).ReturnsAsync(record);
+        devices.Setup(x => x.TryConsumeAsync(record.DeviceCodeHash, It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(record with { ConsumedUtc = DateTimeOffset.UtcNow });
+        var sut = CreateService(client, devices: devices);
+
+        var result = await sut.ExchangeAsync(new(OAuthGrantTypes.DeviceCode, client.ClientId, "secret", DeviceCode: "raw-device-code"));
+        var jwt = new JwtSecurityTokenHandler().ReadJwtToken(result.AccessToken);
+
+        Assert.AreEqual(userId.ToString("D"), jwt.Claims.Single(x => x.Type == "sub").Value);
+        Assert.AreEqual(TenantId.ToString("D"), jwt.Claims.Single(x => x.Type == "tid").Value);
+        CollectionAssert.Contains(jwt.Audiences.ToList(), Resource);
+    }
+
+    [TestMethod]
+    public async Task DeviceCode_UnknownCode_ReturnsInvalidGrant()
+    {
+        var client = Client(OAuthGrantTypes.DeviceCode);
+        var devices = new Mock<IOAuthDeviceAuthorizationStore>();
+        devices.Setup(x => x.GetByDeviceCodeHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((OAuthDeviceAuthorizationRecord?)null);
+        var sut = CreateService(client, devices: devices);
+
+        var ex = await Assert.ThrowsExactlyAsync<OAuthProtocolException>(() => sut.ExchangeAsync(new(
+            OAuthGrantTypes.DeviceCode, client.ClientId, "secret", DeviceCode: "raw-device-code")));
+
+        Assert.AreEqual("invalid_grant", ex.Error);
+    }
+
+    private static OAuthDeviceAuthorizationRecord DeviceRecord(string clientId) => new(
+        OAuthDeviceAuthorizationService.Hash("raw-device-code"), "WDJBMJHT", clientId, ["tool:mcp"], Resource,
+        DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddMinutes(15), 5);
+
     private static OAuthTokenService CreateService(
         OAuthClientRecord client,
         Mock<IOAuthAuthorizationCodeStore>? codes = null,
-        Mock<IAuthSessionStore>? sessions = null)
+        Mock<IAuthSessionStore>? sessions = null,
+        Mock<IOAuthDeviceAuthorizationStore>? devices = null)
     {
         var clients = new Mock<IOAuthClientStore>();
         clients.Setup(x => x.GetAsync(client.ClientId, It.IsAny<CancellationToken>())).ReturnsAsync(client);
@@ -136,6 +246,7 @@ public sealed class OAuthTokenServiceTests
         return new(
             clients.Object,
             (codes ?? new Mock<IOAuthAuthorizationCodeStore>()).Object,
+            (devices ?? new Mock<IOAuthDeviceAuthorizationStore>()).Object,
             new Mock<IOAuthConsentStore>().Object,
             (sessions ?? new Mock<IAuthSessionStore>()).Object,
             hasher.Object,

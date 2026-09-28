@@ -9,7 +9,8 @@ public sealed record OAuthTokenRequest(
     string? CodeVerifier = null,
     string? RefreshToken = null,
     string? Resource = null,
-    IReadOnlyList<string>? Scopes = null);
+    IReadOnlyList<string>? Scopes = null,
+    string? DeviceCode = null);
 
 public sealed record OAuthTokenResponse(
     string AccessToken,
