@@ -1,21 +1,80 @@
 # Changelog
 
-## Unreleased
+## 2.14.0 - 2026-09-28
+
+Three security fixes with one theme: **configuration now means what it says.** All three are breaking for apps that configure the affected settings; apps that configure nothing are unaffected.
 
 ### Security
-- Configuration can now narrow `IBeam:Identity:AccessControl` role and permission lists, not only widen them. `IConfiguration.Bind` adds to a collection rather than replacing it, so every list on `IBeamAccessControlOptions` — which defines who is an owner or an administrator — kept its built-in names no matter what an app configured. An app that set `AdminRoleNames` to `["RegionalAdmin"]` to restrict administrator access still treated anyone holding a role named `Administrator` or `Admin` as an administrator, with no warning that its configuration had not taken effect.
+
+- Configuration can now **narrow** `IBeam:Identity:AccessControl` role and permission lists, not only widen them. `IConfiguration.Bind` adds to a collection rather than replacing it, so every list on `IBeamAccessControlOptions` — which defines who is an owner or an administrator — kept its built-in names no matter what an app configured. An app that set `AdminRoleNames` to `["RegionalAdmin"]` in order to restrict administrator access still treated anyone holding a role named `Administrator` or `Admin` as an administrator, with no warning that its configuration had not taken effect.
 - OAuth clients configured with explicit `AllowedGrantTypes` no longer silently also allow `authorization_code`. A client registered for the device-code grant alone previously permitted both.
-- Tenant invite links are now restricted to an allowlist of origins. `DefaultTenantInviteUrlBuilder` built the "Accept invitation" link from whatever `RedirectUrl` the caller supplied, with no validation, so anyone who could create an invite could send a genuine, app-branded invitation whose button opened a site of their choosing. Separately, `DefaultTenantInviteMessageFactory` copied caller-supplied `Metadata` over its own values, so `metadata: { "inviteUrl": "https://evil.example" }` replaced the link even when the redirect URL was valid — and because that dictionary was case-sensitive, `InviteUrl` reached the template model alongside `inviteUrl`. Both paths are closed: links resolve through `ITenantInviteLinkPolicy`, and IBeam's own metadata keys are applied after caller metadata and always win.
+- **Tenant invite links are restricted to an allowlist of origins.** `DefaultTenantInviteUrlBuilder` built the "Accept invitation" link from whatever `RedirectUrl` the caller supplied, with no validation, so anyone who could create an invite could send a genuine, app-branded invitation whose button opened a site of their choosing. Separately and independently, `DefaultTenantInviteMessageFactory` copied caller-supplied `Metadata` over its own values, so `metadata: { "inviteUrl": "https://evil.example" }` replaced the link even when the redirect URL was valid — and because that dictionary was case-sensitive, `InviteUrl` reached the template model alongside `inviteUrl`. Both paths are closed.
 
 ### Changed
-- **Breaking for apps that configure access-control lists.** If your app both configures a list under `IBeam:Identity:AccessControl` and relies on IBeam's built-in values still being present, add those values to your configuration explicitly. Apps that configure nothing are unaffected and keep every default. The lists: `OwnerRoleNames`, `AdminRoleNames`, `ApplicationRoleNames`, `TenantManagementPermissionNames`, `TenantUserManagementPermissionNames`, `TenantRoleManagementPermissionNames`, `TenantAccessControlManagementPermissionNames`, `ApiCredentialManagementPermissionNames`, `OAuthClientManagementPermissionNames`, `AuthAttemptManagementRoleNames`, `AuthAttemptManagementPermissionNames`, `AccessLevels`.
+
+- **Breaking for apps that configure access-control lists.** If your app both configures a list under `IBeam:Identity:AccessControl` and relies on IBeam's built-in values still being present, add those values to your configuration explicitly. The lists: `OwnerRoleNames`, `AdminRoleNames`, `ApplicationRoleNames`, `TenantManagementPermissionNames`, `TenantUserManagementPermissionNames`, `TenantRoleManagementPermissionNames`, `TenantAccessControlManagementPermissionNames`, `ApiCredentialManagementPermissionNames`, `OAuthClientManagementPermissionNames`, `AuthAttemptManagementRoleNames`, `AuthAttemptManagementPermissionNames`, `AccessLevels`.
 - **Breaking for apps that configure OAuth client grant types.** A configured `AllowedGrantTypes` now means exactly those grants. An app relying on the implicit `authorization_code` alongside its configured grants must list it.
+- **Breaking for apps that send tenant invites.** Configure `IBeam:Identity:Invites:Links:DefaultAcceptUrl` with your invite accept page, and list your front-end origins under `AllowedOrigins`. The previous hardcoded `https://localhost:3000/invites/accept` fallback is gone — an app that sends an invite without configuring a destination now fails with a message naming the setting.
 - An OAuth client that specifies no grant types in configuration continues to default to `authorization_code`, per RFC 7591 §2. Registering a client programmatically or through the administration API with an explicitly empty grant list is still rejected — configuration cannot express an empty list, but a caller can, and meaning it should not silently earn a grant.
-- **Breaking for apps that send tenant invites.** Configure `IBeam:Identity:Invites:Links:DefaultAcceptUrl` with your invite accept page, and list your front-end origins under `AllowedOrigins` — or add them in code with `AddIBeamTenantInviteLinks`, which runs after configuration so an app can build the list from its own CORS origins. A redirect URL on an origin that is not allowed falls back to `DefaultAcceptUrl` and logs a warning, or is rejected outright with `OnDisallowed: Reject`. The previous hardcoded `https://localhost:3000/invites/accept` fallback is gone: an app that sends invites without configuring a destination now fails with a message naming the setting, rather than silently emailing a link to localhost. `IsAllowed` is a code delegate for rules a list cannot express, such as per-tenant custom domains; `AllowAnyOrigin()` restores the old behaviour deliberately and warns each time it is used.
+
+### Added — invite link control
+
+```jsonc
+"IBeam:Identity:Invites:Links": {
+  "AllowedOrigins": [ "https://app.example.com" ],  // exact scheme://host[:port], no wildcards
+  "DefaultAcceptUrl": "https://app.example.com/invites/accept",
+  "AcceptPath": "/invites/accept",                  // discards the caller's path on an allowed origin
+  "OnDisallowed": "Fallback"                        // or "Reject" to refuse the invite
+}
+```
+
+Configurable in code as well, which is the point rather than a convenience — `AddIBeamTenantInviteLinks`'s delegate runs *after* configuration binding, so an app can build the allowlist from its own CORS origins rather than repeating them:
+
+```csharp
+services.AddIBeamTenantInviteLinks(o =>
+{
+    foreach (var origin in myCorsOrigins) o.AllowedOrigins.Add(origin);
+
+    // For rules a list cannot express — per-tenant custom domains, preview environments.
+    // Consulted only after the allowlist says no, and only for a structurally valid URL.
+    o.IsAllowed = (uri, invite) => uri.Host.EndsWith(".preview.example.com");
+});
+```
+
+`ITenantInviteLinkPolicy` is `TryAddScoped`, so it can be replaced outright. `AllowAnyOrigin()` restores the pre-2.14.0 behaviour deliberately and logs a warning each time it is used.
+
+Do not populate `AllowedOrigins` from a CORS wildcard. An app trusting `*.example-hosting.net` for CORS is trusting every tenant of that host.
+
+### Upgrading
+
+1. **Access control.** Search `appsettings*.json` for `IBeam:Identity:AccessControl`. If you configure any of the listed lists, that list is now exactly what you wrote — add back any IBeam default you were relying on.
+2. **OAuth grants.** Search for `AllowedGrantTypes`. If a client configures it and also expects `authorization_code`, add it.
+3. **Invites.** If your app sends tenant invites, configure `DefaultAcceptUrl` and `AllowedOrigins` before deploying. This one fails loudly rather than silently, so it will be obvious — but it will be obvious at the moment someone sends an invite.
+4. Apps that configure none of the three need no changes.
+
+The direction of the access-control change matters: before this release, configuration could only ever **grant more** access than it appeared to. An app unknowingly relying on the old behaviour will find access narrowing on upgrade rather than widening — a failure that is visible, not silent.
+
+### Why a minor version
+
+Three breaking changes would ordinarily argue for a major bump. Released as a minor because the blast radius is bounded: each one affects only apps that configure the specific setting involved. Anyone who does should read Upgrading rather than treating this as routine.
 
 ### Validation
-- Identity service tests: 193 passed, including new coverage that binds these options from `IConfiguration` and asserts the bound values equal exactly what was configured.
-- Full solution: 623 passed across 31 suites, zero failures.
+
+Verified on the released commit (`d128420`), not on a development branch:
+
+- **676 tests passed across 31 suites, 0 failed, 1 skipped.**
+- New coverage that binds options from `IConfiguration` and asserts the bound values equal exactly what was configured — the gap that let the first two bugs survive: `AccessControlOptionsConfigurationTests`, `OAuthAuthorizationServerOptionsTests`, `TenantInviteLinkPolicyTests`.
+- The invite tests were checked against the unfixed code: reverting the URL builder fails 1, reverting the metadata merge order fails 2. One test gates the wiring specifically, because the policy tests alone would have passed with a correct policy that nothing used.
+
+### Known consumers
+
+- **Bindry** has already adapted to the access-control change (`BIND-0214`), and carries its own app-level invite-link fix (`BIND-0124`) which it can now delete in favour of registering IBeam's policy with its real CORS origins. It is pinned to `IBeamVersion 2.12.2`, so bumping crosses `2.12.3`, `2.13.0`, `2.13.1` and this release together.
+- Every other IBeam consumer should be checked against the Upgrading steps. IBeam is the shared identity layer across seven-plus products, and this release touches who counts as an administrator and where invite emails point.
+
+---
+
+**IBM-0068** · **IBM-0072** · **IBM-0073**
+
 
 ## 2.9.45 - 2026-08-10
 
