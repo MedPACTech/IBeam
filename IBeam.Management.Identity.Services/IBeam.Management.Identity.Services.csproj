@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><GeneratePackageOnBuild>true</GeneratePackageOnBuild><PackageId>IBeam.Management.Identity.Services</PackageId><Description>Optional isolated IBeam Identity integration for management hosts.</Description></PropertyGroup>
+<ItemGroup><ProjectReference Include="..\IBeam.Management.Services\IBeam.Management.Services.csproj" /><ProjectReference Include="..\IBeam.Identity.Services\IBeam.Identity.Services.csproj" /><ProjectReference Include="..\IBeam.Identity.Repositories.AzureTable\IBeam.Identity.Repositories.AzureTable.csproj" /></ItemGroup>
+<ItemGroup><None Include="README.md" Pack="true" PackagePath="\" /></ItemGroup>
+</Project>

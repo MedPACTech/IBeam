@@ -2,13 +2,13 @@
   "epic": {
     "id": "82013b53-bbfc-429f-9e06-8ccaf0522689",
     "conceptId": null,
-    "productId": null,
+    "productId": "38d04a26-2c32-b02e-0b2a-c49a044ad016",
     "projectId": "7082c7e5-ab08-42e8-a1a3-67eba0755c5d",
     "title": "Management API",
     "outcome": "Deliver reusable IBeam NuGet packages for a central support portal API: one isolated MFA support login, app/environment registration and secret-backed connections, support-user assignments to one or many apps, and read-only sanitized system errors/logs through deployment-scoped management credentials. Preserve API -> Services -> Repository and consumer/customer data isolation. Support separate identity storage or separate prefixed tables in shared storage. Defer customer provisioning, impersonation, frontend work, production publishing/deployment and changes/rename to IBeam.Admin.API, the future NuGet-consuming test host.",
     "ownerUserId": "5980a74c-5e91-4668-bc2d-8258ee157a25",
     "ownerDisplayName": "",
-    "stage": "draft",
+    "stage": "in_flight",
     "startDate": null,
     "endDate": null,
     "discipline": "software",
@@ -17,15 +17,15 @@
     "effort": null,
     "stagedOrder": null,
     "waitingOn": "",
-    "goAtUtc": null,
+    "goAtUtc": "2026-10-15T23:23:22.2707501Z",
     "landedAtUtc": null,
     "shippedAtUtc": null,
     "createdUtc": "2026-10-15T23:19:12.2868353Z",
-    "updatedUtc": "2026-10-15T23:19:12.2868353Z",
-    "cardCount": 0,
-    "doneCardCount": 0,
+    "updatedUtc": "2026-10-15T23:57:31.9538451Z",
+    "cardCount": 19,
+    "doneCardCount": 1,
     "hasBlockedCard": false,
-    "featureCount": 0
+    "featureCount": 10
   },
   "features": [
     {
@@ -88,7 +88,9 @@
             "Configured storage identities enforce the intended isolation; a naming prefix alone is not described as a permission boundary."
           ],
           "hubbslyId": "344a39fd-bc9a-48c8-a2e7-494b34b231b7",
-          "hubbslySourceKey": "IBM-0079"
+          "hubbslySourceKey": "IBM-0079",
+          "implementationStatus": "verified",
+          "verification": "16 tests passed, including real Azure Table provider isolation and repeatable bootstrap against two private Azurite endpoints. Separate/shared modes, table/index/session/OTP isolation, explicit schema setup, namespace collision and mixed-host rejection verified. Shared-account prefixes are documented as logical isolation; cloud RBAC is an operator deployment prerequisite."
         },
         {
           "key": "MGT-003",
