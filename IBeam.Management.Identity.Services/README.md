@@ -22,4 +22,4 @@ Trusted setup:
 
 Management users, OTP, indexes and sessions are independent from customer identities even if emails or generated user IDs coincide. The support organization is not a customer tenant.
 
-This card establishes storage and trusted setup. Password/MFA/refresh endpoints, live membership/session validation and token separation are the next card. Do not expose the generic Identity controller assembly in the management host.
+For selected password/MFA/refresh/logout endpoints, reference IBeam.Management.Identity.Api and call AddIBeamManagementIdentityApi instead of registering these services twice. Do not expose the generic Identity controller assembly in the management host. The adapter blocks generic enrollment, recovery, tenant selection and MFA changes even through IIdentityAuthService; invitation onboarding is a later feature. Every protected request and refresh checks current membership, role catalog and persisted MFA session without caching. Only ManagementAdministrator may disable another support membership and revoke its sessions.

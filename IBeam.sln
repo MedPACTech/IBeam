@@ -181,6 +181,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Management.Identity.S
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Tests.Management.Identity", "IBeam.Tests.Management.Identity\IBeam.Tests.Management.Identity.csproj", "{E280E234-A5DB-460C-91B3-F3D74BD38582}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Management.Identity.Api", "IBeam.Management.Identity.Api\IBeam.Management.Identity.Api.csproj", "{CF65ADAE-557C-4571-AC17-1AE3F2F5A822}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1211,6 +1213,18 @@ Global
 		{E280E234-A5DB-460C-91B3-F3D74BD38582}.Release|x64.Build.0 = Release|Any CPU
 		{E280E234-A5DB-460C-91B3-F3D74BD38582}.Release|x86.ActiveCfg = Release|Any CPU
 		{E280E234-A5DB-460C-91B3-F3D74BD38582}.Release|x86.Build.0 = Release|Any CPU
+		{CF65ADAE-557C-4571-AC17-1AE3F2F5A822}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF65ADAE-557C-4571-AC17-1AE3F2F5A822}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CF65ADAE-557C-4571-AC17-1AE3F2F5A822}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CF65ADAE-557C-4571-AC17-1AE3F2F5A822}.Debug|x64.Build.0 = Debug|Any CPU
+		{CF65ADAE-557C-4571-AC17-1AE3F2F5A822}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CF65ADAE-557C-4571-AC17-1AE3F2F5A822}.Debug|x86.Build.0 = Debug|Any CPU
+		{CF65ADAE-557C-4571-AC17-1AE3F2F5A822}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CF65ADAE-557C-4571-AC17-1AE3F2F5A822}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CF65ADAE-557C-4571-AC17-1AE3F2F5A822}.Release|x64.ActiveCfg = Release|Any CPU
+		{CF65ADAE-557C-4571-AC17-1AE3F2F5A822}.Release|x64.Build.0 = Release|Any CPU
+		{CF65ADAE-557C-4571-AC17-1AE3F2F5A822}.Release|x86.ActiveCfg = Release|Any CPU
+		{CF65ADAE-557C-4571-AC17-1AE3F2F5A822}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

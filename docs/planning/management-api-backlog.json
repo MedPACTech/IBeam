@@ -23,7 +23,7 @@
     "createdUtc": "2026-10-15T23:19:12.2868353Z",
     "updatedUtc": "2026-10-15T23:57:31.9538451Z",
     "cardCount": 19,
-    "doneCardCount": 1,
+    "doneCardCount": 2,
     "hasBlockedCard": false,
     "featureCount": 10
   },
@@ -58,10 +58,12 @@
           "hubbslyId": "f4d45aab-d73b-4968-91d4-565dd688d1b3",
           "hubbslySourceKey": "IBM-0078",
           "implementationStatus": "verified",
-          "verification": "34 management HTTP/service tests passed in Release; all four NuGet archives verified for DLL, README and agent guidance. No host changes or production publishing."
+          "verification": "34 management HTTP/service tests passed in Release; all four NuGet archives verified for DLL, README and agent guidance. No host changes or production publishing.",
+          "points": 5
         }
       ],
-      "hubbslyId": "6c811112-d5ab-4b22-bdee-98914d9206d5"
+      "hubbslyId": "6c811112-d5ab-4b22-bdee-98914d9206d5",
+      "points": 5
     },
     {
       "key": "MGT-F02",
@@ -76,9 +78,10 @@
           "title": "Configure isolated management identity storage and bootstrap",
           "scope": "Support Management identity connection/prefix mapping into existing Identity provider. Reuse AspNetUsers/AspNetIndex/AspNetRoles, Tenants, TenantUsers, UserTenants, Roles, TenantInvites, OtpChallenges, AuthIdentifiers, AuthSessions and AuthAttempts plus provider-required tables. Seed the initial organization/administrator through trusted setup.",
           "paths": [
-            "IBeam.Management.Services/Identity/",
-            "IBeam.Identity.Repositories.AzureTable/",
-            "docs/management/"
+            "IBeam.Management.Identity.Services/",
+            "IBeam.Identity.Repositories.AzureTable/Extensions/",
+            "IBeam.Tests.Management.Identity/",
+            "IBeam.sln"
           ],
           "ac": [
             "Separate-store and shared-store/prefix modes are verified without modifying customer identity records.",
@@ -90,16 +93,19 @@
           "hubbslyId": "344a39fd-bc9a-48c8-a2e7-494b34b231b7",
           "hubbslySourceKey": "IBM-0079",
           "implementationStatus": "verified",
-          "verification": "16 tests passed, including real Azure Table provider isolation and repeatable bootstrap against two private Azurite endpoints. Separate/shared modes, table/index/session/OTP isolation, explicit schema setup, namespace collision and mixed-host rejection verified. Shared-account prefixes are documented as logical isolation; cloud RBAC is an operator deployment prerequisite."
+          "verification": "16 tests passed, including real Azure Table provider isolation and repeatable bootstrap against two private Azurite endpoints. Separate/shared modes, table/index/session/OTP isolation, explicit schema setup, namespace collision and mixed-host rejection verified. Shared-account prefixes are documented as logical isolation; cloud RBAC is an operator deployment prerequisite.",
+          "points": 5
         },
         {
           "key": "MGT-003",
           "title": "Enforce support sign-in, MFA, refresh and disable semantics",
           "scope": "Reuse selected /api/auth sign-in/MFA/refresh flows in the portal host with management issuer/audience, support context and membership validation. Provide support account disable and session invalidation.",
           "paths": [
-            "IBeam.Management.Services/Identity/",
-            "IBeam.Management.Api/",
-            "IBeam.Tests.Management/"
+            "IBeam.Management.Identity.Services/",
+            "IBeam.Management.Identity.Api/",
+            "IBeam.Identity.Services/Auth/PasswordAuthService.cs",
+            "IBeam.Tests.Management.Identity/",
+            "IBeam.sln"
           ],
           "ac": [
             "Support registration is invitation-only; an authenticated customer cannot enroll themselves.",
@@ -110,10 +116,14 @@
             "Tests cover recovery/invitation abuse, token substitution, organization mismatch, expiration and disabled users."
           ],
           "hubbslyId": "f956f3e9-52ba-4545-a06a-cf1757e0de7d",
-          "hubbslySourceKey": "IBM-0080"
+          "hubbslySourceKey": "IBM-0080",
+          "points": 8,
+          "implementationStatus": "verified",
+          "verification": "53 support Identity tests passed (including real shared/separate Azure Table isolation fixtures), 216 existing Identity service tests and 34 BYO-auth Management tests. Selected MFA sign-in, refresh, logout and support disable endpoints enforce live role/membership/session checks. Generic enrollment/recovery are closed; invitation onboarding remains MGT-012. Local NuGet packaging verified; no host edits or publication."
         }
       ],
-      "hubbslyId": "6eb38742-a949-482a-a13a-03db23a1090c"
+      "hubbslyId": "6eb38742-a949-482a-a13a-03db23a1090c",
+      "points": 13
     },
     {
       "key": "MGT-F03",
@@ -140,7 +150,8 @@
             "The repository project remains independent of services/APIs and runtime readers need no schema-creation privileges."
           ],
           "hubbslyId": "f52c74f5-39c9-43c1-9567-ea18da1c209c",
-          "hubbslySourceKey": "IBM-0081"
+          "hubbslySourceKey": "IBM-0081",
+          "points": 5
         },
         {
           "key": "MGT-005",
@@ -158,10 +169,12 @@
             "Credential ID, operation and correlation are auditable without storing the raw credential; existing customer endpoint tests stay valid."
           ],
           "hubbslyId": "d8c53f20-9ff4-44c4-9598-2f19e4ed36ba",
-          "hubbslySourceKey": "IBM-0082"
+          "hubbslySourceKey": "IBM-0082",
+          "points": 5
         }
       ],
-      "hubbslyId": "1bab7bcb-bbde-4067-abd4-33c142eeaa63"
+      "hubbslyId": "1bab7bcb-bbde-4067-abd4-33c142eeaa63",
+      "points": 10
     },
     {
       "key": "MGT-F04",
@@ -189,7 +202,8 @@
             "Azurite/integration fixtures cover date boundaries, empty pages, stable pagination and missing records without full-table scans."
           ],
           "hubbslyId": "57ae3edf-8197-4309-a4cf-9e8c4fa3ffb8",
-          "hubbslySourceKey": "IBM-0083"
+          "hubbslySourceKey": "IBM-0083",
+          "points": 5
         },
         {
           "key": "MGT-007",
@@ -208,10 +222,12 @@
             "Tests prove safe legacy behavior, insufficient permissions, cancellation and read-only operation; no delete/update diagnostic endpoints exist."
           ],
           "hubbslyId": "c0af35db-8a14-42f5-b552-7d1a485e4623",
-          "hubbslySourceKey": "IBM-0084"
+          "hubbslySourceKey": "IBM-0084",
+          "points": 5
         }
       ],
-      "hubbslyId": "44598138-92cd-441d-93e3-a9b19b37bec0"
+      "hubbslyId": "44598138-92cd-441d-93e3-a9b19b37bec0",
+      "points": 10
     },
     {
       "key": "MGT-F05",
@@ -238,7 +254,8 @@
             "Logs.Read does not imply Errors.Read and no tenant-restricted claim is made when source attribution cannot support it."
           ],
           "hubbslyId": "1b665163-423a-416f-83f2-b5ef4972bfa8",
-          "hubbslySourceKey": "IBM-0085"
+          "hubbslySourceKey": "IBM-0085",
+          "points": 5
         },
         {
           "key": "MGT-009",
@@ -255,10 +272,12 @@
             "Reader services remain callable without HTTP while enforcing trusted service access context and operation execution."
           ],
           "hubbslyId": "a157fc98-b9ef-42a1-8a59-f5c256bd8924",
-          "hubbslySourceKey": "IBM-0086"
+          "hubbslySourceKey": "IBM-0086",
+          "points": 3
         }
       ],
-      "hubbslyId": "6ab554f2-ace5-4daf-bc02-f3d6cea1dbe0"
+      "hubbslyId": "6ab554f2-ace5-4daf-bc02-f3d6cea1dbe0",
+      "points": 8
     },
     {
       "key": "MGT-F06",
@@ -287,7 +306,8 @@
             "Duplicate/conflict/not-found/validation handling and auditable changes follow IBeam conventions."
           ],
           "hubbslyId": "58e08dac-4cb2-47d6-9b46-ad5fbb27eb03",
-          "hubbslySourceKey": "IBM-0087"
+          "hubbslySourceKey": "IBM-0087",
+          "points": 5
         },
         {
           "key": "MGT-011",
@@ -307,10 +327,12 @@
             "List/detail/update errors, logs, traces and audit cannot disclose key material; timeout/cancellation and target outage behavior are tested."
           ],
           "hubbslyId": "b061ee6f-d6e5-4840-b330-3f98d74724b8",
-          "hubbslySourceKey": "IBM-0088"
+          "hubbslySourceKey": "IBM-0088",
+          "points": 8
         }
       ],
-      "hubbslyId": "9d3ce947-832c-4f04-b847-befc49ea8b71"
+      "hubbslyId": "9d3ce947-832c-4f04-b847-befc49ea8b71",
+      "points": 13
     },
     {
       "key": "MGT-F07",
@@ -337,7 +359,8 @@
             "No customer-user provisioning, impersonation or customer credential editing is added."
           ],
           "hubbslyId": "67bdfc4d-5272-43f1-9e8e-aed8fab92239",
-          "hubbslySourceKey": "IBM-0089"
+          "hubbslySourceKey": "IBM-0089",
+          "points": 5
         },
         {
           "key": "MGT-013",
@@ -357,10 +380,12 @@
             "Concurrency, duplicate assignments and explicit revocation metadata are handled; all access changes are audited."
           ],
           "hubbslyId": "4cdd783d-1b90-4a86-ba52-5e06500fe4b5",
-          "hubbslySourceKey": "IBM-0090"
+          "hubbslySourceKey": "IBM-0090",
+          "points": 8
         }
       ],
-      "hubbslyId": "9fb70f50-948e-484a-82c9-0a71e535d06a"
+      "hubbslyId": "9fb70f50-948e-484a-82c9-0a71e535d06a",
+      "points": 13
     },
     {
       "key": "MGT-F08",
@@ -390,7 +415,8 @@
             "Service orchestration invokes entity services rather than cross-repository business logic; no customer tables are queried."
           ],
           "hubbslyId": "85246cfe-adcf-45ca-9a03-0e302195f40d",
-          "hubbslySourceKey": "IBM-0091"
+          "hubbslySourceKey": "IBM-0091",
+          "points": 8
         },
         {
           "key": "MGT-015",
@@ -410,10 +436,12 @@
             "No portal frontend, host rename or IBeam.Admin.API dependency is required to complete this framework contract."
           ],
           "hubbslyId": "a4b924d3-6a40-455f-9c1e-63ccff0a3a13",
-          "hubbslySourceKey": "IBM-0092"
+          "hubbslySourceKey": "IBM-0092",
+          "points": 3
         }
       ],
-      "hubbslyId": "4a018a35-0554-4a78-a81e-72f4f456de95"
+      "hubbslyId": "4a018a35-0554-4a78-a81e-72f4f456de95",
+      "points": 11
     },
     {
       "key": "MGT-F09",
@@ -441,7 +469,8 @@
             "Audit configuration avoids recursively logging audit reads/writes into customer diagnostics; target and portal events can be correlated."
           ],
           "hubbslyId": "1491bc9c-5998-4b06-bddd-25d1f0b9eb83",
-          "hubbslySourceKey": "IBM-0093"
+          "hubbslySourceKey": "IBM-0093",
+          "points": 5
         },
         {
           "key": "MGT-017",
@@ -461,10 +490,12 @@
             "Document which historical rows can safely be shown and which require recapture/migration before exposure."
           ],
           "hubbslyId": "11544378-4990-417b-9fa6-c0c69a621ce4",
-          "hubbslySourceKey": "IBM-0094"
+          "hubbslySourceKey": "IBM-0094",
+          "points": 5
         }
       ],
-      "hubbslyId": "3de67ac3-7bbc-43a2-98f7-7509d15dbd2c"
+      "hubbslyId": "3de67ac3-7bbc-43a2-98f7-7509d15dbd2c",
+      "points": 10
     },
     {
       "key": "MGT-F10",
@@ -500,7 +531,8 @@
             "Existing Identity, API, logging and service operation tests relevant to changed shared components remain green."
           ],
           "hubbslyId": "1b8cb393-be4a-4080-8c68-c2408270a69a",
-          "hubbslySourceKey": "IBM-0095"
+          "hubbslySourceKey": "IBM-0095",
+          "points": 8
         },
         {
           "key": "MGT-019",
@@ -518,10 +550,13 @@
             "No repository rename, production deployment, NuGet publishing or frontend implementation is performed by this handoff card."
           ],
           "hubbslyId": "27d4d7a4-0739-41ad-906b-8eb2b2db96d8",
-          "hubbslySourceKey": "IBM-0096"
+          "hubbslySourceKey": "IBM-0096",
+          "points": 3
         }
       ],
-      "hubbslyId": "907c97ad-60ed-411d-8939-b6db0c4156ba"
+      "hubbslyId": "907c97ad-60ed-411d-8939-b6db0c4156ba",
+      "points": 11
     }
-  ]
+  ],
+  "estimationPolicy": "Feature totals sum Fibonacci estimates on their cards. Hubbsly has no writable feature points field; totals are also recorded in feature outcomes."
 }

@@ -2,6 +2,8 @@
 
 Date: 2026-10-15
 
+Epic estimate: **104 points** across 10 features and 19 cards. Cards use Fibonacci estimates; feature totals are their sums. Hubbsly stores points on cards, with feature totals recorded in feature descriptions.
+
 Deliver reusable IBeam NuGet packages for a central support portal API: one isolated MFA support login, app/environment registration and secret-backed connections, support-user assignments to one or many apps, and read-only sanitized system errors/logs through deployment-scoped management credentials. Preserve API -> Services -> Repository and consumer/customer data isolation. Support separate identity storage or separate prefixed tables in shared storage. Defer customer provisioning, impersonation, frontend work, production publishing/deployment and changes/rename to IBeam.Admin.API, the future NuGet-consuming test host.
 
 Framework work stays in IBeam. IBeam.Admin.API remains the deferred, separately named runnable host that will consume generated NuGet packages; no host edits, frontend work or production deployment are included.
@@ -14,11 +16,15 @@ Existing SystemErrors has no tenant/application attribution and SystemLogs inclu
 
 ## MGT-F01: Management package foundation and protected API boundaries
 
+Estimate: **5 points**, summed from the cards below.
+
 Introduce reusable .NET 10 management contracts, services, portal API and target diagnostics API. Expose authenticated portal identity and target capability endpoints through thin controllers and IBeam service operations; remain independent of the deferred IBeam.Admin.API host.
 
 Dependencies: .
 
 ### MGT-001 / IBM-0078: Bootstrap Management packages and protected identity/capability endpoints
+
+Estimate: **5 points**.
 
 Create IBeam.Management, IBeam.Management.Services, IBeam.Management.Api, IBeam.Management.Diagnostics.Api and focused tests. Add explicit host-provided authentication-scheme options; /api/management/me and /api/management-diagnostics/info; immutable response contracts; deny-by-default service checks. Do not expose error/log reads or pretend database adapters are implemented.
 
@@ -36,46 +42,58 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 ## MGT-F02: Isolated support identity and session lifecycle
 
+Estimate: **13 points**, summed from the cards below.
+
 Reuse IBeam.Identity for one named, MFA-protected support login. Allow a separate storage connection or an isolated prefixed identity table set on shared storage; support organization membership is independent of customer tenant membership.
 
 Dependencies: MGT-F01.
 
 ### MGT-002 / IBM-0079: Configure isolated management identity storage and bootstrap
 
+Estimate: **5 points**.
+
 Support Management identity connection/prefix mapping into existing Identity provider. Reuse AspNetUsers/AspNetIndex/AspNetRoles, Tenants, TenantUsers, UserTenants, Roles, TenantInvites, OtpChallenges, AuthIdentifiers, AuthSessions and AuthAttempts plus provider-required tables. Seed the initial organization/administrator through trusted setup.
 
-Touches: IBeam.Management.Services/Identity/, IBeam.Identity.Repositories.AzureTable/, docs/management/.
+Touches: IBeam.Management.Identity.Services/, IBeam.Identity.Repositories.AzureTable/Extensions/, IBeam.Tests.Management.Identity/, IBeam.sln.
 
-- [ ] Separate-store and shared-store/prefix modes are verified without modifying customer identity records.
-- [ ] Same email in customer and support stores does not transfer memberships or roles.
-- [ ] Provider-required indexes, sessions, OTP/recovery and schema metadata remain isolated, not only the users table.
-- [ ] Bootstrap is explicit, idempotent and unavailable through public self-registration; secret values are absent from logs/config examples.
-- [ ] Configured storage identities enforce the intended isolation; a naming prefix alone is not described as a permission boundary.
+- [x] Separate-store and shared-store/prefix modes are verified without modifying customer identity records.
+- [x] Same email in customer and support stores does not transfer memberships or roles.
+- [x] Provider-required indexes, sessions, OTP/recovery and schema metadata remain isolated, not only the users table.
+- [x] Bootstrap is explicit, idempotent and unavailable through public self-registration; secret values are absent from logs/config examples.
+- [x] Configured storage identities enforce the intended isolation; a naming prefix alone is not described as a permission boundary.
 
 Verification: focused service/HTTP tests; isolated provider fixtures where needed; build/pack affected packages and update registration/endpoint documentation.
 
 ### MGT-003 / IBM-0080: Enforce support sign-in, MFA, refresh and disable semantics
 
+Estimate: **8 points**.
+
 Reuse selected /api/auth sign-in/MFA/refresh flows in the portal host with management issuer/audience, support context and membership validation. Provide support account disable and session invalidation.
 
-Touches: IBeam.Management.Services/Identity/, IBeam.Management.Api/, IBeam.Tests.Management/.
+Touches: IBeam.Management.Identity.Services/, IBeam.Management.Identity.Api/, IBeam.Identity.Services/Auth/PasswordAuthService.cs, IBeam.Tests.Management.Identity/, IBeam.sln.
 
-- [ ] Support registration is invitation-only; an authenticated customer cannot enroll themselves.
-- [ ] Management tokens carry a distinct accepted audience and cannot authenticate customer data endpoints; ordinary tokens fail management endpoints.
-- [ ] MFA completion is required before management privileges become usable; incomplete/pre-tenant tokens fail.
-- [ ] Disabled users/organizations and revoked sessions are rejected on subsequent protected requests with a documented bounded revocation policy.
-- [ ] Refresh cannot restore removed memberships or permissions; grants are not trusted indefinitely from stale claims.
-- [ ] Tests cover recovery/invitation abuse, token substitution, organization mismatch, expiration and disabled users.
+- [x] Support registration is invitation-only; an authenticated customer cannot enroll themselves.
+- [x] Management tokens carry a distinct accepted audience and cannot authenticate customer data endpoints; ordinary tokens fail management endpoints.
+- [x] MFA completion is required before management privileges become usable; incomplete/pre-tenant tokens fail.
+- [x] Disabled users/organizations and revoked sessions are rejected on subsequent protected requests with a documented bounded revocation policy.
+- [x] Refresh cannot restore removed memberships or permissions; grants are not trusted indefinitely from stale claims.
+- [x] Tests cover recovery/invitation abuse, token substitution, organization mismatch, expiration and disabled users.
 
 Verification: focused service/HTTP tests; isolated provider fixtures where needed; build/pack affected packages and update registration/endpoint documentation.
 
+Verified: IBM-0079 and IBM-0080 implement the optional Identity services/API adapter. 53 focused tests, 216 existing Identity tests and 34 Management foundation tests passed. Runtime signup/recovery remain closed; validated invitations are MGT-012. Per-request storage checks reject subsequent requests after membership/role/session changes; requests already authorized may finish. Shared-account prefixes provide logical isolation only. Cloud credential/RBAC setup remains an operator responsibility.
+
 ## MGT-F03: Deployment-scoped management credentials
+
+Estimate: **10 points**, summed from the cards below.
 
 Each application/environment issues its own revocable machine credential with explicit diagnostic capabilities. Store only secret hashes in ManagementApiCredentials and reject those credentials on ordinary application endpoints.
 
 Dependencies: MGT-F01.
 
 ### MGT-004 / IBM-0081: Persist and provision target management credentials
+
+Estimate: **5 points**.
 
 Add ManagementApiCredentialEntity and entity-focused Azure Table repository, trusted issue/rotate/revoke setup operations, and explicit deployment binding. Reuse safe cryptographic techniques without turning an existing tenant-admin key into an application-wide key.
 
@@ -91,6 +109,8 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 ### MGT-005 / IBM-0082: Authenticate target management keys with bounded capabilities
 
+Estimate: **5 points**.
+
 Implement dedicated target authentication scheme and management context, /info integration, operation checks and optional network restrictions; do not alter default customer auth.
 
 Touches: IBeam.Management.Diagnostics.Api/Authentication/, IBeam.Management.Services/Credentials/.
@@ -105,11 +125,15 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 ## MGT-F04: Read sanitized system errors
 
+Estimate: **10 points**, summed from the cards below.
+
 Read existing SystemErrors through read-only repository adapters and safe DTOs. Expose bounded list/detail target endpoints, with application isolation and protected opaque record IDs/cursors; suppress unsafe legacy content.
 
 Dependencies: MGT-F03.
 
 ### MGT-006 / IBM-0083: Read existing error partitions with protected identifiers and bounded queries
+
+Estimate: **5 points**.
 
 Implement SystemErrorEntity read adapter for ERR|yyyyMMdd partitions and current row keys, DiagnosticQuery and cursor codec. Keep diagnostics storage separately configurable from management identity storage.
 
@@ -126,6 +150,8 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 ### MGT-007 / IBM-0084: Expose safe error list/detail service and target endpoints
 
+Estimate: **5 points**.
+
 Add SystemErrorReaderService and GET /api/management-diagnostics/system-errors and /{errorId}. Return allowlisted safe fields; no raw exception or request payload exposure.
 
 Touches: IBeam.Management.Services/Diagnostics/SystemErrorReaderService.cs, IBeam.Management.Diagnostics.Api/Controllers/.
@@ -141,11 +167,15 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 ## MGT-F05: Read sanitized system logs
 
+Estimate: **8 points**, summed from the cards below.
+
 Read approved operational SystemLogs from the existing logging provider while excluding business audit payloads and unsafe free text. Support bounded source/level/trace filtering and list/detail endpoints.
 
 Dependencies: MGT-F03, MGT-F04.
 
 ### MGT-008 / IBM-0085: Implement operational log reader and projection policy
+
+Estimate: **5 points**.
 
 Add AzureTableSystemLogReadRepository and SystemLogReaderService using existing SYSTEM|DAY|yyyyMMdd records. Do not expose EntityChange/SelectRollup or before/after/original/transformed JSON.
 
@@ -161,6 +191,8 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 ### MGT-009 / IBM-0086: Expose target log list/detail endpoints
 
+Estimate: **3 points**.
+
 GET /api/management-diagnostics/system-logs and /{logId}; IBeam response helpers, service permissions/audit and deployment-bound detail lookup.
 
 Touches: IBeam.Management.Diagnostics.Api/Controllers/, IBeam.Tests.Management/.
@@ -174,11 +206,15 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 ## MGT-F06: Application registry and secret-backed connections
 
+Estimate: **13 points**, summed from the cards below.
+
 Register Qurvia, Bindry or MedInsights per environment, store backend-only secret references and test registered target connections. Separate metadata from credential material and limit outbound destinations.
 
 Dependencies: MGT-F02, MGT-F03.
 
 ### MGT-010 / IBM-0087: Persist application registry and configuration endpoints
+
+Estimate: **5 points**.
 
 ManagementApplicationEntity/ManagementApplications, entity-focused repository and service; GET/POST /api/management/applications and GET/PATCH /{applicationId}. Scope by management organization; one record per app/environment.
 
@@ -193,6 +229,8 @@ Touches: IBeam.Management/Entities/ManagementApplicationEntity.cs, IBeam.Managem
 Verification: focused service/HTTP tests; isolated provider fixtures where needed; build/pack affected packages and update registration/endpoint documentation.
 
 ### MGT-011 / IBM-0088: Store connection secrets and verify registered target identities
+
+Estimate: **8 points**.
 
 ManagementApplicationCredentialEntity/ManagementApplicationCredentials, IManagementSecretStore with environment-reference and secret-store adapters; PUT /applications/{id}/connection and POST /connection/test.
 
@@ -209,11 +247,15 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 ## MGT-F07: Support users and per-application access
 
+Estimate: **13 points**, summed from the cards below.
+
 Invite and disable named support users, assign one person to one or many registered apps, and independently grant error/log reading. Every operation enforces support-organization scope and current assignments.
 
 Dependencies: MGT-F02, MGT-F06.
 
 ### MGT-012 / IBM-0089: Expose controlled support directory and invitation lifecycle
+
+Estimate: **5 points**.
 
 ManagementSupportUserService wrapping existing Identity directory/invite services; GET /support-users, POST /support-invitations, POST /support-invitations/accept and PATCH /support-users/{userId}.
 
@@ -229,6 +271,8 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 ### MGT-013 / IBM-0090: Persist app assignments and enforce access/delegation boundaries
 
+Estimate: **8 points**.
+
 ManagementApplicationAccessEntity/ManagementApplicationAccess plus repository and service; GET/PUT/DELETE /applications/{id}/support-users[/{userId}]. Initial grants are management.system-errors.read and management.system-logs.read.
 
 Touches: IBeam.Management/Entities/ManagementApplicationAccessEntity.cs, IBeam.Management.Services/Access/, IBeam.Management.Repositories.AzureTable/, IBeam.Management.Api/Controllers/.
@@ -243,11 +287,15 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 ## MGT-F08: Portal application switching and diagnostic orchestration
 
+Estimate: **11 points**, summed from the cards below.
+
 One portal session lists only accessible applications and proxies approved error/log queries through per-app backend credentials. Switch app context without customer-app login or exposing target secrets.
 
 Dependencies: MGT-F04, MGT-F05, MGT-F06, MGT-F07.
 
 ### MGT-014 / IBM-0091: Implement application diagnostics client and portal read endpoints
+
+Estimate: **8 points**.
 
 IApplicationDiagnosticsClient HTTP adapter and ManagementDiagnosticsService; GET /applications/{id}/system-errors[/{errorId}] and /system-logs[/{logId}]. Reuse safe target contracts and registered connection resolver.
 
@@ -263,6 +311,8 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 ### MGT-015 / IBM-0092: Expose authorized selector contract and verify multi-app session behavior
 
+Estimate: **3 points**.
+
 GET /api/management/applications returns only current authorized entries/capabilities; /me reports management context. Document the future UI dropdown flow; defer portal UI and IBeam.Admin.API changes.
 
 Touches: IBeam.Management.Services/Applications/, IBeam.Management.Api/, IBeam.Tests.Management/, docs/management/.
@@ -277,11 +327,15 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 ## MGT-F09: Management audit and diagnostic data isolation
 
+Estimate: **10 points**, summed from the cards below.
+
 Record support actor, target, operation and result without customer content or secrets. Apply shared safe diagnostic projections and ensure audit durability/retention/access rules are explicit.
 
 Dependencies: MGT-F02, MGT-F03.
 
 ### MGT-016 / IBM-0093: Persist management audit and correlation without sensitive snapshots
+
+Estimate: **5 points**.
 
 ManagementAuditEntity/ManagementAudit, repository and sink integration with IServiceOperationExecutor; source operation/context only, no submitted secret or diagnostic payload snapshots.
 
@@ -297,6 +351,8 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 ### MGT-017 / IBM-0094: Verify diagnostic source isolation and safe historical-data behavior
 
+Estimate: **5 points**.
+
 Cross-cutting source binding, safe projection policy and negative tests against current SystemErrors/SystemLogs schemas; shared-source migration strategy remains explicit.
 
 Touches: IBeam.Management.Services/Diagnostics/, IBeam.Management.Repositories.AzureTable/Diagnostics/, IBeam.Tests.Management/, docs/management/.
@@ -311,11 +367,15 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 ## MGT-F10: NuGet packaging, integration verification and host handoff
 
+Estimate: **11 points**, summed from the cards below.
+
 Ship consumable framework packages and a reproducible test matrix for separate/shared identity storage and multiple applications. Document the later IBeam.Admin.API instance work without renaming or editing that repository now.
 
 Dependencies: MGT-F01, MGT-F02, MGT-F03, MGT-F04, MGT-F05, MGT-F06, MGT-F07, MGT-F08, MGT-F09.
 
 ### MGT-018 / IBM-0095: Verify full API boundary matrix and package consumption
+
+Estimate: **8 points**.
 
 Focused HTTP/service/repository tests, opt-in Azurite diagnostics fixtures and NuGet consumer smoke test across all management packages.
 
@@ -330,6 +390,8 @@ Touches: IBeam.Tests.Management/, IBeam.sln, build/, docs/management/.
 Verification: focused service/HTTP tests; isolated provider fixtures where needed; build/pack affected packages and update registration/endpoint documentation.
 
 ### MGT-019 / IBM-0096: Document deployment and deferred IBeam.Admin.API instance integration
+
+Estimate: **3 points**.
 
 README/configuration/endpoint examples, table/credential bootstrap and rotation/runbook, application onboarding, troubleshooting and deferred consumer-host handoff.
 

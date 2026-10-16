@@ -79,6 +79,14 @@ public static class ManagementIdentityConfiguration
         values["IBeam:Identity:Features:PasswordAuth"] = "true";
         values["IBeam:Identity:Features:TwoFactor"] = "true";
         values["IBeam:Identity:Features:ClaimsEnrichment"] = "true";
+        values["IBeam:Identity:Events:StrictPublishFailures"] = "true";
+        values.TryAdd("IBeam:Identity:Jwt:Audience", "ibeam-management");
+        values.TryAdd("IBeam:Identity:Jwt:Issuer", "IBeam.Management.Identity");
+        values.TryAdd("IBeam:Identity:Jwt:AccessTokenMinutes", "10");
+        values.TryAdd("IBeam:Identity:Jwt:SessionInactivityMinutes", "30");
+        values.TryAdd("IBeam:Identity:Jwt:SessionAbsoluteLifetimeDays", "1");
+        if (values["IBeam:Identity:Jwt:Audience"] == source["IBeam:Identity:Jwt:Audience"])
+            throw new InvalidOperationException("Management and customer JWT audiences must differ.");
         return new ConfigurationBuilder().AddInMemoryCollection(values).Build();
     }
 

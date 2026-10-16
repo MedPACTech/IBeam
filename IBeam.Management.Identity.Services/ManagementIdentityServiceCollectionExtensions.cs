@@ -13,7 +13,8 @@ public static class ManagementIdentityServiceCollectionExtensions
     public static IServiceCollection AddIBeamManagementIdentityServices(this IServiceCollection services, IConfiguration configuration)
     {
         // Provider services/options are not keyed. Two Identity realms cannot share one service collection.
-        if (services.Any(x => x.ServiceType == typeof(IIdentityUserStore)))
+        if (services.Any(x => x.ServiceType == typeof(IIdentityUserStore) ||
+            x.ServiceType == typeof(ITokenService) || x.ServiceType == typeof(IIdentityTenantService)))
             throw new InvalidOperationException("Management Identity requires its own host/service collection.");
         var isolated = ManagementIdentityConfiguration.Build(configuration);
         services.AddOptions<ManagementIdentityOptions>()
@@ -23,6 +24,15 @@ public static class ManagementIdentityServiceCollectionExtensions
         services.AddIBeamIdentityAzureTable(isolated, registerSchemaHostedService: false);
         services.AddIBeamIdentityServices(isolated);
         services.AddIBeamManagementServices();
+        services.AddIBeamIdentityAuthPasswordService();
+        services.AddScoped<IBeam.Identity.Services.Auth.PasswordAuthService>();
+        services.Replace(ServiceDescriptor.Scoped<IIdentityAuthService, ManagementPasswordAuthService>());
+        services.AddScoped<ManagementIdentityMembershipService>();
+        services.AddScoped<ManagementIdentitySessionService>();
+        services.AddScoped<ManagementSupportAccessService>();
+        services.AddScoped<IManagementIdentityAuthenticationService, ManagementIdentityAuthenticationService>();
+        services.AddScoped<IClaimsEnricher, ManagementIdentityClaimsEnricher>();
+        services.Replace(ServiceDescriptor.Scoped<IAuthLifecycleHook, ManagementIdentityEnrollmentHook>());
         services.TryAddScoped<IManagementIdentityBootstrapService, ManagementIdentityBootstrapService>();
         return services;
     }
