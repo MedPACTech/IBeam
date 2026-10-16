@@ -275,6 +275,32 @@
           "points": 3,
           "implementationStatus": "verified",
           "verification": "Opt-in GET /api/management-diagnostics/system-logs and /{logId} via AddIBeamManagementSystemLogsApi; Logs.Read capability composes with errors in /info. HTTP tests cover anonymous/customer/human/legacy/revoked/expired/other-deployment/info-only/errors-only denial with zero reads, cross-type error IDs/cursors, invalid ranges/filters/cursors without echo, uniform 404s, sanitized 503, 504 deadline, no write routes, direct service calls without HTTP context, missing-repository startup failure and a read-only SAS end-to-end run. The shared diagnostics filter was renamed ManagementDiagnosticApiFilter (internal)."
+        },
+        {
+          "key": "MGT-020",
+          "title": "Make diagnostic sanitization configurable (on/off) for errors and logs",
+          "scope": "Integrate the other agent's configurable errors/logs sanitization change and reconcile portal projection/capability behavior against current development; do not recreate inaccessible work without a new decision.",
+          "paths": [
+            "IBeam.Management/Models/",
+            "IBeam.Management.Services/Diagnostics/",
+            "IBeam.Management.Repositories.AzureTable/Diagnostics/",
+            "IBeam.Management.Diagnostics.Api/",
+            "IBeam.Tests.Management.Diagnostics/"
+          ],
+          "ac": [
+            "A missing, blank or true setting yields exactly the sanitized projection, proven by the existing canary-fixture tests.",
+            "An explicit false setting returns the previously suppressed fields in list and detail responses.",
+            "No request input (query, header, body, claim) can change the mode, and a test proves it.",
+            "Management audit stays sanitized when sanitization is off, proven by canary fixtures.",
+            "The effective mode is advertised in target capabilities, and a startup warning is logged when it is off.",
+            "The option is documented in the package README and configuration docs, including the default.",
+            "A Production host or Production management deployment refuses to start with sanitization off."
+          ],
+          "hubbslyId": "6684ca3b-1e8b-48b1-8d16-e1104896eede",
+          "hubbslySourceKey": "IBM-0097",
+          "points": 3,
+          "implementationStatus": "deferred",
+          "verification": "Delivery handoff 2026-10-16: deferred at Abram's explicit instruction because the commit is unavailable on this system and the named remote branch is absent. Original framework scope IBM-0078 through IBM-0096 is completing in development. Do not mark this card or its feature/epic complete without integrating and verifying the missing change. Reconcile with the current portal client/second projection and capability reporting when the branch is recovered; current portal output remains sanitized."
         }
       ],
       "hubbslyId": "6ab554f2-ace5-4daf-bc02-f3d6cea1dbe0",
@@ -485,7 +511,7 @@
           "hubbslySourceKey": "IBM-0093",
           "points": 5,
           "implementationStatus": "done",
-          "verification": "IBM-0093 (5 points): append-only ManagementAuditEntity/IManagementAuditRepository and Azure Table adapter; dedicated Management-only operation-executor adapter preserves customer audit configuration and sinks. Exact operation allowlist, trusted human/machine principal metadata, org/app/subject IDs as applicable, result/time/expiry and generated correlation. Generic error/request/snapshot/key/hash fields are discarded. Portal client emits generated machine-link correlation; authenticated target filter accepts only one bounded valid ID and never trusts human actor headers. Configurable 1–3650 day retention metadata with explicit separate operator cleanup, bounded 1–30 second audit write deadline, fail-closed default or measured best effort. No reader/mutation/delete API. Tests cover raw canaries on success/failure, real HTTP read/denied audit, machine credential identity, correlation handling, customer audit preservation, bounded failure attempts, retention bounds and real append-only Table persistence/no runtime provisioning. 91 Applications tests passed with private Azurite; 124 non-storage Diagnostics tests passed; Release repository pack passed. Retention deletion is intentionally deployment-owned because Azure Tables have no automatic TTL; cross-table audit/mutation atomicity is not claimed and recovery policy is documented.\r\nFollow-up integration review: audit human attribution now mirrors the service guard across uid/sub/NameIdentifier, including uid-only BYO authentication; conflicting aliases remain unknown on denied events. All 95 Applications checks passed with private storage, including four alias cases."
+          "verification": "IBM-0093 (5 points): append-only ManagementAuditEntity/IManagementAuditRepository and Azure Table adapter; dedicated Management-only operation-executor adapter preserves customer audit configuration and sinks. Exact operation allowlist, trusted human/machine principal metadata, org/app/subject IDs as applicable, result/time/expiry and generated correlation. Generic error/request/snapshot/key/hash fields are discarded. Portal client emits generated machine-link correlation; authenticated target filter accepts only one bounded valid ID and never trusts human actor headers. Configurable 1–3650 day retention metadata with explicit separate operator cleanup, bounded 1–30 second audit write deadline, fail-closed default or measured best effort. No reader/mutation/delete API. Tests cover raw canaries on success/failure, real HTTP read/denied audit, machine credential identity, correlation handling, customer audit preservation, bounded failure attempts, retention bounds and real append-only Table persistence/no runtime provisioning. 91 Applications tests passed with private Azurite; 124 non-storage Diagnostics tests passed; Release repository pack passed. Retention deletion is intentionally deployment-owned because Azure Tables have no automatic TTL; cross-table audit/mutation atomicity is not claimed and recovery policy is documented.\r\nFollow-up integration review: audit human attribution now mirrors the service guard across uid/sub/NameIdentifier, including uid-only BYO authentication; conflicting aliases remain unknown on denied events. All 95 Applications checks passed with private storage, including four alias cases.\r\nFinal audit review: reserve the new app GUID before its service operation so app registration audit includes the exact created application ID, without attaching request/entity snapshots. Real HTTP create/audit identity assertion and all 95 Applications tests passed with private storage."
         },
         {
           "key": "MGT-017",
@@ -570,7 +596,9 @@
           ],
           "hubbslyId": "27d4d7a4-0739-41ad-906b-8eb2b2db96d8",
           "hubbslySourceKey": "IBM-0096",
-          "points": 3
+          "points": 3,
+          "implementationStatus": "done",
+          "verification": "IBM-0096 (3 points): docs/management/deployment-and-handoff.md provides project/package responsibility and API -> Services -> Repository paths; exact host registrations and route inventory; separate/shared Identity settings, table/schema names, credential isolation, trusted named schemes/audiences, MFA/session/lockout and one-off administrator bootstrap; independent target credential/error/log storage and source-trust configuration; writable Key Vault versus deployment-managed environment bindings; app connection onboarding and named app grants; target credential issue/rotation/revocation and non-atomic cutover/cleanup; approved public HTTPS/DNS/TLS policy, CIDR restrictions and trusted proxy order, request/log redaction and bounded URI limits; append-only audit retention, timeout/failure/recovery semantics. All eight package READMEs, root README and relevant agent prompts match the shipped selector/portal/audit contracts. Local links/configuration JSON checked against source and package smoke registrations. Final validation has 732 passing checks, zero skipped, with private storage; all eight Management packages plus 20-package dependency closure packed/inspected, and fresh package-only two-target smoke passed after the final audit corrections. Linux Validate Management Boundary workflow also passed at fdde647. Original IBM-0078..0096 framework scope is 19 cards / 104 points. The extra IBM-0097 is explicitly deferred by user instruction: local external commit/remote branch unavailable; current portal remains sanitized and recovery must reconcile projection/capability behavior. MGT-F05 estimate corrected to 11 points / 3 cards, epic total 107 points / 20 cards. IBeam.Admin.API remains the unchanged deferred published-NuGet portal instance, future name undecided; no frontend/rename/deployment/manual publishing performed."
         }
       ],
       "hubbslyId": "907c97ad-60ed-411d-8939-b6db0c4156ba",

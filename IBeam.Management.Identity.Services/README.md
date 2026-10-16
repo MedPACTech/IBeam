@@ -22,7 +22,7 @@ Trusted setup:
 
 Management users, OTP, indexes and sessions are independent from customer identities even if emails or generated user IDs coincide. The support organization is not a customer tenant.
 
-For selected password/MFA/refresh/logout endpoints, reference IBeam.Management.Identity.Api and call AddIBeamManagementIdentityApi instead of registering these services twice. Do not expose the generic Identity controller assembly in the management host. The adapter blocks generic enrollment, recovery, tenant selection and MFA changes even through IIdentityAuthService; invitation onboarding is a later feature. Every protected request and refresh checks current membership, role catalog and persisted MFA session without caching. Only ManagementAdministrator may disable another support membership and revoke its sessions.
+For selected password/MFA/refresh/logout endpoints, reference IBeam.Management.Identity.Api and call AddIBeamManagementIdentityApi instead of registering these services twice. Do not expose the generic Identity controller assembly in the management host. The adapter blocks generic enrollment, recovery, tenant selection and MFA changes even through IIdentityAuthService; controlled invitation onboarding is supplied by the separate support administration module. Every protected request and refresh checks current membership, role catalog and persisted MFA session without caching. Only ManagementAdministrator may disable another support membership and revoke its sessions.
 
 ## Application administration permission
 
@@ -43,3 +43,5 @@ Routine disablement is membership-first followed by session revocation. Every pr
 ## App-assignment permission mapping
 
 The exact live ManagementAdministrator role additionally supplies management.application-access.admin and the errors/logs delegation permissions. Claims are rebuilt at MFA issuance and each protected request/refresh; removed roles lose those grants immediately. ManagementSupport receives no administrative or delegation permission. IManagementSupportUserStateProvider resolves current organization status, user MFA, membership and live catalog roles for assignment checks. Application assignments remain in their own management table rather than Identity role/user profile rows.
+
+Deployment configuration, identity storage choices, MFA/bootstrap, onboarding, exact registrations/endpoints, network/proxy policy, secret rotation, audit retention/failure behavior and the deferred consumer host are covered by the [Management deployment handoff](https://github.com/MedPACTech/IBeam/blob/development/docs/management/deployment-and-handoff.md). [Source/history isolation](https://github.com/MedPACTech/IBeam/blob/development/docs/management/diagnostic-source-isolation.md) describes which historical rows may be exposed. Generated-package validation uses the package-only two-target smoke sample; IBM-0097 configurable scrubbing remains deferred.

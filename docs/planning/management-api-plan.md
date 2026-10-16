@@ -2,7 +2,7 @@
 
 Date: 2026-10-15
 
-Epic estimate: **104 points** across 10 features and 19 cards. Cards use Fibonacci estimates; feature totals are their sums. Hubbsly stores points on cards, with feature totals recorded in feature descriptions.
+Epic estimate: **107 points** across 10 features and 20 cards (including deferred IBM-0097). Cards use Fibonacci estimates; feature totals are their sums. Hubbsly stores points on cards, with feature totals recorded in feature descriptions.
 
 Deliver reusable IBeam NuGet packages for a central support portal API: one isolated MFA support login, app/environment registration and secret-backed connections, support-user assignments to one or many apps, and read-only sanitized system errors/logs through deployment-scoped management credentials. Preserve API -> Services -> Repository and consumer/customer data isolation. Support separate identity storage or separate prefixed tables in shared storage. Defer customer provisioning, impersonation, frontend work, production publishing/deployment and changes/rename to IBeam.Admin.API, the future NuGet-consuming test host.
 
@@ -175,7 +175,7 @@ Verified IBM-0084: 68 diagnostics tests, 61 credential tests and 34 management f
 
 ## MGT-F05: Read sanitized system logs
 
-Estimate: **8 points**, summed from the cards below.
+Estimate: **11 points**, summed from the cards below.
 
 Read approved operational SystemLogs from the existing logging provider while excluding business audit payloads and unsafe free text. Support bounded source/level/trace filtering and list/detail endpoints.
 
@@ -216,6 +216,11 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 Verified IBM-0086: Opt-in GET /api/management-diagnostics/system-logs and /{logId} via AddIBeamManagementSystemLogsApi; Logs.Read capability composes with errors in /info. HTTP tests cover anonymous/customer/human/legacy/revoked/expired/other-deployment/info-only/errors-only denial with zero reads, cross-type error IDs/cursors, invalid ranges/filters/cursors without echo, uniform 404s, sanitized 503, 504 deadline, no write routes, direct service calls without HTTP context, missing-repository startup failure and a read-only SAS end-to-end run. The shared diagnostics filter was renamed ManagementDiagnosticApiFilter (internal).
 
+### MGT-020 / IBM-0097: Configurable sanitization for errors and logs (deferred)
+
+Estimate: **3 points**. Hubbsly card: 6684ca3b-1e8b-48b1-8d16-e1104896eede.
+
+The other agent's locally committed implementation is unavailable. Recover its branch/commit before integrating; reconcile capability reporting and the portal's second projection with current development. Preserve independent module settings, explicit source/category/deployment restrictions, safe audits and the agreed startup policy. Current framework output remains sanitized. See the card for upstream implementation evidence; do not treat that evidence as a merged delivery.
 ## MGT-F06: Application registry and secret-backed connections
 
 Estimate: **13 points**, summed from the cards below.
@@ -416,3 +421,9 @@ Touches: docs/management/, IBeam.Management*/README.md.
 - [ ] No repository rename, production deployment, NuGet publishing or frontend implementation is performed by this handoff card.
 
 Verification: focused service/HTTP tests; isolated provider fixtures where needed; build/pack affected packages and update registration/endpoint documentation.
+
+## Delivery handoff (2026-10-16)
+
+IBM-0078 through IBM-0096 deliver the original 19-card framework scope (104 points), merged to development card by card. The deployment guide is docs/management/deployment-and-handoff.md and repeatable package-only consumer validation is samples/Management.PackageSmoke. IBeam.Admin.API remains deferred and unchanged.
+
+IBM-0097 adds 3 points to MGT-F05 (now 11 points across 3 cards). It remains deferred by explicit user instruction: the other agent's local commit fe8c955 / feature/IBM-0097-configurable-sanitization is not available in this checkout or remote. The epic therefore has 20 cards / 107 points with that additional work included. Do not mark the epic fully complete until the commit is recovered, reconciled with the current portal projection/capability contract and verified. Current delivered errors/logs output remains safely projected.

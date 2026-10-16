@@ -2,7 +2,7 @@
 
 Transport-independent contracts for support management. This package has no Identity, ASP.NET Core, service or repository dependency.
 
-The first delivery provides named-human support identity and deployment-bound machine capability contracts. Public operations are `management.identity.read` and `management.diagnostics.info`. Deployment credential entity/repository/provisioning contracts now support explicit diagnostic permissions; optional adapters implement storage and verification. Safe system-error DTOs and opt-in list/detail API support are available; logs and staff/application assignments remain separate epic work.
+Contracts cover isolated human support identity, app/environment registration, verified target connections, per-user app assignments, an authorized selector, safe errors/logs, backend portal orchestration and append-only management audit. Optional packages provide HTTP, Identity, storage and secret-store integrations.
 
 Management context claims must be issued by trusted authentication after the appropriate membership/MFA or machine credential checks. They are not browser-supplied fields and must not be copied from arbitrary customer claims. Support organization identity is distinct from customer tenant identity.
 
@@ -13,3 +13,5 @@ See `docs/planning/management-api-plan.md` in the source repository for the comp
 ## Application registry and connection contracts
 
 ManagementApplicationEntity represents organization-scoped app/environment metadata. ManagementApplicationCredentialEntity stores verified connection metadata plus a non-public secret reference. IManagementApplicationService and IManagementApplicationConnectionService expose administrator operations, without requiring IBeam Identity. IManagementSecretStore supports read-only references or writable stores; ManagementSecretValue and connection request models suppress secret serialization and redact ToString. No contracts depend on Azure, HTTP or Identity.
+
+Deployment configuration, identity storage choices, MFA/bootstrap, onboarding, exact registrations/endpoints, network/proxy policy, secret rotation, audit retention/failure behavior and the deferred consumer host are covered by the [Management deployment handoff](https://github.com/MedPACTech/IBeam/blob/development/docs/management/deployment-and-handoff.md). [Source/history isolation](https://github.com/MedPACTech/IBeam/blob/development/docs/management/diagnostic-source-isolation.md) describes which historical rows may be exposed. Generated-package validation uses the package-only two-target smoke sample; IBM-0097 configurable scrubbing remains deferred.
