@@ -34,6 +34,7 @@ internal sealed class MemoryApplicationCredentials : IManagementApplicationCrede
 internal sealed class MemorySecrets : IManagementSecretStore
 {
     public bool SupportsWrites { get; set; } = true;
+    public int Reads { get; private set; }
     public Dictionary<string, (ManagementSecretScope Scope, string Value)> Rows { get; } = [];
     public Task<string> CreateAsync(ManagementSecretScope scope, ManagementSecretValue value, CancellationToken ct = default)
     {
@@ -45,6 +46,7 @@ internal sealed class MemorySecrets : IManagementSecretStore
     public Task<ManagementSecretValue> ReadAsync(ManagementSecretScope scope, string reference, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
+        Reads++;
         var row = Rows[reference];
         if (row.Scope != scope) throw new ManagementSecretStoreUnavailableException();
         return Task.FromResult(new ManagementSecretValue(row.Value));

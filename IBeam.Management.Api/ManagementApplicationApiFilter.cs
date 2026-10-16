@@ -25,6 +25,11 @@ internal sealed class ManagementApplicationApiFilter : IResourceFilter, IActionF
             ManagementApplicationUnavailableException or ManagementConnectionUnavailableException => 503,
             ManagementConnectionInvalidException => 400,
             ManagementConnectionTimeoutException => 504,
+            IBeam.Management.Models.DiagnosticQueryException or IBeam.Management.Models.DiagnosticTokenException => 400,
+            IBeam.Management.Models.ManagementDiagnosticNotFoundException => 404,
+            IBeam.Management.Models.ManagementDiagnosticUnavailableException => 503,
+            IBeam.Management.Models.ManagementPortalResponseException => 502,
+            IBeam.Management.Models.ManagementPortalRateLimitException => 429,
             _ => 0
         };
         if (status == 0) return;

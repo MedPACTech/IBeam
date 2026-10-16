@@ -1,0 +1,74 @@
+using System.Security.Claims;
+using System.Text.Encodings.Web;
+using IBeam.Management;
+using IBeam.Management.Api;
+using IBeam.Management.Models;
+using IBeam.Management.Services.Diagnostics;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+namespace IBeam.Tests.Management.Applications;
+
+internal sealed class PortalHttpFixture : IAsyncDisposable
+{
+    public PortalFixture Data { get; } = new();
+    public WebApplication App { get; private set; } = null!;
+    public HttpClient Client { get; private set; } = null!;
+    public Guid OtherUser { get; } = Guid.NewGuid();
+    public Guid OtherOrg { get; } = Guid.NewGuid();
+    public Guid ForeignUser { get; } = Guid.NewGuid();
+    public static async Task<PortalHttpFixture> CreateAsync(bool install = true, bool selector = false)
+    {
+        var f = new PortalHttpFixture();
+        f.Data.Access.Users[(f.Data.Access.Org, f.OtherUser)] = new(f.Data.Access.Org, f.OtherUser, true, false);
+        f.Data.Access.Users[(f.OtherOrg, f.ForeignUser)] = new(f.OtherOrg, f.ForeignUser, true, false);
+        var b = WebApplication.CreateBuilder(); b.Logging.ClearProviders(); b.WebHost.UseTestServer();
+        b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
+            ["IBeam:Management:Connections:ApprovedOrigins:0"] = "https://api.qurvia.app",
+            ["IBeam:Management:Connections:ApprovedOrigins:1"] = "https://api.bindry.app",
+            ["IBeam:Management:PortalDiagnostics:ProtectionKey"] = f.Data.Options.ProtectionKey,
+            ["IBeam:Management:PortalDiagnostics:TimeoutSeconds"] = "1" });
+        b.Services.AddSingleton(f);
+        b.Services.AddAuthentication("Customer").AddScheme<AuthenticationSchemeOptions, PortalAuthentication>("Customer", _ => {})
+            .AddScheme<AuthenticationSchemeOptions, PortalAuthentication>("Support", _ => {});
+        b.Services.AddControllers().ConfigureApplicationPartManager(x => x.ApplicationParts.Clear());
+        b.Services.AddIBeamManagementApi(b.Configuration, x => x.AuthenticationScheme = "Support");
+        b.Services.AddSingleton<IManagementApplicationRepository>(f.Data.Access.Apps);
+        b.Services.AddSingleton<IManagementApplicationAccessRepository>(f.Data.Access.Access);
+        b.Services.AddSingleton<IManagementSupportUserStateProvider>(f.Data.Access);
+        b.Services.AddSingleton<IManagementApplicationCredentialRepository>(f.Data.Credentials);
+        b.Services.AddSingleton<IManagementSecretStore>(f.Data.Secrets);
+        b.Services.AddSingleton<IApplicationDiagnosticsClient>(_ => f.Data.Client());
+        b.Services.AddSingleton<TimeProvider>(f.Data.Clock);
+        if (install) b.Services.AddIBeamManagementPortalDiagnosticsApi(b.Configuration);
+        f.App = b.Build(); f.App.UseAuthentication(); f.App.UseAuthorization(); f.App.MapControllers();
+        try { await f.App.StartAsync(); } catch { await f.App.DisposeAsync(); f.Data.Dispose(); throw; }
+        f.Client = f.App.GetTestClient(); return f;
+    }
+    public async Task<HttpResponseMessage> Get(string path, string token = "reader")
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.Add("Authorization", "Bearer " + token); return await Client.SendAsync(request);
+    }
+    public async ValueTask DisposeAsync() { Client.Dispose(); await App.DisposeAsync(); Data.Dispose(); }
+}
+internal sealed class PortalAuthentication(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger,
+    UrlEncoder encoder, PortalHttpFixture fixture) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+{
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var token = Request.Headers.Authorization.ToString().Replace("Bearer ", "");
+        if (Scheme.Name != "Support" || token is not ("reader" or "other" or "foreign" or "admin" or "machine")) return Task.FromResult(AuthenticateResult.NoResult());
+        var org = token == "foreign" ? fixture.OtherOrg : fixture.Data.Access.Org;
+        var user = token switch { "other" => fixture.OtherUser, "foreign" => fixture.ForeignUser, "admin" => fixture.Data.Access.Admin, _ => fixture.Data.Access.Reader };
+        var claims = new List<Claim> { new("sub", user.ToString()), new(ManagementClaimTypes.SubjectType, token == "machine" ? ManagementSubjectTypes.Credential : ManagementSubjectTypes.Human),
+            new(ManagementClaimTypes.OrganizationId, org.ToString()), new(ManagementClaimTypes.Permission, ManagementOperations.IdentityRead) };
+        if (token == "admin") claims.Add(new(ManagementClaimTypes.Permission, ManagementApplicationOperations.Admin));
+        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, Scheme.Name)), Scheme.Name)));
+    }
+}

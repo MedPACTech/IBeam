@@ -425,7 +425,9 @@
           ],
           "hubbslyId": "85246cfe-adcf-45ca-9a03-0e302195f40d",
           "hubbslySourceKey": "IBM-0091",
-          "points": 8
+          "points": 8,
+          "implementationStatus": "done",
+          "verification": "IBM-0091 (8 points): implemented optional app-scoped portal errors/logs list/detail endpoints and typed HTTP client. Current human identity, live user/app assignments and capabilities checked before secrets/outbound and before/after data. Registered target identity checked each request. AES-GCM IDs/cursors bind org/user/app/operation/environment/origin/credential/app version; frozen queries and bounded requests. Fixed HTTPS routes, existing public DNS pinning policy, no redirects/proxies/forwarded browser headers, server-side keys only. Safe second projection and safe failure/cancellation handling; no customer repository dependencies or request/data snapshots. 82 non-storage Applications checks passed (including real optional TestServer endpoints, cross-app/user/operation/rotation/expiry, revocation before data, denied-before-secret, raw canaries, malformed envelope, rate limit, outage and deadlines). Release API pack passed. Storage adapters unchanged; their private-emulator regression runs are scheduled in the epic validation card. IBM-0097 remains deferred by explicit user instruction."
         },
         {
           "key": "MGT-015",
