@@ -18,7 +18,10 @@ public sealed class ManagementCredentialConflictException : Exception
 
 public sealed record ManagementCredentialMetadata(
     Guid CredentialId, string ApplicationKey, string Environment,
-    IReadOnlyList<string> Capabilities, string Status, DateTimeOffset ExpiresUtc);
+    IReadOnlyList<string> Capabilities, string Status, DateTimeOffset ExpiresUtc)
+{
+    [JsonIgnore] public string Version { get; init; } = "";
+}
 
 public sealed class ManagementIssuedCredential
 {

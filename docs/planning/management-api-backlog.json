@@ -1,31 +1,11 @@
 {
   "epic": {
     "id": "82013b53-bbfc-429f-9e06-8ccaf0522689",
-    "conceptId": null,
-    "productId": "38d04a26-2c32-b02e-0b2a-c49a044ad016",
-    "projectId": "7082c7e5-ab08-42e8-a1a3-67eba0755c5d",
     "title": "Management API",
+    "projectId": "7082c7e5-ab08-42e8-a1a3-67eba0755c5d",
+    "productId": "38d04a26-2c32-b02e-0b2a-c49a044ad016",
     "outcome": "Deliver reusable IBeam NuGet packages for a central support portal API: one isolated MFA support login, app/environment registration and secret-backed connections, support-user assignments to one or many apps, and read-only sanitized system errors/logs through deployment-scoped management credentials. Preserve API -> Services -> Repository and consumer/customer data isolation. Support separate identity storage or separate prefixed tables in shared storage. Defer customer provisioning, impersonation, frontend work, production publishing/deployment and changes/rename to IBeam.Admin.API, the future NuGet-consuming test host.",
-    "ownerUserId": "5980a74c-5e91-4668-bc2d-8258ee157a25",
-    "ownerDisplayName": "",
-    "stage": "in_flight",
-    "startDate": null,
-    "endDate": null,
-    "discipline": "software",
-    "releaseTrack": null,
-    "value": null,
-    "effort": null,
-    "stagedOrder": null,
-    "waitingOn": "",
-    "goAtUtc": "2026-10-15T23:23:22.2707501Z",
-    "landedAtUtc": null,
-    "shippedAtUtc": null,
-    "createdUtc": "2026-10-15T23:19:12.2868353Z",
-    "updatedUtc": "2026-10-15T23:57:31.9538451Z",
-    "cardCount": 19,
-    "doneCardCount": 2,
-    "hasBlockedCard": false,
-    "featureCount": 10
+    "stage": "in_flight"
   },
   "features": [
     {
@@ -161,7 +141,10 @@
           "scope": "Implement dedicated target authentication scheme and management context, /info integration, operation checks and optional network restrictions; do not alter default customer auth.",
           "paths": [
             "IBeam.Management.Diagnostics.Api/Authentication/",
-            "IBeam.Management.Services/Credentials/"
+            "IBeam.Management.Services/Credentials/",
+            "IBeam.Management.Services/ManagementDiagnosticsInfoService.cs",
+            "IBeam.Management/",
+            "IBeam.Tests.Management.Credentials/"
           ],
           "ac": [
             "Missing/malformed/unknown/revoked/expired keys fail; customer JWT/API keys and support human tokens fail target management authentication.",
@@ -172,7 +155,9 @@
           ],
           "hubbslyId": "d8c53f20-9ff4-44c4-9598-2f19e4ed36ba",
           "hubbslySourceKey": "IBM-0082",
-          "points": 5
+          "points": 5,
+          "implementationStatus": "verified",
+          "verification": "61 credential security/HTTP/provider tests passed (including real Azure Table HTTP authentication/revocation and conditional storage writes); 34 management foundation and 60 existing Identity API tests passed. Dedicated header and reserved-route scheme, exact deployment/version checks, independent error/log grants, CIDR server-address policy, safe audit metadata, storage-outage denial and unchanged customer defaults verified. No errors/log readers, public provisioning endpoints or production publishing."
         }
       ],
       "hubbslyId": "1bab7bcb-bbde-4067-abd4-33c142eeaa63",

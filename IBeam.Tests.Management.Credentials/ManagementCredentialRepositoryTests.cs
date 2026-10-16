@@ -73,4 +73,25 @@ public sealed class ManagementCredentialRepositoryTests
         Assert.IsFalse(typeof(AzureTableManagementApiCredentialRepository).Assembly.GetReferencedAssemblies()
             .Any(x => x.Name!.Contains("Services", StringComparison.Ordinal) || x.Name.Contains("Identity", StringComparison.Ordinal)));
     }
+    [TestMethod]
+    [TestCategory("StorageIntegration")]
+    public async Task RealAzureCredentialAuthenticatesHttpAndIsRejectedAfterRevocation()
+    {
+        var connection = Environment.GetEnvironmentVariable("IBEAM_MANAGEMENT_TEST_STORAGE");
+        if (string.IsNullOrWhiteSpace(connection)) Assert.Inconclusive("Set IBEAM_MANAGEMENT_TEST_STORAGE to private Azurite.");
+        var table = new TableClient(connection, "HttpCred" + Guid.NewGuid().ToString("N"));
+        await table.CreateIfNotExistsAsync();
+        try
+        {
+            var repository = new AzureTableManagementApiCredentialRepository(table);
+            await using var fixture = await CredentialApiFixture.CreateAsync(repository: repository);
+            var issued = await fixture.Credentials.IssueAsync();
+            using var info = await fixture.GetInfoAsync(issued.ApiKey);
+            Assert.AreEqual(System.Net.HttpStatusCode.OK, info.StatusCode);
+            await fixture.Credentials.Provisioning.RevokeAsync(issued.Credential.CredentialId);
+            using var denied = await fixture.GetInfoAsync(issued.ApiKey);
+            Assert.AreEqual(System.Net.HttpStatusCode.Unauthorized, denied.StatusCode);
+        }
+        finally { await table.DeleteAsync(); }
+    }
 }

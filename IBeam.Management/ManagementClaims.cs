@@ -6,6 +6,7 @@ public static class ManagementClaimTypes
     public const string SubjectType = "ibeam_management_subject_type";
     public const string OrganizationId = "ibeam_management_organization_id";
     public const string CredentialId = "ibeam_management_credential_id";
+    public const string CredentialVersion = "ibeam_management_credential_version";
     public const string ApplicationKey = "ibeam_management_application_key";
     public const string Environment = "ibeam_management_environment";
     public const string Permission = "ibeam_management_permission";

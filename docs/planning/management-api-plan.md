@@ -117,13 +117,15 @@ Implement dedicated target authentication scheme and management context, /info i
 
 Touches: IBeam.Management.Diagnostics.Api/Authentication/, IBeam.Management.Services/Credentials/.
 
-- [ ] Missing/malformed/unknown/revoked/expired keys fail; customer JWT/API keys and support human tokens fail target management authentication.
-- [ ] Errors.Read and Logs.Read are independent; no implicit wildcard or owner/admin bypass exists.
-- [ ] Every target query validates credential and deployment; cross-deployment access is denied.
-- [ ] Optional IP controls evaluate trustworthy server/proxy-derived addresses, never an arbitrary client header.
-- [ ] Credential ID, operation and correlation are auditable without storing the raw credential; existing customer endpoint tests stay valid.
+- [x] Missing/malformed/unknown/revoked/expired keys fail; customer JWT/API keys and support human tokens fail target management authentication.
+- [x] Errors.Read and Logs.Read are independent; no implicit wildcard or owner/admin bypass exists.
+- [x] Every target query validates credential and deployment; cross-deployment access is denied.
+- [x] Optional IP controls evaluate trustworthy server/proxy-derived addresses, never an arbitrary client header.
+- [x] Credential ID, operation and correlation are auditable without storing the raw credential; existing customer endpoint tests stay valid.
 
 Verification: focused service/HTTP tests; isolated provider fixtures where needed; build/pack affected packages and update registration/endpoint documentation.
+
+Verified IBM-0082: 61 credential/HTTP/provider tests, 34 management foundation tests and 60 existing Identity API tests passed. Named scheme and reserved route scope preserve customer authentication; current deployment/version/grants are reread before operations. CIDR controls use server-observed addresses, never raw forwarded headers. Five points retained; feature total is 10 points. Error/log reader endpoints remain MGT-F04/F05.
 
 ## MGT-F04: Read sanitized system errors
 

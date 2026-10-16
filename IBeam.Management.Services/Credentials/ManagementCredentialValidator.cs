@@ -28,5 +28,5 @@ public sealed class ManagementCredentialValidator(
 
     public static ManagementCredentialMetadata Metadata(ManagementApiCredentialEntity row)
         => new(row.CredentialId, row.ApplicationKey, row.Environment,
-            Array.AsReadOnly(row.Capabilities.ToArray()), row.Status, row.ExpiresUtc);
+            Array.AsReadOnly(row.Capabilities.ToArray()), row.Status, row.ExpiresUtc) { Version = row.Version };
 }

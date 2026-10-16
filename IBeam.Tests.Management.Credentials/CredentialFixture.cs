@@ -48,12 +48,14 @@ internal sealed class MemoryCredentialRepository : IManagementApiCredentialRepos
     private readonly Dictionary<(string, string, Guid), ManagementApiCredentialEntity> _rows = [];
     private readonly object _gate = new();
     public int Reads { get; private set; }
+    public bool SimulateReadOutage { get; set; }
     public Task<ManagementApiCredentialEntity?> GetAsync(string applicationKey, string environment, Guid credentialId, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         lock (_gate)
         {
             Reads++;
+            if (SimulateReadOutage) throw new InvalidOperationException("Fixture storage unavailable.");
             return Task.FromResult(_rows.GetValueOrDefault((applicationKey, environment, credentialId)));
         }
     }
