@@ -1,0 +1,3 @@
+# IBeam.Tests.Management.Credentials
+
+Run dotnet test IBeam.Tests.Management.Credentials -c Release. Unit tests cover trusted provisioning, crypto format/verification, immediate rotation/revocation/expiry, app/environment binding, independent capabilities and secret-free audit/serialization. Set IBEAM_MANAGEMENT_TEST_STORAGE to an isolated local Azurite table connection to run StorageIntegration tests; without it they are inconclusive. Fixtures explicitly create random tables and clean only those tables. Never use production storage. Tests prove runtime reads do not create tables and stale ETags cannot overwrite revocations. No cloud deployment or external credentials are required.

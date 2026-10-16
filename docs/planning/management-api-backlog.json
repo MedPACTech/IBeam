@@ -151,7 +151,9 @@
           ],
           "hubbslyId": "f52c74f5-39c9-43c1-9567-ea18da1c209c",
           "hubbslySourceKey": "IBM-0081",
-          "points": 5
+          "points": 5,
+          "implementationStatus": "verified",
+          "verification": "19 credential tests passed, including real Azure Table lifecycle, ETag revocation protection and no runtime table creation; 34 existing management tests passed. Distinct high-entropy keys, exact deployment/capability checks, opt-in trusted operator setup and JSON/audit redaction verified. Repository depends only on contracts and Azure/DI/options, not Identity/services/APIs."
         },
         {
           "key": "MGT-005",

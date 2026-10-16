@@ -8,4 +8,16 @@ Both methods execute through `IServiceOperationExecutor`. They use dedicated man
 
 Configure `ManagementDiagnosticsOptions` (application key and environment) for a target info service. The target API module binds and validates these settings at startup.
 
-No errors/logs, database access, user provisioning, API-key verification, login/MFA endpoints or outbound application client are implemented by this foundation. These are separately scoped Hubbsly cards.
+Errors/logs reading, user/application assignments and the outbound application client remain later cards. Optional login/MFA support is in IBeam.Management.Identity.Services/Api; these general services do not depend on Identity.
+
+## Deployment credentials
+
+Register AddIBeamManagementCredentialValidation(configuration) for runtime read-only verification, and supply IManagementApiCredentialRepository (for example IBeam.Management.Repositories.AzureTable). IBeam:Management:Diagnostics:ApplicationKey and Environment bind every operation to the local deployment. Registration does not install Identity or change customer authentication.
+
+Keys are ibmgmt_v1.<credentialId in N format>.<32 random bytes encoded base64url>. Only a domain-separated, versioned SHA-256 hash is stored and checked with CryptographicOperations.FixedTimeEquals. This fast hash is for high-entropy generated credentials, never human passwords. Legacy tenant keys, JWTs and different format versions are rejected. Validation rereads current status, expiry, deployment and capabilities without caching. Infrastructure failures propagate and fail closed.
+
+Capabilities are explicit: management.diagnostics.info, management.diagnostics.errors.read and management.diagnostics.logs.read. No wildcard, owner/admin shortcut or implied Errors/Logs grants exist. Defining a capability does not expose its diagnostic endpoint; readers are later features.
+
+Trusted provisioning tooling alone calls AddIBeamManagementCredentialProvisioning(configuration). Set IBeam:Management:Credentials:Provisioning:Enabled=true only there, and replace the default-deny IManagementCredentialOperatorProvider with trusted host/operator authorization. RequireAuthorizedOperatorAsync must validate an operator independently of customer/portal roles and return a nonempty stable operator ID. No public HTTP issue/rotate/revoke route is installed. Runtime hosts register validation only and use read-only storage permissions.
+
+Resolve IManagementCredentialProvisioningService and call IssueAsync(explicitCapabilities, expiry), RotateAsync(credentialId), or RevokeAsync(credentialId). MaximumLifetimeDays defaults to 90 and accepts 1-365. Rotation retains ID, capabilities and original expiry; it never reactivates revoked/expired credentials. Conditional persistence rejects concurrent changes instead of retrying a stale rotation over a revocation. Issue/rotate return a ManagementIssuedCredential whose ApiKey property must be handed directly to a secret store. That property and stored hash are excluded from JSON and redacted from ToString. Audit operations contain metadata only; never add request/entity/return snapshots. Operator IDs are persisted with lifecycle timestamps. Durable audit delivery/correlation remains the later audit feature.

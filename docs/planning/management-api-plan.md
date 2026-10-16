@@ -99,13 +99,15 @@ Add ManagementApiCredentialEntity and entity-focused Azure Table repository, tru
 
 Touches: IBeam.Management/Entities/, IBeam.Management.Services/Credentials/, IBeam.Management.Repositories.AzureTable/.
 
-- [ ] Credential records include ID, secret hash, deployment binding, explicit capabilities, status, expiry and revocation metadata; raw secrets are returned only on issuance.
-- [ ] Credential creation/rotation is restricted to trusted target operators and is not a public portal-admin endpoint.
-- [ ] Constant-time secret verification, high-entropy issuance, revocation and expiry are tested; hashes and raw keys never enter audit snapshots.
-- [ ] Separate application/environment credentials cannot be substituted; legacy tenant credentials are rejected by this management credential type.
-- [ ] The repository project remains independent of services/APIs and runtime readers need no schema-creation privileges.
+- [x] Credential records include ID, secret hash, deployment binding, explicit capabilities, status, expiry and revocation metadata; raw secrets are returned only on issuance.
+- [x] Credential creation/rotation is restricted to trusted target operators and is not a public portal-admin endpoint.
+- [x] Constant-time secret verification, high-entropy issuance, revocation and expiry are tested; hashes and raw keys never enter audit snapshots.
+- [x] Separate application/environment credentials cannot be substituted; legacy tenant credentials are rejected by this management credential type.
+- [x] The repository project remains independent of services/APIs and runtime readers need no schema-creation privileges.
 
 Verification: focused service/HTTP tests; isolated provider fixtures where needed; build/pack affected packages and update registration/endpoint documentation.
+
+Verified IBM-0081: 19 credential tests (including a real Azure Table lifecycle/ETag fixture) and 34 management foundation tests passed. Provisioning is trusted tooling only; runtime validation is read-only and no schema is created. Five points retained.
 
 ### MGT-005 / IBM-0082: Authenticate target management keys with bounded capabilities
 

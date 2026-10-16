@@ -21,4 +21,6 @@ public static class ManagementOperations
 {
     public const string IdentityRead = "management.identity.read";
     public const string DiagnosticsInfo = "management.diagnostics.info";
+    public const string ErrorsRead = "management.diagnostics.errors.read";
+    public const string LogsRead = "management.diagnostics.logs.read";
 }
