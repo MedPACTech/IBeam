@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using IBeam.Api.Controllers;
 using IBeam.Management.Api;
 using Microsoft.AspNetCore.Authorization;
@@ -24,9 +25,9 @@ public sealed class ManagementSupportUsersController(IManagementSupportUserServi
     [HttpPatch("support-users/{userId:guid}")]
     public async Task<IActionResult> DisableAsync(Guid userId, DisableManagementSupportUser request, CancellationToken ct)
     {
-        if (request.IsEnabled) throw new ManagementSupportInvalidException();
-        await users.DisableAsync(userId, ct);
+
+        await users.UpdateAsync(userId, request.IsEnabled.GetValueOrDefault(), ct);
         return OkResponse(new { userId, isEnabled = false });
     }
 }
-public sealed class DisableManagementSupportUser { public bool IsEnabled { get; set; } }
+public sealed class DisableManagementSupportUser { [Required] public bool? IsEnabled { get; set; } }

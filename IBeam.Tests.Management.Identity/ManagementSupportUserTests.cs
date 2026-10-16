@@ -51,6 +51,10 @@ public sealed class ManagementSupportUserTests
         using var self = await Send(f, HttpMethod.Patch, "/api/management/support-users/" + f.UserId,
             new { isEnabled = false }, administrator.AccessToken);
         Assert.AreEqual(HttpStatusCode.Forbidden, self.StatusCode);
+        using var emptyUpdate = await Send(f, HttpMethod.Patch, "/api/management/support-users/" + result.UserId,
+            new { }, administrator.AccessToken);
+        Assert.AreEqual(HttpStatusCode.BadRequest, emptyUpdate.StatusCode);
+        Assert.AreEqual(HttpStatusCode.OK, (await f.GetIdentityAsync(support.AccessToken)).StatusCode);
         using var enable = await Send(f, HttpMethod.Patch, "/api/management/support-users/" + result.UserId, new { isEnabled = true }, administrator.AccessToken);
         Assert.AreEqual(HttpStatusCode.BadRequest, enable.StatusCode);
         using var disabled = await Send(f, HttpMethod.Patch, "/api/management/support-users/" + result.UserId,
