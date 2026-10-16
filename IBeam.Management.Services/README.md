@@ -98,3 +98,11 @@ AddIBeamManagementEnvironmentSecrets(options => options.Bindings.Add(new(orgId, 
 ManagementApplicationConnectionService coordinates the entity-focused application service and credential repository. Verified credential metadata is append-only; the app's ActiveCredentialId is the authoritative pointer. Cross-table transactions are not assumed: an activation conflict can leave a verified, unreferenced row/secret. Preserve active versions and perform retention cleanup through explicit operator tooling.
 
 Implementation references: [SocketsHttpHandler](https://learn.microsoft.com/en-us/dotnet/api/system.net.http.socketshttphandler?view=net-10.0), [TLS/SNI](https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-sni), [IANA IPv4 special ranges](https://www.iana.org/assignments/iana-ipv4-special-registry/), [IANA IPv6 special ranges](https://www.iana.org/assignments/iana-ipv6-special-registry/).
+
+## Application assignment enforcement
+
+AddIBeamManagementApplicationAccess registers IManagementApplicationAccessService. Supply an assignment repository and live IManagementSupportUserStateProvider (optional Management Identity adapter or host-owned implementation). The application service owns the IManagementApplicationStateProvider lookup; assignment services never query Identity or application repositories directly.
+
+RequireAsync(appId, ManagementOperations.ErrorsRead/LogsRead) rechecks all live states and the current user's exact assignment on every read. There is no administrator bypass, wildcard, cache, claim-only grant or customer-role fallback. Organization and user IDs come from one authenticated human identity. Missing, disabled, revoked, mismatched or malformed records deny.
+
+Administration requires a live administrator and explicit access-admin permission; per-capability delegation claims bound both old and proposed grants. Updates and revocations are compare-and-swap operations with no blind retries. Rows retain creation/change/revocation times and actors. Revoking disabled/deleted recipients is permitted because the already-scoped row cannot restore access; creating/regranting requires a live enabled recipient. All operations run through IServiceOperationExecutor with safe exception translation and no entity/request/diagnostic snapshots.

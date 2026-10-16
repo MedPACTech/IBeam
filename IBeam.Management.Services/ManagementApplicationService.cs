@@ -126,6 +126,7 @@ public static class ManagementApplicationServiceExtensions
     {
         services.AddIBeamManagementServices();
         services.TryAddScoped<ManagementApplicationService>();
+        services.TryAddScoped<IManagementApplicationStateProvider, ManagementApplicationStateProvider>();
         services.TryAddScoped<IManagementApplicationService>(p => p.GetRequiredService<ManagementApplicationService>());
         return services;
     }

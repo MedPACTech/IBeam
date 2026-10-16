@@ -39,3 +39,7 @@ The email-delivered token identifies the intended address. Acceptance verifies t
 A single-use atomic marker is added to the existing prefixed TenantInvites table under MGTREDEEM|organization. It contains invite/user IDs and time only; this prevents simultaneous replay across host instances. The marker is never released after a partial failure: an administrator must issue a fresh invitation. Existing membership/password state is not reset by replay.
 
 Routine disablement is membership-first followed by session revocation. Every protected request/refresh rechecks membership, so partial revocation failure remains denied. Self-disable and disabling any management administrator are rejected, including on the legacy disable route; administrator recovery/removal stays explicit trusted tooling. This prevents simultaneous administrative disables from removing the final administrator.
+
+## App-assignment permission mapping
+
+The exact live ManagementAdministrator role additionally supplies management.application-access.admin and the errors/logs delegation permissions. Claims are rebuilt at MFA issuance and each protected request/refresh; removed roles lose those grants immediately. ManagementSupport receives no administrative or delegation permission. IManagementSupportUserStateProvider resolves current organization status, user MFA, membership and live catalog roles for assignment checks. Application assignments remain in their own management table rather than Identity role/user profile rows.

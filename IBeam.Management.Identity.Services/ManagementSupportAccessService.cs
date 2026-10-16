@@ -21,7 +21,7 @@ public sealed class ManagementSupportAccessService(
             if (!administrator.Membership.Roles.Contains(ManagementIdentityRoles.Administrator, StringComparer.Ordinal) ||
                 userId == administrator.User.UserId)
                 throw new ManagementAccessDeniedException();
-            if (!actor.HasClaim(ManagementClaimTypes.Permission, ManagementSupportOperations.UsersAdmin))
+            if (!actor.Identities.Single(x => x.IsAuthenticated).HasClaim(ManagementClaimTypes.Permission, ManagementSupportOperations.UsersAdmin))
                 throw new ManagementAccessDeniedException();
             var organizationId = options.Value.OrganizationId;
             var targetRoles = await roles.GetRolesForUserAsync(organizationId, userId, token);

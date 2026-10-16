@@ -3,9 +3,12 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Azure.Data.Tables;
+using IBeam.Services.Abstractions;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Schema;
+using IBeam.Management.Api;
+using IBeam.Management.Repositories.AzureTable;
 using IBeam.Management.Identity.Api;
 using IBeam.Management.Identity.Services;
 using Microsoft.AspNetCore.Builder;
@@ -31,9 +34,10 @@ internal sealed class ManagementIdentityHttpFixture : IAsyncDisposable
     public WebApplication App { get; private set; } = null!;
     public HttpClient Client { get; private set; } = null!;
     public CapturingSender Sender { get; } = new();
+    public CapturingAuditSink Audit { get; } = new();
     private TableServiceClient _storage = null!;
 
-    public static async Task<ManagementIdentityHttpFixture> CreateAsync(bool supportUsers = false)
+    public static async Task<ManagementIdentityHttpFixture> CreateAsync(bool supportUsers = false, bool applicationAccess = false)
     {
         var fixture = new ManagementIdentityHttpFixture();
         var connection = Environment.GetEnvironmentVariable("IBEAM_MANAGEMENT_TEST_STORAGE");
@@ -78,9 +82,21 @@ internal sealed class ManagementIdentityHttpFixture : IAsyncDisposable
         builder.WebHost.UseTestServer();
         builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();
         builder.Services.AddSingleton<IIdentityCommunicationSender>(fixture.Sender);
+        builder.Services.AddSingleton<IAuditTrailSink>(fixture.Audit);
+        builder.Services.Configure<ServiceAuditOptions>(x => x.Enabled = true);
         builder.Services.AddControllers().ConfigureApplicationPartManager(parts => parts.ApplicationParts.Clear());
         builder.Services.AddIBeamManagementIdentityApi(builder.Configuration);
         if (supportUsers) builder.Services.AddIBeamManagementSupportUsersApi();
+        if (applicationAccess)
+        {
+            var applicationTable = fixture._storage.GetTableClient(fixture.Prefix + "Apps");
+            var accessTable = fixture._storage.GetTableClient(fixture.Prefix + "AppAccess");
+            await applicationTable.CreateIfNotExistsAsync();
+            await accessTable.CreateIfNotExistsAsync();
+            builder.Services.AddIBeamManagementAzureTableApplicationStore(applicationTable);
+            builder.Services.AddIBeamManagementAzureTableApplicationAccessStore(accessTable);
+            builder.Services.AddIBeamManagementApplicationAccessApi();
+        }
         fixture.App = builder.Build();
         fixture.App.UseAuthentication();
         fixture.App.UseAuthorization();
@@ -135,6 +151,12 @@ internal sealed class ManagementIdentityHttpFixture : IAsyncDisposable
                 if (table.Name.StartsWith(Prefix, StringComparison.Ordinal)) await _storage.DeleteTableAsync(table.Name);
     }
 
+    internal sealed class CapturingAuditSink : IAuditTrailSink
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<ServiceAuditTransaction> Transactions { get; } = new();
+        public Task WriteTransactionAsync(ServiceAuditTransaction transaction, CancellationToken ct = default) { Transactions.Enqueue(transaction); return Task.CompletedTask; }
+        public Task UpsertSelectRollupAsync(ServiceSelectAuditRollup rollup, CancellationToken ct = default) => Task.CompletedTask;
+    }
     internal sealed class CapturingSender : IIdentityCommunicationSender
     {
         public List<IdentitySenderMessage> Messages { get; } = [];

@@ -285,7 +285,7 @@ Verification: focused service/HTTP tests; isolated provider fixtures where neede
 
 Estimate: **8 points**.
 
-ManagementApplicationAccessEntity/ManagementApplicationAccess plus repository and service; GET/PUT/DELETE /applications/{id}/support-users[/{userId}]. Initial grants are management.system-errors.read and management.system-logs.read.
+ManagementApplicationAccessEntity/ManagementApplicationAccess plus repository and service; GET/PUT/DELETE /applications/{id}/support-users[/{userId}]. Initial grants are management.diagnostics.errors.read and management.diagnostics.logs.read.
 
 Touches: IBeam.Management/Entities/ManagementApplicationAccessEntity.cs, IBeam.Management.Services/Access/, IBeam.Management.Repositories.AzureTable/, IBeam.Management.Api/Controllers/.
 

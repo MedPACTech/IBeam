@@ -107,7 +107,7 @@ public sealed class ManagementSupportUserService(IManagementPrincipalProvider pr
     {
         var principal = principals.GetPrincipal();
         var member = await sessions.ValidateAccessAsync(principal, ct);
-        if (!principal.HasClaim(ManagementClaimTypes.Permission, ManagementSupportOperations.UsersAdmin) ||
+        if (!principal.Identities.Single(x => x.IsAuthenticated).HasClaim(ManagementClaimTypes.Permission, ManagementSupportOperations.UsersAdmin) ||
             !member.Membership.Roles.Contains(ManagementIdentityRoles.Administrator, StringComparer.Ordinal)) throw new ManagementAccessDeniedException();
         return member;
     }

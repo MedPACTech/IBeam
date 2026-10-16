@@ -55,3 +55,19 @@ Both require management.applications.admin and the same organization-bound human
 Connection controllers disable ASP.NET HTTP logging fields, set no-store and limit request bodies to 16 KiB. Do not install custom middleware or telemetry that captures raw request bodies, secret-store responses or X-IBeam-Management-Key headers. The outbound client has no HTTP-client-factory logging handlers or propagated trace headers. Never submit keys in query strings or URLs.
 
 Changing an app origin clears the active connection. A failed replacement/test preserves the existing pointer; concurrent edits, disablement or rotation cannot be overwritten by pending activation. Old and failed-candidate secrets are retained for separately authorized retention/cleanup tooling. This module does not revoke credentials at the target.
+
+## Optional per-application support assignments
+
+After AddIBeamManagementApi, call AddIBeamManagementApplicationAccessApi(). Register IManagementApplicationAccessRepository and IManagementSupportUserStateProvider; the isolated Identity adapter supplies the latter, or a BYO-auth host implements its live organization/user status port. Missing dependencies fail startup. Routes are absent without opting in.
+
+- GET /api/management/applications/{applicationId}/support-users?pageSize=50&continuationToken=... (1–100).
+- PUT /api/management/applications/{applicationId}/support-users/{userId}: permissions array and optional expectedVersion. Omit expectedVersion only for a new assignment; updates/regrants require the returned version.
+- DELETE /api/management/applications/{applicationId}/support-users/{userId}: If-Match header containing the returned assignment version. Revocation retains metadata and denies future reads.
+
+Only management.diagnostics.errors.read and management.diagnostics.logs.read are accepted, independently; empty, duplicate, unknown and wildcard grants are rejected. A person may have zero, one or many app assignments. Both app and recipient must currently belong to the authenticated management organization and be enabled. No customer membership or target credentials are changed.
+
+Administration requires management.application-access.admin plus a live management administrator state. Granting/removing error access also requires management.application-access.delegate.errors; log access requires management.application-access.delegate.logs. A caller must hold the ceiling for both existing and proposed permissions. Reader tokens cannot grant themselves access, and customer Owner/Admin roles imply none of these permissions. The optional Identity adapter rebuilds these explicit permissions from the live ManagementAdministrator catalog role.
+
+IManagementApplicationAccessService.RequireAsync(appId, permission) is the service boundary for later portal readers: it rechecks organization, current human user, app and persisted assignment on every call, without caching. Even administrators require an assignment to read diagnostics. Revocation, user/organization disablement and app disablement therefore take effect without token refresh. This feature installs assignment administration; portal switching/proxy read routes remain IBM-0091/0092.
+
+Responses are no-store and use the existing safe IBeam envelopes: 400 invalid request, 403 denied scope/state/permission, 404 missing assignment on revoke, 409 duplicate/stale update, 503 provider outage. Operation audit records and assignment lifecycle metadata omit secrets and diagnostic payloads; configure a durable audit sink for persistent operation history.

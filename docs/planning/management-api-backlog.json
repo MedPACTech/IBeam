@@ -372,12 +372,12 @@
         {
           "key": "MGT-013",
           "title": "Persist app assignments and enforce access/delegation boundaries",
-          "scope": "ManagementApplicationAccessEntity/ManagementApplicationAccess plus repository and service; GET/PUT/DELETE /applications/{id}/support-users[/{userId}]. Initial grants are management.system-errors.read and management.system-logs.read.",
+          "scope": "ManagementApplicationAccessEntity/ManagementApplicationAccess plus repository and service; GET/PUT/DELETE /applications/{id}/support-users[/{userId}]. Initial grants are management.diagnostics.errors.read and management.diagnostics.logs.read.",
           "paths": [
             "IBeam.Management/Entities/ManagementApplicationAccessEntity.cs",
-            "IBeam.Management.Services/Access/",
-            "IBeam.Management.Repositories.AzureTable/",
-            "IBeam.Management.Api/Controllers/"
+            "IBeam.Management.Services/ManagementApplicationAccessService.cs",
+            "IBeam.Management.Repositories.AzureTable/AzureTableManagementApplicationAccessRepository.cs",
+            "IBeam.Management.Api/ManagementApplicationAccessController.cs"
           ],
           "ac": [
             "A person can receive zero/one/many app assignments and independent Errors.Read/Logs.Read; app and user must belong to the same management organization.",
@@ -388,7 +388,9 @@
           ],
           "hubbslyId": "4cdd783d-1b90-4a86-ba52-5e06500fe4b5",
           "hubbslySourceKey": "IBM-0090",
-          "points": 8
+          "points": 8,
+          "implementationStatus": "done",
+          "verification": "581 checks passed: 365 management tests (Identity 65, Applications/access 75, Diagnostics 130, target credentials 61, foundation 34) and 216 existing Identity service tests. Real MFA/HTTP support onboarding and access routes, live scope/state/role revocation, independent app grants, explicit delegation ceilings, no admin diagnostic bypass, atomic Azure Table create/ETag updates, metadata-only operation audit and safe failures verified. Six affected packages packed and inspected. IBM-0097 scrubbing is explicitly deferred by the user."
         }
       ],
       "hubbslyId": "9fb70f50-948e-484a-82c9-0a71e535d06a",

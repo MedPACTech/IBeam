@@ -5,6 +5,6 @@ public static class ManagementIdentityPermissions
 {
     public static IReadOnlyList<string> ForRoles(IEnumerable<string> roles)
         => roles.Contains(ManagementIdentityRoles.Administrator, StringComparer.Ordinal)
-            ? [ManagementOperations.IdentityRead, ManagementApplicationOperations.Admin, ManagementSupportOperations.UsersAdmin]
+            ? [ManagementOperations.IdentityRead, ManagementApplicationOperations.Admin, ManagementSupportOperations.UsersAdmin, ManagementSupportOperations.AccessAdmin, ManagementAccessDelegation.Errors, ManagementAccessDelegation.Logs]
             : [ManagementOperations.IdentityRead];
 }

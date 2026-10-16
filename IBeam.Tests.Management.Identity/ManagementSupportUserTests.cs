@@ -132,6 +132,29 @@ public sealed class ManagementSupportUserTests
             new { email = "delivery-failure@example.test" }, admin.AccessToken);
         Assert.AreEqual(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.DoesNotContain(f.Sender.Messages.Last().Code, await response.Content.ReadAsStringAsync());
+        Assert.IsTrue(f.Audit.Transactions.Any(x => !x.Succeeded));
+        Assert.DoesNotContain(f.Sender.Messages.Last().Code, JsonSerializer.Serialize(f.Audit.Transactions));
+    }
+    [TestMethod, TestCategory("StorageIntegration")]
+    public async Task RoutineAdministrationCannotDisableAnyManagementAdministrator()
+    {
+        await using var f = await ManagementIdentityHttpFixture.CreateAsync(supportUsers: true);
+        var admin = await f.LoginAsync();
+        Guid other = Guid.Empty;
+        await f.WithScopeAsync(async services =>
+        {
+            var users = services.GetRequiredService<IIdentityUserStore>();
+            other = (await users.CreateAsync(new("second-admin@example.test", null, ManagementIdentityHttpFixture.Password))).User!.UserId;
+            await users.SetTwoFactorAsync(other, true, "email");
+            var roles = services.GetRequiredService<ITenantRoleStore>();
+            var role = (await roles.GetRolesAsync(f.OrganizationId)).Single(x => x.Name == ManagementIdentityRoles.Administrator);
+            await roles.EnsureTenantMembershipAndGrantRolesAsync(new(f.OrganizationId, other, RoleIds: [role.RoleId], UserEmail: "second-admin@example.test"));
+        });
+        using var patch = await Send(f, HttpMethod.Patch, "/api/management/support-users/" + other, new { isEnabled = false }, admin.AccessToken);
+        Assert.AreEqual(HttpStatusCode.Forbidden, patch.StatusCode);
+        using var legacy = await Send(f, HttpMethod.Post, "/api/management/support-users/" + other + "/disable", null, admin.AccessToken);
+        Assert.AreEqual(HttpStatusCode.Unauthorized, legacy.StatusCode);
+        Assert.AreEqual(HttpStatusCode.OK, (await f.GetIdentityAsync(admin.AccessToken)).StatusCode);
     }
     internal static async Task<HttpResponseMessage> Send(ManagementIdentityHttpFixture f, HttpMethod method, string uri, object? body, string access)
     {
