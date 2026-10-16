@@ -109,5 +109,22 @@ public sealed class ManagementAuditTests
         }
         finally { await table.DeleteAsync(); }
     }
+    [TestMethod]
+    [DataRow("uid", false)]
+    [DataRow("sub", false)]
+    [DataRow("name-id", false)]
+    [DataRow("uid", true)]
+    public async Task HumanSubjectAliasesMatchServiceGuardAndConflictsAreNeverAttributed(string alias, bool conflicting)
+    {
+        var org = Guid.NewGuid(); var user = Guid.NewGuid();
+        var claims = new List<Claim> { new(ManagementClaimTypes.SubjectType, ManagementSubjectTypes.Human), new(ManagementClaimTypes.OrganizationId, org.ToString()),
+            new(alias == "name-id" ? ClaimTypes.NameIdentifier : alias, user.ToString()) };
+        if (conflicting) claims.Add(new("sub", Guid.NewGuid().ToString()));
+        var principal = new Principal(new(new ClaimsIdentity(claims, "Support"))); var rows = new MemoryManagementAudits();
+        var sink = new ManagementAuditSink(rows, principal, new ManagementAuditContext(), Options.Create(new ManagementAuditOptions()), Options.Create(new ManagementDiagnosticsOptions()), TimeProvider.System);
+        await sink.WriteTransactionAsync(new() { Action = ManagementOperations.IdentityRead, Succeeded = !conflicting });
+        Assert.AreEqual(conflicting ? null : (Guid?)user, rows.Rows.Single().ActorUserId);
+        Assert.AreEqual(conflicting ? "unknown" : ManagementSubjectTypes.Human, rows.Rows.Single().SubjectType);
+    }
     private sealed class Principal(ClaimsPrincipal value) : IManagementPrincipalProvider { public ClaimsPrincipal GetPrincipal() => value; }
 }

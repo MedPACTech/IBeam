@@ -24,7 +24,7 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
             if (types.Length == 1 && types[0] == ManagementSubjectTypes.Human)
             {
                 org = UniqueGuid(identity, ManagementClaimTypes.OrganizationId);
-                var ids = identity.FindAll("sub").Select(x => x.Value).Concat(identity.FindAll(ClaimTypes.NameIdentifier).Select(x => x.Value)).Distinct().ToArray();
+                var ids = identity.Claims.Where(x => x.Type is "uid" or "sub" || x.Type == ClaimTypes.NameIdentifier).Select(x => x.Value).Distinct(StringComparer.Ordinal).ToArray();
                 if (ids.Length == 1 && Guid.TryParse(ids[0], out var id) && id != Guid.Empty && org.HasValue) { actor = id; subject = ManagementSubjectTypes.Human; }
             }
             else if (types.Length == 1 && types[0] == ManagementSubjectTypes.Credential)
