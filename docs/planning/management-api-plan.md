@@ -162,14 +162,16 @@ Add SystemErrorReaderService and GET /api/management-diagnostics/system-errors a
 
 Touches: IBeam.Management.Services/Diagnostics/SystemErrorReaderService.cs, IBeam.Management.Diagnostics.Api/Controllers/.
 
-- [ ] Both routes require Errors.Read and enforce the deployment before repository access.
-- [ ] Thin controllers delegate to services routed through IServiceOperationExecutor with stable operation/audit names.
-- [ ] Safe error DTOs include opaque ID, timestamp, approved source/summary and safe correlation metadata; unknown free text is suppressed.
-- [ ] Raw exception text, query strings, customer payloads, passwords/tokens and storage keys are never serialized, including error responses.
-- [ ] Unauthorized detail IDs do not reveal another deployment's existence; validation/not-found/forbidden responses follow IBeam conventions.
-- [ ] Tests prove safe legacy behavior, insufficient permissions, cancellation and read-only operation; no delete/update diagnostic endpoints exist.
+- [x] Both routes require Errors.Read and enforce the deployment before repository access.
+- [x] Thin controllers delegate to services routed through IServiceOperationExecutor with stable operation/audit names.
+- [x] Safe error DTOs include opaque ID, timestamp, approved source/summary and safe correlation metadata; unknown free text is suppressed.
+- [x] Raw exception text, query strings, customer payloads, passwords/tokens and storage keys are never serialized, including error responses.
+- [x] Unauthorized detail IDs do not reveal another deployment's existence; validation/not-found/forbidden responses follow IBeam conventions.
+- [x] Tests prove safe legacy behavior, insufficient permissions, cancellation and read-only operation; no delete/update diagnostic endpoints exist.
 
 Verification: focused service/HTTP tests; isolated provider fixtures where needed; build/pack affected packages and update registration/endpoint documentation.
+
+Verified IBM-0084: 68 diagnostics tests, 61 credential tests and 34 management foundation tests passed. Opt-in GET list/detail routes use fixed approved source/summary strings, opaque deployment-scoped correlation, generic validation/not-found/failure envelopes, live Errors.Read and the bounded internal reader. Provider messages are sanitized before audit; query/model-binding failures never echo inputs. Read-only SAS API fixtures retain unchanged rows. Only installed HTTP modules add capabilities through IManagementDiagnosticsCapability, allowing the separate logs feature to compose. Five points retained; MGT-F04 is complete at 10 points. The logs feature belongs to the other session.
 
 ## MGT-F05: Read sanitized system logs
 

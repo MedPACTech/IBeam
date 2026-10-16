@@ -201,8 +201,12 @@
           "title": "Expose safe error list/detail service and target endpoints",
           "scope": "Add SystemErrorReaderService and GET /api/management-diagnostics/system-errors and /{errorId}. Return allowlisted safe fields; no raw exception or request payload exposure.",
           "paths": [
-            "IBeam.Management.Services/Diagnostics/SystemErrorReaderService.cs",
-            "IBeam.Management.Diagnostics.Api/Controllers/"
+            "IBeam.Management/Models/SystemErrorDtos.cs",
+            "IBeam.Management/ManagementDiagnosticsCapabilities.cs",
+            "IBeam.Management.Services/Diagnostics/",
+            "IBeam.Management.Services/ManagementDiagnosticsInfoService.cs",
+            "IBeam.Management.Diagnostics.Api/Controllers/",
+            "IBeam.Tests.Management.Diagnostics/"
           ],
           "ac": [
             "Both routes require Errors.Read and enforce the deployment before repository access.",
@@ -214,7 +218,9 @@
           ],
           "hubbslyId": "c0af35db-8a14-42f5-b552-7d1a485e4623",
           "hubbslySourceKey": "IBM-0084",
-          "points": 5
+          "points": 5,
+          "implementationStatus": "verified",
+          "verification": "68 diagnostics unit/provider/HTTP tests passed, including four private Azurite cases and real read-only SAS list/detail responses with unchanged rows; 61 credential and 34 management foundation tests passed. Safe fixed source/summary projection, opaque correlation pseudonyms, independent live Errors.Read checks, opt-in route discovery, generic 400/403/404/503/504 envelopes, safe malformed model-state responses, provider failure sanitization before audit, cancellation, no write routes and missing-repository startup rejection verified. Error capability advertising composes through IManagementDiagnosticsCapability. No logs implementation, IBeam.Admin.API edits or production publishing."
         }
       ],
       "hubbslyId": "44598138-92cd-441d-93e3-a9b19b37bec0",

@@ -11,11 +11,23 @@ public sealed class ManagementDiagnosticsInfoService(
     IOptions<ManagementDiagnosticsOptions> options) : IManagementDiagnosticsInfoService
 {
     private readonly IManagementDiagnosticsAccessService? _access;
+    private readonly IReadOnlyList<IManagementDiagnosticsCapability> _capabilities = [];
 
     public ManagementDiagnosticsInfoService(
         IManagementPrincipalProvider principals, IServiceOperationExecutor operations,
         IOptions<ManagementDiagnosticsOptions> options, IManagementDiagnosticsAccessService access)
         : this(principals, operations, options) => _access = access;
+
+    public ManagementDiagnosticsInfoService(
+        IManagementPrincipalProvider principals, IServiceOperationExecutor operations,
+        IOptions<ManagementDiagnosticsOptions> options, IEnumerable<IManagementDiagnosticsCapability> capabilities)
+        : this(principals, operations, options) => _capabilities = capabilities.ToArray();
+
+    public ManagementDiagnosticsInfoService(
+        IManagementPrincipalProvider principals, IServiceOperationExecutor operations,
+        IOptions<ManagementDiagnosticsOptions> options, IManagementDiagnosticsAccessService access,
+        IEnumerable<IManagementDiagnosticsCapability> capabilities)
+        : this(principals, operations, options, access) => _capabilities = capabilities.ToArray();
 
     [IBeamOperation(ManagementOperations.DiagnosticsInfo, Permission = false)]
     public Task<ManagementDiagnosticsInfo> GetAsync(CancellationToken ct = default)
@@ -35,7 +47,8 @@ public sealed class ManagementDiagnosticsInfoService(
 
             return new ManagementDiagnosticsInfo(
                 configured.ApplicationKey, configured.Environment, 1,
-                Array.AsReadOnly(new[] { ManagementOperations.DiagnosticsInfo }));
+                Array.AsReadOnly(new[] { ManagementOperations.DiagnosticsInfo }.Concat(_capabilities.Select(x => x.Operation))
+                    .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()));
         }, new ServiceOperationExecutionOptions
         {
             OperationName = ManagementOperations.DiagnosticsInfo,

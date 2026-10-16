@@ -8,7 +8,7 @@ Both methods execute through `IServiceOperationExecutor`. They use dedicated man
 
 Configure `ManagementDiagnosticsOptions` (application key and environment) for a target info service. The target API module binds and validates these settings at startup.
 
-Errors/logs reading, user/application assignments and the outbound application client remain later cards. Optional login/MFA support is in IBeam.Management.Identity.Services/Api; these general services do not depend on Identity.
+Optional bounded/safe error reading is described below; logs, user/application assignments and the outbound application client are separately scoped. Optional login/MFA support is in IBeam.Management.Identity.Services/Api; these general services do not depend on Identity.
 
 ## Deployment credentials
 
@@ -39,7 +39,7 @@ services.AddIBeamManagementAzureTableSystemErrorReader(configuration);
 services.AddIBeamManagementSystemErrorReader(configuration);
 ```
 
-The repository extension is in IBeam.Management.Repositories.AzureTable.Diagnostics. The HTTP authentication extension is in IBeam.Management.Diagnostics.Api.Authentication. This reader registration adds no error HTTP routes and does not advertise error-reading capability; safe DTO projection and routes are IBM-0084. IBeam.Admin.API stays deferred.
+The repository extension is in IBeam.Management.Repositories.AzureTable.Diagnostics. The HTTP authentication extension is in IBeam.Management.Diagnostics.Api.Authentication. This reader registration adds no error HTTP routes and does not advertise error-reading capability; safe DTO projection and routes are available through the opt-in IBM-0084 error API module below. IBeam.Admin.API stays deferred.
 
 IBeam:Management:Diagnostics:Errors settings:
 - SourceMode is required: DedicatedDeployment with DedicatedSourceConfirmed=true, or TaggedShared with TrustedTagsConfirmed=true.
@@ -58,3 +58,13 @@ The reader checks Errors.Read through the live access service before every diagn
 AES-256-GCM authenticates and encrypts native continuations and record identifiers. Tokens bind purpose, system-errors record type, app/environment, physical source, isolation mode and the normalized query. Their fixed expiry is not renewed by paging. GetAsync(recordId, optionalOriginalQuery) performs a point read after authorization and token validation; a supplied query must match the protected one. Missing/removed or newly mismatched records return null. Invalid/replayed tokens return a safe DiagnosticTokenException; out-of-bound/conflicting queries return DiagnosticQueryException.
 
 SystemErrorReadPage and SystemErrorRecord are internal repository/service results, not public DTOs. Source/TraceId remain untrusted metadata, are JSON-ignored, and must pass an allowlisted projection before public use. Message, Exception, Path, Method and customer payload columns are never selected by this adapter. No row keys, provider cursors, tokens, entities or query/response snapshots enter audit options. Operation names use management.diagnostics.errors.read through IServiceOperationExecutor; the host retains its durable audit/error middleware policy.
+
+## Safe public error projection (IBM-0084)
+
+AddIBeamManagementSystemErrorService registers ISystemErrorReaderService/SystemErrorReaderService over the existing internal reader. The HTTP error module calls this extension automatically. Both ListAsync and GetAsync enforce live Errors.Read before invoking the internal reader, and both execute through IServiceOperationExecutor under management.diagnostics.errors.read. No request/entity/return snapshots are attached to audit operations.
+
+SystemErrorProjection has a fixed catalog: exact RequestPipeline gets a fixed approved source and summary; all other source text becomes generic System metadata. It never uses stored Message/Exception/Path/Method. Correlation is HMAC-SHA256 with a domain-separated subkey derived from the configured error protection key, and input bound to app/environment plus a trace ID of at most 128 characters. Public DTOs receive an opaque c1_ pseudonym, never the raw trace. This is a per-key diagnostic correlation contract; it does not expose a customer's identifier or promise a shared log correlation scheme.
+
+Invalid and missing detail IDs both become ManagementDiagnosticNotFoundException. Invalid list continuations/queries retain their safe typed exceptions. Unexpected read failures become ManagementDiagnosticUnavailableException without raw message/inner text; only exception type is eligible for the public service's warning log. The internal reader translates storage failures before its own audit pipeline can capture unsafe provider messages. Cancellation is preserved. HTTP maps these outcomes to safe standard envelopes; no detailed-error host setting restores raw provider text.
+
+Info capability reporting accepts optional IEnumerable<IManagementDiagnosticsCapability>; optional HTTP modules add their own implementations. Empty/base registration still advertises only info. Capability advertisement does not bypass any operation grant.

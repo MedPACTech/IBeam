@@ -48,8 +48,8 @@ public sealed class ManagementSystemErrorReader(
                 // Recheck immediately before every repository query, including subsequent provider pages.
                 await access.RequireAsync(ManagementOperations.ErrorsRead, request);
                 var take = Math.Min(window.PageSize - items.Count, configured.ScanBudgetPerPage - scanned);
-                var batch = await repository.ReadPartitionAsync(
-                    new SystemErrorPartitionQuery(day, window.FromUtc, window.ToUtc, take, continuation), request);
+                var batch = await ReadStorageAsync(() => repository.ReadPartitionAsync(
+                    new SystemErrorPartitionQuery(day, window.FromUtc, window.ToUtc, take, continuation), request));
                 requests++;
                 if (batch.ScannedCount < 0 || batch.ScannedCount > take || batch.Records.Count > batch.ScannedCount)
                     throw new InvalidOperationException("Diagnostic storage exceeded its requested page bound.");
@@ -88,7 +88,7 @@ public sealed class ManagementSystemErrorReader(
             if (state.Query is null || state.ExpiresUtc <= clock.GetUtcNow() || originalQuery?.Cursor is not null)
                 throw new DiagnosticTokenException();
             var window = Resolve(originalQuery ?? new DiagnosticQuery(), state.Query);
-            var row = await repository.GetAsync(state.PartitionKey, state.RowKey, request);
+            var row = await ReadStorageAsync(() => repository.GetAsync(state.PartitionKey, state.RowKey, request));
             return row is not null && row.PartitionKey == state.PartitionKey && row.RowKey == state.RowKey &&
                 Within(row, window) && MatchesSource(row) ? row : null;
         }, Audit(), ct);
@@ -133,6 +133,14 @@ public sealed class ManagementSystemErrorReader(
     private static bool Within(SystemErrorRecord row, DiagnosticQueryWindow window)
         => row.OccurredAtUtc >= window.FromUtc && row.OccurredAtUtc < window.ToUtc;
     private static string Partition(DateOnly day) => "ERR|" + day.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+    private static async Task<T> ReadStorageAsync<T>(Func<Task<T>> read)
+    {
+        try { return await read(); }
+        catch (OperationCanceledException) { throw; }
+        catch (ManagementDiagnosticUnavailableException) { throw; }
+        // Translate before the operation executor audits an unsafe provider exception message.
+        catch (Exception) { throw new ManagementDiagnosticUnavailableException(); }
+    }
     private static ServiceOperationExecutionOptions Audit()
         => new() { OperationName = ManagementOperations.ErrorsRead, AuditAction = ManagementOperations.ErrorsRead,
             EntityName = "SystemError", PermissionEnabled = false, AuditEnabled = true };
