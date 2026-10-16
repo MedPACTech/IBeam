@@ -16,6 +16,12 @@ public sealed class DiagnosticTokenCodec
         _key = Convert.FromBase64String(options.Value.ProtectionKey);
     }
 
+    internal DiagnosticTokenCodec(byte[] key)
+    {
+        if (key is not { Length: 32 }) throw new InvalidOperationException("A 32-byte protection key is required.");
+        _key = key;
+    }
+
     public string Protect<T>(string purpose, string context, T value)
     {
         var plain = JsonSerializer.SerializeToUtf8Bytes(value);

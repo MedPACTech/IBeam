@@ -69,6 +69,12 @@ Invalid and missing detail IDs both become ManagementDiagnosticNotFoundException
 
 Info capability reporting accepts optional IEnumerable<IManagementDiagnosticsCapability>; optional HTTP modules add their own implementations. Empty/base registration still advertises only info. Capability advertisement does not bypass any operation grant.
 
+## System log reader and projection (IBM-0085)
+
+AddIBeamManagementSystemLogService(configuration) registers the bounded internal IManagementSystemLogReader plus the public ISystemLogReaderService/SystemLogProjection; AddIBeamManagementSystemLogReader registers only the internal reader. Supply ISystemLogReadRepository and a live IManagementDiagnosticsAccessService exactly as for errors. SystemLogReaderOptions (IBeam:Management:Diagnostics:Logs) mirrors the error options with its own protection key and adds AllowedSources.
+
+The reader follows the error contract: 24-hour default window, frozen continuation, page/scan/request/time budgets, live Logs.Read before every provider read, encrypted cursors and IDs bound to system-logs/app/environment/source binding/source mode, and dedicated-vs-tagged source trust. Source, level and trace filters are validated before storage, pushed down as exact filters, rechecked on every returned row and frozen into the cursor. Operations execute as management.diagnostics.logs.read under IServiceOperationExecutor without query/entity/return snapshots. SystemLogProjection never reads message/detail text; it emits the fixed source catalog, a normalized level and a keyed c1_ correlation pseudonym distinct from the error pseudonym.
+
 ## Application administration
 
 AddIBeamManagementApplications registers IManagementApplicationService. All methods enforce the human management context and management.applications.admin before storage access, execute through IServiceOperationExecutor and sanitize unexpected provider failures before audit. No customer role implies this permission. Register a host-owned IManagementPrincipalProvider and isolated IManagementApplicationRepository; registration never grants diagnostic access.

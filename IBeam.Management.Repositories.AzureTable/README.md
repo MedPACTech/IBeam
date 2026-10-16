@@ -20,6 +20,12 @@ There is no table creation, schema hosted service or write method on ISystemErro
 
 The three private Azurite integration cases prove unchanged row ETags, midnight/offset timestamp boundaries, stable pagination, exact server filters and selected columns, shared-source suppression, missing-record handling, no schema creation and successful reads with read-only SAS while writes are denied. They create/clean only random fixture tables.
 
+## Existing SystemLogs (read-only)
+
+AddIBeamManagementAzureTableSystemLogReader(configuration) is in the Diagnostics namespace and registers only ISystemLogReadRepository. Set IBeam:Management:Diagnostics:Logs:Storage:ConnectionString and Storage:TableName (the explicit full physical name, for example SystemLogs); nothing is inherited from IBeam:Logging:AzureTable or Identity prefixes. A dedicated read-only TableClient overload is also available.
+
+Each query is one exact SYSTEM|DAY|yyyyMMdd partition with Category eq 'System' and an OccurredAtUtc range, plus optional exact Source/Level/TraceId equality filters. $select names only PartitionKey, RowKey, OccurredAtUtc, Category, IsSelectRollup, Source, Level, TraceId and the management tag columns. Rows are mapped only with an event row key (13-digit time plus 32 hex), Category System and no rollup flag. There is no table creation or write method.
+
 ## Application registry
 
 AddIBeamManagementAzureTableApplicationStore(configuration) uses IBeam:Management:Applications:Storage:ConnectionString and TableName (default ManagementApplications), independently of Identity and customer storage. Alternatively supply a dedicated TableClient using a host-owned managed identity or scoped credentials. Provision the table explicitly during deployment; runtime paths never create schema.
