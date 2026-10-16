@@ -18,6 +18,7 @@ internal sealed class ManagementApplicationApiFilter : IResourceFilter, IActionF
     {
         var status = context.Exception switch
         {
+            ManagementAuditUnavailableException => 503,
             ManagementAccessDeniedException => 403,
             ManagementApplicationInvalidException => 400,
             ManagementApplicationNotFoundException => 404,

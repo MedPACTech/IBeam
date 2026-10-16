@@ -7,7 +7,7 @@ namespace IBeam.Management.Services.Diagnostics;
 
 /// <summary>Fixed diagnostic GET paths, bounded envelopes and a second safe DTO projection. Never proxies raw bodies or response headers.</summary>
 public sealed class ApplicationDiagnosticsClient(ManagementConnectionNetworkPolicy network,
-    IOptions<PortalDiagnosticsOptions> options) : IApplicationDiagnosticsClient
+    IOptions<PortalDiagnosticsOptions> options, IManagementAuditContext? audit = null) : IApplicationDiagnosticsClient
 {
     internal Func<HttpMessageHandler>? TestTransportFactory { get; init; }
     public async Task<ManagementDiagnosticsInfo> InfoAsync(ManagementDiagnosticConnection c, CancellationToken ct = default)
@@ -80,6 +80,7 @@ public sealed class ApplicationDiagnosticsClient(ManagementConnectionNetworkPoli
             using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(origin, "/api/management-diagnostics/" + path + suffix))
                 { Version = HttpVersion.Version11, VersionPolicy = HttpVersionPolicy.RequestVersionExact };
             request.Headers.Add("X-IBeam-Management-Key", c.Key.Value);
+            if (audit is not null) request.Headers.Add("X-IBeam-Management-Correlation", audit.CorrelationId);
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
             if (response.StatusCode == HttpStatusCode.TooManyRequests) throw new ManagementPortalRateLimitException();
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) throw new ManagementAccessDeniedException();

@@ -16,7 +16,7 @@ internal sealed class ManagementSupportApiFilter : IActionFilter, IExceptionFilt
         {
             ManagementAccessDeniedException => 403,
             ManagementSupportInvalidException => 400,
-            ManagementSupportUnavailableException => 503,
+            ManagementSupportUnavailableException or ManagementAuditUnavailableException => 503,
             _ => 0
         };
         if (status == 0) return;

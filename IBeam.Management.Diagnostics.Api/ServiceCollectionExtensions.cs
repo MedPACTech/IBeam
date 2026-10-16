@@ -38,6 +38,8 @@ public static class ManagementDiagnosticsApiServiceCollectionExtensions
         services.TryAddScoped<IManagementPrincipalProvider, HttpManagementPrincipalProvider>();
         services.AddIBeamManagementServices();
         services.AddScoped<ManagementAccessDeniedFilter>();
+        services.AddScoped<ManagementAuditCorrelationFilter>();
+        services.AddControllers(x => x.Filters.Add<ManagementAuditCorrelationFilter>());
         services.AddControllers().AddApplicationPart(typeof(ManagementDiagnosticsInfoController).Assembly);
         return services;
     }

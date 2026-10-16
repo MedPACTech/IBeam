@@ -1,3 +1,4 @@
+using IBeam.Management.Services.Audit;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
@@ -33,6 +34,7 @@ internal sealed class SystemErrorApiFixture : IAsyncDisposable
     public readonly ErrorReaderFixture.Clock Clock = new();
     public readonly CredentialStore Credentials = new();
     public readonly AuditSink Audits = new();
+    public readonly MetadataAuditRepository ManagementAudits = new();
     public readonly ServiceLogSink Logs = new();
     public WebApplication App { get; private set; } = null!;
     public HttpClient Client { get; private set; } = null!;
@@ -41,7 +43,7 @@ internal sealed class SystemErrorApiFixture : IAsyncDisposable
     public static async Task<SystemErrorApiFixture> CreateAsync(
         bool installed = true, ISystemErrorReadRepository? repository = null,
         Action<Dictionary<string, string?>>? configure = null, bool featureFirst = false, bool registerRepository = true,
-        bool installLogs = false, ISystemLogReadRepository? logRepository = null)
+        bool installLogs = false, ISystemLogReadRepository? logRepository = null, bool managementAudit = false)
     {
         var fixture = new SystemErrorApiFixture();
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
@@ -76,6 +78,7 @@ internal sealed class SystemErrorApiFixture : IAsyncDisposable
         if (installLogs) builder.Services.AddIBeamManagementSystemLogsApi(builder.Configuration);
         // Even a detailed host error policy must not leak unsafe provider text from these endpoints.
         builder.Services.Configure<ApiErrorHandlingOptions>(o => o.ExposeDetailedErrors = true);
+        if (managementAudit) { builder.Services.AddSingleton<IManagementAuditRepository>(fixture.ManagementAudits); builder.Services.AddIBeamManagementAudit(builder.Configuration); }
         fixture.App = builder.Build();
         fixture.App.Use(async (context, next) =>
         {
@@ -163,6 +166,11 @@ internal sealed class SystemErrorApiFixture : IAsyncDisposable
             if (old is null || old.Version != expectedVersion || !_rows.TryUpdate(old.CredentialId, updated, old)) throw new ManagementCredentialConflictException();
             return Task.FromResult(updated);
         }
+    }
+    internal sealed class MetadataAuditRepository : IManagementAuditRepository
+    {
+        public ConcurrentQueue<ManagementAuditEntity> Rows { get; } = new();
+        public Task AppendAsync(ManagementAuditEntity row, CancellationToken ct = default) { Rows.Enqueue(row); return Task.CompletedTask; }
     }
     internal sealed class AuditSink : IAuditTrailSink
     {

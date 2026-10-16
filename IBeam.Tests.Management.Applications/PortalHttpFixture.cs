@@ -1,3 +1,4 @@
+using IBeam.Management.Services.Audit;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using IBeam.Management;
@@ -19,10 +20,11 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
     public PortalFixture Data { get; } = new();
     public WebApplication App { get; private set; } = null!;
     public HttpClient Client { get; private set; } = null!;
+    public MemoryManagementAudits Audit { get; } = new();
     public Guid OtherUser { get; } = Guid.NewGuid();
     public Guid OtherOrg { get; } = Guid.NewGuid();
     public Guid ForeignUser { get; } = Guid.NewGuid();
-    public static async Task<PortalHttpFixture> CreateAsync(bool install = true, bool selector = false)
+    public static async Task<PortalHttpFixture> CreateAsync(bool install = true, bool selector = false, bool audit = false)
     {
         var f = new PortalHttpFixture();
         f.Data.Access.Users[(f.Data.Access.Org, f.OtherUser)] = new(f.Data.Access.Org, f.OtherUser, true, false);
@@ -48,6 +50,7 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
         b.Services.AddSingleton<TimeProvider>(f.Data.Clock);
         if (install) b.Services.AddIBeamManagementPortalDiagnosticsApi(b.Configuration);
         if (selector) b.Services.AddIBeamManagementApplicationSelectorApi(b.Configuration);
+        if (audit) { b.Services.AddSingleton<IManagementAuditRepository>(f.Audit); b.Services.AddIBeamManagementAudit(b.Configuration); }
         f.App = b.Build(); f.App.UseAuthentication(); f.App.UseAuthorization(); f.App.MapControllers();
         try { await f.App.StartAsync(); } catch { await f.App.DisposeAsync(); f.Data.Dispose(); throw; }
         f.Client = f.App.GetTestClient(); return f;
