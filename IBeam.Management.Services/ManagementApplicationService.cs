@@ -30,7 +30,9 @@ public sealed class ManagementApplicationService(IManagementApplicationRepositor
         => Run("management.applications.read", applicationId, async (org, actor, token) =>
             Dto(await RequireAsync(repository, org, applicationId, token)), ct);
     public Task<ManagementApplicationDto> CreateAsync(CreateManagementApplication request, CancellationToken ct = default)
-        => Run("management.applications.create", null, async (org, actor, token) =>
+    {
+        var applicationId = Guid.NewGuid();
+        return Run("management.applications.create", applicationId, async (org, actor, token) =>
         {
             if (request is null || !Regex.IsMatch(request.ApplicationKey ?? "", "^[a-z0-9][a-z0-9-]{0,99}$") ||
                 !Regex.IsMatch(request.Environment ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"))
@@ -40,11 +42,12 @@ public sealed class ManagementApplicationService(IManagementApplicationRepositor
             var now = DateTimeOffset.UtcNow;
             return Dto(await repository.CreateAsync(new()
             {
-                OrganizationId = org, ApplicationId = Guid.NewGuid(), ApplicationKey = request.ApplicationKey!,
+                OrganizationId = org, ApplicationId = applicationId, ApplicationKey = request.ApplicationKey!,
                 Environment = request.Environment!, Name = request.Name.Trim(), BaseUrl = url, IsEnabled = true,
                 CreatedUtc = now, UpdatedUtc = now, CreatedBy = actor, UpdatedBy = actor
             }, token));
         }, ct);
+    }
     public Task<ManagementApplicationDto> UpdateAsync(Guid applicationId, UpdateManagementApplication request, CancellationToken ct = default)
         => Run("management.applications.update", applicationId, async (org, actor, token) =>
         {

@@ -41,6 +41,12 @@ public sealed class ManagementAuditTests
         Assert.AreEqual(HttpStatusCode.Forbidden, (await f.Get($"/api/management/applications/{app}/system-logs?pageSize=1", "other")).StatusCode);
         Assert.IsTrue(f.Audit.Rows.Any(x => x.ActorUserId == f.OtherUser && !x.Succeeded));
         Assert.DoesNotContain(ConnectionFixture.Key, JsonSerializer.Serialize(f.Audit.Rows));
+        using var create = new HttpRequestMessage(HttpMethod.Post, "/api/management/applications");
+        create.Headers.Add("Authorization", "Bearer admin");
+        create.Content = System.Net.Http.Json.JsonContent.Create(new CreateManagementApplication { ApplicationKey = "audit-app", Name = "Audit App", Environment = "Production", BaseUrl = "https://api.bindry.app" });
+        using var created = await f.Client.SendAsync(create); Assert.AreEqual(HttpStatusCode.Created, created.StatusCode);
+        using var body = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+        Assert.AreEqual(body.RootElement.GetProperty("data").GetProperty("applicationId").GetGuid(), f.Audit.Rows.Single(x => x.Operation == "management.applications.create").ApplicationId);
         var count = f.Audit.Rows.Count;
         Assert.AreEqual(HttpStatusCode.NotFound, (await f.Get("/api/management/audit")).StatusCode);
         Assert.AreEqual(count, f.Audit.Rows.Count);
