@@ -7,7 +7,7 @@ $feed=Join-Path $OutputDirectory 'feed'; $hostFolder=Join-Path $OutputDirectory 
 New-Item -ItemType Directory -Path $feed,$hostFolder -Force|Out-Null
 $ordered=[Collections.Generic.List[string]]::new(); $visited=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 function Visit([string]$project) {
- $project=[IO.Path]::GetFullPath($project)
+ $project=[IO.Path]::GetFullPath($project.Replace('\',[IO.Path]::DirectorySeparatorChar))
  if (-not $project.StartsWith($repo+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) {throw 'Package dependency escapes the repository'}
  if (-not $visited.Add($project)) {return}
  [xml]$xml=Get-Content -LiteralPath $project -Raw
