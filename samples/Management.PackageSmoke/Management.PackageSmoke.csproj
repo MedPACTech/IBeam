@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable><ManagementSmokeVersion Condition="'$(ManagementSmokeVersion)' == ''">0.0.0-management-smoke</ManagementSmokeVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="IBeam.Management.Api" Version="$(ManagementSmokeVersion)" />
+    <PackageReference Include="IBeam.Management.Diagnostics.Api" Version="$(ManagementSmokeVersion)" />
+    <PackageReference Include="IBeam.Management.Repositories.AzureTable" Version="$(ManagementSmokeVersion)" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.3" />
+  </ItemGroup>
+</Project>
