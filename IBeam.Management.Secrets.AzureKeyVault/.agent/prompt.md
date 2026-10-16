@@ -1,0 +1,2 @@
+# Management Key Vault secrets
+Read the root .agent/implementation-guide.md. This optional adapter depends only on Management contracts and the Azure SDK. Keep dedicated client configuration host-owned; references must be scoped to organization/application and immutable versions. Never capture secret bodies, keys, SDK exception messages or inner responses. No secret deletion/purge; cloud fixtures require separate authorization. Maintain deterministic mocked-client tests and package docs.

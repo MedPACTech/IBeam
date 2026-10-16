@@ -327,7 +327,9 @@
           ],
           "hubbslyId": "b061ee6f-d6e5-4840-b330-3f98d74724b8",
           "hubbslySourceKey": "IBM-0088",
-          "points": 8
+          "points": 8,
+          "implementationStatus": "done",
+          "verification": "282 management tests passed across applications (66, including real Azure Table registry/connection fixtures), Identity (53), target credentials (61), safe diagnostics (68) and foundation (34). HTTP write-only keys/body-logging suppression, env-reference and mocked Key Vault adapters, exact target/protocol/capabilities, DNS/IP pinning, redirect/private-network denial, failed/concurrent rotations and timeout/cancellation verified. Affected packages built/packed; no cloud writes, host edits, publication or deployment."
         }
       ],
       "hubbslyId": "9d3ce947-832c-4f04-b847-befc49ea8b71",

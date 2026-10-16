@@ -25,3 +25,9 @@ The three private Azurite integration cases prove unchanged row ETags, midnight/
 AddIBeamManagementAzureTableApplicationStore(configuration) uses IBeam:Management:Applications:Storage:ConnectionString and TableName (default ManagementApplications), independently of Identity and customer storage. Alternatively supply a dedicated TableClient using a host-owned managed identity or scoped credentials. Provision the table explicitly during deployment; runtime paths never create schema.
 
 Rows are partitioned by support organization, with APP|applicationId records and hashed KEY|app/environment uniqueness indexes. Creation adds both rows in one same-partition transaction; duplicate attempts cannot leave a partial app. Item reads and bounded pages always include organization equality. Updates require an explicit ETag and preserve immutable key/environment. Do not modify application identity fields directly through the repository; services own those invariants.
+
+## Application connection credential metadata
+
+AddIBeamManagementAzureTableApplicationCredentialStore(dedicatedTableClient) registers IManagementApplicationCredentialRepository. Provision ManagementApplicationCredentials explicitly beforehand. Each immutable row is scoped by support organization/application and credential ID, with secret-store reference, registered origin, verification time, actor and supported capabilities. No raw keys or hashes are stored here. References are excluded from entity JSON/ToString and all public connection responses. This is separate from target-side ManagementApiCredentials, which validate hashed incoming machine keys.
+
+The application row's conditional ActiveCredentialId pointer selects a verified credential version; no atomic cross-table transaction is assumed. Failed pending versions can remain unreferenced. Runtime code never creates tables, enumerates secret material or deletes active versions.

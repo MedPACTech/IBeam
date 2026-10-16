@@ -69,6 +69,17 @@ public sealed class ManagementApplicationService(IManagementApplicationRepositor
         return Task.FromResult((ManagementPrincipalGuard.RequireGuid(identity, ManagementClaimTypes.OrganizationId),
             ManagementPrincipalGuard.RequireHumanUserId(identity)));
     }
+    internal Task<ManagementApplicationEntity> GetConnectionStateAsync(Guid id, CancellationToken ct)
+        => Run("management.applications.connection.read", id, (org, actor, token) => RequireAsync(repository, org, id, token), ct);
+
+    internal Task<ManagementApplicationEntity> ActivateConnectionAsync(ManagementApplicationEntity expected, Guid credentialId, CancellationToken ct)
+        => Run("management.applications.connection.activate", expected.ApplicationId, async (org, actor, token) =>
+        {
+            if (expected.OrganizationId != org || !expected.IsEnabled) throw new ManagementAccessDeniedException();
+            return await repository.ReplaceAsync(expected with { ActiveCredentialId = credentialId,
+                UpdatedUtc = DateTimeOffset.UtcNow, UpdatedBy = actor }, expected.Version, token);
+        }, ct);
+
     internal static async Task<ManagementApplicationEntity> RequireAsync(IManagementApplicationRepository repository, Guid org, Guid id, CancellationToken ct)
     {
         if (id == Guid.Empty) throw new ManagementApplicationInvalidException();
@@ -95,7 +106,7 @@ public sealed class ManagementApplicationService(IManagementApplicationRepositor
             row.CreatedUtc, row.UpdatedUtc, row.Version, row.ActiveCredentialId.HasValue);
     private async Task<T> Run<T>(string operation, Guid? id, Func<Guid, string, CancellationToken, Task<T>> action, CancellationToken ct)
     {
-        
+
         return await operations.ExecuteAsync(this, async token =>
         {
             try { var (org, actor) = await RequireAdministratorAsync(principals, token); return await action(org, actor, token); }
@@ -114,7 +125,8 @@ public static class ManagementApplicationServiceExtensions
     public static IServiceCollection AddIBeamManagementApplications(this IServiceCollection services)
     {
         services.AddIBeamManagementServices();
-        services.TryAddScoped<IManagementApplicationService, ManagementApplicationService>();
+        services.TryAddScoped<ManagementApplicationService>();
+        services.TryAddScoped<IManagementApplicationService>(p => p.GetRequiredService<ManagementApplicationService>());
         return services;
     }
 }

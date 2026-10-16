@@ -42,3 +42,16 @@ Every operation requires a trusted human support identity, management organizati
 Keys are lowercase letters/digits/hyphens, maximum 100; environment is up to 100 letters/digits/dot/underscore/hyphen; names up to 200. Key/environment are immutable, unique case-insensitively within the support organization. URL is an HTTPS origin on port 443, without user information, IP literals, path, query or fragment. Registry validation makes no outbound request. Changing an origin detaches its connection. Disabling an app preserves metadata but downstream connections must reject it.
 
 Responses expose a concurrency version; stale PATCH returns 409. Other safe envelopes: 400 invalid input, 403 denied, 404 absent/outside organization, 503 storage unavailable. Responses are no-store; audits contain operation/result/entity identifiers, without request/entity/response snapshots.
+
+## Optional connection endpoints
+
+Call AddIBeamManagementConnectionsApi(configuration) after AddIBeamManagementApi; it also installs the application registry routes. Supply IManagementApplicationCredentialRepository and IManagementSecretStore. Configure IBeam:Management:Connections:ApprovedOrigins as an explicit array of HTTPS origins and TimeoutSeconds (1–30, default 10). Empty/invalid approval configuration or missing dependencies fails startup. No connection routes are present without opting in.
+
+- PUT /api/management/applications/{applicationId}/connection: JSON apiKey and expectedVersion. Requires writable secret storage. The key is accepted once, never returned. The service stores a new secret, reads and validates it, confirms /api/management-diagnostics/info, records verified metadata, then atomically switches the app pointer using its expected version.
+- POST /api/management/applications/{applicationId}/connection/test: bodyless; uses only the registered application and its active reference. Client URL, header, host or secret-reference input cannot select a target.
+
+Both require management.applications.admin and the same organization-bound human identity as the registry. Disabled apps are denied. Result: applicationId, version, verifiedUtc and supported capabilities, without key/reference/target body. Invalid destination/key/identity/protocol/capability is 400; denied is 403; missing app is 404; concurrent edits are 409; provider/outage is 503; deadline is 504. Caller cancellation propagates.
+
+Connection controllers disable ASP.NET HTTP logging fields, set no-store and limit request bodies to 16 KiB. Do not install custom middleware or telemetry that captures raw request bodies, secret-store responses or X-IBeam-Management-Key headers. The outbound client has no HTTP-client-factory logging handlers or propagated trace headers. Never submit keys in query strings or URLs.
+
+Changing an app origin clears the active connection. A failed replacement/test preserves the existing pointer; concurrent edits, disablement or rotation cannot be overwritten by pending activation. Old and failed-candidate secrets are retained for separately authorized retention/cleanup tooling. This module does not revoke credentials at the target.

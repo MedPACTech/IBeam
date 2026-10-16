@@ -22,7 +22,9 @@ internal sealed class ManagementApplicationApiFilter : IResourceFilter, IActionF
             ManagementApplicationInvalidException => 400,
             ManagementApplicationNotFoundException => 404,
             ManagementApplicationConflictException => 409,
-            ManagementApplicationUnavailableException => 503,
+            ManagementApplicationUnavailableException or ManagementConnectionUnavailableException => 503,
+            ManagementConnectionInvalidException => 400,
+            ManagementConnectionTimeoutException => 504,
             _ => 0
         };
         if (status == 0) return;

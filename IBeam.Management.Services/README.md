@@ -74,3 +74,21 @@ Info capability reporting accepts optional IEnumerable<IManagementDiagnosticsCap
 AddIBeamManagementApplications registers IManagementApplicationService. All methods enforce the human management context and management.applications.admin before storage access, execute through IServiceOperationExecutor and sanitize unexpected provider failures before audit. No customer role implies this permission. Register a host-owned IManagementPrincipalProvider and isolated IManagementApplicationRepository; registration never grants diagnostic access.
 
 POST creates enabled metadata; PATCH supplies complete mutable name/origin/enabled configuration and an expected version. Application key/environment remain immutable. Approved outbound destinations and connection secrets belong to the separate connection module.
+
+## Verified application connections
+
+AddIBeamManagementConnections(configuration) supplies IManagementApplicationConnectionService and an HTTPS info probe. All connection operations go through IServiceOperationExecutor with metadata-only audit. Unexpected SDK, HTTP, DNS and provider failures are translated before audit; keys, secret references, response bodies and request snapshots are omitted.
+
+ApprovedOrigins under IBeam:Management:Connections is an explicit host-owned list. Only registered root HTTPS origins on port 443 are called. The fixed GET /api/management-diagnostics/info sends X-IBeam-Management-Key. Redirects, proxies, cookies and arbitrary request headers/Host overrides are disabled. DNS answers must all be public; special/private/link-local/loopback/documentation/transition addresses fail closed. The socket connects to the checked IP with normal TLS certificate/SNI verification for the original hostname, preventing resolution changes between checking and connecting. There is no private-network exception switch.
+
+The response is bounded to 32 KiB and must be a successful IBeam envelope using protocol 1, exact registered applicationKey/environment and known info/errors/logs capabilities (info mandatory). Raw target messages are never surfaced. TimeoutSeconds bounds secret persistence/read, probe and activation; internal deadlines become safe timeout failures and caller cancellation propagates.
+
+### Secret-store choices
+
+IManagementSecretStore stores keys outside table rows. AddIBeamManagementKeyVaultSecrets in the optional IBeam.Management.Secrets.AzureKeyVault package supplies writable, versioned secret storage using a dedicated host-created SecretClient and managed identity. No vault is provisioned by this framework.
+
+AddIBeamManagementEnvironmentSecrets(options => options.Bindings.Add(new(orgId, appId, "qurvia-production", "QURVIA_MANAGEMENT_KEY"))) supplies read-only environment references. Bindings are trusted host configuration scoped to org/app. After registration, trusted administrative tooling calls ManagementApplicationConnectionService.ActivateEnvironmentReferenceAsync(appId, expectedVersion); it resolves that binding, verifies it and activates it. There is no HTTP reference-binding endpoint. PUT submissions are rejected in this mode; the framework never changes process environment variables.
+
+ManagementApplicationConnectionService coordinates the entity-focused application service and credential repository. Verified credential metadata is append-only; the app's ActiveCredentialId is the authoritative pointer. Cross-table transactions are not assumed: an activation conflict can leave a verified, unreferenced row/secret. Preserve active versions and perform retention cleanup through explicit operator tooling.
+
+Implementation references: [SocketsHttpHandler](https://learn.microsoft.com/en-us/dotnet/api/system.net.http.socketshttphandler?view=net-10.0), [TLS/SNI](https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-sni), [IANA IPv4 special ranges](https://www.iana.org/assignments/iana-ipv4-special-registry/), [IANA IPv6 special ranges](https://www.iana.org/assignments/iana-ipv6-special-registry/).

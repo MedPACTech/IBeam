@@ -9,3 +9,7 @@ Management context claims must be issued by trusted authentication after the app
 `IManagementPrincipalProvider` supplies the authenticated principal. Services reject anonymous principals, mixed authenticated identities, missing/ambiguous context, wrong subject type, and missing operation grants. This is a service guard, not a replacement for token/key validation.
 
 See `docs/planning/management-api-plan.md` in the source repository for the complete epic and acceptance criteria.
+
+## Application registry and connection contracts
+
+ManagementApplicationEntity represents organization-scoped app/environment metadata. ManagementApplicationCredentialEntity stores verified connection metadata plus a non-public secret reference. IManagementApplicationService and IManagementApplicationConnectionService expose administrator operations, without requiring IBeam Identity. IManagementSecretStore supports read-only references or writable stores; ManagementSecretValue and connection request models suppress secret serialization and redact ToString. No contracts depend on Azure, HTTP or Identity.
