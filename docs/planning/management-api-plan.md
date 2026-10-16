@@ -189,13 +189,15 @@ Add AzureTableSystemLogReadRepository and SystemLogReaderService using existing 
 
 Touches: IBeam.Management.Repositories.AzureTable/Diagnostics/, IBeam.Management.Services/Diagnostics/SystemLogReaderService.cs.
 
-- [ ] The reader queries approved system categories/partitions only and excludes tenant business audit records by default.
-- [ ] BeforeJson, AfterJson, OriginalJson, TransformedJson, actor/device/IP metadata and unsafe Detail/Message are absent from outbound DTOs.
-- [ ] Safe source/level/time/trace filters, authenticated cursors, row IDs, page/scan budgets and cancellation match the error contract.
-- [ ] Sensitive canary fixtures in every excluded field never appear in responses or management audit.
-- [ ] Logs.Read does not imply Errors.Read and no tenant-restricted claim is made when source attribution cannot support it.
+- [x] The reader queries approved system categories/partitions only and excludes tenant business audit records by default.
+- [x] BeforeJson, AfterJson, OriginalJson, TransformedJson, actor/device/IP metadata and unsafe Detail/Message are absent from outbound DTOs.
+- [x] Safe source/level/time/trace filters, authenticated cursors, row IDs, page/scan budgets and cancellation match the error contract.
+- [x] Sensitive canary fixtures in every excluded field never appear in responses or management audit.
+- [x] Logs.Read does not imply Errors.Read and no tenant-restricted claim is made when source attribution cannot support it.
 
 Verification: focused service/HTTP tests; isolated provider fixtures where needed; build/pack affected packages and update registration/endpoint documentation.
+
+Verified IBM-0085: 130 diagnostics tests passed (68 existing plus 62 new), including seven private Azurite cases. 34 management foundation and 59 credential (2 opt-in skipped) regressions passed. Reader queries exact SYSTEM|DAY partitions with Category System; tenant partitions, EntityChange/SelectRollup rows (including tenant-less audit in the SYSTEM partition), rollup keys and malformed rows are never returned. $select excludes Message/Detail, actor/device/IP/user agent, tenant/entity and every *Json column; canaries seeded in each are absent from responses, audit and service logs. Source/level/trace filters are validated, pushed down, rechecked per row and frozen into AES-GCM cursors bound to system-logs/app/environment/source binding; error and log tokens are not interchangeable. Live Logs.Read is checked before every provider read and does not imply Errors.Read. Logs carry no tenant attribution, so no per-tenant restriction is claimed. Mutation check: selecting Message and dropping the Category guard fails the canary test. Configurable sanitization is IBM-0097.
 
 ### MGT-009 / IBM-0086: Expose target log list/detail endpoints
 
@@ -205,12 +207,14 @@ GET /api/management-diagnostics/system-logs and /{logId}; IBeam response helpers
 
 Touches: IBeam.Management.Diagnostics.Api/Controllers/, IBeam.Tests.Management/.
 
-- [ ] List/detail require Logs.Read and the correct machine credential/deployment binding.
-- [ ] Response shapes use safe log DTOs and existing response conventions; storage entities are never returned.
-- [ ] HTTP tests cover missing/wrong credentials, cross-type/cross-deployment IDs, invalid ranges/cursors and missing rows.
-- [ ] Reader services remain callable without HTTP while enforcing trusted service access context and operation execution.
+- [x] List/detail require Logs.Read and the correct machine credential/deployment binding.
+- [x] Response shapes use safe log DTOs and existing response conventions; storage entities are never returned.
+- [x] HTTP tests cover missing/wrong credentials, cross-type/cross-deployment IDs, invalid ranges/cursors and missing rows.
+- [x] Reader services remain callable without HTTP while enforcing trusted service access context and operation execution.
 
 Verification: focused service/HTTP tests; isolated provider fixtures where needed; build/pack affected packages and update registration/endpoint documentation.
+
+Verified IBM-0086: Opt-in GET /api/management-diagnostics/system-logs and /{logId} via AddIBeamManagementSystemLogsApi; Logs.Read capability composes with errors in /info. HTTP tests cover anonymous/customer/human/legacy/revoked/expired/other-deployment/info-only/errors-only denial with zero reads, cross-type error IDs/cursors, invalid ranges/filters/cursors without echo, uniform 404s, sanitized 503, 504 deadline, no write routes, direct service calls without HTTP context, missing-repository startup failure and a read-only SAS end-to-end run. The shared diagnostics filter was renamed ManagementDiagnosticApiFilter (internal).
 
 ## MGT-F06: Application registry and secret-backed connections
 

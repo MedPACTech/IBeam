@@ -16,7 +16,7 @@ public static class ManagementSystemErrorApiServiceCollectionExtensions
     public static IServiceCollection AddIBeamManagementSystemErrorsApi(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddIBeamManagementSystemErrorService(configuration);
-        services.TryAddScoped<SystemErrorApiFilter>();
+        services.TryAddScoped<ManagementDiagnosticApiFilter>();
         services.AddHostedService<ErrorApiDependencyValidator>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IManagementDiagnosticsCapability, SystemErrorCapability>());
         services.AddControllers().ConfigureApplicationPartManager(manager =>

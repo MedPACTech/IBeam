@@ -9,7 +9,7 @@ namespace IBeam.Management.Diagnostics.Api.Controllers;
 // Added explicitly by the optional error API feature provider. Base API assembly scanning must not expose this route.
 [NonController]
 [Authorize(Policy = ManagementDiagnosticsApiPolicies.Access)]
-[ServiceFilter(typeof(SystemErrorApiFilter), Order = -3000)]
+[ServiceFilter(typeof(ManagementDiagnosticApiFilter), Order = -3000)]
 [Route("api/management-diagnostics/system-errors")]
 public sealed class SystemErrorsController(ISystemErrorReaderService service) : ApiControllerBase
 {

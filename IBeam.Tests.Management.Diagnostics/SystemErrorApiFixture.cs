@@ -29,6 +29,7 @@ internal sealed class SystemErrorApiFixture : IAsyncDisposable
 {
     public const string Sensitive = "fixture-private-payload-password";
     public readonly ErrorReaderFixture.MemoryRepository Rows = new();
+    public readonly LogReaderFixture.MemoryRepository LogRows = new();
     public readonly ErrorReaderFixture.Clock Clock = new();
     public readonly CredentialStore Credentials = new();
     public readonly AuditSink Audits = new();
@@ -39,7 +40,8 @@ internal sealed class SystemErrorApiFixture : IAsyncDisposable
 
     public static async Task<SystemErrorApiFixture> CreateAsync(
         bool installed = true, ISystemErrorReadRepository? repository = null,
-        Action<Dictionary<string, string?>>? configure = null, bool featureFirst = false, bool registerRepository = true)
+        Action<Dictionary<string, string?>>? configure = null, bool featureFirst = false, bool registerRepository = true,
+        bool installLogs = false, ISystemLogReadRepository? logRepository = null)
     {
         var fixture = new SystemErrorApiFixture();
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
@@ -52,7 +54,10 @@ internal sealed class SystemErrorApiFixture : IAsyncDisposable
             ["IBeam:Management:Diagnostics:Environment"] = "Production",
             ["IBeam:Management:Diagnostics:Errors:SourceMode"] = "DedicatedDeployment",
             ["IBeam:Management:Diagnostics:Errors:DedicatedSourceConfirmed"] = "true",
-            ["IBeam:Management:Diagnostics:Errors:ProtectionKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+            ["IBeam:Management:Diagnostics:Errors:ProtectionKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
+            ["IBeam:Management:Diagnostics:Logs:SourceMode"] = "DedicatedDeployment",
+            ["IBeam:Management:Diagnostics:Logs:DedicatedSourceConfirmed"] = "true",
+            ["IBeam:Management:Diagnostics:Logs:ProtectionKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
         };
         configure?.Invoke(values);
         builder.Configuration.AddInMemoryCollection(values);
@@ -61,12 +66,14 @@ internal sealed class SystemErrorApiFixture : IAsyncDisposable
         builder.Services.AddSingleton<IAuditTrailSink>(fixture.Audits);
         builder.Services.Configure<ServiceAuditOptions>(o => o.Enabled = true);
         if (registerRepository) builder.Services.AddSingleton<ISystemErrorReadRepository>(new FailureBoundary(fixture, repository ?? fixture.Rows));
+        if (registerRepository) builder.Services.AddSingleton<ISystemLogReadRepository>(new LogFailureBoundary(fixture, logRepository ?? fixture.LogRows));
         builder.Services.AddControllers().ConfigureApplicationPartManager(p => p.ApplicationParts.Clear());
         builder.Services.AddAuthentication("Customer")
             .AddScheme<AuthenticationSchemeOptions, CustomerHandler>("Customer", _ => { });
         if (installed && featureFirst) builder.Services.AddIBeamManagementSystemErrorsApi(builder.Configuration);
         builder.Services.AddIBeamManagementDiagnosticsCredentialApi(builder.Configuration);
         if (installed && !featureFirst) builder.Services.AddIBeamManagementSystemErrorsApi(builder.Configuration);
+        if (installLogs) builder.Services.AddIBeamManagementSystemLogsApi(builder.Configuration);
         // Even a detailed host error policy must not leak unsafe provider text from these endpoints.
         builder.Services.Configure<ApiErrorHandlingOptions>(o => o.ExposeDetailedErrors = true);
         fixture.App = builder.Build();
@@ -124,6 +131,14 @@ internal sealed class SystemErrorApiFixture : IAsyncDisposable
         public Task<SystemErrorPartitionPage> ReadPartitionAsync(SystemErrorPartitionQuery query, CancellationToken ct = default)
             => fixture.SimulateStorageFailure ? throw new InvalidOperationException("provider signed-url password=" + Sensitive) : inner.ReadPartitionAsync(query, ct);
         public Task<SystemErrorRecord?> GetAsync(string partitionKey, string rowKey, CancellationToken ct = default)
+            => fixture.SimulateStorageFailure ? throw new InvalidOperationException("provider connection password=" + Sensitive) : inner.GetAsync(partitionKey, rowKey, ct);
+    }
+    private sealed class LogFailureBoundary(SystemErrorApiFixture fixture, ISystemLogReadRepository inner) : ISystemLogReadRepository
+    {
+        public string SourceBinding => inner.SourceBinding;
+        public Task<SystemLogPartitionPage> ReadPartitionAsync(SystemLogPartitionQuery query, CancellationToken ct = default)
+            => fixture.SimulateStorageFailure ? throw new InvalidOperationException("provider signed-url password=" + Sensitive) : inner.ReadPartitionAsync(query, ct);
+        public Task<SystemLogMetadata?> GetAsync(string partitionKey, string rowKey, CancellationToken ct = default)
             => fixture.SimulateStorageFailure ? throw new InvalidOperationException("provider connection password=" + Sensitive) : inner.GetAsync(partitionKey, rowKey, ct);
     }
     internal sealed class CredentialStore : IManagementApiCredentialRepository

@@ -252,7 +252,9 @@
           ],
           "hubbslyId": "1b665163-423a-416f-83f2-b5ef4972bfa8",
           "hubbslySourceKey": "IBM-0085",
-          "points": 5
+          "points": 5,
+          "implementationStatus": "verified",
+          "verification": "130 diagnostics tests passed (68 existing plus 62 new), including seven private Azurite cases. 34 management foundation and 59 credential (2 opt-in skipped) regressions passed. Reader queries exact SYSTEM|DAY partitions with Category System; tenant partitions, EntityChange/SelectRollup rows (including tenant-less audit in the SYSTEM partition), rollup keys and malformed rows are never returned. $select excludes Message/Detail, actor/device/IP/user agent, tenant/entity and every *Json column; canaries seeded in each are absent from responses, audit and service logs. Source/level/trace filters are validated, pushed down, rechecked per row and frozen into AES-GCM cursors bound to system-logs/app/environment/source binding; error and log tokens are not interchangeable. Live Logs.Read is checked before every provider read and does not imply Errors.Read. Logs carry no tenant attribution, so no per-tenant restriction is claimed. Mutation check: selecting Message and dropping the Category guard fails the canary test. Configurable sanitization is IBM-0097."
         },
         {
           "key": "MGT-009",
@@ -270,7 +272,9 @@
           ],
           "hubbslyId": "a157fc98-b9ef-42a1-8a59-f5c256bd8924",
           "hubbslySourceKey": "IBM-0086",
-          "points": 3
+          "points": 3,
+          "implementationStatus": "verified",
+          "verification": "Opt-in GET /api/management-diagnostics/system-logs and /{logId} via AddIBeamManagementSystemLogsApi; Logs.Read capability composes with errors in /info. HTTP tests cover anonymous/customer/human/legacy/revoked/expired/other-deployment/info-only/errors-only denial with zero reads, cross-type error IDs/cursors, invalid ranges/filters/cursors without echo, uniform 404s, sanitized 503, 504 deadline, no write routes, direct service calls without HTTP context, missing-repository startup failure and a read-only SAS end-to-end run. The shared diagnostics filter was renamed ManagementDiagnosticApiFilter (internal)."
         }
       ],
       "hubbslyId": "6ab554f2-ace5-4daf-bc02-f3d6cea1dbe0",

@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 namespace IBeam.Management.Diagnostics.Api.Controllers;
 
 /// <summary>Safe IBeam envelopes. Runs before automatic model-state responses can echo attempted secret values.</summary>
-internal sealed class SystemErrorApiFilter : IResourceFilter, IActionFilter, IExceptionFilter
+internal sealed class ManagementDiagnosticApiFilter : IResourceFilter, IActionFilter, IExceptionFilter
 {
     public void OnResourceExecuting(ResourceExecutingContext context)
     {
