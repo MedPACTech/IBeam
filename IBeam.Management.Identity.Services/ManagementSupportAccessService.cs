@@ -9,6 +9,7 @@ public sealed class ManagementSupportAccessService(
     ManagementIdentitySessionService sessions,
     ITenantMembershipStore memberships,
     IAuthSessionStore sessionStore,
+    ITenantRoleStore roles,
     IOptions<ManagementIdentityOptions> options,
     IServiceOperationExecutor operations)
 {
@@ -20,7 +21,13 @@ public sealed class ManagementSupportAccessService(
             if (!administrator.Membership.Roles.Contains(ManagementIdentityRoles.Administrator, StringComparer.Ordinal) ||
                 userId == administrator.User.UserId)
                 throw new ManagementAccessDeniedException();
+            if (!actor.HasClaim(ManagementClaimTypes.Permission, ManagementSupportOperations.UsersAdmin))
+                throw new ManagementAccessDeniedException();
             var organizationId = options.Value.OrganizationId;
+            var targetRoles = await roles.GetRolesForUserAsync(organizationId, userId, token);
+            // Routine support administration cannot disable any management administrator, avoiding concurrent last-admin loss.
+            if (targetRoles.Any(x => x.IsActive && x.Name == ManagementIdentityRoles.Administrator))
+                throw new ManagementAccessDeniedException();
             var target = await memberships.GetTenantForUserAsync(userId, organizationId, token);
             if (target is null) throw new ManagementAccessDeniedException();
             await memberships.DisableTenantMembershipAsync(organizationId, userId, "Management support access disabled.", token);

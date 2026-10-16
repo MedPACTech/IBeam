@@ -35,3 +35,14 @@ The named bearer scheme validates signature, algorithm, issuer, audience and exp
 Membership/session storage outages fail closed. Concurrent requests already authorized before a disable may complete; subsequent requests recheck state. Use durable audit and the deployment/network policies specified by later epic features before production exposure.
 
 IBeam.Admin.API remains a deferred NuGet-consuming host. This package does not rename/edit that repository or deploy anything.
+
+## Optional support administration routes
+
+After AddIBeamManagementIdentityApi, call AddIBeamManagementSupportUsersApi(). Routes are absent without this opt-in:
+
+- GET /api/management/support-users: management-only directory.
+- POST /api/management/support-invitations: email; returns inviteId/expiresUtc/status.
+- POST /api/management/support-invitations/accept: anonymous, write-only inviteToken/password; returns userId/requiresMfaLogin without a session.
+- PATCH /api/management/support-users/{userId}: isEnabled=false only; reenabling is rejected.
+
+Administrative routes require a live human management session and management.support-users.admin. Organization and role assignment always come from server-owned management configuration. Expected errors use safe envelopes (400 invalid input/invitation, 403 denied, 503 unavailable); no account secrets or provider messages are returned. Acceptance disables HTTP body logging and limits requests to 16 KiB. Custom host telemetry must also omit invitation tokens/passwords. Invitation delivery failures are sanitized before nested Identity audit. Generic Identity enrollment/recovery/invite controllers remain absent.

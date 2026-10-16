@@ -27,3 +27,15 @@ For selected password/MFA/refresh/logout endpoints, reference IBeam.Management.I
 ## Application administration permission
 
 The exact live ManagementAdministrator catalog role grants management.applications.admin in addition to management.identity.read. ManagementSupport grants identity.read only. Trusted MFA issuance and every protected request/refresh rebuild these permissions from live membership roles, stripping stale claims; removing administrator access therefore takes effect on the next request. Customer Owner/Admin roles never grant application administration.
+
+## Support directory and invitations (IBM-0089)
+
+IManagementSupportUserService reuses the management Identity directory, TenantInvites, existing users, memberships and role stores. No separate support profile/auth table is created. Explicit management.support-users.admin plus a live ManagementAdministrator membership/session is required for listing, invitations and disablement.
+
+Invitations are email-only, expire after 48 hours and grant ManagementSupport only. Configure IBeam:Management:Identity:Invites:Links:DefaultAcceptUrl to the trusted portal acceptance page; host delivery uses the existing Identity sender. Portal fields cannot choose organization, roles, identity email, default-tenant behavior or redirect links. Only invitation metadata is returned, never the token/link.
+
+The email-delivered token identifies the intended address. Acceptance verifies the canonical invite, expiry, fixed role and still-active issuing administrator. Existing identities must supply their current password and cannot already have a management membership (disabled memberships are not reenabled). New passwords use the existing Identity provider policy. Acceptance confirms that address, enables email MFA and links only the management organization. It issues no access/refresh/pre-tenant token; users must subsequently complete normal password + MFA sign-in.
+
+A single-use atomic marker is added to the existing prefixed TenantInvites table under MGTREDEEM|organization. It contains invite/user IDs and time only; this prevents simultaneous replay across host instances. The marker is never released after a partial failure: an administrator must issue a fresh invitation. Existing membership/password state is not reset by replay.
+
+Routine disablement is membership-first followed by session revocation. Every protected request/refresh rechecks membership, so partial revocation failure remains denied. Self-disable and disabling any management administrator are rejected, including on the legacy disable route; administrator recovery/removal stays explicit trusted tooling. This prevents simultaneous administrative disables from removing the final administrator.

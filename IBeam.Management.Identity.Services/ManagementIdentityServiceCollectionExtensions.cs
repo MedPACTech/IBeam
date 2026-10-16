@@ -1,3 +1,7 @@
+using Azure.Data.Tables;
+using IBeam.Management.Repositories.AzureTable;
+using IBeam.Identity.Repositories.AzureTable.Options;
+using Microsoft.Extensions.Options;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Repositories.AzureTable.Extensions;
 using IBeam.Identity.Services;
@@ -30,6 +34,15 @@ public static class ManagementIdentityServiceCollectionExtensions
         services.AddScoped<ManagementIdentityMembershipService>();
         services.AddScoped<ManagementIdentitySessionService>();
         services.AddScoped<ManagementSupportAccessService>();
+        services.AddScoped<ManagementSupportInvitationDelivery>();
+        services.TryAddScoped<IManagementSupportUserService, ManagementSupportUserService>();
+        services.TryAddScoped<IManagementSupportUserStateProvider, ManagementSupportUserStateProvider>();
+        services.TryAddScoped<IManagementInvitationRedemptionStore>(provider =>
+        {
+            var storage = provider.GetRequiredService<IOptions<AzureTableIdentityOptions>>().Value;
+            return new AzureTableManagementInvitationRedemptionStore(new TableClient(storage.StorageConnectionString,
+                storage.FullTableName(storage.TenantInvitesTableName)));
+        });
         services.AddScoped<IManagementIdentityAuthenticationService, ManagementIdentityAuthenticationService>();
         services.AddScoped<IClaimsEnricher, ManagementIdentityClaimsEnricher>();
         services.Replace(ServiceDescriptor.Scoped<IAuthLifecycleHook, ManagementIdentityEnrollmentHook>());

@@ -33,7 +33,7 @@ internal sealed class ManagementIdentityHttpFixture : IAsyncDisposable
     public CapturingSender Sender { get; } = new();
     private TableServiceClient _storage = null!;
 
-    public static async Task<ManagementIdentityHttpFixture> CreateAsync()
+    public static async Task<ManagementIdentityHttpFixture> CreateAsync(bool supportUsers = false)
     {
         var fixture = new ManagementIdentityHttpFixture();
         var connection = Environment.GetEnvironmentVariable("IBEAM_MANAGEMENT_TEST_STORAGE");
@@ -52,7 +52,8 @@ internal sealed class ManagementIdentityHttpFixture : IAsyncDisposable
             ["IBeam:Management:Identity:Jwt:SigningKey"] = fixture.SigningKey,
             ["IBeam:Management:Identity:Otp:HashSalt"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
             ["IBeam:Management:Identity:Otp:VerificationTokenSecret"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
-            ["IBeam:Management:Identity:Otp:FailureResponseDelayMilliseconds"] = "0"
+            ["IBeam:Management:Identity:Otp:FailureResponseDelayMilliseconds"] = "0",
+            ["IBeam:Management:Identity:Invites:Links:DefaultAcceptUrl"] = "https://support.example.test/invites/accept"
         };
         var setupConfiguration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
         var setup = new ServiceCollection();
@@ -79,6 +80,7 @@ internal sealed class ManagementIdentityHttpFixture : IAsyncDisposable
         builder.Services.AddSingleton<IIdentityCommunicationSender>(fixture.Sender);
         builder.Services.AddControllers().ConfigureApplicationPartManager(parts => parts.ApplicationParts.Clear());
         builder.Services.AddIBeamManagementIdentityApi(builder.Configuration);
+        if (supportUsers) builder.Services.AddIBeamManagementSupportUsersApi();
         fixture.App = builder.Build();
         fixture.App.UseAuthentication();
         fixture.App.UseAuthorization();
@@ -136,7 +138,8 @@ internal sealed class ManagementIdentityHttpFixture : IAsyncDisposable
     internal sealed class CapturingSender : IIdentityCommunicationSender
     {
         public List<IdentitySenderMessage> Messages { get; } = [];
+        public bool FailDelivery { get; set; }
         public Task SendAsync(IdentitySenderMessage message, CancellationToken ct = default)
-        { Messages.Add(message); return Task.CompletedTask; }
+        { Messages.Add(message); if (FailDelivery) throw new InvalidOperationException(message.Code); return Task.CompletedTask; }
     }
 }

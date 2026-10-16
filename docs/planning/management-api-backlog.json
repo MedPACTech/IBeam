@@ -365,7 +365,9 @@
           ],
           "hubbslyId": "67bdfc4d-5272-43f1-9e8e-aed8fab92239",
           "hubbslySourceKey": "IBM-0089",
-          "points": 5
+          "points": 5,
+          "implementationStatus": "done",
+          "verification": "62 management Identity tests passed, including private Azure Table HTTP onboarding, canonical invitation tampering/expiry/issuer checks, MFA-only sign-in, replay and atomic claim, explicit permission and membership/session disablement. Optional routes, write-only secrets and no new auth/profile tables verified; affected packages built/packed."
         },
         {
           "key": "MGT-013",
