@@ -506,7 +506,9 @@
           ],
           "hubbslyId": "11544378-4990-417b-9fa6-c0c69a621ce4",
           "hubbslySourceKey": "IBM-0094",
-          "points": 5
+          "points": 5,
+          "implementationStatus": "done",
+          "verification": "IBM-0094 (5 points): documented deployment-wide (not per-customer-tenant) authority for tenant-less historical errors; dedicated-vs-shared source confirmations and fail-closed partial/malformed/foreign tags; trusted writer prerequisites and operator migration/recapture procedure. Added real private Table/HTTP mixed-source scenario for Qurvia and Bindry, separate source replay, read-only SAS denied writes/deletes, unchanged ETags, tagged and untagged history, business EntityChange/SelectRollup and tenant partitions, every raw message/exception/detail/request/audit JSON canary on successful and failed list/detail responses and metadata audit, query override attempts, frozen query/cursor replay and foreign app denial. Existing range/source/category/deployment token tests retained. All 132 Diagnostics checks passed with isolated Azurite, zero skipped. No production data, schema migration, raw-field option or customer-table access added."
         }
       ],
       "hubbslyId": "3de67ac3-7bbc-43a2-98f7-7509d15dbd2c",

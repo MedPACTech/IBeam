@@ -103,11 +103,12 @@ internal sealed class SystemErrorApiFixture : IAsyncDisposable
     public async Task<ManagementIssuedCredential> IssueAsync(params string[] capabilities)
     {
         var id = Guid.NewGuid();
+        var deployment = App.Services.GetRequiredService<IOptions<ManagementDiagnosticsOptions>>().Value;
         var codec = new ManagementCredentialSecretCodec();
         var key = codec.Create(id);
         var row = await Credentials.CreateAsync(new ManagementApiCredentialEntity
         {
-            CredentialId = id, ApplicationKey = "qurvia", Environment = "Production",
+            CredentialId = id, ApplicationKey = deployment.ApplicationKey, Environment = deployment.Environment,
             SecretHash = codec.Hash(key), Capabilities = capabilities.Length == 0 ? [ManagementOperations.ErrorsRead] : capabilities,
             CreatedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddHours(1)
         });
