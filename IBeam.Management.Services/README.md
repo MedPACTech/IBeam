@@ -27,3 +27,34 @@ Resolve IManagementCredentialProvisioningService and call IssueAsync(explicitCap
 The optional Diagnostics API adapter registers ManagementCredentialAuthenticationService and ManagementDiagnosticsAccessService. The former creates only a machine principal after key/network validation; the latter requires the exact persisted operation grant and rechecks status, expiry, deployment and record version before every diagnostic query. The original three-argument info-service constructor remains available for BYO-auth; DI selects the live four-argument guard when installed by the credential adapter. Keep future error/log readers behind IManagementDiagnosticsAccessService.RequireAsync inside their IServiceOperationExecutor operation.
 
 ManagementCredentialNetworkPolicy accepts configured CIDR ranges and a server-observed IPAddress; HTTP/proxy trust belongs to the host. No arbitrary request headers, customer roles or implied wildcard grants are accepted. Authentication/authorization audit records include credential ID, operation and safe request correlation, with no secret/hash snapshots. Existing host audit context providers are preserved.
+
+## Bounded SystemErrors reader (IBM-0083)
+
+Register AddIBeamManagementSystemErrorReader(configuration) from IBeam.Management.Services.Diagnostics and supply ISystemErrorReadRepository plus a live IManagementDiagnosticsAccessService. The persisted credential API adapter supplies the latter. For a target using that adapter, registration is:
+
+```csharp
+services.AddIBeamManagementAzureTableCredentialStore(configuration);
+services.AddIBeamManagementDiagnosticsCredentialApi(configuration);
+services.AddIBeamManagementAzureTableSystemErrorReader(configuration);
+services.AddIBeamManagementSystemErrorReader(configuration);
+```
+
+The repository extension is in IBeam.Management.Repositories.AzureTable.Diagnostics. The HTTP authentication extension is in IBeam.Management.Diagnostics.Api.Authentication. This reader registration adds no error HTTP routes and does not advertise error-reading capability; safe DTO projection and routes are IBM-0084. IBeam.Admin.API stays deferred.
+
+IBeam:Management:Diagnostics:Errors settings:
+- SourceMode is required: DedicatedDeployment with DedicatedSourceConfirmed=true, or TaggedShared with TrustedTagsConfirmed=true.
+- Dedicated mode is an operator assertion that this physical table contains only the configured application/environment. It permits legacy untagged rows but rejects any explicit mismatched/partial/malformed tags.
+- TaggedShared requires exact ManagementApplicationKey and ManagementEnvironment columns from a trusted writer. Existing IBeam error rows have neither tag and are suppressed. The reader does not derive attribution from Source, Path, client headers or tenant text, modify the writer, or backfill historical rows. Operators must secure tag writers; field names alone do not prove trustworthy attribution.
+- ProtectionKey is a dedicated secret containing exactly 32 random bytes in base64. No key is generated implicitly or inherited from Identity. Configure the same key across instances/restarts; replacing it invalidates outstanding IDs/cursors.
+- DefaultWindowHours=24, MaximumWindowHours=168 (hard maximum 168).
+- DefaultPageSize=50, MaximumPageSize=100 (hard maximum 1000).
+- ScanBudgetPerPage=500 returned storage rows, MaximumStorageRequestsPerPage=16 diagnostic provider-page calls (maximum 32).
+- RequestTimeoutSeconds=10 (maximum 30), TokenLifetimeMinutes=30 (maximum 60).
+
+Resolve IManagementSystemErrorReader and call ReadAsync(DiagnosticQuery). FromUtc/ToUtc normalize to a UTC [from, to) interval; future end times beyond five minutes of clock tolerance are rejected. Query defaults are frozen into the first protected continuation. Subsequent requests can omit the original fields; explicitly changed bounds/page size are rejected. Iteration visits exact ERR|yyyyMMdd partitions in ascending date and natural storage row-key order. Legacy offset timestamps retain their existing row keys; filter by OccurredAtUtc, not inferred row-key time.
+
+The reader checks Errors.Read through the live access service before every diagnostic query, including subsequent provider pages. Scan/request/time limits bound each call; a filtered or empty page may still contain NextCursor, which the client should continue. These limits bound returned rows and requests, not Azure's internal work evaluating filters inside one partition. No full-table or cross-application scan is used. Pagination follows the provider's continuation semantics rather than a database snapshot; concurrent inserts before an already visited key are not replayed.
+
+AES-256-GCM authenticates and encrypts native continuations and record identifiers. Tokens bind purpose, system-errors record type, app/environment, physical source, isolation mode and the normalized query. Their fixed expiry is not renewed by paging. GetAsync(recordId, optionalOriginalQuery) performs a point read after authorization and token validation; a supplied query must match the protected one. Missing/removed or newly mismatched records return null. Invalid/replayed tokens return a safe DiagnosticTokenException; out-of-bound/conflicting queries return DiagnosticQueryException.
+
+SystemErrorReadPage and SystemErrorRecord are internal repository/service results, not public DTOs. Source/TraceId remain untrusted metadata, are JSON-ignored, and must pass an allowlisted projection before public use. Message, Exception, Path, Method and customer payload columns are never selected by this adapter. No row keys, provider cursors, tokens, entities or query/response snapshots enter audit options. Operation names use management.diagnostics.errors.read through IServiceOperationExecutor; the host retains its durable audit/error middleware policy.

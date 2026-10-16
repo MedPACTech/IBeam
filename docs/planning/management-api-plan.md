@@ -141,16 +141,18 @@ Estimate: **5 points**.
 
 Implement SystemErrorEntity read adapter for ERR|yyyyMMdd partitions and current row keys, DiagnosticQuery and cursor codec. Keep diagnostics storage separately configurable from management identity storage.
 
-Touches: IBeam.Management.Repositories.AzureTable/Diagnostics/, IBeam.Management/Models/, IBeam.Management.Services/Diagnostics/.
+Touches: IBeam.Management.Repositories.AzureTable/Diagnostics/, IBeam.Management/Models/, IBeam.Management.Services/Diagnostics/, IBeam.Tests.Management.Diagnostics/, IBeam.sln.
 
-- [ ] Existing error rows can be read without rewriting them or copying them to the portal store.
-- [ ] Default query is bounded (24h); configurable maximum window/page/scan budget prevents unbounded queries and cancellation is honored.
-- [ ] Continuation tokens and record IDs are authenticated and bound to deployment, record type and query; tampering/replay against another context fails.
-- [ ] Diagnostic connection/table options never implicitly select the portal's prefixed identity diagnostic tables.
-- [ ] Shared/mixed application sources require trustworthy deployment tagging; ambiguous/untagged rows are not exposed.
-- [ ] Azurite/integration fixtures cover date boundaries, empty pages, stable pagination and missing records without full-table scans.
+- [x] Existing error rows can be read without rewriting them or copying them to the portal store.
+- [x] Default query is bounded (24h); configurable maximum window/page/scan budget prevents unbounded queries and cancellation is honored.
+- [x] Continuation tokens and record IDs are authenticated and bound to deployment, record type and query; tampering/replay against another context fails.
+- [x] Diagnostic connection/table options never implicitly select the portal's prefixed identity diagnostic tables.
+- [x] Shared/mixed application sources require trustworthy deployment tagging; ambiguous/untagged rows are not exposed.
+- [x] Azurite/integration fixtures cover date boundaries, empty pages, stable pagination and missing records without full-table scans.
 
 Verification: focused service/HTTP tests; isolated provider fixtures where needed; build/pack affected packages and update registration/endpoint documentation.
+
+Verified IBM-0083: 34 diagnostics tests (including three real-provider fixtures), 61 credential tests and 34 management foundation tests passed. Reader registration is explicit and adds no HTTP routes/capabilities. Legacy rows require a confirmed dedicated source; shared rows require matching trusted tags. Metadata-only reads preserve existing rows; row/request/deadline budgets and encrypted source/deployment/query-bound identifiers are enforced. Five points retained; IBM-0084 remains the public projection/endpoints card.
 
 ### MGT-007 / IBM-0084: Expose safe error list/detail service and target endpoints
 

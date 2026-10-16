@@ -176,9 +176,11 @@
           "title": "Read existing error partitions with protected identifiers and bounded queries",
           "scope": "Implement SystemErrorEntity read adapter for ERR|yyyyMMdd partitions and current row keys, DiagnosticQuery and cursor codec. Keep diagnostics storage separately configurable from management identity storage.",
           "paths": [
-            "IBeam.Management.Repositories.AzureTable/Diagnostics/",
             "IBeam.Management/Models/",
-            "IBeam.Management.Services/Diagnostics/"
+            "IBeam.Management.Services/Diagnostics/",
+            "IBeam.Management.Repositories.AzureTable/Diagnostics/",
+            "IBeam.Tests.Management.Diagnostics/",
+            "IBeam.sln"
           ],
           "ac": [
             "Existing error rows can be read without rewriting them or copying them to the portal store.",
@@ -190,7 +192,9 @@
           ],
           "hubbslyId": "57ae3edf-8197-4309-a4cf-9e8c4fa3ffb8",
           "hubbslySourceKey": "IBM-0083",
-          "points": 5
+          "points": 5,
+          "implementationStatus": "verified",
+          "verification": "34 diagnostics tests passed, including three private Azurite provider cases: unchanged legacy row ETags, UTC/midnight/offset boundaries, stable pagination, exact partition/date filters and metadata column selection, source-tag suppression, missing records/tables and read-only SAS with denied writes. 61 credential and 34 management foundation regressions passed. AES-GCM tokens bind purpose/type/deployment/source/query and fixed expiry. Default 24h window, bounded rows/requests/deadline and per-query live authorization verified. No HTTP error routes, capability advertisement, source rewrites or production publishing."
         },
         {
           "key": "MGT-007",
