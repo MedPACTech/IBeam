@@ -68,3 +68,9 @@ SystemErrorProjection has a fixed catalog: exact RequestPipeline gets a fixed ap
 Invalid and missing detail IDs both become ManagementDiagnosticNotFoundException. Invalid list continuations/queries retain their safe typed exceptions. Unexpected read failures become ManagementDiagnosticUnavailableException without raw message/inner text; only exception type is eligible for the public service's warning log. The internal reader translates storage failures before its own audit pipeline can capture unsafe provider messages. Cancellation is preserved. HTTP maps these outcomes to safe standard envelopes; no detailed-error host setting restores raw provider text.
 
 Info capability reporting accepts optional IEnumerable<IManagementDiagnosticsCapability>; optional HTTP modules add their own implementations. Empty/base registration still advertises only info. Capability advertisement does not bypass any operation grant.
+
+## Application administration
+
+AddIBeamManagementApplications registers IManagementApplicationService. All methods enforce the human management context and management.applications.admin before storage access, execute through IServiceOperationExecutor and sanitize unexpected provider failures before audit. No customer role implies this permission. Register a host-owned IManagementPrincipalProvider and isolated IManagementApplicationRepository; registration never grants diagnostic access.
+
+POST creates enabled metadata; PATCH supplies complete mutable name/origin/enabled configuration and an expected version. Application key/environment remain immutable. Approved outbound destinations and connection secrets belong to the separate connection module.

@@ -304,7 +304,9 @@
           ],
           "hubbslyId": "58e08dac-4cb2-47d6-9b46-ad5fbb27eb03",
           "hubbslySourceKey": "IBM-0087",
-          "points": 5
+          "points": 5,
+          "implementationStatus": "done",
+          "verification": "19 focused registry tests passed, including real Azure Table atomic uniqueness, organization partitioning, bounded pagination and ETag conflicts; HTTP opt-in, permissions, safe envelopes and live management-role mapping verified. Identity regression suite passed; affected packages built/packed. No runnable host changes or publication."
         },
         {
           "key": "MGT-011",

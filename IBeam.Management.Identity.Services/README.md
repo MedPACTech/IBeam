@@ -23,3 +23,7 @@ Trusted setup:
 Management users, OTP, indexes and sessions are independent from customer identities even if emails or generated user IDs coincide. The support organization is not a customer tenant.
 
 For selected password/MFA/refresh/logout endpoints, reference IBeam.Management.Identity.Api and call AddIBeamManagementIdentityApi instead of registering these services twice. Do not expose the generic Identity controller assembly in the management host. The adapter blocks generic enrollment, recovery, tenant selection and MFA changes even through IIdentityAuthService; invitation onboarding is a later feature. Every protected request and refresh checks current membership, role catalog and persisted MFA session without caching. Only ManagementAdministrator may disable another support membership and revoke its sessions.
+
+## Application administration permission
+
+The exact live ManagementAdministrator catalog role grants management.applications.admin in addition to management.identity.read. ManagementSupport grants identity.read only. Trusted MFA issuance and every protected request/refresh rebuild these permissions from live membership roles, stripping stale claims; removing administrator access therefore takes effect on the next request. Customer Owner/Admin roles never grant application administration.

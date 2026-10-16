@@ -19,3 +19,9 @@ The adapter supports the existing ERR|yyyyMMdd partition and HHmmssfff|guid-N ro
 There is no table creation, schema hosted service or write method on ISystemErrorReadRepository. Trusted deployment tooling owns setup; runtime needs read permission only. A SHA-256 fingerprint of the physical account/table URI path binds continuation state without including connection credentials or SAS queries. Business source isolation, authorization, query/scan/time limits and protected token handling live in Management.Services, not this repository.
 
 The three private Azurite integration cases prove unchanged row ETags, midnight/offset timestamp boundaries, stable pagination, exact server filters and selected columns, shared-source suppression, missing-record handling, no schema creation and successful reads with read-only SAS while writes are denied. They create/clean only random fixture tables.
+
+## Application registry
+
+AddIBeamManagementAzureTableApplicationStore(configuration) uses IBeam:Management:Applications:Storage:ConnectionString and TableName (default ManagementApplications), independently of Identity and customer storage. Alternatively supply a dedicated TableClient using a host-owned managed identity or scoped credentials. Provision the table explicitly during deployment; runtime paths never create schema.
+
+Rows are partitioned by support organization, with APP|applicationId records and hashed KEY|app/environment uniqueness indexes. Creation adds both rows in one same-partition transaction; duplicate attempts cannot leave a partial app. Item reads and bounded pages always include organization equality. Updates require an explicit ETag and preserve immutable key/environment. Do not modify application identity fields directly through the repository; services own those invariants.

@@ -11,12 +11,12 @@ public sealed class ManagementIdentityClaimsEnricher(ManagementIdentityMembershi
         if (!context.CurrentClaims.Any(c => c.Type == "amr" && c.Value == "mfa") ||
             context.CurrentClaims.Any(c => c.Type == "pt"))
             throw new ManagementAccessDeniedException();
-        await members.RequireAsync(context.UserId, context.TenantId, ct);
+        var member = await members.RequireAsync(context.UserId, context.TenantId, ct);
         return
         [
             new(ManagementClaimTypes.SubjectType, ManagementSubjectTypes.Human),
             new(ManagementClaimTypes.OrganizationId, context.TenantId.ToString("D")),
-            new(ManagementClaimTypes.Permission, ManagementOperations.IdentityRead)
+            .. ManagementIdentityPermissions.ForRoles(member.Membership.Roles).Select(x => new ClaimItem(ManagementClaimTypes.Permission, x))
         ];
     }
 }

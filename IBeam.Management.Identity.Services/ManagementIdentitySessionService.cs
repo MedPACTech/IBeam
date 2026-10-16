@@ -76,7 +76,8 @@ public sealed class ManagementIdentitySessionService(
             c.Type == ClaimTypes.Role || c.Type == ManagementClaimTypes.Permission).ToArray();
         foreach (var claim in stale) identity.RemoveClaim(claim);
         foreach (var role in member.Membership.Roles) identity.AddClaim(new Claim("role", role));
-        identity.AddClaim(new Claim(ManagementClaimTypes.Permission, ManagementOperations.IdentityRead));
+        foreach (var permission in ManagementIdentityPermissions.ForRoles(member.Membership.Roles))
+            identity.AddClaim(new Claim(ManagementClaimTypes.Permission, permission));
     }
 
     private static string Read(ClaimsIdentity identity, string type)

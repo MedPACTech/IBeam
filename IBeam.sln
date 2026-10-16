@@ -189,6 +189,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Tests.Management.Cred
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Tests.Management.Diagnostics", "IBeam.Tests.Management.Diagnostics\IBeam.Tests.Management.Diagnostics.csproj", "{E5A3DA7B-2F73-40AE-8B0C-B306923AF027}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Tests.Management.Applications", "IBeam.Tests.Management.Applications\IBeam.Tests.Management.Applications.csproj", "{858EC277-21A3-484F-BF82-03C798DBDA9B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1267,6 +1269,18 @@ Global
 		{E5A3DA7B-2F73-40AE-8B0C-B306923AF027}.Release|x64.Build.0 = Release|Any CPU
 		{E5A3DA7B-2F73-40AE-8B0C-B306923AF027}.Release|x86.ActiveCfg = Release|Any CPU
 		{E5A3DA7B-2F73-40AE-8B0C-B306923AF027}.Release|x86.Build.0 = Release|Any CPU
+		{858EC277-21A3-484F-BF82-03C798DBDA9B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{858EC277-21A3-484F-BF82-03C798DBDA9B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{858EC277-21A3-484F-BF82-03C798DBDA9B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{858EC277-21A3-484F-BF82-03C798DBDA9B}.Debug|x64.Build.0 = Debug|Any CPU
+		{858EC277-21A3-484F-BF82-03C798DBDA9B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{858EC277-21A3-484F-BF82-03C798DBDA9B}.Debug|x86.Build.0 = Debug|Any CPU
+		{858EC277-21A3-484F-BF82-03C798DBDA9B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{858EC277-21A3-484F-BF82-03C798DBDA9B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{858EC277-21A3-484F-BF82-03C798DBDA9B}.Release|x64.ActiveCfg = Release|Any CPU
+		{858EC277-21A3-484F-BF82-03C798DBDA9B}.Release|x64.Build.0 = Release|Any CPU
+		{858EC277-21A3-484F-BF82-03C798DBDA9B}.Release|x86.ActiveCfg = Release|Any CPU
+		{858EC277-21A3-484F-BF82-03C798DBDA9B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
