@@ -448,7 +448,9 @@
           ],
           "hubbslyId": "a4b924d3-6a40-455f-9c1e-63ccff0a3a13",
           "hubbslySourceKey": "IBM-0092",
-          "points": 3
+          "points": 3,
+          "implementationStatus": "done",
+          "verification": "IBM-0092 (3 points): optional authorized selector GET /api/management/applications, metadata-only app choices and independent errors/logs permissions; administrator registry list retained at /registry. Entity-service catalog/connection metadata ports avoid cross-repository orchestration and secret reads. Live user/app/grants/connection filtering, five-page scan bound, encrypted user/org/page-size/expiry-bound continuation, no privilege bypass. HTTP tests prove one support session switching Qurvia/Bindry/MedInsights, one-app and multi-app grants, independently denied errors/logs, revocation disappearing from selector and direct read failing, disabled/disconnected apps omitted, users/organizations isolated, admin-only registry, machine/customer rejection and cursor replay/expiry protection. All 85 non-storage Applications checks passed. No UI or deferred consumer host touched."
         }
       ],
       "hubbslyId": "4a018a35-0554-4a78-a81e-72f4f456de95",

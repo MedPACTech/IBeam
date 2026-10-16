@@ -7,10 +7,21 @@ namespace IBeam.Management.Api;
 [Authorize(Policy = ManagementApiPolicies.Access)]
 [ServiceFilter(typeof(ManagementApplicationApiFilter), Order = -3000)]
 [Route("api/management/applications")]
-public sealed class ManagementApplicationsController(IManagementApplicationService service) : ApiControllerBase
+public sealed class ManagementApplicationsController(IManagementApplicationService service, IManagementApplicationSelector? selector = null) : ApiControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> ListAsync([FromQuery] int pageSize = 50, [FromQuery] string? continuationToken = null, CancellationToken ct = default)
+    {
+        if (selector is not null)
+        {
+            var selected = await selector.ListAsync(pageSize, continuationToken, ct);
+            return OkCursorPagedResponse(selected.Items, selected.PageSize, selected.ContinuationToken);
+        }
+        var page = await service.ListAsync(pageSize, continuationToken, ct);
+        return OkCursorPagedResponse(page.Items, page.PageSize, page.ContinuationToken);
+    }
+    [HttpGet("registry")]
+    public async Task<IActionResult> RegistryAsync([FromQuery] int pageSize = 50, [FromQuery] string? continuationToken = null, CancellationToken ct = default)
     {
         var page = await service.ListAsync(pageSize, continuationToken, ct);
         return OkCursorPagedResponse(page.Items, page.PageSize, page.ContinuationToken);

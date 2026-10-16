@@ -31,6 +31,7 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
         b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
             ["IBeam:Management:Connections:ApprovedOrigins:0"] = "https://api.qurvia.app",
             ["IBeam:Management:Connections:ApprovedOrigins:1"] = "https://api.bindry.app",
+            ["IBeam:Management:Connections:ApprovedOrigins:2"] = "https://api.medinsights.app",
             ["IBeam:Management:PortalDiagnostics:ProtectionKey"] = f.Data.Options.ProtectionKey,
             ["IBeam:Management:PortalDiagnostics:TimeoutSeconds"] = "1" });
         b.Services.AddSingleton(f);
@@ -46,6 +47,7 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
         b.Services.AddSingleton<IApplicationDiagnosticsClient>(_ => f.Data.Client());
         b.Services.AddSingleton<TimeProvider>(f.Data.Clock);
         if (install) b.Services.AddIBeamManagementPortalDiagnosticsApi(b.Configuration);
+        if (selector) b.Services.AddIBeamManagementApplicationSelectorApi(b.Configuration);
         f.App = b.Build(); f.App.UseAuthentication(); f.App.UseAuthorization(); f.App.MapControllers();
         try { await f.App.StartAsync(); } catch { await f.App.DisposeAsync(); f.Data.Dispose(); throw; }
         f.Client = f.App.GetTestClient(); return f;
