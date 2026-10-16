@@ -1,0 +1,78 @@
+# Copy to <your repo>/.github/workflows/ReleaseBot.yml
+# Replace "MedPACTech/ReleaseBot" with wherever you host this repo, and pin to a tag (@v1).
+#
+# Flow:
+#   push development      -> PR development → test     (Claude reviews, auto-approves, auto-merges on green CI)
+#   "Cut release" (manual)-> release/x.y.z from test   -> PR release/x.y.z → main (Claude reviews + deploy checklist; HUMAN approves)
+#   hotfix/* PR → release -> Claude reviews strictly; on merge the release → main PR updates
+#   push main             -> tag vX.Y.Z + GitHub Release, and back-merge PR main → development
+name: ReleaseBot
+
+on:
+  push:
+    branches: [development, main, "release/**"]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [test, main, "release/**"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Cut a release branch from test (e.g. 1.4.0)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  dev-to-test:
+    if: github.event_name == 'push' && github.ref_name == 'development'
+    uses: MedPACTech/ReleaseBot/.github/workflows/promote.yml@v1
+    with:
+      source: development
+      target: test
+      auto_merge: true
+    secrets: inherit
+
+  release-to-main:
+    if: github.event_name == 'push' && startsWith(github.ref_name, 'release/')
+    uses: MedPACTech/ReleaseBot/.github/workflows/promote.yml@v1
+    with:
+      source: ${{ github.ref_name }}
+      target: main
+      auto_merge: false
+      title: "Release ${{ github.ref_name }} → main (production)"
+      label: release
+    secrets: inherit
+
+  review:
+    if: github.event_name == 'pull_request'
+    uses: MedPACTech/ReleaseBot/.github/workflows/review.yml@v1
+    with:
+      auto_approve: ${{ github.base_ref == 'test' }}
+      # extra_instructions: "EF Core migrations live in src/Data/Migrations; flag any DropColumn/DropTable."
+    secrets: inherit
+
+  cut-release:
+    if: github.event_name == 'workflow_dispatch'
+    uses: MedPACTech/ReleaseBot/.github/workflows/release-cut.yml@v1
+    with:
+      version: ${{ inputs.version }}
+    secrets: inherit
+
+  tag:
+    if: github.event_name == 'push' && github.ref_name == 'main'
+    uses: MedPACTech/ReleaseBot/.github/workflows/tag-release.yml@v1
+    secrets: inherit
+
+  back-merge:
+    if: github.event_name == 'push' && github.ref_name == 'main'
+    uses: MedPACTech/ReleaseBot/.github/workflows/promote.yml@v1
+    with:
+      source: main
+      target: development
+      auto_merge: true
+      title: "Back-merge main → development"
+      label: back-merge
+    secrets: inherit
