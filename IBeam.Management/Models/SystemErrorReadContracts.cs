@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace IBeam.Management.Models;
 
-/// <summary>Repository metadata, NOT an API DTO. Unsafe error message/exception/request payloads are never loaded.</summary>
+/// <summary>Internal repository record, NOT an API DTO. Optional raw fields are loaded only by an explicit raw read and never serialized.</summary>
 public sealed record SystemErrorRecord
 {
     [JsonIgnore] public string PartitionKey { get; init; } = "";
@@ -12,11 +12,18 @@ public sealed record SystemErrorRecord
     [JsonIgnore] public string TraceId { get; init; } = "";
     [JsonIgnore] public string? ManagementApplicationKey { get; init; }
     [JsonIgnore] public string? ManagementEnvironment { get; init; }
+    [JsonIgnore] public string? Message { get; init; }
+    [JsonIgnore] public string? Exception { get; init; }
+    [JsonIgnore] public string? Path { get; init; }
+    [JsonIgnore] public string? Method { get; init; }
     public override string ToString() => "System error metadata (storage keys and untrusted text redacted)";
 }
 
 public sealed record SystemErrorPartitionQuery(
-    DateOnly DayUtc, DateTimeOffset FromUtc, DateTimeOffset ToUtc, int Take, string? ContinuationToken);
+    DateOnly DayUtc, DateTimeOffset FromUtc, DateTimeOffset ToUtc, int Take, string? ContinuationToken)
+{
+    public bool IncludeUnsanitized { get; init; }
+}
 
 public sealed record SystemErrorPartitionPage(
     IReadOnlyList<SystemErrorRecord> Records, int ScannedCount, string? ContinuationToken);
@@ -27,6 +34,8 @@ public interface ISystemErrorReadRepository
     string SourceBinding { get; }
     Task<SystemErrorPartitionPage> ReadPartitionAsync(SystemErrorPartitionQuery query, CancellationToken ct = default);
     Task<SystemErrorRecord?> GetAsync(string partitionKey, string rowKey, CancellationToken ct = default);
+    Task<SystemErrorRecord?> GetUnsanitizedAsync(string partitionKey, string rowKey, CancellationToken ct = default)
+        => throw new NotSupportedException("The diagnostic adapter does not support unsanitized detail reads.");
 }
 
 public sealed record SystemErrorReadItem(string Id, [property: JsonIgnore] SystemErrorRecord Record);

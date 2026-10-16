@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -16,8 +17,11 @@ public sealed class ManagementSystemLogReader(
     IOptions<SystemLogReaderOptions> options,
     IOptions<ManagementDiagnosticsOptions> deployment,
     TimeProvider clock,
-    IServiceOperationExecutor operations) : IManagementSystemLogReader
+    IServiceOperationExecutor operations, IHostEnvironment? host = null) : IManagementSystemLogReader
 {
+    public ManagementSystemLogReader(ISystemLogReadRepository repository, IManagementDiagnosticsAccessService access, SystemLogTokenCodec codec,
+        IOptions<SystemLogReaderOptions> options, IOptions<ManagementDiagnosticsOptions> deployment, TimeProvider clock, IServiceOperationExecutor operations)
+        : this(repository, access, codec, options, deployment, clock, operations, null) { }
     [IBeamOperation(ManagementOperations.LogsRead, Permission = false)]
     public Task<SystemLogReadPage> ReadAsync(SystemLogQuery query, CancellationToken ct = default)
         => operations.ExecuteAsync(this, async token =>
@@ -50,7 +54,7 @@ public sealed class ManagementSystemLogReader(
                 await access.RequireAsync(ManagementOperations.LogsRead, request);
                 var take = Math.Min(window.PageSize - items.Count, configured.ScanBudgetPerPage - scanned);
                 var batch = await ReadStorageAsync(() => repository.ReadPartitionAsync(new SystemLogPartitionQuery(
-                    day, window.FromUtc, window.ToUtc, take, continuation, window.Source, window.Level, window.TraceId), request));
+                    day, window.FromUtc, window.ToUtc, take, continuation, window.Source, window.Level, window.TraceId) { IncludeUnsanitized = configured.Sanitization?.IsEnabled == false }, request));
                 requests++;
                 if (batch.ScannedCount < 0 || batch.ScannedCount > take || batch.Records.Count > batch.ScannedCount)
                     throw new InvalidOperationException("Diagnostic storage exceeded its requested page bound.");
@@ -88,7 +92,7 @@ public sealed class ManagementSystemLogReader(
             var state = codec.Unprotect<RecordState>("record", Context(), recordId);
             if (state.Query is null || state.ExpiresUtc <= clock.GetUtcNow()) throw new DiagnosticTokenException();
             var window = Resolve(new SystemLogQuery(), state.Query);
-            var row = await ReadStorageAsync(() => repository.GetAsync(state.PartitionKey, state.RowKey, request));
+            var row = await ReadStorageAsync(() => (options.Value.Sanitization?.IsEnabled == false ? repository.GetUnsanitizedAsync(state.PartitionKey, state.RowKey, request) : repository.GetAsync(state.PartitionKey, state.RowKey, request)));
             return row is not null && row.PartitionKey == state.PartitionKey && row.RowKey == state.RowKey &&
                 Within(row, window) && MatchesSource(row) && MatchesFilters(row, window) ? row : null;
         }, Audit(), ct);
@@ -120,10 +124,11 @@ public sealed class ManagementSystemLogReader(
         if (!options.Value.IsValid() || string.IsNullOrWhiteSpace(repository.SourceBinding) ||
             string.IsNullOrWhiteSpace(deployment.Value.ApplicationKey) || string.IsNullOrWhiteSpace(deployment.Value.Environment))
             throw new InvalidOperationException("Explicit diagnostic source isolation and deployment configuration are required.");
+        var sanitized = DiagnosticSanitizationPolicy.Require(options.Value.Sanitization, deployment.Value, host);
         return JsonSerializer.Serialize(new[]
         {
             "system-logs", deployment.Value.ApplicationKey, deployment.Value.Environment,
-            repository.SourceBinding, options.Value.SourceMode.ToString()
+            repository.SourceBinding, options.Value.SourceMode.ToString(), sanitized ? "sanitized" : "unsanitized"
         });
     }
 

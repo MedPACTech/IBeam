@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 namespace IBeam.Management.Models;
 
 /// <summary>
@@ -19,9 +20,13 @@ public sealed record SystemLogQuery
     public override string ToString() => "System log query (filters and cursor redacted)";
 }
 
-/// <summary>Explicit public allowlist; no storage keys, message/detail text, actor/device/IP, tenant or change payloads.</summary>
+/// <summary>Safe default fields with optional marked non-Production raw text; no storage keys, actor/device/IP, tenant or change payloads.</summary>
 public sealed record SystemLogDto(
-    string Id, DateTimeOffset OccurredAtUtc, string Level, string Source, string Summary, string? CorrelationId);
+    string Id, DateTimeOffset OccurredAtUtc, string Level, string Source, string Summary, string? CorrelationId)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SystemLogUnsanitized? Unsanitized { get; init; }
+}
 
 public sealed record SystemLogPage(IReadOnlyList<SystemLogDto> Items, int PageSize, string? ContinuationToken);
 

@@ -67,6 +67,9 @@ internal sealed class PortalBackend
     public HttpStatusCode? Status { get; set; }
     public bool WrongIdentity { get; set; }
     public bool CorruptBody { get; set; }
+    public string[] UnsanitizedCapabilities { get; set; } = [];
+    public bool IncludeRawBody { get; set; }
+    public string RawMessage { get; set; } = ConnectionFixture.Key;
     public async Task<HttpResponseMessage> Handle(HttpRequestMessage request, CancellationToken ct)
     {
         Calls++;
@@ -79,15 +82,15 @@ internal sealed class PortalBackend
         {
             if (DuringInfo is not null) await DuringInfo(ct);
             return Response(new ManagementDiagnosticsInfo(WrongIdentity ? "wrong" : target.Key, target.Environment, 1,
-                [ManagementOperations.DiagnosticsInfo, ManagementOperations.ErrorsRead, ManagementOperations.LogsRead]));
+                [ManagementOperations.DiagnosticsInfo, ManagementOperations.ErrorsRead, ManagementOperations.LogsRead]) { UnsanitizedCapabilities = UnsanitizedCapabilities.Length == 0 ? null : UnsanitizedCapabilities });
         }
         DataCalls++;
         var now = DateTimeOffset.UtcNow.AddMinutes(-30);
         var id = "d1_target" + target.Key;
         var log = request.RequestUri.AbsolutePath.Contains("system-logs", StringComparison.Ordinal);
         var detail = request.RequestUri.AbsolutePath.Count(x => x == '/') == 4;
-        var errorRow = new SystemErrorDto(id, now, ConnectionFixture.Key, ConnectionFixture.Key, ConnectionFixture.Key);
-        var logRow = new SystemLogDto(id, now, "Error", ConnectionFixture.Key, ConnectionFixture.Key, ConnectionFixture.Key);
+        var errorRow = new SystemErrorDto(id, now, ConnectionFixture.Key, ConnectionFixture.Key, ConnectionFixture.Key) { Unsanitized = IncludeRawBody ? new(ConnectionFixture.Key, ConnectionFixture.Key, RawMessage, RawMessage, RawMessage, "POST") : null };
+        var logRow = new SystemLogDto(id, now, "Error", ConnectionFixture.Key, ConnectionFixture.Key, ConnectionFixture.Key) { Unsanitized = IncludeRawBody ? new(ConnectionFixture.Key, "Error", ConnectionFixture.Key, RawMessage, RawMessage) : null };
         if (detail) return log ? Response(logRow) : Response(errorRow);
         return new(HttpStatusCode.OK) { Content = JsonContent.Create(new { success = true, data = log ? (object)new[] { logRow } : new[] { errorRow },
             pageSize = 1, continuationToken = "d1_next" + target.Key }) };

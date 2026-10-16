@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using System.Reflection;
 using IBeam.Management.Services.Diagnostics;
 using IBeam.Management.Models;
@@ -38,9 +39,10 @@ public static class ManagementSystemErrorApiServiceCollectionExtensions
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class SystemErrorCapability : IManagementDiagnosticsCapability
+    private sealed class SystemErrorCapability(IOptions<SystemErrorReaderOptions> options, IOptions<ManagementDiagnosticsOptions> deployment, IHostEnvironment? host = null) : IManagementDiagnosticsCapability
     {
         public string Operation => ManagementOperations.ErrorsRead;
+        public bool IsSanitized => DiagnosticSanitizationPolicy.Require(options.Value.Sanitization, deployment.Value, host);
     }
     private sealed class ErrorControllerFeatureProvider : IApplicationFeatureProvider<ControllerFeature>
     {

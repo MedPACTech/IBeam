@@ -64,6 +64,8 @@ public sealed class ManagementTargetConnectionProbe(ManagementConnectionNetworkP
             var info = new ManagementDiagnosticsInfo(data.GetProperty("applicationKey").GetString()!,
                 data.GetProperty("environment").GetString()!, data.GetProperty("protocolVersion").GetInt32(),
                 data.GetProperty("capabilities").EnumerateArray().Select(x => x.GetString()!).ToArray());
+            if (data.TryGetProperty("unsanitizedCapabilities", out var raw) && raw.ValueKind != JsonValueKind.Null)
+                info = info with { UnsanitizedCapabilities = raw.EnumerateArray().Select(x => x.GetString()!).ToArray() };
             ManagementConnectionProtocol.Validate(info);
             return info;
         }
@@ -82,6 +84,11 @@ public static class ManagementConnectionProtocol
             info.Capabilities.Distinct(StringComparer.Ordinal).Count() != info.Capabilities.Count ||
             !info.Capabilities.Contains(ManagementOperations.DiagnosticsInfo, StringComparer.Ordinal) ||
             info.Capabilities.Any(x => !allowed.Contains(x, StringComparer.Ordinal)))
+            throw new ManagementConnectionInvalidException();
+        var raw = info.UnsanitizedCapabilities;
+        if (raw is not null && (raw.Count > 2 || raw.Distinct(StringComparer.Ordinal).Count() != raw.Count ||
+            raw.Any(x => x is not (ManagementOperations.ErrorsRead or ManagementOperations.LogsRead) || !info.Capabilities.Contains(x, StringComparer.Ordinal)) ||
+            raw.Count > 0 && !Diagnostics.DiagnosticSanitizationPolicy.NonProductionDeployment(info.Environment)))
             throw new ManagementConnectionInvalidException();
     }
 }

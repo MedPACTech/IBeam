@@ -4,4 +4,5 @@ namespace IBeam.Management;
 public interface IManagementDiagnosticsCapability
 {
     string Operation { get; }
+    bool IsSanitized => true;
 }

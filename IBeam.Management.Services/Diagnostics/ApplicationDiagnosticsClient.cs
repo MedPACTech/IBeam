@@ -24,7 +24,7 @@ public sealed class ApplicationDiagnosticsClient(ManagementConnectionNetworkPoli
         var root = body.RootElement;
         var rows = Deserialize<SystemErrorDto[]>(root) ?? throw new ManagementPortalResponseException();
         var size = PageSize(root, rows.Length, query.PageSize);
-        return new(rows.Select(SafeError).ToArray(), size, Continuation(root));
+        return new(rows.Select(x => SafeError(x, c.AllowUnsanitized)).ToArray(), size, Continuation(root));
     }
     public async Task<SystemErrorDto> ErrorAsync(ManagementDiagnosticConnection c, string id, CancellationToken ct = default)
     {
@@ -32,7 +32,7 @@ public sealed class ApplicationDiagnosticsClient(ManagementConnectionNetworkPoli
         using var body = await GetAsync(c, "system-errors/" + Uri.EscapeDataString(id), [], ct);
         var row = Deserialize<SystemErrorDto>(body.RootElement) ?? throw new ManagementPortalResponseException();
         if (row.Id != id) throw new ManagementPortalResponseException();
-        return SafeError(row);
+        return SafeError(row, c.AllowUnsanitized);
     }
     public async Task<SystemLogPage> LogsAsync(ManagementDiagnosticConnection c, SystemLogQuery query, CancellationToken ct = default)
     {
@@ -44,7 +44,7 @@ public sealed class ApplicationDiagnosticsClient(ManagementConnectionNetworkPoli
         var root = body.RootElement;
         var rows = Deserialize<SystemLogDto[]>(root) ?? throw new ManagementPortalResponseException();
         var size = PageSize(root, rows.Length, query.PageSize);
-        return new(rows.Select(SafeLog).ToArray(), size, Continuation(root));
+        return new(rows.Select(x => SafeLog(x, c.AllowUnsanitized)).ToArray(), size, Continuation(root));
     }
     public async Task<SystemLogDto> LogAsync(ManagementDiagnosticConnection c, string id, CancellationToken ct = default)
     {
@@ -52,7 +52,7 @@ public sealed class ApplicationDiagnosticsClient(ManagementConnectionNetworkPoli
         using var body = await GetAsync(c, "system-logs/" + Uri.EscapeDataString(id), [], ct);
         var row = Deserialize<SystemLogDto>(body.RootElement) ?? throw new ManagementPortalResponseException();
         if (row.Id != id) throw new ManagementPortalResponseException();
-        return SafeLog(row);
+        return SafeLog(row, c.AllowUnsanitized);
     }
     private static T? Deserialize<T>(JsonElement root)
     {
@@ -134,20 +134,32 @@ public sealed class ApplicationDiagnosticsClient(ManagementConnectionNetworkPoli
     {
         if (id is null || id.Length is < 4 or > 8192 || !Regex.IsMatch(id, "^d1_[A-Za-z0-9_-]+$")) throw new ManagementPortalResponseException();
     }
-    internal static SystemErrorDto SafeError(SystemErrorDto row)
+    internal static SystemErrorDto SafeError(SystemErrorDto row, bool allowUnsanitized = false)
     {
         if (row is null) throw new ManagementPortalResponseException();
         CheckOpaque(row.Id); if (row.OccurredAtUtc == default) throw new ManagementPortalResponseException();
         var source = row.Source == "RequestPipeline" ? "RequestPipeline" : "System";
         return new(row.Id, row.OccurredAtUtc.ToUniversalTime(), source,
-            source == "RequestPipeline" ? "An unexpected request processing error was recorded." : "An unexpected system error was recorded.", SafeCorrelation(row.CorrelationId));
+            source == "RequestPipeline" ? "An unexpected request processing error was recorded." : "An unexpected system error was recorded.", SafeCorrelation(row.CorrelationId)) { Unsanitized = allowUnsanitized ? ValidateRaw(row.Unsanitized) : null };
     }
-    internal static SystemLogDto SafeLog(SystemLogDto row)
+    internal static SystemLogDto SafeLog(SystemLogDto row, bool allowUnsanitized = false)
     {
         if (row is null) throw new ManagementPortalResponseException();
         CheckOpaque(row.Id); if (row.OccurredAtUtc == default) throw new ManagementPortalResponseException();
         var (source, summary) = SystemLogSources.Describe(row.Source ?? "", new());
-        return new(row.Id, row.OccurredAtUtc.ToUniversalTime(), SystemLogLevels.All.Contains(row.Level) ? row.Level : "Unknown", source, summary, SafeCorrelation(row.CorrelationId));
+        return new(row.Id, row.OccurredAtUtc.ToUniversalTime(), SystemLogLevels.All.Contains(row.Level) ? row.Level : "Unknown", source, summary, SafeCorrelation(row.CorrelationId)) { Unsanitized = allowUnsanitized ? ValidateRaw(row.Unsanitized) : null };
     }
+    private static SystemErrorUnsanitized ValidateRaw(SystemErrorUnsanitized? raw)
+    {
+        if (raw is null) throw new ManagementPortalResponseException();
+        CheckRaw(raw.Source, raw.TraceId, raw.Message, raw.Exception, raw.Path, raw.Method); return raw;
+    }
+    private static SystemLogUnsanitized ValidateRaw(SystemLogUnsanitized? raw)
+    {
+        if (raw is null) throw new ManagementPortalResponseException();
+        CheckRaw(raw.Source, raw.Level, raw.TraceId, raw.Message, raw.Detail); return raw;
+    }
+    private static void CheckRaw(params string?[] fields)
+    { if (fields.Any(x => x?.Length > 32768)) throw new ManagementPortalResponseException(); }
     private static string? SafeCorrelation(string? value) => value is not null && Regex.IsMatch(value, "^c1_[a-f0-9]{64}$") ? value : null;
 }

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using IBeam.Management.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,9 +13,10 @@ public static class ManagementSystemLogReaderServiceCollectionExtensions
     {
         services.AddIBeamManagementServices();
         services.AddOptions<ManagementDiagnosticsOptions>().Bind(configuration.GetSection(ManagementDiagnosticsOptions.SectionName)).ValidateOnStart();
-        services.AddOptions<SystemLogReaderOptions>().Bind(configuration.GetSection(SystemLogReaderOptions.SectionName))
+        services.AddOptions<SystemLogReaderOptions>().Bind(DiagnosticSanitizationPolicy.Section(configuration, SystemLogReaderOptions.SectionName))
             .Validate(o => o.IsValid(), "Explicit diagnostic source isolation, bounded options, approved sources and a 32-byte protection key are required.")
             .ValidateOnStart();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LogSanitizationStartup>());
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<SystemLogTokenCodec>();
         // Host supplies both the read repository and a live IManagementDiagnosticsAccessService.

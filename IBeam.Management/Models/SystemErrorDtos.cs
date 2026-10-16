@@ -1,8 +1,13 @@
+using System.Text.Json.Serialization;
 namespace IBeam.Management.Models;
 
-/// <summary>Explicit public allowlist; no storage keys, request fields, raw trace/source or exception text.</summary>
+/// <summary>Safe default fields plus an optional, explicitly marked non-Production raw object; no physical storage keys.</summary>
 public sealed record SystemErrorDto(
-    string Id, DateTimeOffset OccurredAtUtc, string Source, string Summary, string? CorrelationId);
+    string Id, DateTimeOffset OccurredAtUtc, string Source, string Summary, string? CorrelationId)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SystemErrorUnsanitized? Unsanitized { get; init; }
+}
 
 public sealed record SystemErrorPage(IReadOnlyList<SystemErrorDto> Items, int PageSize, string? ContinuationToken);
 

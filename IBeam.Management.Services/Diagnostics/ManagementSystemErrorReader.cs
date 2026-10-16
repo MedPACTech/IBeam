@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using System.Globalization;
 using System.Text.Json;
 using IBeam.Management.Models;
@@ -15,8 +16,11 @@ public sealed class ManagementSystemErrorReader(
     IOptions<SystemErrorReaderOptions> options,
     IOptions<ManagementDiagnosticsOptions> deployment,
     TimeProvider clock,
-    IServiceOperationExecutor operations) : IManagementSystemErrorReader
+    IServiceOperationExecutor operations, IHostEnvironment? host = null) : IManagementSystemErrorReader
 {
+    public ManagementSystemErrorReader(ISystemErrorReadRepository repository, IManagementDiagnosticsAccessService access, DiagnosticTokenCodec codec,
+        IOptions<SystemErrorReaderOptions> options, IOptions<ManagementDiagnosticsOptions> deployment, TimeProvider clock, IServiceOperationExecutor operations)
+        : this(repository, access, codec, options, deployment, clock, operations, null) { }
     [IBeamOperation(ManagementOperations.ErrorsRead, Permission = false)]
     public Task<SystemErrorReadPage> ReadAsync(DiagnosticQuery query, CancellationToken ct = default)
         => operations.ExecuteAsync(this, async token =>
@@ -49,7 +53,7 @@ public sealed class ManagementSystemErrorReader(
                 await access.RequireAsync(ManagementOperations.ErrorsRead, request);
                 var take = Math.Min(window.PageSize - items.Count, configured.ScanBudgetPerPage - scanned);
                 var batch = await ReadStorageAsync(() => repository.ReadPartitionAsync(
-                    new SystemErrorPartitionQuery(day, window.FromUtc, window.ToUtc, take, continuation), request));
+                    new SystemErrorPartitionQuery(day, window.FromUtc, window.ToUtc, take, continuation) { IncludeUnsanitized = configured.Sanitization?.IsEnabled == false }, request));
                 requests++;
                 if (batch.ScannedCount < 0 || batch.ScannedCount > take || batch.Records.Count > batch.ScannedCount)
                     throw new InvalidOperationException("Diagnostic storage exceeded its requested page bound.");
@@ -88,7 +92,7 @@ public sealed class ManagementSystemErrorReader(
             if (state.Query is null || state.ExpiresUtc <= clock.GetUtcNow() || originalQuery?.Cursor is not null)
                 throw new DiagnosticTokenException();
             var window = Resolve(originalQuery ?? new DiagnosticQuery(), state.Query);
-            var row = await ReadStorageAsync(() => repository.GetAsync(state.PartitionKey, state.RowKey, request));
+            var row = await ReadStorageAsync(() => (options.Value.Sanitization?.IsEnabled == false ? repository.GetUnsanitizedAsync(state.PartitionKey, state.RowKey, request) : repository.GetAsync(state.PartitionKey, state.RowKey, request)));
             return row is not null && row.PartitionKey == state.PartitionKey && row.RowKey == state.RowKey &&
                 Within(row, window) && MatchesSource(row) ? row : null;
         }, Audit(), ct);
@@ -116,10 +120,11 @@ public sealed class ManagementSystemErrorReader(
         if (!options.Value.IsValid() || string.IsNullOrWhiteSpace(repository.SourceBinding) ||
             string.IsNullOrWhiteSpace(deployment.Value.ApplicationKey) || string.IsNullOrWhiteSpace(deployment.Value.Environment))
             throw new InvalidOperationException("Explicit diagnostic source isolation and deployment configuration are required.");
+        var sanitized = DiagnosticSanitizationPolicy.Require(options.Value.Sanitization, deployment.Value, host);
         return JsonSerializer.Serialize(new[]
         {
             "system-errors", deployment.Value.ApplicationKey, deployment.Value.Environment,
-            repository.SourceBinding, options.Value.SourceMode.ToString()
+            repository.SourceBinding, options.Value.SourceMode.ToString(), sanitized ? "sanitized" : "unsanitized"
         });
     }
 

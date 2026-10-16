@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using IBeam.Management.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,9 +13,10 @@ public static class ManagementSystemErrorReaderServiceCollectionExtensions
     {
         services.AddIBeamManagementServices();
         services.AddOptions<ManagementDiagnosticsOptions>().Bind(configuration.GetSection(ManagementDiagnosticsOptions.SectionName)).ValidateOnStart();
-        services.AddOptions<SystemErrorReaderOptions>().Bind(configuration.GetSection(SystemErrorReaderOptions.SectionName))
+        services.AddOptions<SystemErrorReaderOptions>().Bind(DiagnosticSanitizationPolicy.Section(configuration, SystemErrorReaderOptions.SectionName))
             .Validate(o => o.IsValid(), "Explicit diagnostic source isolation, bounded options and a 32-byte protection key are required.")
             .ValidateOnStart();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ErrorSanitizationStartup>());
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<DiagnosticTokenCodec>();
         // Host supplies both the read repository and a live IManagementDiagnosticsAccessService.

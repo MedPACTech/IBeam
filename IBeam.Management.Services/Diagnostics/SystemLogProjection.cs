@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -26,23 +27,29 @@ public static class SystemLogSources
             options.AllowedSources.Contains(source, StringComparer.Ordinal) ? (source, Generic) : (Other, Generic);
 }
 
-/// <summary>Fixed source/summary catalog, normalized level and keyed correlation pseudonyms; message/detail text is never copied.</summary>
+/// <summary>Fixed safe fields, normalized level and keyed correlation; optional raw text remains in an explicitly marked object.</summary>
 public sealed class SystemLogProjection
 {
     private readonly byte[] _correlationKey;
+    private readonly IHostEnvironment? _host;
     private readonly SystemLogReaderOptions _options;
     private readonly ManagementDiagnosticsOptions _deployment;
     public SystemLogProjection(IOptions<SystemLogReaderOptions> options, IOptions<ManagementDiagnosticsOptions> deployment)
+        : this(options, deployment, null) { }
+    public SystemLogProjection(IOptions<SystemLogReaderOptions> options, IOptions<ManagementDiagnosticsOptions> deployment, IHostEnvironment? host = null)
     {
         if (!options.Value.IsValid()) throw new InvalidOperationException("Valid system log reader settings are required.");
         _options = options.Value;
         _correlationKey = HMACSHA256.HashData(Convert.FromBase64String(options.Value.ProtectionKey),
             Encoding.UTF8.GetBytes("IBeam.Management.LogCorrelation.Key.v1"));
         _deployment = deployment.Value;
+        _host = host;
+        _ = DiagnosticSanitizationPolicy.Require(_options.Sanitization, _deployment, host);
     }
 
     public SystemLogDto Project(string id, SystemLogMetadata record)
     {
+        var sanitized = DiagnosticSanitizationPolicy.Require(_options.Sanitization, _deployment, _host);
         var (source, summary) = SystemLogSources.Describe(record.Source, _options);
         var level = SystemLogLevels.All.Contains(record.Level, StringComparer.Ordinal) ? record.Level : "Unknown";
         string? correlation = null;
@@ -54,6 +61,9 @@ public sealed class SystemLogProjection
             });
             correlation = "c1_" + Convert.ToHexString(HMACSHA256.HashData(_correlationKey, input)).ToLowerInvariant();
         }
-        return new SystemLogDto(id, record.OccurredAtUtc.ToUniversalTime(), level, source, summary, correlation);
+        return new SystemLogDto(id, record.OccurredAtUtc.ToUniversalTime(), level, source, summary, correlation)
+        {
+            Unsanitized = sanitized ? null : new(record.Source, record.Level, record.TraceId, record.Message, record.Detail)
+        };
     }
 }

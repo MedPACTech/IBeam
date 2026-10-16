@@ -21,9 +21,10 @@ internal sealed class SmokeTarget(WebApplication app, string application, string
     public const string Canary = "package-smoke-private-client-payload";
     public string Application { get; } = application;
     public string Key { get; } = key;
+    public string Environment { get; } = "Testing";
     public TableClient Audit { get; } = audit;
     public HttpClient Client { get; } = app.GetTestClient();
-    public static async Task<SmokeTarget> Create(string application, TableClient errors, TableClient logs, TableClient credentials, TableClient audit)
+    public static async Task<SmokeTarget> Create(string application, TableClient errors, TableClient logs, TableClient credentials, TableClient audit, bool rawErrors = false, bool rawLogs = false)
     {
         for (var i = 0; i < 2; i++)
         {
@@ -38,11 +39,13 @@ internal sealed class SmokeTarget(WebApplication app, string application, string
         }
         var id = Guid.NewGuid(); var codec = new ManagementCredentialSecretCodec(); var key = codec.Create(id);
         await new AzureTableManagementApiCredentialRepository(credentials).CreateAsync(new ManagementApiCredentialEntity {
-            CredentialId = id, ApplicationKey = application, Environment = "Production", SecretHash = codec.Hash(key), CreatedUtc = DateTimeOffset.UtcNow,
+            CredentialId = id, ApplicationKey = application, Environment = "Testing", SecretHash = codec.Hash(key), CreatedUtc = DateTimeOffset.UtcNow,
             ExpiresUtc = DateTimeOffset.UtcNow.AddHours(1), Capabilities = [ManagementOperations.DiagnosticsInfo, ManagementOperations.ErrorsRead, ManagementOperations.LogsRead] });
-        var b = WebApplication.CreateBuilder(); b.Logging.ClearProviders(); b.WebHost.UseTestServer();
+        var b = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" }); b.Logging.ClearProviders(); b.WebHost.UseTestServer();
         b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
-            ["IBeam:Management:Diagnostics:ApplicationKey"] = application, ["IBeam:Management:Diagnostics:Environment"] = "Production",
+            ["IBeam:Management:Diagnostics:ApplicationKey"] = application, ["IBeam:Management:Diagnostics:Environment"] = "Testing",
+            ["IBeam:Management:Diagnostics:Errors:Sanitization:Enabled"] = rawErrors ? "false" : "true",
+            ["IBeam:Management:Diagnostics:Logs:Sanitization:Enabled"] = rawLogs ? "false" : "true",
             ["IBeam:Management:Diagnostics:Errors:SourceMode"] = "DedicatedDeployment", ["IBeam:Management:Diagnostics:Errors:DedicatedSourceConfirmed"] = "true",
             ["IBeam:Management:Diagnostics:Errors:ProtectionKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
             ["IBeam:Management:Diagnostics:Logs:SourceMode"] = "DedicatedDeployment", ["IBeam:Management:Diagnostics:Logs:DedicatedSourceConfirmed"] = "true",

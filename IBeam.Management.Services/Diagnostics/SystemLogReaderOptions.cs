@@ -8,6 +8,7 @@ public sealed class SystemLogReaderOptions
 {
     public const string SectionName = "IBeam:Management:Diagnostics:Logs";
     public DiagnosticSourceMode SourceMode { get; set; }
+    public DiagnosticSanitizationOptions Sanitization { get; set; } = new();
     public bool DedicatedSourceConfirmed { get; set; }
     public bool TrustedTagsConfirmed { get; set; }
     public int DefaultWindowHours { get; set; } = 24;

@@ -43,10 +43,10 @@ internal sealed class SystemErrorApiFixture : IAsyncDisposable
     public static async Task<SystemErrorApiFixture> CreateAsync(
         bool installed = true, ISystemErrorReadRepository? repository = null,
         Action<Dictionary<string, string?>>? configure = null, bool featureFirst = false, bool registerRepository = true,
-        bool installLogs = false, ISystemLogReadRepository? logRepository = null, bool managementAudit = false)
+        bool installLogs = false, ISystemLogReadRepository? logRepository = null, bool managementAudit = false, string hostEnvironment = "Testing", bool? claimedSanitization = null)
     {
         var fixture = new SystemErrorApiFixture();
-        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = hostEnvironment });
         builder.Logging.ClearProviders();
         builder.Logging.AddProvider(fixture.Logs);
         builder.WebHost.UseTestServer();
@@ -63,6 +63,7 @@ internal sealed class SystemErrorApiFixture : IAsyncDisposable
         };
         configure?.Invoke(values);
         builder.Configuration.AddInMemoryCollection(values);
+        if (claimedSanitization.HasValue) builder.Services.AddSingleton<IClaimsTransformation>(new ModeClaims(claimedSanitization.Value));
         builder.Services.AddSingleton<TimeProvider>(fixture.Clock);
         builder.Services.AddSingleton<IManagementApiCredentialRepository>(fixture.Credentials);
         builder.Services.AddSingleton<IAuditTrailSink>(fixture.Audits);
@@ -134,6 +135,8 @@ internal sealed class SystemErrorApiFixture : IAsyncDisposable
         public string SourceBinding => inner.SourceBinding;
         public Task<SystemErrorPartitionPage> ReadPartitionAsync(SystemErrorPartitionQuery query, CancellationToken ct = default)
             => fixture.SimulateStorageFailure ? throw new InvalidOperationException("provider signed-url password=" + Sensitive) : inner.ReadPartitionAsync(query, ct);
+        public Task<SystemErrorRecord?> GetUnsanitizedAsync(string partitionKey, string rowKey, CancellationToken ct = default)
+            => fixture.SimulateStorageFailure ? throw new InvalidOperationException("provider " + Sensitive) : inner.GetUnsanitizedAsync(partitionKey, rowKey, ct);
         public Task<SystemErrorRecord?> GetAsync(string partitionKey, string rowKey, CancellationToken ct = default)
             => fixture.SimulateStorageFailure ? throw new InvalidOperationException("provider connection password=" + Sensitive) : inner.GetAsync(partitionKey, rowKey, ct);
     }
@@ -142,6 +145,8 @@ internal sealed class SystemErrorApiFixture : IAsyncDisposable
         public string SourceBinding => inner.SourceBinding;
         public Task<SystemLogPartitionPage> ReadPartitionAsync(SystemLogPartitionQuery query, CancellationToken ct = default)
             => fixture.SimulateStorageFailure ? throw new InvalidOperationException("provider signed-url password=" + Sensitive) : inner.ReadPartitionAsync(query, ct);
+        public Task<SystemLogMetadata?> GetUnsanitizedAsync(string partitionKey, string rowKey, CancellationToken ct = default)
+            => fixture.SimulateStorageFailure ? throw new InvalidOperationException("provider " + Sensitive) : inner.GetUnsanitizedAsync(partitionKey, rowKey, ct);
         public Task<SystemLogMetadata?> GetAsync(string partitionKey, string rowKey, CancellationToken ct = default)
             => fixture.SimulateStorageFailure ? throw new InvalidOperationException("provider connection password=" + Sensitive) : inner.GetAsync(partitionKey, rowKey, ct);
     }
@@ -193,6 +198,15 @@ internal sealed class SystemErrorApiFixture : IAsyncDisposable
             {
                 if (IsEnabled(level)) sink.Messages.Enqueue(formatter(state, exception) + exception);
             }
+        }
+    }
+    private sealed class ModeClaims(bool enabled) : IClaimsTransformation
+    {
+        public Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
+        {
+            if (principal.Identity is ClaimsIdentity identity && identity.IsAuthenticated)
+                foreach(var module in new[] { "Errors", "Logs" }) identity.AddClaim(new Claim($"IBeam:Management:Diagnostics:{module}:Sanitization:Enabled", enabled.ToString()));
+            return Task.FromResult(principal);
         }
     }
     private sealed class CustomerHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)

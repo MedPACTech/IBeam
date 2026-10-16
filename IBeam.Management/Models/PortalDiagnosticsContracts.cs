@@ -12,6 +12,7 @@ public sealed class ManagementDiagnosticConnection
     public string BaseUrl { get; init; } = "";
     public string Version { get; init; } = "";
     public IReadOnlyList<string> Capabilities { get; init; } = [];
+    [JsonIgnore] public bool AllowUnsanitized { get; init; }
     [JsonIgnore] public ManagementSecretValue Key { get; init; } = new("");
     public override string ToString() => "Management diagnostic connection (key redacted)";
 }

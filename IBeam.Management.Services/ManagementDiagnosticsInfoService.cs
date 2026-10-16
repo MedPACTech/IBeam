@@ -45,10 +45,11 @@ public sealed class ManagementDiagnosticsInfoService(
                     configured.Environment, StringComparison.Ordinal))
                 throw new ManagementAccessDeniedException();
 
+            var raw = _capabilities.Where(x => !x.IsSanitized).Select(x => x.Operation).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
             return new ManagementDiagnosticsInfo(
                 configured.ApplicationKey, configured.Environment, 1,
                 Array.AsReadOnly(new[] { ManagementOperations.DiagnosticsInfo }.Concat(_capabilities.Select(x => x.Operation))
-                    .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()));
+                    .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray())) { UnsanitizedCapabilities = raw.Length == 0 ? null : Array.AsReadOnly(raw) };
         }, new ServiceOperationExecutionOptions
         {
             OperationName = ManagementOperations.DiagnosticsInfo,

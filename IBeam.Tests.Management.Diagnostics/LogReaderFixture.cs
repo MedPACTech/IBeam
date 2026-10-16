@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using System.Security.Cryptography;
 using IBeam.Management;
 using IBeam.Management.Models;
@@ -22,11 +23,11 @@ internal sealed class LogReaderFixture
     };
     public ManagementDiagnosticsOptions Deployment { get; } = new() { ApplicationKey = "qurvia", Environment = "Production" };
     public IManagementSystemLogReader Reader(ISystemLogReadRepository? repository = null,
-        ManagementDiagnosticsOptions? deployment = null, IServiceOperationExecutor? operations = null)
+        ManagementDiagnosticsOptions? deployment = null, IServiceOperationExecutor? operations = null, IHostEnvironment? host = null)
         => new ManagementSystemLogReader(repository ?? Repository, Authorization,
             new SystemLogTokenCodec(Microsoft.Extensions.Options.Options.Create(Options)),
             Microsoft.Extensions.Options.Options.Create(Options), Microsoft.Extensions.Options.Options.Create(deployment ?? Deployment), Time,
-            operations ?? new ServiceOperationExecutor());
+            operations ?? new ServiceOperationExecutor(), host);
     public SystemLogProjection Projection(ManagementDiagnosticsOptions? deployment = null)
         => new(Microsoft.Extensions.Options.Options.Create(Options), Microsoft.Extensions.Options.Options.Create(deployment ?? Deployment));
     public static SystemLogMetadata Row(DateTimeOffset at, string? application = null, string? environment = null,
@@ -75,6 +76,7 @@ internal sealed class LogReaderFixture
             var rows = matching.Skip(skip).Take(query.Take).ToArray();
             return new SystemLogPartitionPage(rows, rows.Length, skip + rows.Length < matching.Length ? (skip + rows.Length).ToString() : null);
         }
+        public Task<SystemLogMetadata?> GetUnsanitizedAsync(string partitionKey, string rowKey, CancellationToken ct = default) => GetAsync(partitionKey, rowKey, ct);
         public Task<SystemLogMetadata?> GetAsync(string partitionKey, string rowKey, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();

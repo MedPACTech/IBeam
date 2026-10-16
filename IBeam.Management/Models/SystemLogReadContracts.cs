@@ -4,7 +4,7 @@ namespace IBeam.Management.Models;
 
 /// <summary>
 /// Repository metadata, NOT an API DTO. Only operational "System" rows from SYSTEM|DAY partitions are mapped; message,
-/// detail, actor/device/IP, tenant and before/after/original/transformed JSON columns are never loaded.
+/// detail require an explicit raw read; actor/device/IP, tenant and before/after/original/transformed JSON columns remain excluded.
 /// </summary>
 public sealed record SystemLogMetadata
 {
@@ -16,6 +16,8 @@ public sealed record SystemLogMetadata
     [JsonIgnore] public string TraceId { get; init; } = "";
     [JsonIgnore] public string? ManagementApplicationKey { get; init; }
     [JsonIgnore] public string? ManagementEnvironment { get; init; }
+    [JsonIgnore] public string? Message { get; init; }
+    [JsonIgnore] public string? Detail { get; init; }
     public override string ToString() => "System log metadata (storage keys and untrusted text redacted)";
 }
 
@@ -24,6 +26,7 @@ public sealed record SystemLogPartitionQuery(
     DateOnly DayUtc, DateTimeOffset FromUtc, DateTimeOffset ToUtc, int Take, string? ContinuationToken,
     string? Source = null, string? Level = null, string? TraceId = null)
 {
+    public bool IncludeUnsanitized { get; init; }
     public override string ToString() => "System log partition query (filters and continuation redacted)";
 }
 
@@ -36,6 +39,8 @@ public interface ISystemLogReadRepository
     string SourceBinding { get; }
     Task<SystemLogPartitionPage> ReadPartitionAsync(SystemLogPartitionQuery query, CancellationToken ct = default);
     Task<SystemLogMetadata?> GetAsync(string partitionKey, string rowKey, CancellationToken ct = default);
+    Task<SystemLogMetadata?> GetUnsanitizedAsync(string partitionKey, string rowKey, CancellationToken ct = default)
+        => throw new NotSupportedException("The diagnostic adapter does not support unsanitized detail reads.");
 }
 
 /// <summary>The frozen query a cursor or record ID is bound to.</summary>

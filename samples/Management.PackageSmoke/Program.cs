@@ -22,8 +22,8 @@ async Task<TableClient> Table(string name)
 }
 try
 {
-    await using var qurvia = await SmokeTarget.Create("qurvia", await Table("QErrors"), await Table("QLogs"), await Table("QKeys"), await Table("QAudit"));
-    await using var bindry = await SmokeTarget.Create("bindry", await Table("BErrors"), await Table("BLogs"), await Table("BKeys"), await Table("BAudit"));
+    await using var qurvia = await SmokeTarget.Create("qurvia", await Table("QErrors"), await Table("QLogs"), await Table("QKeys"), await Table("QAudit"), rawErrors: true);
+    await using var bindry = await SmokeTarget.Create("bindry", await Table("BErrors"), await Table("BLogs"), await Table("BKeys"), await Table("BAudit"), rawLogs: true);
     var state = new SmokeSupportState();
     var b = WebApplication.CreateBuilder(); b.Logging.ClearProviders(); b.WebHost.UseTestServer();
     b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
@@ -52,15 +52,19 @@ try
         using var request = new HttpRequestMessage(method, path); request.Headers.Add("Authorization", "Bearer " + token);
         if (body is not null) request.Content = JsonContent.Create(body); if (version is not null) request.Headers.Add("If-Match", version);
         using var response = await client.SendAsync(request); var text = await response.Content.ReadAsStringAsync();
-        Check(!text.Contains(SmokeTarget.Canary, StringComparison.Ordinal) && !text.Contains(qurvia.Key, StringComparison.Ordinal) && !text.Contains(bindry.Key, StringComparison.Ordinal), "Public response leaked a canary.");
+        Check(!text.Contains(qurvia.Key, StringComparison.Ordinal) && !text.Contains(bindry.Key, StringComparison.Ordinal), "Public response leaked a credential.");
+        if (text.Length > 0) { using var parsed = JsonDocument.Parse(text); CheckProjection(parsed.RootElement); }
         return (response.StatusCode, text.Length == 0 ? default : JsonDocument.Parse(text).RootElement.Clone());
     }
     var apps = new List<(Guid Id, string GrantVersion)>();
     foreach (var target in new[] { qurvia, bindry })
     {
         using var info = await target.Get("info", target.Key); Check(info.StatusCode == HttpStatusCode.OK, "Authenticated target info failed.");
+        using var declared = JsonDocument.Parse(await info.Content.ReadAsStringAsync());
+        var rawModes = declared.RootElement.GetProperty("data").GetProperty("unsanitizedCapabilities");
+        Check(rawModes.GetArrayLength() == 1 && rawModes[0].GetString() == (target.Application == "qurvia" ? ManagementOperations.ErrorsRead : ManagementOperations.LogsRead), "Target mode advertisement is incorrect.");
         using var wrongKey = await target.Get("info", target == qurvia ? bindry.Key : qurvia.Key); Check(wrongKey.StatusCode == HttpStatusCode.Unauthorized, "Target keys were interchangeable.");
-        var created = await Send(HttpMethod.Post, "/api/management/applications", body: new { applicationKey = target.Application, name = target.Application, environment = "Production", baseUrl = "https://api." + target.Application + ".app" });
+        var created = await Send(HttpMethod.Post, "/api/management/applications", body: new { applicationKey = target.Application, name = target.Application, environment = target.Environment, baseUrl = "https://api." + target.Application + ".app" });
         Check(created.Status == HttpStatusCode.Created, "Application registration failed."); var id = created.Body.GetProperty("data").GetProperty("applicationId").GetGuid();
         var version = created.Body.GetProperty("data").GetProperty("version").GetString();
         var connected = await Send(HttpMethod.Put, $"/api/management/applications/{id}/connection", body: new { apiKey = target.Key, expectedVersion = version });
@@ -76,7 +80,11 @@ try
         var path = $"/api/management/applications/{app.Id}/{kind}";
         var page = await Send(HttpMethod.Get, path + "?pageSize=1", "support");
         Check(page.Status == HttpStatusCode.OK && page.Body.GetProperty("data").GetArrayLength() == 1, "Safe diagnostic page failed.");
-        var id = page.Body.GetProperty("data")[0].GetProperty("id").GetString()!;
+        var item = page.Body.GetProperty("data")[0];
+        var expectedRaw = app.Id == apps[0].Id ? kind == "system-errors" : kind == "system-logs";
+        Check(item.TryGetProperty("unsanitized", out var raw) == expectedRaw, "Independent target modes were not preserved by the portal.");
+        if (expectedRaw) Check(raw.GetProperty("message").GetString() == SmokeTarget.Canary, "Explicit raw fields missing.");
+        var id = item.GetProperty("id").GetString()!;
         var cursor = page.Body.GetProperty("continuationToken").GetString()!; Check(cursor is not null, "Diagnostic continuation missing.");
         var detail = await Send(HttpMethod.Get, path + "/" + id, "support"); Check(detail.Status == HttpStatusCode.OK, "Safe detail failed.");
         var next = await Send(HttpMethod.Get, path + "?continuationToken=" + cursor, "support"); Check(next.Status == HttpStatusCode.OK && next.Body.GetProperty("data").GetArrayLength() == 1, "Continuation failed.");
@@ -97,3 +105,21 @@ try
 }
 finally { foreach (var table in tables) await table.DeleteAsync(); }
 static void Check(bool condition, string failure) { if (!condition) throw new InvalidOperationException(failure); }
+
+static void CheckProjection(JsonElement value)
+{
+    if (value.ValueKind == JsonValueKind.Object)
+        foreach(var property in value.EnumerateObject())
+        {
+            if (property.Name == "unsanitized")
+            {
+                Check(property.Value.ValueKind == JsonValueKind.Object, "Raw marker must be an object.");
+                foreach(var field in property.Value.EnumerateObject())
+                    Check(new[] { "source", "level", "traceId", "message", "exception", "path", "method", "detail" }.Contains(field.Name) &&
+                        field.Value.ValueKind is JsonValueKind.String or JsonValueKind.Null, "Unexpected raw field exposed.");
+            }
+            else CheckProjection(property.Value);
+        }
+    else if (value.ValueKind == JsonValueKind.Array) foreach(var item in value.EnumerateArray()) CheckProjection(item);
+    else if (value.ValueKind == JsonValueKind.String) Check(!value.GetString()!.Contains(SmokeTarget.Canary, StringComparison.Ordinal), "Raw text escaped its explicit marker.");
+}

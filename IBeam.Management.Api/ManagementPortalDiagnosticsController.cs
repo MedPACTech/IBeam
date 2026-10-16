@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.HttpLogging;
 using IBeam.Api.Controllers;
 using IBeam.Management.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 namespace IBeam.Management.Api;
+[HttpLogging(HttpLoggingFields.None)]
 [NonController, Authorize(Policy = ManagementApiPolicies.Access)]
 [ServiceFilter(typeof(ManagementApplicationApiFilter), Order = -3000)]
 [Route("api/management/applications/{applicationId:guid}")]

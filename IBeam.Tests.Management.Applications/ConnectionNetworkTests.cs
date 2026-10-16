@@ -96,6 +96,22 @@ public sealed class ConnectionNetworkTests
         using var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
         await Assert.ThrowsAsync<OperationCanceledException>(() => Probe(new FixtureHttp { Delay = true }).ProbeAsync("https://api.qurvia.app", new(ConnectionFixture.Key), cancel.Token));
     }
+    [TestMethod, DataRow("Testing", true), DataRow("Production", false)]
+    public async Task ProbePreservesAndValidatesSerializedRawCapabilities(string environment, bool permitted)
+    {
+        var info = new ManagementDiagnosticsInfo("qurvia", environment, 1, [ManagementOperations.DiagnosticsInfo, ManagementOperations.ErrorsRead]) { UnsanitizedCapabilities = [ManagementOperations.ErrorsRead] };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new { success = true, data = info }) };
+        if (permitted) Assert.AreEqual(ManagementOperations.ErrorsRead, (await ManagementTargetConnectionProbe.ReadInfoResponseAsync(response, default)).UnsanitizedCapabilities!.Single());
+        else await Assert.ThrowsAsync<ManagementConnectionInvalidException>(() => ManagementTargetConnectionProbe.ReadInfoResponseAsync(response, default));
+    }
+    [TestMethod]
+    public async Task ProbeRejectsMalformedRawModeMetadataWithoutEchoingIt()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new { success = true, data = new {
+            applicationKey = "qurvia", environment = "Testing", protocolVersion = 1, capabilities = new[] { ManagementOperations.DiagnosticsInfo }, unsanitizedCapabilities = ConnectionFixture.Key } }) };
+        var error = await Assert.ThrowsAsync<ManagementConnectionInvalidException>(() => ManagementTargetConnectionProbe.ReadInfoResponseAsync(response, default));
+        Assert.DoesNotContain(ConnectionFixture.Key, error.ToString());
+    }
     private static ManagementConnectionNetworkPolicy Network(FixtureDns dns, FixtureSockets sockets)
         => new(Options.Create(new ManagementConnectionOptions { ApprovedOrigins = ["https://api.qurvia.app"] }), dns, sockets);
     private static ManagementTargetConnectionProbe Probe(FixtureHttp handler)

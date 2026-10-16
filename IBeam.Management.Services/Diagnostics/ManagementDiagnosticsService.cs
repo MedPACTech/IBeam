@@ -13,12 +13,13 @@ public sealed class ManagementDiagnosticsService(IManagementApplicationAccessSer
         {
             var c = await connections.ResolveAsync(applicationId, ManagementOperations.ErrorsRead, token);
             var state = Resolve(c, ManagementOperations.ErrorsRead, new() { FromUtc = query.FromUtc, ToUtc = query.ToUtc, PageSize = query.PageSize, Cursor = query.Cursor });
-            await VerifyAsync(c, ManagementOperations.ErrorsRead, token);
+            c = await VerifyAsync(c, ManagementOperations.ErrorsRead, token);
+            state = RequireMode(state, c.AllowUnsanitized);
             var page = await client.ErrorsAsync(c, new() { FromUtc = state.Query.FromUtc, ToUtc = state.Query.ToUtc,
                 PageSize = state.Query.PageSize, Cursor = query.Cursor is null ? null : state.TargetToken }, token);
             await RecheckAsync(c, ManagementOperations.ErrorsRead, token);
             if (page.PageSize != state.Query.PageSize || page.Items.Count > state.Query.PageSize) throw new ManagementPortalResponseException();
-            var items = page.Items.Select(x => Wrap(c, state, ApplicationDiagnosticsClient.SafeError(x))).ToArray();
+            var items = page.Items.Select(x => Wrap(c, state, ApplicationDiagnosticsClient.SafeError(x, c.AllowUnsanitized))).ToArray();
             return new SystemErrorPage(items, page.PageSize, page.ContinuationToken is null ? null :
                 tokens.Protect(c, ManagementOperations.ErrorsRead, "cursor", state with { TargetToken = page.ContinuationToken }));
         }, ct);
@@ -28,11 +29,12 @@ public sealed class ManagementDiagnosticsService(IManagementApplicationAccessSer
         {
             var c = await connections.ResolveAsync(applicationId, ManagementOperations.ErrorsRead, token);
             var state = tokens.Unprotect(c, ManagementOperations.ErrorsRead, "record", id, clock.GetUtcNow());
-            await VerifyAsync(c, ManagementOperations.ErrorsRead, token);
+            c = await VerifyAsync(c, ManagementOperations.ErrorsRead, token);
+            state = RequireMode(state, c.AllowUnsanitized);
             var row = await client.ErrorAsync(c, state.TargetToken, token);
             await RecheckAsync(c, ManagementOperations.ErrorsRead, token);
             if (row.Id != state.TargetToken) throw new ManagementPortalResponseException();
-            return Wrap(c, state, ApplicationDiagnosticsClient.SafeError(row)) with { Id = id };
+            return Wrap(c, state, ApplicationDiagnosticsClient.SafeError(row, c.AllowUnsanitized)) with { Id = id };
         }, ct);
 
     public Task<SystemLogPage> LogsAsync(Guid applicationId, SystemLogQuery query, CancellationToken ct = default)
@@ -40,11 +42,12 @@ public sealed class ManagementDiagnosticsService(IManagementApplicationAccessSer
         {
             var c = await connections.ResolveAsync(applicationId, ManagementOperations.LogsRead, token);
             var state = Resolve(c, ManagementOperations.LogsRead, query);
-            await VerifyAsync(c, ManagementOperations.LogsRead, token);
+            c = await VerifyAsync(c, ManagementOperations.LogsRead, token);
+            state = RequireMode(state, c.AllowUnsanitized);
             var page = await client.LogsAsync(c, state.Query with { Cursor = query.Cursor is null ? null : state.TargetToken }, token);
             await RecheckAsync(c, ManagementOperations.LogsRead, token);
             if (page.PageSize != state.Query.PageSize || page.Items.Count > state.Query.PageSize) throw new ManagementPortalResponseException();
-            var items = page.Items.Select(x => Wrap(c, state, ApplicationDiagnosticsClient.SafeLog(x))).ToArray();
+            var items = page.Items.Select(x => Wrap(c, state, ApplicationDiagnosticsClient.SafeLog(x, c.AllowUnsanitized))).ToArray();
             return new SystemLogPage(items, page.PageSize, page.ContinuationToken is null ? null :
                 tokens.Protect(c, ManagementOperations.LogsRead, "cursor", state with { TargetToken = page.ContinuationToken }));
         }, ct);
@@ -54,11 +57,12 @@ public sealed class ManagementDiagnosticsService(IManagementApplicationAccessSer
         {
             var c = await connections.ResolveAsync(applicationId, ManagementOperations.LogsRead, token);
             var state = tokens.Unprotect(c, ManagementOperations.LogsRead, "record", id, clock.GetUtcNow());
-            await VerifyAsync(c, ManagementOperations.LogsRead, token);
+            c = await VerifyAsync(c, ManagementOperations.LogsRead, token);
+            state = RequireMode(state, c.AllowUnsanitized);
             var row = await client.LogAsync(c, state.TargetToken, token);
             await RecheckAsync(c, ManagementOperations.LogsRead, token);
             if (row.Id != state.TargetToken) throw new ManagementPortalResponseException();
-            return Wrap(c, state, ApplicationDiagnosticsClient.SafeLog(row)) with { Id = id };
+            return Wrap(c, state, ApplicationDiagnosticsClient.SafeLog(row, c.AllowUnsanitized)) with { Id = id };
         }, ct);
 
     private PortalDiagnosticState Resolve(ManagementDiagnosticConnection c, string permission, SystemLogQuery query)
@@ -78,13 +82,22 @@ public sealed class ManagementDiagnosticsService(IManagementApplicationAccessSer
         if (saved is not null && frozen != saved) throw new DiagnosticQueryException();
         return previous ?? new PortalDiagnosticState("d1_initial", frozen, now.AddMinutes(options.Value.TokenLifetimeMinutes));
     }
-    private async Task VerifyAsync(ManagementDiagnosticConnection c, string permission, CancellationToken ct)
+    private async Task<ManagementDiagnosticConnection> VerifyAsync(ManagementDiagnosticConnection c, string permission, CancellationToken ct)
     {
         var info = await client.InfoAsync(c, ct);
-        ManagementConnectionProtocol.Validate(info);
+        try { ManagementConnectionProtocol.Validate(info); } catch { throw new ManagementPortalResponseException(); }
         if (info.ApplicationKey != c.ApplicationKey || info.Environment != c.Environment) throw new ManagementPortalResponseException();
         if (!info.Capabilities.Contains(permission, StringComparer.Ordinal)) throw new ManagementAccessDeniedException();
         await RecheckAsync(c, permission, ct);
+        return new ManagementDiagnosticConnection { OrganizationId = c.OrganizationId, UserId = c.UserId, ApplicationId = c.ApplicationId,
+            ApplicationKey = c.ApplicationKey, Environment = c.Environment, BaseUrl = c.BaseUrl, CredentialId = c.CredentialId,
+            Version = c.Version, Key = c.Key, Capabilities = c.Capabilities,
+            AllowUnsanitized = info.UnsanitizedCapabilities?.Contains(permission, StringComparer.Ordinal) == true };
+    }
+    private static PortalDiagnosticState RequireMode(PortalDiagnosticState state, bool raw)
+    {
+        if (state.Unsanitized.HasValue && state.Unsanitized.Value != raw) throw new DiagnosticTokenException();
+        return state with { Unsanitized = raw };
     }
     private async Task RecheckAsync(ManagementDiagnosticConnection c, string permission, CancellationToken ct)
     {

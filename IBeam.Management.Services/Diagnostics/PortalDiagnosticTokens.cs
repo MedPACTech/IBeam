@@ -3,7 +3,11 @@ using IBeam.Management.Models;
 using Microsoft.Extensions.Options;
 namespace IBeam.Management.Services.Diagnostics;
 
-public sealed record PortalDiagnosticState(string TargetToken, SystemLogQuery Query, DateTimeOffset ExpiresUtc);
+[method: System.Text.Json.Serialization.JsonConstructor]
+public sealed record PortalDiagnosticState(string TargetToken, SystemLogQuery Query, DateTimeOffset ExpiresUtc, bool? Unsanitized = null)
+{
+    public PortalDiagnosticState(string targetToken, SystemLogQuery query, DateTimeOffset expiresUtc) : this(targetToken, query, expiresUtc, null) { }
+}
 public sealed class PortalDiagnosticTokens
 {
     private readonly DiagnosticTokenCodec _codec;
@@ -22,7 +26,7 @@ public sealed class PortalDiagnosticTokens
     public PortalDiagnosticState Unprotect(ManagementDiagnosticConnection c, string permission, string purpose, string token, DateTimeOffset now)
     {
         var state = _codec.Unprotect<PortalDiagnosticState>("portal-" + purpose, Context(c, permission), token);
-        if (state.Query is null || state.ExpiresUtc <= now) throw new DiagnosticTokenException();
+        if (state.Query is null || state.ExpiresUtc <= now || state.Unsanitized is null) throw new DiagnosticTokenException();
         ApplicationDiagnosticsClient.CheckOpaque(state.TargetToken);
         return state;
     }

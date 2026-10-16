@@ -9,7 +9,7 @@ namespace IBeam.Management.Repositories.AzureTable.Diagnostics;
 
 /// <summary>
 /// Read-only adapter for the existing SystemLogs format. Queries only SYSTEM|DAY|yyyyMMdd partitions and Category
-/// "System"; tenant partitions, EntityChange and SelectRollup rows are never returned. Message, Detail, actor/device/IP
+/// "System"; tenant partitions, EntityChange and SelectRollup rows are never returned. Message/Detail require explicit raw reads; actor/device/IP
 /// and before/after/original/transformed JSON columns are never selected. No writes, table creation, Identity or services.
 /// </summary>
 public sealed class AzureTableSystemLogReadRepository : ISystemLogReadRepository
@@ -21,6 +21,7 @@ public sealed class AzureTableSystemLogReadRepository : ISystemLogReadRepository
         "PartitionKey", "RowKey", "OccurredAtUtc", "Category", "IsSelectRollup", "Source", "Level", "TraceId",
         "ManagementApplicationKey", "ManagementEnvironment"
     ];
+    private static readonly string[] RawColumns = Columns.Concat<string>(["Message", "Detail"]).ToArray();
     public string SourceBinding { get; }
     public AzureTableSystemLogReadRepository(TableClient table)
     {
@@ -42,25 +43,29 @@ public sealed class AzureTableSystemLogReadRepository : ISystemLogReadRepository
         if (query.Level is not null) clauses.Add(TableClient.CreateQueryFilter($"Level eq {query.Level}"));
         if (query.TraceId is not null) clauses.Add(TableClient.CreateQueryFilter($"TraceId eq {query.TraceId}"));
         var filter = string.Join(" and ", clauses);
-        var pages = _table.QueryAsync<TableEntity>(filter, query.Take, Columns, ct).AsPages(query.ContinuationToken, query.Take);
+        var pages = _table.QueryAsync<TableEntity>(filter, query.Take, query.IncludeUnsanitized ? RawColumns : Columns, ct).AsPages(query.ContinuationToken, query.Take);
         await using var iterator = pages.GetAsyncEnumerator(ct);
         if (!await iterator.MoveNextAsync()) return new SystemLogPartitionPage([], 0, null);
         var page = iterator.Current;
-        var records = page.Values.Select(Map).OfType<SystemLogMetadata>().ToArray();
+        var records = page.Values.Select(x => Map(x, query.IncludeUnsanitized)).OfType<SystemLogMetadata>().ToArray();
         return new SystemLogPartitionPage(Array.AsReadOnly(records), page.Values.Count, page.ContinuationToken);
     }
 
-    public async Task<SystemLogMetadata?> GetAsync(string partitionKey, string rowKey, CancellationToken ct = default)
+    public Task<SystemLogMetadata?> GetAsync(string partitionKey, string rowKey, CancellationToken ct = default)
+        => GetCoreAsync(partitionKey, rowKey, false, ct);
+    public Task<SystemLogMetadata?> GetUnsanitizedAsync(string partitionKey, string rowKey, CancellationToken ct = default)
+        => GetCoreAsync(partitionKey, rowKey, true, ct);
+    private async Task<SystemLogMetadata?> GetCoreAsync(string partitionKey, string rowKey, bool includeUnsanitized, CancellationToken ct)
     {
         if (!Regex.IsMatch(partitionKey ?? "", "^SYSTEM\\|DAY\\|[0-9]{8}$") ||
             !DateOnly.TryParseExact(partitionKey![11..], "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _) ||
             !Regex.IsMatch(rowKey ?? "", "^[0-9]{13}\\|[0-9a-f]{32}$"))
             throw new DiagnosticTokenException();
-        var response = await _table.GetEntityIfExistsAsync<TableEntity>(partitionKey, rowKey!, Columns, ct);
-        return response.HasValue ? Map(response.Value!) : null;
+        var response = await _table.GetEntityIfExistsAsync<TableEntity>(partitionKey, rowKey!, includeUnsanitized ? RawColumns : Columns, ct);
+        return response.HasValue ? Map(response.Value!, includeUnsanitized) : null;
     }
 
-    private static SystemLogMetadata? Map(TableEntity row)
+    private static SystemLogMetadata? Map(TableEntity row, bool includeUnsanitized)
     {
         // Event rows only: rollup keys, other partitions and anything not explicitly an operational System row are dropped.
         if (!Regex.IsMatch(row.PartitionKey, "^SYSTEM\\|DAY\\|[0-9]{8}$") ||
@@ -75,6 +80,8 @@ public sealed class AzureTableSystemLogReadRepository : ISystemLogReadRepository
         {
             PartitionKey = row.PartitionKey, RowKey = row.RowKey, OccurredAtUtc = occurred.Value,
             Source = Text(row, "Source") ?? "", Level = Text(row, "Level") ?? "", TraceId = Text(row, "TraceId") ?? "",
+            Message = includeUnsanitized ? Text(row, "Message") : null,
+            Detail = includeUnsanitized ? Text(row, "Detail") : null,
             ManagementApplicationKey = row.ContainsKey("ManagementApplicationKey") ? Text(row, "ManagementApplicationKey") ?? "" : null,
             ManagementEnvironment = row.ContainsKey("ManagementEnvironment") ? Text(row, "ManagementEnvironment") ?? "" : null
         };

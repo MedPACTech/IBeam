@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using System.Reflection;
 using IBeam.Management.Services.Diagnostics;
 using IBeam.Management.Models;
@@ -38,9 +39,10 @@ public static class ManagementSystemLogApiServiceCollectionExtensions
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class SystemLogCapability : IManagementDiagnosticsCapability
+    private sealed class SystemLogCapability(IOptions<SystemLogReaderOptions> options, IOptions<ManagementDiagnosticsOptions> deployment, IHostEnvironment? host = null) : IManagementDiagnosticsCapability
     {
         public string Operation => ManagementOperations.LogsRead;
+        public bool IsSanitized => DiagnosticSanitizationPolicy.Require(options.Value.Sanitization, deployment.Value, host);
     }
     private sealed class LogControllerFeatureProvider : IApplicationFeatureProvider<ControllerFeature>
     {

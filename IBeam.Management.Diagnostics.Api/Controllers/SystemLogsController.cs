@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.HttpLogging;
 using System.ComponentModel.DataAnnotations;
 using IBeam.Api.Controllers;
 using IBeam.Management.Models;
@@ -7,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace IBeam.Management.Diagnostics.Api.Controllers;
 
 // Added explicitly by the optional log API feature provider. Base API assembly scanning must not expose this route.
+[HttpLogging(HttpLoggingFields.None)]
 [NonController]
 [Authorize(Policy = ManagementDiagnosticsApiPolicies.Access)]
 [ServiceFilter(typeof(ManagementDiagnosticApiFilter), Order = -3000)]

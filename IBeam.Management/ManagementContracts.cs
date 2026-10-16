@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using System.Security.Claims;
 
 namespace IBeam.Management;
@@ -9,7 +10,11 @@ public sealed record ManagementDiagnosticsInfo(
     string ApplicationKey,
     string Environment,
     int ProtocolVersion,
-    IReadOnlyList<string> Capabilities);
+    IReadOnlyList<string> Capabilities)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? UnsanitizedCapabilities { get; init; }
+}
 
 /// <summary>Supplies a principal established by trusted authentication, never request body/header claims.</summary>
 public interface IManagementPrincipalProvider
