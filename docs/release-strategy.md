@@ -10,7 +10,7 @@ IBeam uses a release-train model for NuGet packages. All packages produced by a 
 | --- | --- | --- | --- | --- |
 | `development` | `development` | Alpha prerelease | GitHub Packages | `2.10.0-alpha.123.1` |
 | `test` | `test` | Beta prerelease | GitHub Packages | `2.10.0-beta.124.1` |
-| `release` or `release/*` | `test` | Release candidate | NuGet.org prerelease | `2.10.0-rc.1` |
+| `release` or `release/*` | `production` | Release candidate | NuGet.org prerelease | `2.10.0-rc.1` |
 | `main` release tag | `production` | Stable | NuGet.org | `2.10.0` |
 
 Pull requests and validation workflows build, test, and pack artifacts. Publishing workflows are reserved for branch pushes, release-candidate dispatches, and production releases.
@@ -75,7 +75,7 @@ Configure this secret for NuGet.org publishing:
 
 | Name | Required | Suggested scope | Notes |
 | --- | --- | --- | --- |
-| `NUGET_USER` | Yes for RC and stable publishing | `test` and `production` environments, or repository | Used by `NuGet/login@v1` for trusted publishing. |
+| `NUGET_USER` | Yes for RC and stable publishing | `production` environment, or repository | Used by `NuGet/login@v1` for trusted publishing. |
 
 GitHub Packages publishing uses the built-in `GITHUB_TOKEN` with `packages: write`; no separate package token is required for normal repository-owned packages.
 
@@ -96,3 +96,5 @@ Production consumers should use stable packages from NuGet.org and avoid floatin
 Consumers who want development or beta builds must explicitly add the GitHub Packages source for this repository owner. RC packages are NuGet.org prerelease packages, so consumers can opt in using normal prerelease package resolution.
 
 Keep related IBeam packages on the same release-train version unless a consuming application intentionally isolates a package and validates that dependency graph on its own.
+
+Both RC and stable publication to NuGet.org use the production GitHub environment, matching the existing NuGet trusted-publisher policy. This publishing identity does not change the release/* source restriction or the prerelease version requirement for RC packages.

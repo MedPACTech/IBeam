@@ -417,7 +417,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         var (_, _, destination) = ResolveTwoFactorTarget(user, user.PreferredTwoFactorMethod);
         await VerifyOtpChallengeAsync(challengeId, code, destination, SenderPurpose.LoginMfa, ct);
 
-        return await BuildAuthResultAsync(user, createdNewUser: false, ct);
+        return await BuildAuthResultAsync(user, createdNewUser: false, ct, mfaCompleted: true);
     }
 
     [IBeamOperation("identity.auth.password.2fa.disable", Permission = false)]
@@ -992,7 +992,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         return ToAuthTokenResponse(token);
     }
 
-    private async Task<AuthResultResponse> BuildAuthResultAsync(IdentityUser user, bool createdNewUser, CancellationToken ct)
+    private async Task<AuthResultResponse> BuildAuthResultAsync(IdentityUser user, bool createdNewUser, CancellationToken ct, bool mfaCompleted = false)
     {
         var traceId = ResolveTraceId();
         var activeTenants = await GetActiveTenantsForUserAsync(user.UserId, ct);
@@ -1013,6 +1013,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
         {
             var tenant = activeTenants[0];
             var claims = BuildBaseClaims(user.UserId, user.Email);
+            if (mfaCompleted) claims.Add(new ClaimItem("amr", "mfa"));
             AddTenantClaims(claims, tenant.TenantId);
             AddRoleClaims(claims, tenant.Roles);
             AddRoleIdClaims(claims, tenant.RoleIds);
@@ -1030,6 +1031,7 @@ public sealed class PasswordAuthService : IIdentityAuthService
             if (def is not null)
             {
                 var claims = BuildBaseClaims(user.UserId, user.Email);
+                if (mfaCompleted) claims.Add(new ClaimItem("amr", "mfa"));
                 AddTenantClaims(claims, def.TenantId);
                 AddRoleClaims(claims, def.Roles);
                 AddRoleIdClaims(claims, def.RoleIds);

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><IsPackable>false</IsPackable></PropertyGroup>
+<ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /><PackageReference Include="Moq" Version="4.20.72" /><ProjectReference Include="../IBeam.Management.Secrets.AzureKeyVault/IBeam.Management.Secrets.AzureKeyVault.csproj" /><PackageReference Include="MSTest" Version="4.0.1" /><PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.3" /><Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../IBeam.Management.Api/IBeam.Management.Api.csproj" /><ProjectReference Include="../IBeam.Management.Repositories.AzureTable/IBeam.Management.Repositories.AzureTable.csproj" /><ProjectReference Include="../IBeam.Management.Identity.Services/IBeam.Management.Identity.Services.csproj" /></ItemGroup>
+</Project>

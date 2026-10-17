@@ -26,6 +26,9 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
         /// Does NOT register Core orchestration services.
         /// </summary>
         public static IServiceCollection AddIBeamIdentityAzureTable(this IServiceCollection services, IConfiguration configuration)
+            => AddIBeamIdentityAzureTable(services, configuration, registerSchemaHostedService: true);
+
+        public static IServiceCollection AddIBeamIdentityAzureTable(this IServiceCollection services, IConfiguration configuration, bool registerSchemaHostedService)
         {
             // Options (bind + validate)
             services.AddOptions<AzureTableIdentityOptions>()
@@ -117,7 +120,8 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
 
             // Schema manager + startup ensure
             services.AddScoped<IIdentitySchemaManager, AzureTableIdentitySchemaManager>();
-            services.AddHostedService<AzureTableIdentitySchemaHostedService>();
+            if (registerSchemaHostedService)
+                services.AddHostedService<AzureTableIdentitySchemaHostedService>();
 
             return services;
         }

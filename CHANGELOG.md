@@ -1,5 +1,42 @@
 # Changelog
 
+## 2.15.0 - 2026-10-16
+
+IBeam 2.15.0 introduces the Management API packages for a support portal that can manage access to multiple applications and read IBeam system errors and operational logs.
+
+### Added
+
+- Eight new packages: `IBeam.Management`, `IBeam.Management.Services`, `IBeam.Management.Api`, `IBeam.Management.Diagnostics.Api`, `IBeam.Management.Repositories.AzureTable`, `IBeam.Management.Identity.Services`, `IBeam.Management.Identity.Api`, and `IBeam.Management.Secrets.AzureKeyVault`.
+- Isolated support identity with MFA, invitation onboarding, session revocation, and either a separate storage account or a distinct management realm in an existing account.
+- Organization-scoped application registration, verified backend connections, backend-only secret references, and support-user assignments to one or many applications. One support session can select among its authorized applications.
+- Read-only system error and operational log endpoints with independent machine-credential capabilities, bounded queries, protected paging and record identifiers, and live access checks.
+- Metadata-only management auditing and explicit diagnostic source isolation. Management diagnostics do not expose tenant business tables or customer audit records.
+- Independent error and log sanitization settings under `IBeam:Management:Diagnostics:{Errors|Logs}:Sanitization:Enabled`. Sanitization defaults to enabled. Explicitly disabling it is supported only for recognized non-Production host and deployment environments; the response labels raw fields in `unsanitized`.
+- Deployment, source-isolation, and sanitization guides, plus a package-only consumer example and repeatable package validation script.
+
+### Fixed
+
+- Pinned the Entity Framework adapter's transitive `System.Security.Cryptography.Pkcs` dependency to **9.0.21**, addressing [GHSA-846f-f764-76mx](https://github.com/advisories/GHSA-846f-f764-76mx) and [GHSA-2fmv-rv2c-59x7](https://github.com/advisories/GHSA-2fmv-rv2c-59x7).
+- Aligned RC NuGet publishing with the existing production trusted-publisher environment.
+- Completed password MFA authentication now includes the `amr=mfa` claim used by support-session enforcement.
+- Removed app-specific values and a committed communication credential from the example Identity API configuration. Supply deployment values through configuration and a secret store.
+
+### Upgrading
+
+- Keep related IBeam NuGet packages aligned at **2.15.0**. Packages target **.NET 10**.
+- Management features are opt-in. Register the portal packages in the management host and diagnostics packages in each application backend. Configure isolated identity/storage, deployment-bound credentials, source ownership, secret references, and user assignments before enabling access.
+- Keep sanitization enabled in Production. The explicit non-Production raw mode does not widen source access, credential capabilities, or application assignments.
+- The standalone portal host/UI and the `IBeam.Admin.API` rename/deployment remain separate consumer work.
+- See [deployment and handoff](https://github.com/MedPACTech/IBeam/blob/v2.15.0/docs/management/deployment-and-handoff.md), [diagnostic source isolation](https://github.com/MedPACTech/IBeam/blob/v2.15.0/docs/management/diagnostic-source-isolation.md), and [diagnostic sanitization](https://github.com/MedPACTech/IBeam/blob/v2.15.0/docs/management/diagnostic-sanitization.md).
+
+### Validation
+
+- Development build, test, pack, and development package publishing passed on commit `206fbd5`.
+- Management and shared-component regression matrix: **756 passed, 0 failed, 0 skipped**, using private Table fixtures.
+- Package-only two-application consumer validation passed, including inspection of all eight new packages and a generated dependency feed of 20 packages.
+
+Management API epic: IBM-0078 through IBM-0097; 20 completed cards across 10 features, 107 points.
+
 ## 2.14.0 - 2026-09-28
 
 Three security fixes with one theme: **configuration now means what it says.** All three are breaking for apps that configure the affected settings; apps that configure nothing are unaffected.

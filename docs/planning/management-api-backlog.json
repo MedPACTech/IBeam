@@ -1,0 +1,611 @@
+{
+  "epic": {
+    "id": "82013b53-bbfc-429f-9e06-8ccaf0522689",
+    "title": "Management API",
+    "projectId": "7082c7e5-ab08-42e8-a1a3-67eba0755c5d",
+    "productId": "38d04a26-2c32-b02e-0b2a-c49a044ad016",
+    "outcome": "Deliver reusable IBeam NuGet packages for a central support portal API: one isolated MFA support login, app/environment registration and secret-backed connections, support-user assignments to one or many apps, and read-only sanitized system errors/logs through deployment-scoped management credentials. Preserve API -> Services -> Repository and consumer/customer data isolation. Support separate identity storage or separate prefixed tables in shared storage. Defer customer provisioning, impersonation, frontend work, production publishing/deployment and changes/rename to IBeam.Admin.API, the future NuGet-consuming test host.",
+    "stage": "in_flight"
+  },
+  "features": [
+    {
+      "key": "MGT-F01",
+      "title": "Management package foundation and protected API boundaries",
+      "deps": [],
+      "outcome": "Introduce reusable .NET 10 management contracts, services, portal API and target diagnostics API. Expose authenticated portal identity and target capability endpoints through thin controllers and IBeam service operations; remain independent of the deferred IBeam.Admin.API host.",
+      "cards": [
+        {
+          "key": "MGT-001",
+          "title": "Bootstrap Management packages and protected identity/capability endpoints",
+          "scope": "Create IBeam.Management, IBeam.Management.Services, IBeam.Management.Api, IBeam.Management.Diagnostics.Api and focused tests. Add explicit host-provided authentication-scheme options; /api/management/me and /api/management-diagnostics/info; immutable response contracts; deny-by-default service checks. Do not expose error/log reads or pretend database adapters are implemented.",
+          "paths": [
+            "IBeam.Management/",
+            "IBeam.Management.Services/",
+            "IBeam.Management.Api/",
+            "IBeam.Management.Diagnostics.Api/",
+            "IBeam.Tests.Management/",
+            "IBeam.sln"
+          ],
+          "ac": [
+            "All four projects build and produce separate NuGet artifacts with README and agent guidance; core contracts do not reference Identity, ASP.NET Core, or repositories.",
+            "Portal identity requires the configured support authentication scheme, authenticated named human, support organization and explicit management context; customer/default identities cannot satisfy it.",
+            "Target info requires its configured machine scheme, explicit management credential context and the configured application/environment binding; portal human tokens cannot satisfy it.",
+            "Controllers call service methods; services invoke IServiceOperationExecutor; service checks still reject unauthorized direct calls.",
+            "Missing/blank authentication or deployment configuration fails validation; services have no allow-all authorization default.",
+            "HTTP tests prove 401 for missing/wrong schemes, 403 for wrong subject/binding, and 200 for the intended identity; registration never replaces consumer authentication defaults.",
+            "IBeam.Admin.API is not modified or renamed; solution and package registration examples document this foundation's limited scope."
+          ],
+          "hubbslyId": "f4d45aab-d73b-4968-91d4-565dd688d1b3",
+          "hubbslySourceKey": "IBM-0078",
+          "implementationStatus": "verified",
+          "verification": "34 management HTTP/service tests passed in Release; all four NuGet archives verified for DLL, README and agent guidance. No host changes or production publishing.",
+          "points": 5
+        }
+      ],
+      "hubbslyId": "6c811112-d5ab-4b22-bdee-98914d9206d5",
+      "points": 5
+    },
+    {
+      "key": "MGT-F02",
+      "title": "Isolated support identity and session lifecycle",
+      "deps": [
+        "MGT-F01"
+      ],
+      "outcome": "Reuse IBeam.Identity for one named, MFA-protected support login. Allow a separate storage connection or an isolated prefixed identity table set on shared storage; support organization membership is independent of customer tenant membership.",
+      "cards": [
+        {
+          "key": "MGT-002",
+          "title": "Configure isolated management identity storage and bootstrap",
+          "scope": "Support Management identity connection/prefix mapping into existing Identity provider. Reuse AspNetUsers/AspNetIndex/AspNetRoles, Tenants, TenantUsers, UserTenants, Roles, TenantInvites, OtpChallenges, AuthIdentifiers, AuthSessions and AuthAttempts plus provider-required tables. Seed the initial organization/administrator through trusted setup.",
+          "paths": [
+            "IBeam.Management.Identity.Services/",
+            "IBeam.Identity.Repositories.AzureTable/Extensions/",
+            "IBeam.Tests.Management.Identity/",
+            "IBeam.sln"
+          ],
+          "ac": [
+            "Separate-store and shared-store/prefix modes are verified without modifying customer identity records.",
+            "Same email in customer and support stores does not transfer memberships or roles.",
+            "Provider-required indexes, sessions, OTP/recovery and schema metadata remain isolated, not only the users table.",
+            "Bootstrap is explicit, idempotent and unavailable through public self-registration; secret values are absent from logs/config examples.",
+            "Configured storage identities enforce the intended isolation; a naming prefix alone is not described as a permission boundary."
+          ],
+          "hubbslyId": "344a39fd-bc9a-48c8-a2e7-494b34b231b7",
+          "hubbslySourceKey": "IBM-0079",
+          "implementationStatus": "verified",
+          "verification": "16 tests passed, including real Azure Table provider isolation and repeatable bootstrap against two private Azurite endpoints. Separate/shared modes, table/index/session/OTP isolation, explicit schema setup, namespace collision and mixed-host rejection verified. Shared-account prefixes are documented as logical isolation; cloud RBAC is an operator deployment prerequisite.",
+          "points": 5
+        },
+        {
+          "key": "MGT-003",
+          "title": "Enforce support sign-in, MFA, refresh and disable semantics",
+          "scope": "Reuse selected /api/auth sign-in/MFA/refresh flows in the portal host with management issuer/audience, support context and membership validation. Provide support account disable and session invalidation.",
+          "paths": [
+            "IBeam.Management.Identity.Services/",
+            "IBeam.Management.Identity.Api/",
+            "IBeam.Identity.Services/Auth/PasswordAuthService.cs",
+            "IBeam.Tests.Management.Identity/",
+            "IBeam.sln"
+          ],
+          "ac": [
+            "Support registration is invitation-only; an authenticated customer cannot enroll themselves.",
+            "Management tokens carry a distinct accepted audience and cannot authenticate customer data endpoints; ordinary tokens fail management endpoints.",
+            "MFA completion is required before management privileges become usable; incomplete/pre-tenant tokens fail.",
+            "Disabled users/organizations and revoked sessions are rejected on subsequent protected requests with a documented bounded revocation policy.",
+            "Refresh cannot restore removed memberships or permissions; grants are not trusted indefinitely from stale claims.",
+            "Tests cover recovery/invitation abuse, token substitution, organization mismatch, expiration and disabled users."
+          ],
+          "hubbslyId": "f956f3e9-52ba-4545-a06a-cf1757e0de7d",
+          "hubbslySourceKey": "IBM-0080",
+          "points": 8,
+          "implementationStatus": "verified",
+          "verification": "53 support Identity tests passed (including real shared/separate Azure Table isolation fixtures), 216 existing Identity service tests and 34 BYO-auth Management tests. Selected MFA sign-in, refresh, logout and support disable endpoints enforce live role/membership/session checks. Generic enrollment/recovery are closed; invitation onboarding remains MGT-012. Local NuGet packaging verified; no host edits or publication."
+        }
+      ],
+      "hubbslyId": "6eb38742-a949-482a-a13a-03db23a1090c",
+      "points": 13
+    },
+    {
+      "key": "MGT-F03",
+      "title": "Deployment-scoped management credentials",
+      "deps": [
+        "MGT-F01"
+      ],
+      "outcome": "Each application/environment issues its own revocable machine credential with explicit diagnostic capabilities. Store only secret hashes in ManagementApiCredentials and reject those credentials on ordinary application endpoints.",
+      "cards": [
+        {
+          "key": "MGT-004",
+          "title": "Persist and provision target management credentials",
+          "scope": "Add ManagementApiCredentialEntity and entity-focused Azure Table repository, trusted issue/rotate/revoke setup operations, and explicit deployment binding. Reuse safe cryptographic techniques without turning an existing tenant-admin key into an application-wide key.",
+          "paths": [
+            "IBeam.Management/Entities/",
+            "IBeam.Management.Services/Credentials/",
+            "IBeam.Management.Repositories.AzureTable/"
+          ],
+          "ac": [
+            "Credential records include ID, secret hash, deployment binding, explicit capabilities, status, expiry and revocation metadata; raw secrets are returned only on issuance.",
+            "Credential creation/rotation is restricted to trusted target operators and is not a public portal-admin endpoint.",
+            "Constant-time secret verification, high-entropy issuance, revocation and expiry are tested; hashes and raw keys never enter audit snapshots.",
+            "Separate application/environment credentials cannot be substituted; legacy tenant credentials are rejected by this management credential type.",
+            "The repository project remains independent of services/APIs and runtime readers need no schema-creation privileges."
+          ],
+          "hubbslyId": "f52c74f5-39c9-43c1-9567-ea18da1c209c",
+          "hubbslySourceKey": "IBM-0081",
+          "points": 5,
+          "implementationStatus": "verified",
+          "verification": "19 credential tests passed, including real Azure Table lifecycle, ETag revocation protection and no runtime table creation; 34 existing management tests passed. Distinct high-entropy keys, exact deployment/capability checks, opt-in trusted operator setup and JSON/audit redaction verified. Repository depends only on contracts and Azure/DI/options, not Identity/services/APIs."
+        },
+        {
+          "key": "MGT-005",
+          "title": "Authenticate target management keys with bounded capabilities",
+          "scope": "Implement dedicated target authentication scheme and management context, /info integration, operation checks and optional network restrictions; do not alter default customer auth.",
+          "paths": [
+            "IBeam.Management.Diagnostics.Api/Authentication/",
+            "IBeam.Management.Services/Credentials/",
+            "IBeam.Management.Services/ManagementDiagnosticsInfoService.cs",
+            "IBeam.Management/",
+            "IBeam.Tests.Management.Credentials/"
+          ],
+          "ac": [
+            "Missing/malformed/unknown/revoked/expired keys fail; customer JWT/API keys and support human tokens fail target management authentication.",
+            "Errors.Read and Logs.Read are independent; no implicit wildcard or owner/admin bypass exists.",
+            "Every target query validates credential and deployment; cross-deployment access is denied.",
+            "Optional IP controls evaluate trustworthy server/proxy-derived addresses, never an arbitrary client header.",
+            "Credential ID, operation and correlation are auditable without storing the raw credential; existing customer endpoint tests stay valid."
+          ],
+          "hubbslyId": "d8c53f20-9ff4-44c4-9598-2f19e4ed36ba",
+          "hubbslySourceKey": "IBM-0082",
+          "points": 5,
+          "implementationStatus": "verified",
+          "verification": "61 credential security/HTTP/provider tests passed (including real Azure Table HTTP authentication/revocation and conditional storage writes); 34 management foundation and 60 existing Identity API tests passed. Dedicated header and reserved-route scheme, exact deployment/version checks, independent error/log grants, CIDR server-address policy, safe audit metadata, storage-outage denial and unchanged customer defaults verified. No errors/log readers, public provisioning endpoints or production publishing."
+        }
+      ],
+      "hubbslyId": "1bab7bcb-bbde-4067-abd4-33c142eeaa63",
+      "points": 10
+    },
+    {
+      "key": "MGT-F04",
+      "title": "Read sanitized system errors",
+      "deps": [
+        "MGT-F03"
+      ],
+      "outcome": "Read existing SystemErrors through read-only repository adapters and safe DTOs. Expose bounded list/detail target endpoints, with application isolation and protected opaque record IDs/cursors; suppress unsafe legacy content.",
+      "cards": [
+        {
+          "key": "MGT-006",
+          "title": "Read existing error partitions with protected identifiers and bounded queries",
+          "scope": "Implement SystemErrorEntity read adapter for ERR|yyyyMMdd partitions and current row keys, DiagnosticQuery and cursor codec. Keep diagnostics storage separately configurable from management identity storage.",
+          "paths": [
+            "IBeam.Management/Models/",
+            "IBeam.Management.Services/Diagnostics/",
+            "IBeam.Management.Repositories.AzureTable/Diagnostics/",
+            "IBeam.Tests.Management.Diagnostics/",
+            "IBeam.sln"
+          ],
+          "ac": [
+            "Existing error rows can be read without rewriting them or copying them to the portal store.",
+            "Default query is bounded (24h); configurable maximum window/page/scan budget prevents unbounded queries and cancellation is honored.",
+            "Continuation tokens and record IDs are authenticated and bound to deployment, record type and query; tampering/replay against another context fails.",
+            "Diagnostic connection/table options never implicitly select the portal's prefixed identity diagnostic tables.",
+            "Shared/mixed application sources require trustworthy deployment tagging; ambiguous/untagged rows are not exposed.",
+            "Azurite/integration fixtures cover date boundaries, empty pages, stable pagination and missing records without full-table scans."
+          ],
+          "hubbslyId": "57ae3edf-8197-4309-a4cf-9e8c4fa3ffb8",
+          "hubbslySourceKey": "IBM-0083",
+          "points": 5,
+          "implementationStatus": "verified",
+          "verification": "34 diagnostics tests passed, including three private Azurite provider cases: unchanged legacy row ETags, UTC/midnight/offset boundaries, stable pagination, exact partition/date filters and metadata column selection, source-tag suppression, missing records/tables and read-only SAS with denied writes. 61 credential and 34 management foundation regressions passed. AES-GCM tokens bind purpose/type/deployment/source/query and fixed expiry. Default 24h window, bounded rows/requests/deadline and per-query live authorization verified. No HTTP error routes, capability advertisement, source rewrites or production publishing."
+        },
+        {
+          "key": "MGT-007",
+          "title": "Expose safe error list/detail service and target endpoints",
+          "scope": "Add SystemErrorReaderService and GET /api/management-diagnostics/system-errors and /{errorId}. Return allowlisted safe fields; no raw exception or request payload exposure.",
+          "paths": [
+            "IBeam.Management/Models/SystemErrorDtos.cs",
+            "IBeam.Management/ManagementDiagnosticsCapabilities.cs",
+            "IBeam.Management.Services/Diagnostics/",
+            "IBeam.Management.Services/ManagementDiagnosticsInfoService.cs",
+            "IBeam.Management.Diagnostics.Api/Controllers/",
+            "IBeam.Tests.Management.Diagnostics/"
+          ],
+          "ac": [
+            "Both routes require Errors.Read and enforce the deployment before repository access.",
+            "Thin controllers delegate to services routed through IServiceOperationExecutor with stable operation/audit names.",
+            "Safe error DTOs include opaque ID, timestamp, approved source/summary and safe correlation metadata; unknown free text is suppressed.",
+            "Raw exception text, query strings, customer payloads, passwords/tokens and storage keys are never serialized, including error responses.",
+            "Unauthorized detail IDs do not reveal another deployment's existence; validation/not-found/forbidden responses follow IBeam conventions.",
+            "Tests prove safe legacy behavior, insufficient permissions, cancellation and read-only operation; no delete/update diagnostic endpoints exist."
+          ],
+          "hubbslyId": "c0af35db-8a14-42f5-b552-7d1a485e4623",
+          "hubbslySourceKey": "IBM-0084",
+          "points": 5,
+          "implementationStatus": "verified",
+          "verification": "68 diagnostics unit/provider/HTTP tests passed, including four private Azurite cases and real read-only SAS list/detail responses with unchanged rows; 61 credential and 34 management foundation tests passed. Safe fixed source/summary projection, opaque correlation pseudonyms, independent live Errors.Read checks, opt-in route discovery, generic 400/403/404/503/504 envelopes, safe malformed model-state responses, provider failure sanitization before audit, cancellation, no write routes and missing-repository startup rejection verified. Error capability advertising composes through IManagementDiagnosticsCapability. No logs implementation, IBeam.Admin.API edits or production publishing."
+        }
+      ],
+      "hubbslyId": "44598138-92cd-441d-93e3-a9b19b37bec0",
+      "points": 10
+    },
+    {
+      "key": "MGT-F05",
+      "title": "Read sanitized system logs",
+      "deps": [
+        "MGT-F03",
+        "MGT-F04"
+      ],
+      "outcome": "Read approved operational SystemLogs from the existing logging provider while excluding business audit payloads and unsafe free text. Support bounded source/level/trace filtering and list/detail endpoints.",
+      "cards": [
+        {
+          "key": "MGT-008",
+          "title": "Implement operational log reader and projection policy",
+          "scope": "Add AzureTableSystemLogReadRepository and SystemLogReaderService using existing SYSTEM|DAY|yyyyMMdd records. Do not expose EntityChange/SelectRollup or before/after/original/transformed JSON.",
+          "paths": [
+            "IBeam.Management.Repositories.AzureTable/Diagnostics/",
+            "IBeam.Management.Services/Diagnostics/SystemLogReaderService.cs"
+          ],
+          "ac": [
+            "The reader queries approved system categories/partitions only and excludes tenant business audit records by default.",
+            "BeforeJson, AfterJson, OriginalJson, TransformedJson, actor/device/IP metadata and unsafe Detail/Message are absent from outbound DTOs.",
+            "Safe source/level/time/trace filters, authenticated cursors, row IDs, page/scan budgets and cancellation match the error contract.",
+            "Sensitive canary fixtures in every excluded field never appear in responses or management audit.",
+            "Logs.Read does not imply Errors.Read and no tenant-restricted claim is made when source attribution cannot support it."
+          ],
+          "hubbslyId": "1b665163-423a-416f-83f2-b5ef4972bfa8",
+          "hubbslySourceKey": "IBM-0085",
+          "points": 5,
+          "implementationStatus": "verified",
+          "verification": "130 diagnostics tests passed (68 existing plus 62 new), including seven private Azurite cases. 34 management foundation and 59 credential (2 opt-in skipped) regressions passed. Reader queries exact SYSTEM|DAY partitions with Category System; tenant partitions, EntityChange/SelectRollup rows (including tenant-less audit in the SYSTEM partition), rollup keys and malformed rows are never returned. $select excludes Message/Detail, actor/device/IP/user agent, tenant/entity and every *Json column; canaries seeded in each are absent from responses, audit and service logs. Source/level/trace filters are validated, pushed down, rechecked per row and frozen into AES-GCM cursors bound to system-logs/app/environment/source binding; error and log tokens are not interchangeable. Live Logs.Read is checked before every provider read and does not imply Errors.Read. Logs carry no tenant attribution, so no per-tenant restriction is claimed. Mutation check: selecting Message and dropping the Category guard fails the canary test. Configurable sanitization is IBM-0097."
+        },
+        {
+          "key": "MGT-009",
+          "title": "Expose target log list/detail endpoints",
+          "scope": "GET /api/management-diagnostics/system-logs and /{logId}; IBeam response helpers, service permissions/audit and deployment-bound detail lookup.",
+          "paths": [
+            "IBeam.Management.Diagnostics.Api/Controllers/",
+            "IBeam.Tests.Management/"
+          ],
+          "ac": [
+            "List/detail require Logs.Read and the correct machine credential/deployment binding.",
+            "Response shapes use safe log DTOs and existing response conventions; storage entities are never returned.",
+            "HTTP tests cover missing/wrong credentials, cross-type/cross-deployment IDs, invalid ranges/cursors and missing rows.",
+            "Reader services remain callable without HTTP while enforcing trusted service access context and operation execution."
+          ],
+          "hubbslyId": "a157fc98-b9ef-42a1-8a59-f5c256bd8924",
+          "hubbslySourceKey": "IBM-0086",
+          "points": 3,
+          "implementationStatus": "verified",
+          "verification": "Opt-in GET /api/management-diagnostics/system-logs and /{logId} via AddIBeamManagementSystemLogsApi; Logs.Read capability composes with errors in /info. HTTP tests cover anonymous/customer/human/legacy/revoked/expired/other-deployment/info-only/errors-only denial with zero reads, cross-type error IDs/cursors, invalid ranges/filters/cursors without echo, uniform 404s, sanitized 503, 504 deadline, no write routes, direct service calls without HTTP context, missing-repository startup failure and a read-only SAS end-to-end run. The shared diagnostics filter was renamed ManagementDiagnosticApiFilter (internal)."
+        },
+        {
+          "key": "MGT-020",
+          "title": "Make diagnostic sanitization configurable (on/off) for errors and logs",
+          "scope": "Add independent host-owned errors/logs sanitization switches with safe defaults, explicit non-Production enforcement, typed raw list/detail fields, mode advertisement, current portal projection/token integration and unchanged source/grant/audit isolation.",
+          "paths": [
+            "IBeam.Management/Models/",
+            "IBeam.Management.Services/Diagnostics/",
+            "IBeam.Management.Repositories.AzureTable/Diagnostics/",
+            "IBeam.Management.Diagnostics.Api/",
+            "IBeam.Tests.Management.Diagnostics/"
+          ],
+          "ac": [
+            "A missing, blank or true setting yields exactly the sanitized projection, proven by the existing canary-fixture tests.",
+            "An explicit false setting returns the previously suppressed fields in list and detail responses.",
+            "No request input (query, header, body, claim) can change the mode, and a test proves it.",
+            "Management audit stays sanitized when sanitization is off, proven by canary fixtures.",
+            "The effective mode is advertised in target capabilities, and a startup warning is logged when it is off.",
+            "The option is documented in the package README and configuration docs, including the default.",
+            "A Production host or Production management deployment refuses to start with sanitization off.",
+            "The current portal preserves only the verified operation's explicitly marked raw fields; unadvertised, malformed or Production mode declarations fail closed and raw payloads never enter audit.",
+            "Target and portal IDs/cursors cannot replay across a sanitization-mode change; source/category/app/permission boundaries and read-only storage remain enforced."
+          ],
+          "hubbslyId": "6684ca3b-1e8b-48b1-8d16-e1104896eede",
+          "hubbslySourceKey": "IBM-0097",
+          "points": 3,
+          "implementationStatus": "done",
+          "verification": "IBM-0097 (3 points), authorized Codex takeover on 2026-10-16: fresh implementation on current development because the previous external fe8c955 artifact remains unavailable. Independent IBeam:Management:Diagnostics:{Errors|Logs}:Sanitization:Enabled defaults on for missing/null/blank/whitespace/true; only explicit false enables raw fields, host configuration only. Supported non-Production host/deployment policy refuses Production/prod/unknown contexts at startup and direct reader/projection boundaries. Per-module warning contains no data. Existing safe DTO fields remain unchanged; optional unsanitized objects hold only typed error source/trace/message/exception/path/method or log source/level/trace/message/detail. Raw storage columns are selected only by explicit server-owned partition/detail operations; no audit JSON/actor/device/IP/tenant/entity columns, partition/category/source/grant/budget widening, provisioning or mutation. Metadata records hide raw JSON/ToString; raw DTO ToString redacted; built-in HTTP body logging disabled on diagnostic endpoints.\n\nTarget info advertises only installed raw module capabilities. Production, duplicate/unknown/uninstalled or malformed raw declarations fail connection/portal validation. Portal client and service preserve only the verified operation's marked typed raw object with bounded fields/body; unadvertised raw is removed. Target crypto context and authenticated portal state bind the mode, so old IDs/cursors fail in either switching direction. Existing constructor signatures/default capability behavior remain available. New repository detail port defaults to safe unsupported failure for metadata-only custom adapters. Configuration docs explicitly describe environment names, restart/upgrade token invalidation, custom adapter requirements and unchanged response bounds.\n\nValidation: 756 tests passed, zero failed/skipped, across Management (34), Identity adapter (65), credentials (61), applications (101), diagnostics (150), existing Identity (5), Identity.Services (216), Identity.Api (60), API (12), Services (27), Services.Logging (3) and AccessControl (22). Cases include defaults/blank/whitespace, independent module list/detail, host/query/header/body/claims override resistance, Production/unknown refusal, mode advertisement/startup warnings, direct projection checks, target/portal token mode changes, malformed metadata/raw size bounds, provider-failure/audit canaries and real private Table tests proving exact selected columns, read-only SAS, source/tag/category/tenant exclusions and unchanged ETags.\n\nPacked 20 IBeam dependency packages with the repository ReleasePackageVersion override; inspected all eight Management packages for intended DLL/README/icon/agent prompts and absence of secret/local artifacts. Fresh package-only consumer restore (zero source ProjectReferences) passed portal + two isolated Testing targets: Qurvia raw errors/sanitized logs, Bindry sanitized errors/raw logs, verified info/onboarding, live assignments, list/detail/continuation, mode markers, app/org/customer isolation, revoke and correlated payload-free audit. No production credentials, consumer-host edits, frontend, deployment or manual publishing. Full configuration/source/history/handoff docs and package prompts updated. This completes all 20 epic cards (107 points); IBeam.Admin.API remains separate deferred instance work."
+        }
+      ],
+      "hubbslyId": "6ab554f2-ace5-4daf-bc02-f3d6cea1dbe0",
+      "points": 8
+    },
+    {
+      "key": "MGT-F06",
+      "title": "Application registry and secret-backed connections",
+      "deps": [
+        "MGT-F02",
+        "MGT-F03"
+      ],
+      "outcome": "Register Qurvia, Bindry or MedInsights per environment, store backend-only secret references and test registered target connections. Separate metadata from credential material and limit outbound destinations.",
+      "cards": [
+        {
+          "key": "MGT-010",
+          "title": "Persist application registry and configuration endpoints",
+          "scope": "ManagementApplicationEntity/ManagementApplications, entity-focused repository and service; GET/POST /api/management/applications and GET/PATCH /{applicationId}. Scope by management organization; one record per app/environment.",
+          "paths": [
+            "IBeam.Management/Entities/ManagementApplicationEntity.cs",
+            "IBeam.Management.Repositories.AzureTable/",
+            "IBeam.Management.Services/Applications/",
+            "IBeam.Management.Api/Controllers/"
+          ],
+          "ac": [
+            "App/environment uniqueness is enforced within the support organization; metadata has ID/key/name/environment/URL/status/timestamps and concurrency token.",
+            "Server-resolved organization scope is mandatory for lists and item reads/updates; a client cannot choose another support organization.",
+            "Only explicit application-administration permission can create/update/disable; diagnostic readers cannot.",
+            "Application creation does not automatically grant diagnostic access or create customer-tenant membership.",
+            "Duplicate/conflict/not-found/validation handling and auditable changes follow IBeam conventions."
+          ],
+          "hubbslyId": "58e08dac-4cb2-47d6-9b46-ad5fbb27eb03",
+          "hubbslySourceKey": "IBM-0087",
+          "points": 5,
+          "implementationStatus": "done",
+          "verification": "19 focused registry tests passed, including real Azure Table atomic uniqueness, organization partitioning, bounded pagination and ETag conflicts; HTTP opt-in, permissions, safe envelopes and live management-role mapping verified. Identity regression suite passed; affected packages built/packed. No runnable host changes or publication."
+        },
+        {
+          "key": "MGT-011",
+          "title": "Store connection secrets and verify registered target identities",
+          "scope": "ManagementApplicationCredentialEntity/ManagementApplicationCredentials, IManagementSecretStore with environment-reference and secret-store adapters; PUT /applications/{id}/connection and POST /connection/test.",
+          "paths": [
+            "IBeam.Management.Services/Applications/ManagementApplicationConnectionService.cs",
+            "IBeam.Management.Services/Secrets/",
+            "IBeam.Management.Api/Controllers/"
+          ],
+          "ac": [
+            "Submitted keys are write-only and stored in a secret store; app/credential rows contain references and metadata only.",
+            "Environment-reference mode supports fixed deployments; portal submissions require a writable secret-store adapter and never edit process environment variables.",
+            "Only approved HTTPS destinations are callable; redirect credential forwarding, arbitrary URL testing, DNS/private-network bypasses and user-controlled host substitutions are denied by policy.",
+            "Connection test confirms target deployment/environment and supported capabilities through /info without returning secrets.",
+            "Rotation validates a pending credential before activation, preserves the working connection on failure and records audit without request-body/secret capture.",
+            "List/detail/update errors, logs, traces and audit cannot disclose key material; timeout/cancellation and target outage behavior are tested."
+          ],
+          "hubbslyId": "b061ee6f-d6e5-4840-b330-3f98d74724b8",
+          "hubbslySourceKey": "IBM-0088",
+          "points": 8,
+          "implementationStatus": "done",
+          "verification": "282 management tests passed across applications (66, including real Azure Table registry/connection fixtures), Identity (53), target credentials (61), safe diagnostics (68) and foundation (34). HTTP write-only keys/body-logging suppression, env-reference and mocked Key Vault adapters, exact target/protocol/capabilities, DNS/IP pinning, redirect/private-network denial, failed/concurrent rotations and timeout/cancellation verified. Affected packages built/packed; no cloud writes, host edits, publication or deployment."
+        }
+      ],
+      "hubbslyId": "9d3ce947-832c-4f04-b847-befc49ea8b71",
+      "points": 13
+    },
+    {
+      "key": "MGT-F07",
+      "title": "Support users and per-application access",
+      "deps": [
+        "MGT-F02",
+        "MGT-F06"
+      ],
+      "outcome": "Invite and disable named support users, assign one person to one or many registered apps, and independently grant error/log reading. Every operation enforces support-organization scope and current assignments.",
+      "cards": [
+        {
+          "key": "MGT-012",
+          "title": "Expose controlled support directory and invitation lifecycle",
+          "scope": "ManagementSupportUserService wrapping existing Identity directory/invite services; GET /support-users, POST /support-invitations, POST /support-invitations/accept and PATCH /support-users/{userId}.",
+          "paths": [
+            "IBeam.Management.Services/Users/",
+            "IBeam.Management.Api/Controllers/"
+          ],
+          "ac": [
+            "Invite/list/disable operations require support-user administration permission and matching management organization.",
+            "Invitation acceptance is one-time, expires, verifies intended identity and cannot change organization or elevate roles from submitted fields.",
+            "Support users are stored in management Identity tables, not duplicated in a new profile/auth table.",
+            "Disable prevents new diagnostic access and invalidates support sessions; administrative recovery rules prevent accidental loss of the final administrator.",
+            "No customer-user provisioning, impersonation or customer credential editing is added."
+          ],
+          "hubbslyId": "67bdfc4d-5272-43f1-9e8e-aed8fab92239",
+          "hubbslySourceKey": "IBM-0089",
+          "points": 5,
+          "implementationStatus": "done",
+          "verification": "62 management Identity tests passed, including private Azure Table HTTP onboarding, canonical invitation tampering/expiry/issuer checks, MFA-only sign-in, replay and atomic claim, explicit permission and membership/session disablement. Optional routes, write-only secrets and no new auth/profile tables verified; affected packages built/packed."
+        },
+        {
+          "key": "MGT-013",
+          "title": "Persist app assignments and enforce access/delegation boundaries",
+          "scope": "ManagementApplicationAccessEntity/ManagementApplicationAccess plus repository and service; GET/PUT/DELETE /applications/{id}/support-users[/{userId}]. Initial grants are management.diagnostics.errors.read and management.diagnostics.logs.read.",
+          "paths": [
+            "IBeam.Management/Entities/ManagementApplicationAccessEntity.cs",
+            "IBeam.Management.Services/ManagementApplicationAccessService.cs",
+            "IBeam.Management.Repositories.AzureTable/AzureTableManagementApplicationAccessRepository.cs",
+            "IBeam.Management.Api/ManagementApplicationAccessController.cs"
+          ],
+          "ac": [
+            "A person can receive zero/one/many app assignments and independent Errors.Read/Logs.Read; app and user must belong to the same management organization.",
+            "Only trusted access administrators can assign/revoke within their explicit delegation ceiling; readers cannot assign themselves or grant unknown/wildcard permissions.",
+            "Missing/disabled/revoked application, user, organization or assignment denies access; no global customer-owner/admin role bypass exists.",
+            "Assignments are rechecked on each read and revocation is effective without token refresh; cache invalidation is tested if caching is introduced.",
+            "Concurrency, duplicate assignments and explicit revocation metadata are handled; all access changes are audited."
+          ],
+          "hubbslyId": "4cdd783d-1b90-4a86-ba52-5e06500fe4b5",
+          "hubbslySourceKey": "IBM-0090",
+          "points": 8,
+          "implementationStatus": "done",
+          "verification": "581 checks passed: 365 management tests (Identity 65, Applications/access 75, Diagnostics 130, target credentials 61, foundation 34) and 216 existing Identity service tests. Real MFA/HTTP support onboarding and access routes, live scope/state/role revocation, independent app grants, explicit delegation ceilings, no admin diagnostic bypass, atomic Azure Table create/ETag updates, metadata-only operation audit and safe failures verified. Six affected packages packed and inspected. IBM-0097 scrubbing is explicitly deferred by the user."
+        }
+      ],
+      "hubbslyId": "9fb70f50-948e-484a-82c9-0a71e535d06a",
+      "points": 13
+    },
+    {
+      "key": "MGT-F08",
+      "title": "Portal application switching and diagnostic orchestration",
+      "deps": [
+        "MGT-F04",
+        "MGT-F05",
+        "MGT-F06",
+        "MGT-F07"
+      ],
+      "outcome": "One portal session lists only accessible applications and proxies approved error/log queries through per-app backend credentials. Switch app context without customer-app login or exposing target secrets.",
+      "cards": [
+        {
+          "key": "MGT-014",
+          "title": "Implement application diagnostics client and portal read endpoints",
+          "scope": "IApplicationDiagnosticsClient HTTP adapter and ManagementDiagnosticsService; GET /applications/{id}/system-errors[/{errorId}] and /system-logs[/{logId}]. Reuse safe target contracts and registered connection resolver.",
+          "paths": [
+            "IBeam.Management.Services/Diagnostics/ManagementDiagnosticsService.cs",
+            "IBeam.Management.Services/Clients/",
+            "IBeam.Management.Api/Controllers/"
+          ],
+          "ac": [
+            "Every portal list/detail request checks current person/app/operation grants before secret lookup or outbound calls.",
+            "The selected application determines server-side target and credential; browser-provided URLs/keys/organization overrides are ignored or rejected.",
+            "Target response identity and opaque IDs/cursors remain application-bound; switching apps cannot reuse another app's data or cursor.",
+            "Target timeouts, rate limits, invalid responses and outages produce safe bounded responses without exposing transport secrets.",
+            "Service orchestration invokes entity services rather than cross-repository business logic; no customer tables are queried."
+          ],
+          "hubbslyId": "85246cfe-adcf-45ca-9a03-0e302195f40d",
+          "hubbslySourceKey": "IBM-0091",
+          "points": 8,
+          "implementationStatus": "done",
+          "verification": "IBM-0091 (8 points): implemented optional app-scoped portal errors/logs list/detail endpoints and typed HTTP client. Current human identity, live user/app assignments and capabilities checked before secrets/outbound and before/after data. Registered target identity checked each request. AES-GCM IDs/cursors bind org/user/app/operation/environment/origin/credential/app version; frozen queries and bounded requests. Fixed HTTPS routes, existing public DNS pinning policy, no redirects/proxies/forwarded browser headers, server-side keys only. Safe second projection and safe failure/cancellation handling; no customer repository dependencies or request/data snapshots. 82 non-storage Applications checks passed (including real optional TestServer endpoints, cross-app/user/operation/rotation/expiry, revocation before data, denied-before-secret, raw canaries, malformed envelope, rate limit, outage and deadlines). Release API pack passed. Storage adapters unchanged; their private-emulator regression runs are scheduled in the epic validation card. IBM-0097 remains deferred by explicit user instruction."
+        },
+        {
+          "key": "MGT-015",
+          "title": "Expose authorized selector contract and verify multi-app session behavior",
+          "scope": "GET /api/management/applications returns only current authorized entries/capabilities; /me reports management context. Document the future UI dropdown flow; defer portal UI and IBeam.Admin.API changes.",
+          "paths": [
+            "IBeam.Management.Services/Applications/",
+            "IBeam.Management.Api/",
+            "IBeam.Tests.Management/",
+            "docs/management/"
+          ],
+          "ac": [
+            "A single named support session can alternate Qurvia/Bindry/MedInsights requests without signing into those customer apps.",
+            "Selector excludes apps with no active diagnostic permission; revoked access disappears and direct URL reads also fail.",
+            "Two support organizations and two users with different app assignments cannot see one another's registrations or diagnostics.",
+            "HTTP integration scenario proves one-app and multi-app grants with errors/logs permissions independently.",
+            "No portal frontend, host rename or IBeam.Admin.API dependency is required to complete this framework contract."
+          ],
+          "hubbslyId": "a4b924d3-6a40-455f-9c1e-63ccff0a3a13",
+          "hubbslySourceKey": "IBM-0092",
+          "points": 3,
+          "implementationStatus": "done",
+          "verification": "IBM-0092 (3 points): optional authorized selector GET /api/management/applications, metadata-only app choices and independent errors/logs permissions; administrator registry list retained at /registry. Entity-service catalog/connection metadata ports avoid cross-repository orchestration and secret reads. Live user/app/grants/connection filtering, five-page scan bound, encrypted user/org/page-size/expiry-bound continuation, no privilege bypass. HTTP tests prove one support session switching Qurvia/Bindry/MedInsights, one-app and multi-app grants, independently denied errors/logs, revocation disappearing from selector and direct read failing, disabled/disconnected apps omitted, users/organizations isolated, admin-only registry, machine/customer rejection and cursor replay/expiry protection. All 85 non-storage Applications checks passed. No UI or deferred consumer host touched."
+        }
+      ],
+      "hubbslyId": "4a018a35-0554-4a78-a81e-72f4f456de95",
+      "points": 11
+    },
+    {
+      "key": "MGT-F09",
+      "title": "Management audit and diagnostic data isolation",
+      "deps": [
+        "MGT-F02",
+        "MGT-F03"
+      ],
+      "outcome": "Record support actor, target, operation and result without customer content or secrets. Apply shared safe diagnostic projections and ensure audit durability/retention/access rules are explicit.",
+      "cards": [
+        {
+          "key": "MGT-016",
+          "title": "Persist management audit and correlation without sensitive snapshots",
+          "scope": "ManagementAuditEntity/ManagementAudit, repository and sink integration with IServiceOperationExecutor; source operation/context only, no submitted secret or diagnostic payload snapshots.",
+          "paths": [
+            "IBeam.Management.Services/Audit/",
+            "IBeam.Management.Repositories.AzureTable/",
+            "IBeam.Management.Api/"
+          ],
+          "ac": [
+            "Reads, registration, connection changes, invitations and access grants/revocations record actor/organization/app/operation/time/result/correlation as applicable.",
+            "Target records machine credential ID and correlation; untrusted browser actor headers are never treated as verified human identity.",
+            "Secrets, hashes, diagnostic payloads, credentials and customer entity snapshots are absent, including denied/failed paths.",
+            "Support readers cannot modify/delete audit; retention and audit-write failure policy are configurable/documented and tested.",
+            "Audit configuration avoids recursively logging audit reads/writes into customer diagnostics; target and portal events can be correlated."
+          ],
+          "hubbslyId": "1491bc9c-5998-4b06-bddd-25d1f0b9eb83",
+          "hubbslySourceKey": "IBM-0093",
+          "points": 5,
+          "implementationStatus": "done",
+          "verification": "IBM-0093 (5 points): append-only ManagementAuditEntity/IManagementAuditRepository and Azure Table adapter; dedicated Management-only operation-executor adapter preserves customer audit configuration and sinks. Exact operation allowlist, trusted human/machine principal metadata, org/app/subject IDs as applicable, result/time/expiry and generated correlation. Generic error/request/snapshot/key/hash fields are discarded. Portal client emits generated machine-link correlation; authenticated target filter accepts only one bounded valid ID and never trusts human actor headers. Configurable 1–3650 day retention metadata with explicit separate operator cleanup, bounded 1–30 second audit write deadline, fail-closed default or measured best effort. No reader/mutation/delete API. Tests cover raw canaries on success/failure, real HTTP read/denied audit, machine credential identity, correlation handling, customer audit preservation, bounded failure attempts, retention bounds and real append-only Table persistence/no runtime provisioning. 91 Applications tests passed with private Azurite; 124 non-storage Diagnostics tests passed; Release repository pack passed. Retention deletion is intentionally deployment-owned because Azure Tables have no automatic TTL; cross-table audit/mutation atomicity is not claimed and recovery policy is documented.\r\nFollow-up integration review: audit human attribution now mirrors the service guard across uid/sub/NameIdentifier, including uid-only BYO authentication; conflicting aliases remain unknown on denied events. All 95 Applications checks passed with private storage, including four alias cases.\r\nFinal audit review: reserve the new app GUID before its service operation so app registration audit includes the exact created application ID, without attaching request/entity snapshots. Real HTTP create/audit identity assertion and all 95 Applications tests passed with private storage."
+        },
+        {
+          "key": "MGT-017",
+          "title": "Verify diagnostic source isolation and safe historical-data behavior",
+          "scope": "Cross-cutting source binding, safe projection policy and negative tests against current SystemErrors/SystemLogs schemas; shared-source migration strategy remains explicit.",
+          "paths": [
+            "IBeam.Management.Services/Diagnostics/",
+            "IBeam.Management.Repositories.AzureTable/Diagnostics/",
+            "IBeam.Tests.Management/",
+            "docs/management/"
+          ],
+          "ac": [
+            "Existing errors without tenant identity are treated as app-wide only; per-customer-tenant restricted access is not claimed.",
+            "Mixed application/environment sources require reliable writer tags and reader predicates; untagged historical records fail closed.",
+            "All raw messages/exceptions/details and business audit JSON fixtures are tested for data leakage in successful and failed responses.",
+            "Identifiers/cursors cannot widen source/range/category/deployment filters; diagnostic storage permissions are read-only.",
+            "Document which historical rows can safely be shown and which require recapture/migration before exposure."
+          ],
+          "hubbslyId": "11544378-4990-417b-9fa6-c0c69a621ce4",
+          "hubbslySourceKey": "IBM-0094",
+          "points": 5,
+          "implementationStatus": "done",
+          "verification": "IBM-0094 (5 points): documented deployment-wide (not per-customer-tenant) authority for tenant-less historical errors; dedicated-vs-shared source confirmations and fail-closed partial/malformed/foreign tags; trusted writer prerequisites and operator migration/recapture procedure. Added real private Table/HTTP mixed-source scenario for Qurvia and Bindry, separate source replay, read-only SAS denied writes/deletes, unchanged ETags, tagged and untagged history, business EntityChange/SelectRollup and tenant partitions, every raw message/exception/detail/request/audit JSON canary on successful and failed list/detail responses and metadata audit, query override attempts, frozen query/cursor replay and foreign app denial. Existing range/source/category/deployment token tests retained. All 132 Diagnostics checks passed with isolated Azurite, zero skipped. No production data, schema migration, raw-field option or customer-table access added."
+        }
+      ],
+      "hubbslyId": "3de67ac3-7bbc-43a2-98f7-7509d15dbd2c",
+      "points": 10
+    },
+    {
+      "key": "MGT-F10",
+      "title": "NuGet packaging, integration verification and host handoff",
+      "deps": [
+        "MGT-F01",
+        "MGT-F02",
+        "MGT-F03",
+        "MGT-F04",
+        "MGT-F05",
+        "MGT-F06",
+        "MGT-F07",
+        "MGT-F08",
+        "MGT-F09"
+      ],
+      "outcome": "Ship consumable framework packages and a reproducible test matrix for separate/shared identity storage and multiple applications. Document the later IBeam.Admin.API instance work without renaming or editing that repository now.",
+      "cards": [
+        {
+          "key": "MGT-018",
+          "title": "Verify full API boundary matrix and package consumption",
+          "scope": "Focused HTTP/service/repository tests, opt-in Azurite diagnostics fixtures and NuGet consumer smoke test across all management packages.",
+          "paths": [
+            "IBeam.Tests.Management/",
+            "IBeam.sln",
+            "build/",
+            "docs/management/"
+          ],
+          "ac": [
+            "Automated tests cover anonymous/customer/support-machine substitution, cross-organization/app access, expiry/revocation, permission changes, unsafe payloads and cursor tampering.",
+            "Provider integration tests use isolated fixtures and do not require production credentials; external prerequisites are explicit.",
+            "Packages restore/build/pack using repository release conventions and contain intended contracts/README/agent prompts without secrets.",
+            "A minimal test host consumes generated packages and proves authenticated info, app assignment and safe error/log flow with two isolated targets.",
+            "Existing Identity, API, logging and service operation tests relevant to changed shared components remain green."
+          ],
+          "hubbslyId": "1b8cb393-be4a-4080-8c68-c2408270a69a",
+          "hubbslySourceKey": "IBM-0095",
+          "points": 8,
+          "implementationStatus": "done",
+          "verification": "IBM-0095 (8 points): all 728 tests passed, zero failures or skipped checks, across Management foundation (34), Identity adapter (65), credentials (61), applications (91), diagnostics (132), existing Identity (5), Identity.Services (216), Identity.Api (60), API (12), Services (27), Services.Logging (3) and AccessControl (22). Provider cases used two isolated private Azurite Table endpoints, no production credentials. Added repeatable scripts/Test-ManagementPackages.ps1 and samples/Management.PackageSmoke with package references only. Packed the dependency closure at one explicit ReleasePackageVersion: 20 IBeam packages; inspected all eight Management packages for DLL/README/icon/root and local agent prompts and absence of local secrets/test artifacts. Fresh consumer restore used a generated feed, separate cache/build props and zero source ProjectReferences. Smoke passed real Table repositories, read-only diagnostic SAS, portal + Qurvia/Bindry TestServer targets, authenticated/non-interchangeable target info, HTTP registration/verified connection activation, assignments, selector, safe errors/logs list/detail/continuation, cross-app tokens, cross-org/customer substitution, immediate revoke and correlated payload-free audit. Host-owned in-process client/probe adapters are fixture-only; production HTTPS/TLS/DNS-pinning validation remains covered by the application network/client tests, not claimed by this smoke. Added dedicated CI workflow to run isolated fixture matrix without skips and fresh package validation. Consumer host remains deferred and untouched; no manual package publishing or deployment.\r\nFollow-up review: normalize MSBuild backslash paths before dependency resolution for Linux CI. PowerShell parser check passed; no runtime/package contract change."
+        },
+        {
+          "key": "MGT-019",
+          "title": "Document deployment and deferred IBeam.Admin.API instance integration",
+          "scope": "README/configuration/endpoint examples, table/credential bootstrap and rotation/runbook, application onboarding, troubleshooting and deferred consumer-host handoff.",
+          "paths": [
+            "docs/management/",
+            "IBeam.Management*/README.md"
+          ],
+          "ac": [
+            "Examples cover separate identity storage and shared storage with distinct tables/credentials, and separate diagnostic-source connection settings.",
+            "Document package install/registration, trusted auth schemes/audiences, MFA, initial administrator, target credential provisioning and app onboarding.",
+            "Document safe network exposure, origin allowlists, trusted proxy configuration, secret-store setup, rotation/revocation and audit retention/failure policy.",
+            "IBeam.Admin.API is explicitly a deferred runnable portal API instance that will reference published NuGet packages; its new name remains undecided.",
+            "No repository rename, production deployment, NuGet publishing or frontend implementation is performed by this handoff card."
+          ],
+          "hubbslyId": "27d4d7a4-0739-41ad-906b-8eb2b2db96d8",
+          "hubbslySourceKey": "IBM-0096",
+          "points": 3,
+          "implementationStatus": "done",
+          "verification": "IBM-0096 (3 points): docs/management/deployment-and-handoff.md provides project/package responsibility and API -> Services -> Repository paths; exact host registrations and route inventory; separate/shared Identity settings, table/schema names, credential isolation, trusted named schemes/audiences, MFA/session/lockout and one-off administrator bootstrap; independent target credential/error/log storage and source-trust configuration; writable Key Vault versus deployment-managed environment bindings; app connection onboarding and named app grants; target credential issue/rotation/revocation and non-atomic cutover/cleanup; approved public HTTPS/DNS/TLS policy, CIDR restrictions and trusted proxy order, request/log redaction and bounded URI limits; append-only audit retention, timeout/failure/recovery semantics. All eight package READMEs, root README and relevant agent prompts match the shipped selector/portal/audit contracts. Local links/configuration JSON checked against source and package smoke registrations. Final validation has 732 passing checks, zero skipped, with private storage; all eight Management packages plus 20-package dependency closure packed/inspected, and fresh package-only two-target smoke passed after the final audit corrections. Linux Validate Management Boundary workflow also passed at fdde647. Original IBM-0078..0096 framework scope is 19 cards / 104 points. The extra IBM-0097 is explicitly deferred by user instruction: local external commit/remote branch unavailable; current portal remains sanitized and recovery must reconcile projection/capability behavior. MGT-F05 estimate corrected to 11 points / 3 cards, epic total 107 points / 20 cards. IBeam.Admin.API remains the unchanged deferred published-NuGet portal instance, future name undecided; no frontend/rename/deployment/manual publishing performed."
+        }
+      ],
+      "hubbslyId": "907c97ad-60ed-411d-8939-b6db0c4156ba",
+      "points": 11
+    }
+  ],
+  "estimationPolicy": "Feature totals sum Fibonacci estimates on their cards. Hubbsly has no writable feature points field; totals are also recorded in feature outcomes."
+}

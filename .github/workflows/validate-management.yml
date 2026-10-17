@@ -1,0 +1,75 @@
+name: Validate Management Boundary
+on:
+  push:
+    branches: [development]
+    paths: ['IBeam.Management*/**', 'IBeam.Tests.Management*/**', 'IBeam.Identity*/**', 'IBeam.Services*/**', 'IBeam.Api/**', 'samples/Management.PackageSmoke/**', 'scripts/Test-ManagementPackages.ps1', '.github/workflows/validate-management.yml']
+  pull_request:
+    branches: [development]
+    paths: ['IBeam.Management*/**', 'IBeam.Tests.Management*/**', 'IBeam.Identity*/**', 'IBeam.Services*/**', 'IBeam.Api/**', 'samples/Management.PackageSmoke/**', 'scripts/Test-ManagementPackages.ps1', '.github/workflows/validate-management.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: management-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  isolated-management:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Start private Table fixtures
+        shell: bash
+        run: |
+          npm install --no-save --prefix "$RUNNER_TEMP/management-azurite" azurite@3.35.0 >/dev/null
+          for port in 11056 11057; do
+            mkdir -p "$RUNNER_TEMP/table-$port"
+            node "$RUNNER_TEMP/management-azurite/node_modules/azurite/dist/src/table/main.js" --tableHost 127.0.0.1 --tablePort "$port" --location "$RUNNER_TEMP/table-$port" --silent >"$RUNNER_TEMP/table-$port/server.log" 2>&1 &
+          done
+      - name: Configure local fixture connections
+        shell: pwsh
+        run: |
+          $module=Join-Path $env:RUNNER_TEMP 'management-azurite/node_modules/azurite/dist/src/common/utils/constants.js'
+          $key=& node -e "const c=require(process.argv[1]).EMULATOR_ACCOUNT_KEY;process.stdout.write(Buffer.isBuffer(c)?c.toString('base64'):c)" $module
+          foreach ($pair in @(@('IBEAM_MANAGEMENT_TEST_STORAGE',11056),@('IBEAM_MANAGEMENT_TEST_SEPARATE_STORAGE',11057))) {
+            Add-Content $env:GITHUB_ENV ($pair[0]+'=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey='+$key+';TableEndpoint=http://127.0.0.1:'+$pair[1]+'/devstoreaccount1;')
+          }
+          foreach ($port in 11056,11057) {
+            $ready=$false
+            for ($attempt=0;$attempt -lt 30;$attempt++) {
+              $socket=[Net.Sockets.TcpClient]::new()
+              try {$socket.Connect('127.0.0.1',$port);$ready=$true;break} catch {Start-Sleep -Seconds 1} finally {$socket.Dispose()}
+            }
+            if (-not $ready) {throw 'Local Table fixture did not start'}
+          }
+      - name: Management and shared-component regressions
+        shell: pwsh
+        run: |
+          $projects=@('IBeam.Tests.Management','IBeam.Tests.Management.Identity','IBeam.Tests.Management.Credentials','IBeam.Tests.Management.Applications','IBeam.Tests.Management.Diagnostics','IBeam.Tests.Identity','IBeam.Tests.Identity.Services','IBeam.Tests.Identity.Api','IBeam.Tests.Api','IBeam.Tests.Services','IBeam.Tests.Services.Logging','IBeam.Tests.AccessControl')
+          foreach ($project in $projects) {
+            dotnet test "$project/$project.csproj" -c Release --nologo --logger "trx;LogFileName=$project.trx" --results-directory "$env:RUNNER_TEMP/management-results"
+            if ($LASTEXITCODE -ne 0) {throw "$project failed"}
+          }
+          foreach ($file in Get-ChildItem "$env:RUNNER_TEMP/management-results" -Filter '*.trx') {
+            [xml]$trx=Get-Content $file.FullName -Raw
+            if ([int]$trx.TestRun.ResultSummary.Counters.notExecuted -gt 0) {throw 'Management validation must not skip fixture tests'}
+          }
+      - name: Pack, inspect and consume generated packages
+        shell: pwsh
+        run: ./scripts/Test-ManagementPackages.ps1 -OutputDirectory "$env:RUNNER_TEMP/management-packages"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: management-validation-results
+          path: |
+            ${{ runner.temp }}/management-results/*.trx
+            ${{ runner.temp }}/management-packages/validation-summary.json
+          if-no-files-found: warn
