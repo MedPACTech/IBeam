@@ -15,9 +15,31 @@ permissions:
   contents: read
 
 jobs:
-  validate:
-    uses: ./.github/workflows/_dotnet-build.yml
-    with:
-      dotnet-version: ${{ vars.DOTNET_VERSION || '10.0.x' }}
-      configuration: ${{ vars.BUILD_CONFIGURATION || 'Release' }}
-      artifact-name: production-validation-nupkgs
+  # This exact job name is required by the existing main-protection ruleset.
+  build-test-pack:
+    name: build-test-pack
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ vars.DOTNET_VERSION || '10.0.x' }}
+      - name: Restore
+        run: dotnet restore IBeam.sln
+      - name: Build
+        run: dotnet build IBeam.sln --configuration "${{ vars.BUILD_CONFIGURATION || 'Release' }}" --no-restore
+      - name: Test
+        run: dotnet test IBeam.sln --configuration "${{ vars.BUILD_CONFIGURATION || 'Release' }}" --no-build
+      - name: Pack
+        run: dotnet pack IBeam.sln --configuration "${{ vars.BUILD_CONFIGURATION || 'Release' }}" --no-build --output ./artifacts/packages
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-validation-nupkgs
+          path: artifacts/packages/*.nupkg
+          if-no-files-found: error
