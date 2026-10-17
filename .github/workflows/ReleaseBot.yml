@@ -1,8 +1,10 @@
+# Rollout safety: keep automatic merges disabled until required CI, reviews,
+# production Code Owners, and App permissions are verified. Enable in a reviewed PR.
 # Copy to <your repo>/.github/workflows/ReleaseBot.yml
 # Replace "MedPACTech/ReleaseBot" with wherever you host this repo, and pin to a tag (@v1).
 #
 # Flow:
-#   push development      -> PR development → test     (Claude reviews, auto-approves, auto-merges on green CI)
+#   push development      -> PR development → test     (Claude reviews; promotion merges remain manual during rollout)
 #   "Cut release" (manual)-> release/x.y.z from test   -> PR release/x.y.z → main (Claude reviews + deploy checklist; HUMAN approves)
 #   hotfix/* PR → release -> Claude reviews strictly; on merge the release → main PR updates
 #   push main             -> tag vX.Y.Z + GitHub Release, and back-merge PR main → development
@@ -32,7 +34,7 @@ jobs:
     with:
       source: development
       target: test
-      auto_merge: true
+      auto_merge: false
     secrets: inherit
 
   release-to-main:
@@ -72,7 +74,7 @@ jobs:
     with:
       source: main
       target: development
-      auto_merge: true
+      auto_merge: false
       title: "Back-merge main → development"
       label: back-merge
     secrets: inherit
