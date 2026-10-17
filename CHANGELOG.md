@@ -16,6 +16,8 @@ IBeam 2.15.0 introduces the Management API packages for a support portal that ca
 
 ### Fixed
 
+- Pinned the Entity Framework adapter's transitive `System.Security.Cryptography.Pkcs` dependency to **9.0.21**, addressing [GHSA-846f-f764-76mx](https://github.com/advisories/GHSA-846f-f764-76mx) and [GHSA-2fmv-rv2c-59x7](https://github.com/advisories/GHSA-2fmv-rv2c-59x7).
+- Aligned RC NuGet publishing with the existing production trusted-publisher environment.
 - Completed password MFA authentication now includes the `amr=mfa` claim used by support-session enforcement.
 - Removed app-specific values and a committed communication credential from the example Identity API configuration. Supply deployment values through configuration and a secret store.
 
