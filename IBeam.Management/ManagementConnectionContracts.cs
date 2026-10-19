@@ -31,7 +31,11 @@ public sealed class UpdateManagementConnection
     public string ExpectedVersion { get; set; } = "";
     public override string ToString() => "Management connection request (API key redacted)";
 }
-public sealed record ManagementConnectionResult(Guid ApplicationId, string Version, DateTimeOffset VerifiedUtc, IReadOnlyList<string> Capabilities);
+public sealed record ManagementConnectionResult(Guid ApplicationId, string Version, DateTimeOffset VerifiedUtc, IReadOnlyList<string> Capabilities)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CustomerIdentity.ManagementCustomerIdentityDiscovery? CustomerIdentity { get; init; }
+}
 public interface IManagementApplicationConnectionService
 {
     Task<ManagementConnectionResult> PutAsync(Guid applicationId, UpdateManagementConnection request, CancellationToken ct = default);

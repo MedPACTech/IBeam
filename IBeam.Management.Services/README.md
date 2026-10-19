@@ -1,5 +1,7 @@
 # IBeam.Management.Services
 
+IBM-0098 adds optional CustomerIdentity module discovery through AddIBeamManagementCustomerIdentity(configuration). IManagementTargetProfileProbe negotiates diagnostics and customer Identity independently; the legacy probe and constructors remain available. Machine credentials may explicitly include management.identity.info for the optional target discovery endpoint; this confers no directory or write access. Portal services remain independent of customer Identity. See docs/management/customer-identity-discovery.md.
+
 Service boundary for management operations. Register `services.AddIBeamManagementServices()` and supply a trusted scoped `IManagementPrincipalProvider`, or use an API module which supplies the HTTP principal provider.
 
 `ManagementIdentityService.GetCurrentAsync` requires a named authenticated human, one nonempty management organization ID and `management.identity.read`. `ManagementDiagnosticsInfoService.GetAsync` requires a management credential ID, exact application/environment binding and `management.diagnostics.info`.

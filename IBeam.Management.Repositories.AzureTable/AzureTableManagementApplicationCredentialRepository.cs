@@ -18,7 +18,9 @@ public sealed class AzureTableManagementApplicationCredentialRepository(TableCli
             OrganizationId = x.GetGuid("OrganizationId")!.Value, ApplicationId = x.GetGuid("ApplicationId")!.Value,
             CredentialId = x.GetGuid("CredentialId")!.Value, SecretReference = x.GetString("SecretReference"),
             BaseUrl = x.GetString("BaseUrl"), VerifiedUtc = x.GetDateTimeOffset("VerifiedUtc")!.Value, CreatedBy = x.GetString("CreatedBy"),
-            Capabilities = JsonSerializer.Deserialize<string[]>(x.GetString("Capabilities")) ?? []
+            Capabilities = JsonSerializer.Deserialize<string[]>(x.GetString("Capabilities")) ?? [],
+            CustomerIdentity = x.GetString("CustomerIdentity") is { } info
+                ? JsonSerializer.Deserialize<CustomerIdentity.ManagementCustomerIdentityDiscovery>(info) : null
         };
     }
     public async Task CreateAsync(ManagementApplicationCredentialEntity x, CancellationToken ct = default)
@@ -26,7 +28,8 @@ public sealed class AzureTableManagementApplicationCredentialRepository(TableCli
         {
             ["OrganizationId"] = x.OrganizationId, ["ApplicationId"] = x.ApplicationId, ["CredentialId"] = x.CredentialId,
             ["SecretReference"] = x.SecretReference, ["BaseUrl"] = x.BaseUrl, ["VerifiedUtc"] = x.VerifiedUtc,
-            ["CreatedBy"] = x.CreatedBy, ["Capabilities"] = JsonSerializer.Serialize(x.Capabilities)
+            ["CreatedBy"] = x.CreatedBy, ["Capabilities"] = JsonSerializer.Serialize(x.Capabilities),
+            ["CustomerIdentity"] = x.CustomerIdentity is null ? null : JsonSerializer.Serialize(x.CustomerIdentity)
         }, ct);
 }
 public static class ManagementApplicationCredentialStorageExtensions

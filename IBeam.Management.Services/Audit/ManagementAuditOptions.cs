@@ -22,6 +22,7 @@ public static class ManagementAuditOperations
 {
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal) {
         "management.identity.read", "management.identity.bootstrap", "management.diagnostics.info",
+        "management.identity.info", "management.portal.customer-identity.info",
         "management.diagnostics.errors.read", "management.diagnostics.logs.read",
         "management.credentials.authenticate", "management.credentials.issue", "management.credentials.rotate", "management.credentials.revoke",
         "management.applications.list", "management.applications.read", "management.applications.create", "management.applications.update",
@@ -32,5 +33,5 @@ public static class ManagementAuditOperations
         "management.portal.errors.list", "management.portal.errors.read", "management.portal.logs.list", "management.portal.logs.read", "management.portal.applications.list"
     };
     public static bool IsManagementService(object service) => service.GetType().Assembly.GetName().Name is
-        "IBeam.Management.Services" or "IBeam.Management.Identity.Services";
+        "IBeam.Management.Services" or "IBeam.Management.Identity.Services" or "IBeam.Management.Identity.Target.Services";
 }

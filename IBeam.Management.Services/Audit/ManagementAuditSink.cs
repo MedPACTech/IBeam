@@ -40,7 +40,8 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
             org = transaction.TenantId is { } tenant && tenant != Guid.Empty ? tenant : null;
         var isApp = transaction.Action.StartsWith("management.applications.", StringComparison.Ordinal) ||
             transaction.Action.StartsWith("management.application-access.", StringComparison.Ordinal) ||
-            transaction.Action.StartsWith("management.portal.errors.", StringComparison.Ordinal) || transaction.Action.StartsWith("management.portal.logs.", StringComparison.Ordinal);
+            transaction.Action.StartsWith("management.portal.errors.", StringComparison.Ordinal) || transaction.Action.StartsWith("management.portal.logs.", StringComparison.Ordinal) ||
+            transaction.Action.StartsWith("management.portal.customer-identity.", StringComparison.Ordinal);
         var entry = new ManagementAuditEntity { AuditId = Guid.NewGuid(), OccurredUtc = now, ExpiresUtc = now.AddDays(options.Value.RetentionDays),
             OrganizationId = org, ActorUserId = actor, CredentialId = credential, SubjectType = subject,
             ApplicationId = isApp ? transaction.EntityId : null, SubjectId = transaction.Action == "management.support-users.disable" ? transaction.EntityId : null,

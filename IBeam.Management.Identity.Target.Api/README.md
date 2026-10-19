@@ -1,0 +1,9 @@
+# IBeam.Management.Identity.Target.Api
+
+Optional customer Identity management module for the target application's host. Separate from the support-side IBeam.Management.Identity.Services package. See docs/management/customer-identity-discovery.md in the framework repository.
+
+IBM-0098 supplies authenticated versioned discovery only. It does not expose customer tenant/user reads or provisioning. Explicitly register AddIBeamManagementCustomerIdentityTargetApi(configuration) in the target API host, supply IManagementApiCredentialRepository, and configure IBeam:Management:Diagnostics:ApplicationKey/Environment plus IBeam:Management:CustomerIdentity:IdentityRealmId and DedicatedApplicationRealm=true. Use the same stable realm ID across restarts; it identifies one dedicated app/environment Identity realm. Ambiguous multi-app shared realms are rejected.
+
+Issue an independent management.identity.info machine credential through trusted existing provisioning tooling. The dedicated named scheme accepts X-IBeam-Management-Key only under /api/management-identity; it leaves customer authentication defaults unchanged. GET /api/management-identity/info returns installed capabilities after live credential checks. No target routes are discovered automatically by merely referencing this package. Missing query adapters cannot advertise customer read capabilities. No schema or customer Identity registration is performed by the discovery module.
+
+The portal separately opts into AddIBeamManagementCustomerIdentityApi(configuration), preserving its support login and customer-store isolation. Existing diagnostics-only connection registration and public constructors remain available. Never send machine keys or target storage credentials to a browser.

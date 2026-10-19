@@ -1,4 +1,6 @@
 using IBeam.Management.Entities;
+using IBeam.Management.CustomerIdentity;
+using IBeam.Management.Services.CustomerIdentity;
 using IBeam.Services.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,6 +15,14 @@ public sealed class ManagementApplicationConnectionService(ManagementApplication
     IOptions<ManagementConnectionOptions> options, IOptions<ManagementEnvironmentSecretOptions> fixedSecrets)
     : IManagementApplicationConnectionService
 {
+    private readonly IManagementTargetProfileProbe? _profileProbe;
+    // Preserve the original public constructor for existing package consumers.
+    public ManagementApplicationConnectionService(ManagementApplicationService applications,
+        IManagementApplicationCredentialRepository credentials, IManagementSecretStore secrets,
+        IManagementTargetConnectionProbe probe, IManagementPrincipalProvider principals, IServiceOperationExecutor operations,
+        IOptions<ManagementConnectionOptions> options, IOptions<ManagementEnvironmentSecretOptions> fixedSecrets,
+        IManagementTargetProfileProbe profileProbe)
+        : this(applications, credentials, secrets, probe, principals, operations, options, fixedSecrets) => _profileProbe = profileProbe;
     public Task<ManagementConnectionResult> PutAsync(Guid applicationId, UpdateManagementConnection request, CancellationToken ct = default)
         => Run("management.applications.connection.replace", applicationId, async token =>
         {
@@ -52,12 +62,12 @@ public sealed class ManagementApplicationConnectionService(ManagementApplication
         {
             OrganizationId = org, ApplicationId = applicationId, CredentialId = Guid.NewGuid(),
             SecretReference = reference, BaseUrl = application.BaseUrl, VerifiedUtc = DateTimeOffset.UtcNow,
-            CreatedBy = actor, Capabilities = info.Capabilities.ToArray()
+            CreatedBy = actor, Capabilities = info.Capabilities.ToArray(), CustomerIdentity = _profileProbe is null ? null : info.CustomerIdentity
         };
         await credentials.CreateAsync(credential, ct);
         // A concurrent origin change, disable or rotation wins; the previous active pointer is never overwritten blindly.
         var updated = await applications.ActivateConnectionAsync(application, credential.CredentialId, ct);
-        return new(applicationId, updated.Version, credential.VerifiedUtc, credential.Capabilities);
+        return new(applicationId, updated.Version, credential.VerifiedUtc, credential.Capabilities) { CustomerIdentity = credential.CustomerIdentity };
     }
 
     public Task<ManagementConnectionResult> TestAsync(Guid applicationId, CancellationToken ct = default)
@@ -75,14 +85,16 @@ public sealed class ManagementApplicationConnectionService(ManagementApplication
             var info = await VerifyAsync(app, key, token);
             var current = await applications.GetConnectionStateAsync(applicationId, token);
             if (current.Version != app.Version) throw new ManagementApplicationConflictException();
-            return new ManagementConnectionResult(applicationId, app.Version, DateTimeOffset.UtcNow, info.Capabilities.ToArray());
+            return new ManagementConnectionResult(applicationId, app.Version, DateTimeOffset.UtcNow, info.Capabilities.ToArray())
+                { CustomerIdentity = _profileProbe is null ? null : info.CustomerIdentity };
         }, ct);
 
-    private async Task<ManagementDiagnosticsInfo> VerifyAsync(ManagementApplicationEntity application, ManagementSecretValue key, CancellationToken ct)
+    private async Task<ManagementTargetProfile> VerifyAsync(ManagementApplicationEntity application, ManagementSecretValue key, CancellationToken ct)
     {
-        var info = await probe.ProbeAsync(application.BaseUrl, key, ct);
-        ManagementConnectionProtocol.Validate(info);
-        if (info.ApplicationKey != application.ApplicationKey || info.Environment != application.Environment) throw new ManagementConnectionInvalidException();
+        var info = _profileProbe is null
+            ? new ManagementTargetProfile(await probe.ProbeAsync(application.BaseUrl, key, ct), new(ManagementCustomerIdentityStatuses.NotInstalled))
+            : await _profileProbe.ProbeProfileAsync(application.BaseUrl, key, ct);
+        ManagementCustomerIdentityProtocol.ValidateProfile(info, application.ApplicationKey, application.Environment);
         return info;
     }
     private static bool ValidKey(string? value)

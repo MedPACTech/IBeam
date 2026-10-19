@@ -1,5 +1,7 @@
 # IBeam.Management.Api
 
+Optional customer-management discovery: after the normal support authentication and storage registrations, call AddIBeamManagementCustomerIdentityApi(configuration). This adds GET /api/management/applications/{applicationId}/customer-management and independent target module negotiation. It reports the last verified connection metadata and still requires a live app assignment. It does not register customer Identity or expose tenant/user data. See docs/management/customer-identity-discovery.md.
+
 Reusable portal API library. It does not run a server, own an identity database, or install login endpoints.
 
 The host must first register a dedicated support authentication scheme. It must validate a management-only audience/trust domain and issue management context only for enabled, MFA-completed support members. Ordinary customer tokens must not be accepted by this scheme.
