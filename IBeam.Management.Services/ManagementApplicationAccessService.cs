@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using IBeam.Management.Entities;
+using IBeam.Management.CustomerIdentity;
 using IBeam.Services.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -37,12 +38,12 @@ public sealed class ManagementApplicationAccessService(IManagementApplicationAcc
             await RequireAppAsync(actor.Org, applicationId, token);
             await RequireUserAsync(actor.Org, userId, token);
             if (request is null || !ValidPermissions(request.Permissions)) throw new ManagementApplicationInvalidException();
-            RequireCeiling(actor.Identity, request.Permissions);
+            RequireCeiling(actor.Identity, request.Permissions, applicationId);
             var current = await access.GetAsync(actor.Org, applicationId, userId, token);
             if (current is not null)
             {
                 RequireBinding(current, actor.Org, applicationId, userId);
-                RequireCeiling(actor.Identity, current.Permissions);
+                RequireCeiling(actor.Identity, current.Permissions, applicationId);
                 if (!ValidVersion(request.ExpectedVersion)) throw new ManagementApplicationConflictException();
             }
             else if (request.ExpectedVersion is not null) throw new ManagementApplicationConflictException();
@@ -68,7 +69,7 @@ public sealed class ManagementApplicationAccessService(IManagementApplicationAcc
             if (userId == Guid.Empty || !ValidVersion(expectedVersion)) throw new ManagementApplicationInvalidException();
             var current = await access.GetAsync(actor.Org, applicationId, userId, token) ?? throw new ManagementApplicationNotFoundException();
             RequireBinding(current, actor.Org, applicationId, userId);
-            RequireCeiling(actor.Identity, current.Permissions);
+            RequireCeiling(actor.Identity, current.Permissions, applicationId);
             await access.ReplaceAsync(current with { RevokedUtc = DateTimeOffset.UtcNow, RevokedBy = actor.User,
                 UpdatedUtc = DateTimeOffset.UtcNow, UpdatedBy = actor.User }, expectedVersion, token);
             return true;
@@ -84,8 +85,10 @@ public sealed class ManagementApplicationAccessService(IManagementApplicationAcc
             var current = await access.GetAsync(actor.Org, applicationId, actor.User, token);
             if (current is null) throw new ManagementAccessDeniedException();
             RequireBinding(current, actor.Org, applicationId, actor.User);
+            var required = ManagementCustomerIdentityPermissionPolicy.IsAssignable(permission)
+                ? ManagementCustomerIdentityPermissionPolicy.RequiredFor(permission) : [permission];
             if (current.RevokedUtc.HasValue || !ValidPermissions(current.Permissions) ||
-                !current.Permissions.Contains(permission, StringComparer.Ordinal)) throw new ManagementAccessDeniedException();
+                required.Any(x => !current.Permissions.Contains(x, StringComparer.Ordinal))) throw new ManagementAccessDeniedException();
             return true;
         }, ct);
 
@@ -115,14 +118,16 @@ public sealed class ManagementApplicationAccessService(IManagementApplicationAcc
         var app = await applications.GetAsync(org, id, ct);
         if (app is null || app.OrganizationId != org || app.ApplicationId != id || !app.IsEnabled) throw new ManagementAccessDeniedException();
     }
-    private static bool Known(string permission) => permission is ManagementOperations.ErrorsRead or ManagementOperations.LogsRead;
+    private static bool Known(string permission) => permission is ManagementOperations.ErrorsRead or ManagementOperations.LogsRead ||
+        ManagementCustomerIdentityPermissionPolicy.IsAssignable(permission);
     private static bool ValidPermissions(IReadOnlyList<string>? permissions)
-        => permissions is { Count: > 0 and <= 2 } && permissions.All(Known) && permissions.Distinct(StringComparer.Ordinal).Count() == permissions.Count;
+        => permissions is { Count: > 0 and <= 15 } && permissions.All(Known) && permissions.Distinct(StringComparer.Ordinal).Count() == permissions.Count;
     private static bool ValidVersion(string? version) => !string.IsNullOrWhiteSpace(version) && version.Length <= 256 && version != "*";
-    private static void RequireCeiling(ClaimsIdentity actor, IReadOnlyList<string> permissions)
+    private static void RequireCeiling(ClaimsIdentity actor, IReadOnlyList<string> permissions, Guid applicationId)
     {
         if (!ValidPermissions(permissions) || permissions.Any(x => !actor.HasClaim(ManagementClaimTypes.Permission,
-            x == ManagementOperations.ErrorsRead ? ManagementAccessDelegation.Errors : ManagementAccessDelegation.Logs)))
+            x == ManagementOperations.ErrorsRead ? ManagementAccessDelegation.Errors :
+            x == ManagementOperations.LogsRead ? ManagementAccessDelegation.Logs : ManagementCustomerIdentityPermissionPolicy.DelegationFor(x, applicationId))))
             throw new ManagementAccessDeniedException();
     }
     private static void RequireBinding(ManagementApplicationAccessEntity row, Guid org, Guid app, Guid user)

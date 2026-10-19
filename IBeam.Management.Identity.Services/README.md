@@ -1,4 +1,6 @@
 # IBeam.Management.Identity.Services
+
+IBM-0099: Customer-management delegation is explicitly configured per named support administrator, application and operation in IBeam:Management:Identity:CustomerDelegations. Missing configuration grants no customer authority. MFA enrichment and live bearer validation rebuild these app-scoped ceilings from current trusted options; an app assignment is still required for actual operations. See docs/management/customer-identity-permissions.md.
 Optional isolated IBeam Identity integration for a dedicated management host. Management core and API packages remain usable with bring-your-own authentication.
 
 Call services.AddIBeamManagementIdentityServices(configuration) in a separate service collection/host, before adding the Management API. Register the host's communication sender for email MFA separately. Registration rejects an already registered Identity user provider and does not auto-run schema creation or account bootstrap.

@@ -73,7 +73,7 @@ public sealed class TargetDiscoveryTests
         Assert.AreEqual(HttpStatusCode.Unauthorized, machineOnCustomer.StatusCode);
     }
     [TestMethod]
-    [DataRow("missing-realm")] [DataRow("shared-realm")] [DataRow("missing-binding")]
+    [DataRow("missing-realm")] [DataRow("shared-realm")] [DataRow("missing-binding")] [DataRow("wildcard-policy")]
     public async Task AmbiguousRealmOrMissingDeploymentFailsAtStartup(string mode)
     {
         await Assert.ThrowsAsync<OptionsValidationException>(async () => { await using var fixture = await TargetFixture.Start(invalid: mode); });
@@ -85,6 +85,20 @@ public sealed class TargetDiscoveryTests
         using var response = await fixture.Get();
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         Assert.DoesNotContain(ManagementCustomerIdentityOperations.TenantsRead, await response.Content.ReadAsStringAsync());
+    }
+    [TestMethod]
+    [DataRow(true, true, true, true)]
+    [DataRow(false, true, true, false)]
+    [DataRow(true, false, true, false)]
+    [DataRow(true, true, false, false)]
+    public async Task CustomerCapabilitiesRequireIndependentMachineHostPolicyAndInstalledAdapter(bool machine, bool policy, bool adapter, bool expected)
+    {
+        await using var f = await TargetFixture.Start(registerMissingAdapter: true, registerAdapter: adapter,
+            machineOperations: machine ? [ManagementCustomerIdentityOperations.Info, ManagementCustomerIdentityOperations.TenantsRead] : null,
+            enabledOperations: policy ? [ManagementCustomerIdentityOperations.TenantsRead] : null);
+        using var response = await f.Get();
+        Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
+        Assert.AreEqual(expected, (await response.Content.ReadAsStringAsync()).Contains(ManagementCustomerIdentityOperations.TenantsRead, StringComparison.Ordinal));
     }
 }
 internal sealed class TargetFixture : IAsyncDisposable
@@ -99,16 +113,21 @@ internal sealed class TargetFixture : IAsyncDisposable
         Key = codec.Create(Credentials.Row.CredentialId);
         Credentials.Row = Credentials.Row with { SecretHash = codec.Hash(Key) };
     }
-    public static async Task<TargetFixture> Start(bool install = true, string? invalid = null, bool registerMissingAdapter = false)
+    public static async Task<TargetFixture> Start(bool install = true, string? invalid = null, bool registerMissingAdapter = false,
+        string[]? machineOperations = null, string[]? enabledOperations = null, bool registerAdapter = false)
     {
         var f = new TargetFixture();
+        if (machineOperations is not null) f.Credentials.Row = f.Credentials.Row with { Capabilities = machineOperations };
         var b = WebApplication.CreateBuilder();
         b.Logging.ClearProviders(); b.WebHost.UseTestServer();
-        b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
+        var settings = new Dictionary<string, string?> {
             ["IBeam:Management:Diagnostics:ApplicationKey"] = invalid == "missing-binding" ? "" : "atlas",
             ["IBeam:Management:Diagnostics:Environment"] = "Testing",
             ["IBeam:Management:CustomerIdentity:IdentityRealmId"] = invalid == "missing-realm" ? Guid.Empty.ToString() : DiscoveryProtocolTests.Info.IdentityRealmId.ToString(),
-            ["IBeam:Management:CustomerIdentity:DedicatedApplicationRealm"] = invalid == "shared-realm" ? "false" : "true" });
+            ["IBeam:Management:CustomerIdentity:DedicatedApplicationRealm"] = invalid == "shared-realm" ? "false" : "true" };
+        var enabled = invalid == "wildcard-policy" ? ["*"] : enabledOperations ?? [];
+        for (var i = 0; i < enabled.Length; i++) settings["IBeam:Management:CustomerIdentity:EnabledOperations:" + i] = enabled[i];
+        b.Configuration.AddInMemoryCollection(settings);
         b.Services.AddAuthentication("Customer").AddScheme<AuthenticationSchemeOptions, FixtureCustomerAuthentication>("Customer", _ => {});
         b.Services.AddAuthorization();
         b.Services.AddSingleton<IManagementApiCredentialRepository>(f.Credentials);
@@ -116,6 +135,7 @@ internal sealed class TargetFixture : IAsyncDisposable
             .AddApplicationPart(typeof(ManagementCustomerIdentityInfoController).Assembly);
         if (install) b.Services.AddIBeamManagementCustomerIdentityTargetApi(b.Configuration);
         if (registerMissingAdapter) b.Services.AddSingleton<IManagementCustomerIdentityCapability>(new MissingAdapter());
+        if (registerAdapter) b.Services.AddSingleton<IManagementTenantDirectoryQuery, DirectoryAdapter>();
         f.App = b.Build(); f.App.UseAuthentication(); f.App.UseAuthorization(); f.App.MapControllers();
         f.App.MapGet("/customer", () => "customer").RequireAuthorization();
         try { await f.App.StartAsync(); f.Client = f.App.GetTestClient(); return f; }
@@ -132,6 +152,13 @@ internal sealed class TargetFixture : IAsyncDisposable
     {
         public string Operation => ManagementCustomerIdentityOperations.TenantsRead;
         public Type RequiredServiceType => typeof(IManagementTenantDirectoryQuery);
+    }
+    private sealed class DirectoryAdapter : IManagementTenantDirectoryQuery
+    {
+        public Task<ManagementCustomerDirectoryPage<ManagementCustomerTenantDto>> ListAsync(ManagementCustomerDirectoryQuery query, CancellationToken ct = default)
+            => Task.FromResult(new ManagementCustomerDirectoryPage<ManagementCustomerTenantDto>([], query.PageSize, null));
+        public Task<ManagementCustomerTenantDto?> FindAsync(Guid tenantId, CancellationToken ct = default)
+            => Task.FromResult<ManagementCustomerTenantDto?>(null);
     }
 }
 internal sealed class TargetCredentials : IManagementApiCredentialRepository

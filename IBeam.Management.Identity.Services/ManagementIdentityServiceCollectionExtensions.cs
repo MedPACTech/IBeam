@@ -24,6 +24,7 @@ public static class ManagementIdentityServiceCollectionExtensions
         services.AddOptions<ManagementIdentityOptions>()
             .Bind(configuration.GetSection(ManagementIdentityOptions.SectionName))
             .Validate(o => o.OrganizationId != Guid.Empty, "Management Identity OrganizationId is required.")
+            .Validate(ManagementIdentityPermissions.ValidCustomerDelegations, "CustomerDelegations requires distinct user/app bindings and explicit operation names.")
             .ValidateOnStart();
         services.AddIBeamIdentityAzureTable(isolated, registerSchemaHostedService: false);
         services.AddIBeamIdentityServices(isolated);

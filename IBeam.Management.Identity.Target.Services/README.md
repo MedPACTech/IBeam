@@ -1,5 +1,7 @@
 # IBeam.Management.Identity.Target.Services
 
+IBM-0099 adds a target-owned EnabledOperations allowlist under IBeam:Management:CustomerIdentity. It defaults empty (discovery only). Advertising an operation also requires its explicit machine capability, installed adapter and any composite prerequisites. See docs/management/customer-identity-permissions.md. Customer data endpoints require subsequent delegated actor and reader/provisioning cards.
+
 Optional customer Identity management module for the target application's host. Separate from the support-side IBeam.Management.Identity.Services package. See docs/management/customer-identity-discovery.md in the framework repository.
 
 IBM-0098 supplies authenticated versioned discovery only. It does not expose customer tenant/user reads or provisioning. Explicitly register AddIBeamManagementCustomerIdentityTargetApi(configuration) in the target API host, supply IManagementApiCredentialRepository, and configure IBeam:Management:Diagnostics:ApplicationKey/Environment plus IBeam:Management:CustomerIdentity:IdentityRealmId and DedicatedApplicationRealm=true. Use the same stable realm ID across restarts; it identifies one dedicated app/environment Identity realm. Ambiguous multi-app shared realms are rejected.

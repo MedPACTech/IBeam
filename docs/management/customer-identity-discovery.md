@@ -1,6 +1,6 @@
 # Customer Identity management discovery
 
-IBM-0098 adds an optional customer-management module, separate from support Identity. Customer directories, writes, grants and delegated actor assertions are delivered by subsequent cards; no customer records are exposed by this foundation.
+IBM-0098 adds an optional customer-management module, separate from support Identity. IBM-0099 supplies the explicit grant matrix described in customer-identity-permissions.md. Customer directories, writes and delegated actor assertions are delivered by subsequent cards; no customer records are exposed by this foundation.
 
 ## Packages and configuration
 

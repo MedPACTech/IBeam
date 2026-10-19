@@ -22,7 +22,7 @@ public static class ManagementAuditOperations
 {
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal) {
         "management.identity.read", "management.identity.bootstrap", "management.diagnostics.info",
-        "management.identity.info", "management.portal.customer-identity.info",
+        "management.identity.info", "management.portal.customer-identity.info", "management.portal.customer-identity.authorize",
         "management.diagnostics.errors.read", "management.diagnostics.logs.read",
         "management.credentials.authenticate", "management.credentials.issue", "management.credentials.rotate", "management.credentials.revoke",
         "management.applications.list", "management.applications.read", "management.applications.create", "management.applications.update",

@@ -39,9 +39,12 @@ public sealed class ManagementCustomerIdentityInfoService(IManagementPrincipalPr
                     module.RequiredServiceType is null || !module.RequiredServiceType.IsInterface)
                     throw new ManagementConnectionInvalidException();
                 // A module cannot report a missing adapter or an operation this credential does not hold.
-                if (row.Capabilities.Contains(module.Operation, StringComparer.Ordinal) &&
+                if (ManagementCustomerIdentityPermissionPolicy.RequiredFor(module.Operation).All(required =>
+                        row.Capabilities.Contains(required, StringComparer.Ordinal) && realm.EnabledOperations.Contains(required, StringComparer.Ordinal)) &&
                     provider.GetService(module.RequiredServiceType) is not null) capabilities.Add(module.Operation);
             }
+            capabilities = capabilities.Where(x => x == ManagementCustomerIdentityOperations.Info ||
+                ManagementCustomerIdentityPermissionPolicy.RequiredFor(x).All(required => capabilities.Contains(required, StringComparer.Ordinal))).ToList();
             var result = new ManagementCustomerIdentityInfo(configured.ApplicationKey, configured.Environment,
                 realm.IdentityRealmId, ManagementCustomerIdentityProtocol.DedicatedRealm, ManagementCustomerIdentityProtocol.Version,
                 Array.AsReadOnly(capabilities.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()));

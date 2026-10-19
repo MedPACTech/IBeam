@@ -36,7 +36,20 @@ public sealed class ManagementCustomerIdentityAvailabilityService(IManagementPri
             await access.RequireAsync(applicationId, permitted, token);
             var result = credential.CustomerIdentity ?? new(ManagementCustomerIdentityStatuses.NotInstalled);
             if (result.Status == ManagementCustomerIdentityStatuses.Available)
+            {
                 ManagementCustomerIdentityProtocol.ValidateProfile(new(null, result), app.ApplicationKey, app.Environment);
+                var effective = new List<string> { ManagementCustomerIdentityOperations.Info };
+                foreach (var operation in result.Info!.Capabilities.Where(ManagementCustomerIdentityPermissionPolicy.IsAssignable))
+                {
+                    if (!ManagementCustomerIdentityPermissionPolicy.RequiredFor(operation).All(required =>
+                        credential.Capabilities.Contains(required, StringComparer.Ordinal) &&
+                        result.Info.Capabilities.Contains(required, StringComparer.Ordinal))) continue;
+                    try { await access.RequireAsync(applicationId, operation, token); effective.Add(operation); }
+                    catch (ManagementAccessDeniedException) { }
+                }
+                await access.RequireAsync(applicationId, permitted, token);
+                return result with { Info = result.Info with { Capabilities = Array.AsReadOnly(effective.ToArray()) } };
+            }
             else if (result.Info is not null || result.Status is not (ManagementCustomerIdentityStatuses.NotInstalled or
                 ManagementCustomerIdentityStatuses.Incompatible or ManagementCustomerIdentityStatuses.Unavailable))
                 throw new ManagementConnectionInvalidException();
@@ -46,7 +59,7 @@ public sealed class ManagementCustomerIdentityAvailabilityService(IManagementPri
             PermissionEnabled = false, AuditEnabled = true }, ct);
 
     internal static bool IsAssignableOperation(string operation) => operation is ManagementOperations.ErrorsRead or ManagementOperations.LogsRead ||
-        operation != ManagementCustomerIdentityOperations.Info && ManagementCustomerIdentityOperations.All.Contains(operation, StringComparer.Ordinal);
+        ManagementCustomerIdentityPermissionPolicy.IsAssignable(operation);
 }
 public static class ManagementCustomerIdentityPortalServiceExtensions
 {
@@ -56,6 +69,7 @@ public static class ManagementCustomerIdentityPortalServiceExtensions
         services.AddIBeamManagementApplicationAccess();
         services.TryAddScoped<IManagementTargetProfileProbe, ManagementTargetConnectionProbe>();
         services.TryAddScoped<IManagementCustomerIdentityAvailabilityService, ManagementCustomerIdentityAvailabilityService>();
+        services.TryAddScoped<IManagementCustomerIdentityAuthorizationService, ManagementCustomerIdentityAuthorizationService>();
         return services;
     }
 }

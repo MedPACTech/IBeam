@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 is complete; 19 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 and IBM-0099 are complete; 18 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -137,7 +137,7 @@ Verification evidence: 388 tests passed with zero failures/skips; both optional 
 
 ### IBM-0099 / TCM-002: Extend app assignments and machine credentials with independent Identity grants
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 20. Hubbsly ID: b6be9778-a582-4143-a491-d74a70f00f79.
+Estimate: **5 points**. Lane: Done. Delivery order: 20. Hubbsly ID: b6be9778-a582-4143-a491-d74a70f00f79.
 
 Dependencies: IBM-0098.
 
@@ -145,14 +145,16 @@ Add independent management.identity operations: tenants.read/create/update/statu
 
 Proposed paths: IBeam.Management/ManagementClaims.cs, IBeam.Management/ManagementApplicationAccessContracts.cs, IBeam.Management.Services/Credentials/, IBeam.Management.Services/ManagementApplicationAccessService.cs, IBeam.Management.Services/ManagementApplicationConnectionStateProvider.cs, IBeam.Tests.Management.CustomerIdentity/. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Every new operation is independently recognized on human assignments and target credentials; errors/logs permissions grant no Identity access.
-- [ ] Effective permissions are intersected with target-advertised capabilities and host policy; disabled/revoked users, apps, connections and assignments fail on the next authorization check.
-- [ ] Delegators must hold explicit per-operation delegation authority and cannot grant themselves or another support user broader access; management administrator alone grants no customer access.
-- [ ] Existing stored diagnostics credentials, assignments and secret references continue to work and receive no new Identity permissions during upgrade.
-- [ ] Direct service calls enforce the same operation matrix through IServiceOperationExecutor; request-supplied role names, organization IDs or actor headers cannot authorize operations.
-- [ ] Selector/customer-management responses report effective supported operations for a user assigned only customer capabilities; no app enumeration across support organizations occurs.
+- [x] Every new operation is independently recognized on human assignments and target credentials; errors/logs permissions grant no Identity access.
+- [x] Effective permissions are intersected with target-advertised capabilities and host policy; disabled/revoked users, apps, connections and assignments fail on the next authorization check.
+- [x] Delegators must hold explicit per-operation delegation authority and cannot grant themselves or another support user broader access; management administrator alone grants no customer access.
+- [x] Existing stored diagnostics credentials, assignments and secret references continue to work and receive no new Identity permissions during upgrade.
+- [x] Direct service calls enforce the same operation matrix through IServiceOperationExecutor; request-supplied role names, organization IDs or actor headers cannot authorize operations.
+- [x] Selector/customer-management responses report effective supported operations for a user assigned only customer capabilities; no app enumeration across support organizations occurs.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 491 unique tests passed, including both Identity storage modes; no failed or outstanding skipped cases. See Hubbsly IBM-0099 for delivery evidence.
 
 ### IBM-0100 / TCM-003: Verify delegated support actors at target and preserve separate audit identities
 

@@ -79,6 +79,17 @@ public sealed class ManagementIdentitySessionService(
         foreach (var permission in ManagementIdentityPermissions.ForRoles(member.Membership.Roles))
             identity.AddClaim(new Claim(ManagementClaimTypes.Permission, permission));
     }
+    public static void RefreshPrincipal(ClaimsPrincipal principal, ManagementLiveMember member, ManagementIdentityOptions options)
+    {
+        RefreshPrincipal(principal, member);
+        var identity = (ClaimsIdentity)principal.Identity!;
+        var userId = ReadGuid(identity, "uid");
+        if (userId != member.User.UserId || member.Membership.TenantId != options.OrganizationId ||
+            ReadGuid(identity, ManagementClaimTypes.OrganizationId) != options.OrganizationId ||
+            !ManagementIdentityPermissions.ValidCustomerDelegations(options)) throw new ManagementAccessDeniedException();
+        foreach (var permission in ManagementIdentityPermissions.CustomerDelegationsFor(userId, member.Membership.Roles, options))
+            identity.AddClaim(new Claim(ManagementClaimTypes.Permission, permission));
+    }
 
     private static string Read(ClaimsIdentity identity, string type)
     {
