@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 and IBM-0099 are complete; 18 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0100 are complete (15 points); 17 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -110,9 +110,9 @@ Feature dependencies: Management API 2.15.0.
 
 Feature acceptance:
 
-- [ ] Targets advertise only installed and enabled customer-management operations; existing diagnostics-only deployments remain compatible.
-- [ ] Effective access is the intersection of live human assignment, target credential capability and host-owned policy; no implicit support-admin bypass.
-- [ ] Support actor attribution is verifiable at the target and cannot become a customer identity or membership.
+- [x] Targets advertise only installed and enabled customer-management operations; existing diagnostics-only deployments remain compatible.
+- [x] Effective access is the intersection of live human assignment, target credential capability and host-owned policy; no implicit support-admin bypass.
+- [x] Support actor attribution is verifiable at the target and cannot become a customer identity or membership.
 
 ### IBM-0098 / TCM-001: Define optional target packages, DTOs and versioned capability discovery
 
@@ -158,7 +158,7 @@ Verification evidence: 491 unique tests passed, including both Identity storage 
 
 ### IBM-0100 / TCM-003: Verify delegated support actors at target and preserve separate audit identities
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 30. Hubbsly ID: 9f53c03f-96b0-4164-96b1-ec4762bcc435.
+Estimate: **5 points**. Lane: Done. Delivery order: 30. Hubbsly ID: 9f53c03f-96b0-4164-96b1-ec4762bcc435.
 
 Dependencies: IBM-0098, IBM-0099.
 
@@ -166,14 +166,16 @@ Introduce IManagementDelegatedActorProvider and a target validator using short-l
 
 Proposed paths: IBeam.Management/CustomerIdentity/, IBeam.Management.Services/CustomerIdentity/Delegation/, IBeam.Management.Identity.Target.Api/Authentication/, IBeam.Management.Identity.Target.Services/Authorization/, IBeam.Management.Services/ManagementAuditRecorder.cs, IBeam.Tests.Management.CustomerIdentity/. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Missing, forged, expired, wrong audience/issuer/key, wrong app/operation/resource or body-mismatched assertions fail before customer store access; arbitrary actor headers are ignored.
-- [ ] Mutation assertions are single-use with an atomic bounded replay store; legitimate retries use a fresh assertion and the original idempotency key.
-- [ ] Target host policy and live credential status/capabilities still authorize the operation; a signed actor assertion never adds machine authority.
-- [ ] Only configured algorithms and trusted rotated signing keys are accepted; remote key discovery is never driven by request URLs, and signing secrets/keys remain outside source and card payloads.
-- [ ] Audit records separately identify support organization/user, target credential, app/environment, operation and correlation; no synthetic customer user, customer token or tenant membership is created for the operator.
-- [ ] Removing an app grant blocks new portal requests; a previously issued assertion has at most a documented 60-second lifetime and in-flight behavior is documented and tested.
+- [x] Missing, forged, expired, wrong audience/issuer/key, wrong app/operation/resource or body-mismatched assertions fail before customer store access; arbitrary actor headers are ignored.
+- [x] Mutation assertions are single-use with an atomic bounded replay store; legitimate retries use a fresh assertion and the original idempotency key.
+- [x] Target host policy and live credential status/capabilities still authorize the operation; a signed actor assertion never adds machine authority.
+- [x] Only configured algorithms and trusted rotated signing keys are accepted; remote key discovery is never driven by request URLs, and signing secrets/keys remain outside source and card payloads.
+- [x] Audit records separately identify support organization/user, target credential, app/environment, operation and correlation; no synthetic customer user, customer token or tenant membership is created for the operator.
+- [x] Removing an app grant blocks new portal requests; a previously issued assertion has at most a documented 60-second lifetime and in-flight behavior is documented and tested.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 521 tests passed, zero failures/skips; five affected packages packed and inspected. See Hubbsly IBM-0100 for delivery evidence.
 
 ## TCM-F02: Tenant and customer user directories
 

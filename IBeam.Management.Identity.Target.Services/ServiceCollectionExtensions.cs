@@ -7,8 +7,11 @@ namespace IBeam.Management.Identity.Target.Services;
 
 public static class ManagementCustomerIdentityTargetServiceExtensions
 {
+    private sealed class Registration;
     public static IServiceCollection AddIBeamManagementCustomerIdentityTargetServices(this IServiceCollection services, IConfiguration configuration)
     {
+        if (services.Any(x => x.ServiceType == typeof(Registration))) return services;
+        services.AddSingleton<Registration>();
         services.AddIBeamManagementCredentialValidation(configuration);
         services.AddOptions<ManagementCustomerIdentityTargetOptions>()
             .Bind(configuration.GetSection(ManagementCustomerIdentityTargetOptions.SectionName))

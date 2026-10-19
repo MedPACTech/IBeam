@@ -1,5 +1,7 @@
 # IBeam.Management.Identity.Target.Api
 
+IBM-0100: future customer action endpoints also require a verified X-IBeam-Management-Actor assertion and a server-owned ManagementCustomerIdentityOperationAttribute. Install AddIBeamManagementDelegatedActors(configuration) with pinned public-key provider, atomic replay store and durable audit repository. GET /api/management-identity/info remains machine-only. No data routes are installed by this security foundation. See docs/management/customer-identity-delegation.md.
+
 Optional customer Identity management module for the target application's host. Separate from the support-side IBeam.Management.Identity.Services package. See docs/management/customer-identity-discovery.md in the framework repository.
 
 IBM-0098 supplies authenticated versioned discovery only. It does not expose customer tenant/user reads or provisioning. Explicitly register AddIBeamManagementCustomerIdentityTargetApi(configuration) in the target API host, supply IManagementApiCredentialRepository, and configure IBeam:Management:Diagnostics:ApplicationKey/Environment plus IBeam:Management:CustomerIdentity:IdentityRealmId and DedicatedApplicationRealm=true. Use the same stable realm ID across restarts; it identifies one dedicated app/environment Identity realm. Ambiguous multi-app shared realms are rejected.

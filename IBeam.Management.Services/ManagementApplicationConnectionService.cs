@@ -126,8 +126,11 @@ public sealed class ManagementApplicationConnectionService(ManagementApplication
 }
 public static class ManagementConnectionServiceExtensions
 {
+    private sealed class Registration;
     public static IServiceCollection AddIBeamManagementConnections(this IServiceCollection services, IConfiguration configuration)
     {
+        if (services.Any(x => x.ServiceType == typeof(Registration))) return services;
+        services.AddSingleton<Registration>();
         services.AddIBeamManagementApplications();
         services.AddOptions<ManagementEnvironmentSecretOptions>();
         services.AddOptions<ManagementConnectionOptions>().Bind(configuration.GetSection(ManagementConnectionOptions.SectionName))

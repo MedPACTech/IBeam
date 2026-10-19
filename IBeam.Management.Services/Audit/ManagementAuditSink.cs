@@ -1,6 +1,7 @@
 using System.Diagnostics.Metrics;
 using System.Security.Claims;
 using IBeam.Management.Entities;
+using IBeam.Management.CustomerIdentity;
 using IBeam.Services.Abstractions;
 using Microsoft.Extensions.Options;
 namespace IBeam.Management.Services.Audit;
@@ -9,6 +10,11 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
     IManagementAuditContext context, IOptions<ManagementAuditOptions> options, IOptions<ManagementDiagnosticsOptions> deployment,
     TimeProvider clock) : IAuditTrailSink
 {
+    private readonly IManagementDelegatedActorContext? _delegation;
+    public ManagementAuditSink(IManagementAuditRepository repository, IManagementPrincipalProvider principals,
+        IManagementAuditContext context, IOptions<ManagementAuditOptions> options, IOptions<ManagementDiagnosticsOptions> deployment,
+        TimeProvider clock, IManagementDelegatedActorContext delegation)
+        : this(repository, principals, context, options, deployment, clock) => _delegation = delegation;
     private static readonly Meter Meter = new("IBeam.Management.Audit");
     private static readonly Counter<long> Failures = Meter.CreateCounter<long>("management.audit.write_failures");
     public async Task WriteTransactionAsync(ServiceAuditTransaction transaction, CancellationToken ct = default)
@@ -42,9 +48,18 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
             transaction.Action.StartsWith("management.application-access.", StringComparison.Ordinal) ||
             transaction.Action.StartsWith("management.portal.errors.", StringComparison.Ordinal) || transaction.Action.StartsWith("management.portal.logs.", StringComparison.Ordinal) ||
             transaction.Action.StartsWith("management.portal.customer-identity.", StringComparison.Ordinal);
+        var delegated = _delegation?.Current;
+        if (delegated is not null && delegated.ApplicationKey == deployment.Value.ApplicationKey && delegated.Environment == deployment.Value.Environment &&
+            (!credential.HasValue || credential.Value == delegated.CredentialId))
+        {
+            org = delegated.OrganizationId; actor = delegated.UserId; credential = delegated.CredentialId; subject = ManagementSubjectTypes.Credential;
+        }
+        else delegated = null;
         var entry = new ManagementAuditEntity { AuditId = Guid.NewGuid(), OccurredUtc = now, ExpiresUtc = now.AddDays(options.Value.RetentionDays),
             OrganizationId = org, ActorUserId = actor, CredentialId = credential, SubjectType = subject,
-            ApplicationId = isApp ? transaction.EntityId : null, SubjectId = transaction.Action == "management.support-users.disable" ? transaction.EntityId : null,
+            ApplicationId = delegated?.ApplicationId ?? (isApp ? transaction.EntityId : null),
+            SubjectId = transaction.Action == "management.support-users.disable" || delegated is not null && transaction.Action.StartsWith("management.identity.", StringComparison.Ordinal)
+                ? transaction.EntityId : null,
             ApplicationKey = subject == ManagementSubjectTypes.Credential ? deployment.Value.ApplicationKey : null,
             Environment = subject == ManagementSubjectTypes.Credential ? deployment.Value.Environment : null,
             Operation = transaction.Action, Succeeded = transaction.Succeeded, CorrelationId = context.CorrelationId };

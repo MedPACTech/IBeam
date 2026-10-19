@@ -4,6 +4,8 @@ Transport-independent contracts for support management. This package has no Iden
 
 Customer Identity discovery and bounded directory contracts are in the CustomerIdentity namespace. IBM-0098 adds typed module/realm metadata only; it does not install tenant/user read or provisioning endpoints. See docs/management/customer-identity-discovery.md and the follow-on tenant/customer management backlog.
 
+IBM-0099/0100 add explicit operation/delegation contracts and signed request-bound support actor interfaces. Assertion values and request body/path binding inputs are JSON-hidden and redacted in ToString. See docs/management/customer-identity-permissions.md and customer-identity-delegation.md. These contracts do not create customer principals or install data endpoints.
+
 Contracts cover isolated human support identity, app/environment registration, verified target connections, per-user app assignments, an authorized selector, safe errors/logs, backend portal orchestration and append-only management audit. Optional packages provide HTTP, Identity, storage and secret-store integrations.
 
 Management context claims must be issued by trusted authentication after the appropriate membership/MFA or machine credential checks. They are not browser-supplied fields and must not be copied from arbitrary customer claims. Support organization identity is distinct from customer tenant identity.
