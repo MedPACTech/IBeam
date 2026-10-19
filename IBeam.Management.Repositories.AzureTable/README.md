@@ -1,5 +1,7 @@
 # IBeam.Management.Repositories.AzureTable
 
+IBM-0101: AddIBeamManagementAzureTableCustomerTenantReader accepts an explicit existing target customer tenants table, including read-only SAS. Reads only TEN partition metadata and one provider page; never creates schema or selects consumer profiles. No portal/global TableClient is replaced. See docs/management/customer-tenant-directory.md.
+
 Optional repository adapter for IBeam Management. It depends on core contracts and Azure Tables, with no Services, API or Identity dependency.
 
 ManagementApiCredentials stores credential ID, application/environment, a versioned SHA-256 secret hash, explicit capabilities, Active/Revoked status, UTC creation/expiry/rotation/revocation and operator IDs. Raw API keys are never persisted. Point reads use DEPLOY|SHA256(JSON([application, environment])) and CRED|credentialId; no cross-deployment scans or secondary secret indexes. Updates compare the supplied ETag; concurrent rotation/revocation cannot overwrite one another.

@@ -100,14 +100,17 @@ internal sealed class ManagementDelegatedActorValidator(ManagementCustomerIdenti
     }
 }
 internal sealed class ManagementCustomerIdentityTargetAccessService(ManagementCustomerIdentityCredentialGuard credentials,
-    IManagementPrincipalProvider principals, IManagementDelegatedActorContext context, TimeProvider clock, IServiceOperationExecutor operations)
+    IManagementPrincipalProvider principals, IManagementDelegatedActorContext context, TimeProvider clock, IServiceOperationExecutor operations,
+    IOptions<ManagementCustomerIdentityTargetOptions> realm, IOptions<ManagementDiagnosticsOptions> deployment)
     : IManagementCustomerIdentityTargetAccessService
 {
     public Task<ManagementDelegatedActor> RequireAsync(string operation, CancellationToken ct = default)
         => operations.ExecuteAsync(this, async token =>
         {
             var actor = context.Current ?? throw new ManagementAccessDeniedException();
-            if (actor.Operation != operation || actor.ExpiresUtc <= clock.GetUtcNow()) throw new ManagementAccessDeniedException();
+            if (actor.Operation != operation || actor.ExpiresUtc <= clock.GetUtcNow() || actor.IdentityRealmId != realm.Value.IdentityRealmId ||
+                actor.ApplicationKey != deployment.Value.ApplicationKey || actor.Environment != deployment.Value.Environment)
+                throw new ManagementAccessDeniedException();
             var credential = await credentials.RequireAsync(principals.GetPrincipal(), operation, token);
             if (actor.CredentialId != credential) throw new ManagementAccessDeniedException();
             return actor;

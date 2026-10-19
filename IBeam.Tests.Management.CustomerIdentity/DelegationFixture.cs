@@ -67,7 +67,7 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         Authorization.Setup(x => x.RequireAsync(Application, It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns(() => Granted ? Task.CompletedTask : Task.FromException(new ManagementAccessDeniedException()));
     }
-    public static async Task<DelegationFixture> Start()
+    public static async Task<DelegationFixture> Start(IManagementCustomerTenantReadRepository? tenants = null)
     {
         var f = new DelegationFixture(); var b = WebApplication.CreateBuilder(); b.Logging.ClearProviders(); b.WebHost.UseTestServer();
         b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
@@ -79,7 +79,8 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             ["IBeam:Management:CustomerIdentity:Delegation:TrustedPortals:0:OrganizationId"] = f.Organization.ToString(),
             ["IBeam:Management:CustomerIdentity:Delegation:TrustedPortals:0:ApplicationId"] = f.Application.ToString(),
             ["IBeam:Management:CustomerIdentity:Delegation:TrustedPortals:0:Issuer"] = "test-support-issuer",
-            ["IBeam:Management:CustomerIdentity:Delegation:TrustedPortals:0:Audience"] = "test-atlas-management" });
+            ["IBeam:Management:CustomerIdentity:Delegation:TrustedPortals:0:Audience"] = "test-atlas-management",
+            ["IBeam:Management:CustomerIdentity:TenantDirectory:ProtectionKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) });
         b.Services.AddSingleton(f);
         b.Services.AddSingleton<IManagementApiCredentialRepository>(f.Credentials);
         b.Services.AddSingleton<IManagementActorValidationKeyProvider>(f);
@@ -91,6 +92,11 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         b.Services.AddControllers().ConfigureApplicationPartManager(x => x.ApplicationParts.Clear());
         b.Services.AddIBeamManagementCustomerIdentityTargetApi(b.Configuration);
         b.Services.AddIBeamManagementDelegatedActors(b.Configuration);
+        if (tenants is not null)
+        {
+            b.Services.AddSingleton<IManagementCustomerTenantReadRepository>(tenants);
+            b.Services.AddIBeamManagementTenantDirectoryApi(b.Configuration);
+        }
         b.Services.AddControllers().ConfigureApplicationPartManager(x => x.FeatureProviders.Add(new ProbeFeature()));
         f.App = b.Build(); f.App.UseAuthentication(); f.App.UseAuthorization(); f.App.MapControllers();
         try { await f.App.StartAsync(); f.Client = f.App.GetTestClient(); }

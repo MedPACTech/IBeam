@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0100 are complete (15 points); 17 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0101 are complete (20 points); 16 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -193,7 +193,7 @@ Feature acceptance:
 
 ### IBM-0101 / TCM-004: Implement bounded target tenant directory and detail reads
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 40. Hubbsly ID: a5580dbc-b6d4-455a-9748-288b9b2d9c49.
+Estimate: **5 points**. Lane: Done. Delivery order: 40. Hubbsly ID: a5580dbc-b6d4-455a-9748-288b9b2d9c49.
 
 Dependencies: IBM-0100.
 
@@ -201,14 +201,16 @@ Add IManagementTenantDirectoryService and an optional paged query port rather th
 
 Proposed paths: IBeam.Management/CustomerIdentity/, IBeam.Management.Identity.Target.Services/Tenants/, IBeam.Identity.Repositories.AzureTable/Stores/, IBeam.Management.Identity.Target.Api/Controllers/ManagementTenantsController.cs, IBeam.Tests.Management.CustomerIdentity/. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Existing and newly created tenants return ID, name, status, created/updated timestamps and safe version metadata only; no support-organization tenants or consumer extension records appear.
-- [ ] Provider queries use bounded pages, scan/time budgets and cancellation; no complete directory is loaded to simulate paging/search.
-- [ ] Continuation tokens are authenticated and bound to target realm/app/environment, operation, filters and expiry; cross-app/filter replay and tampering fail.
-- [ ] Name-prefix and status behavior, sort order, empty pages with continuation and any optional index/backfill requirements are documented and tested with real isolated Table fixtures.
-- [ ] Dedicated-realm configuration is explicit; ambiguous multi-app shared Identity storage fails closed unless the host supplies a trusted app-scope filter.
-- [ ] Read credentials require no schema-creation or write rights; not-found/denial responses do not reveal tenants outside the authorized target scope.
+- [x] Existing and newly created tenants return ID, name, status, created/updated timestamps and safe version metadata only; no support-organization tenants or consumer extension records appear.
+- [x] Provider queries use bounded pages, scan/time budgets and cancellation; no complete directory is loaded to simulate paging/search.
+- [x] Continuation tokens are authenticated and bound to target realm/app/environment, operation, filters and expiry; cross-app/filter replay and tampering fail.
+- [x] Name-prefix and status behavior, sort order, empty pages with continuation and any optional index/backfill requirements are documented and tested with real isolated Table fixtures.
+- [x] Dedicated-realm configuration is explicit; ambiguous multi-app shared Identity storage fails closed unless the host supplies a trusted app-scope filter.
+- [x] Read credentials require no schema-creation or write rights; not-found/denial responses do not reveal tenants outside the authorized target scope.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 462 tests passed, zero failures/skips, including signed HTTP over read-only real storage. See Hubbsly IBM-0101 for delivery evidence.
 
 ### IBM-0102 / TCM-005: Implement tenant-scoped customer user and invitation directory reads
 
