@@ -260,7 +260,7 @@
             "TCM-004",
             "TCM-005"
           ],
-          "scope": "Add IManagementCustomerIdentityClient and IManagementCustomerIdentityService, plus ManagementTenantsController and ManagementCustomerUsersController. Expose GET /api/management/applications/{applicationId}/tenants[/{tenantId}] and /tenants/{tenantId}/users[/{userId}]. Reuse approved HTTPS origins, secret resolution, TLS/DNS/IP pinning, bounded transport and live connection/assignment checks. Wrap target continuations in support-user/app/query-bound portal tokens.",
+          "scope": "Implemented IManagementCustomerIdentityClient and typed IManagementPortalCustomerDirectory<T> services through the opt-in ManagementPortalCustomerDirectoriesController. GET selected-app tenants, tenant users and invitations (list/detail) with live authorization, signed fixed-path HTTPS, safe typed projection and encrypted support-user/app/query-bound pagination. See docs/management/customer-identity-api.md.",
           "paths": [
             "IBeam.Management.Services/CustomerIdentity/",
             "IBeam.Management.Api/Controllers/ManagementTenantsController.cs",
@@ -280,22 +280,24 @@
           "hubbslySourceKey": "IBM-0103",
           "sortOrder": 60,
           "boardKey": "hub",
-          "laneKey": "triage",
+          "laneKey": "done",
           "sourceSystem": "codex",
           "sourceKey": "IBM-0103",
           "sourceUrl": "https://github.com/MedPACTech/IBeam",
           "description": "Planning reference: TCM-006. Feature: TCM-F02. Estimate: 5 points. Delivery order: 60. Dependencies: TCM-004 / IBM-0101, TCM-005 / IBM-0102.\r\n\r\nAdd IManagementCustomerIdentityClient and IManagementCustomerIdentityService, plus ManagementTenantsController and ManagementCustomerUsersController. Expose GET /api/management/applications/{applicationId}/tenants[/{tenantId}] and /tenants/{tenantId}/users[/{userId}]. Reuse approved HTTPS origins, secret resolution, TLS/DNS/IP pinning, bounded transport and live connection/assignment checks. Wrap target continuations in support-user/app/query-bound portal tokens.\r\n\r\nPortal API -> Management services -> scoped HTTPS client -> target Identity Management API -> Identity management services -> existing Identity services/stores or entity-focused repositories. Custom service operations execute through IServiceOperationExecutor. Customer Identity is registered only in the target app; the support host retains its isolated identity realm.\r\n\r\nEvery operation requires an enabled app connection, live support assignment, independent human operation permission, target machine capability and target host policy. No support administrator bypass, customer impersonation, raw credential/token output, customer business records, global customer-account disable, or direct portal access to customer storage.\r\n\r\nPlan: docs/planning/tenant-customer-management-plan.md and tenant-customer-management-backlog.json. Proposed paths/routes are implementation guidance; this card is not implemented yet. Initial supported provider is Azure Table; unsupported adapters advertise no capability.",
-          "acceptanceCriteriaJson": "[{\"t\":\"Every portal route checks the selected app, required read grant and target capability before resolving secrets or issuing a target request; direct service invocation enforces the same checks.\",\"met\":false},{\"t\":\"Read responses follow IBeam envelopes with data arrays and top-level paging metadata; an empty page with continuation remains traversable.\",\"met\":false},{\"t\":\"Portal accepts only validated allowlisted target DTO fields and applies body/page/timeout limits; malformed/oversized/provider error responses become safe failures.\",\"met\":false},{\"t\":\"Existing SSRF protections cover these target paths, redirects are rejected and no caller-supplied target URL or storage connection is accepted.\",\"met\":false},{\"t\":\"Cross-user/app/organization/realm/filter cursor replay fails; revoked assignments and changed connections invalidate subsequent requests without re-login.\",\"met\":false},{\"t\":\"Tests exercise two apps with overlapping tenant/user IDs and prove isolation; neither portal persistence nor diagnostic logging stores returned directory payloads.\",\"met\":false}]",
+          "acceptanceCriteriaJson": "[{\"t\":\"Every portal route checks the selected app, required read grant and target capability before resolving secrets or issuing a target request; direct service invocation enforces the same checks.\",\"met\":true},{\"t\":\"Read responses follow IBeam envelopes with data arrays and top-level paging metadata; an empty page with continuation remains traversable.\",\"met\":true},{\"t\":\"Portal accepts only validated allowlisted target DTO fields and applies body/page/timeout limits; malformed/oversized/provider error responses become safe failures.\",\"met\":true},{\"t\":\"Existing SSRF protections cover these target paths, redirects are rejected and no caller-supplied target URL or storage connection is accepted.\",\"met\":true},{\"t\":\"Cross-user/app/organization/realm/filter cursor replay fails; revoked assignments and changed connections invalidate subsequent requests without re-login.\",\"met\":true},{\"t\":\"Tests exercise two apps with overlapping tenant/user IDs and prove isolation; neither portal persistence nor diagnostic logging stores returned directory payloads.\",\"met\":true}]",
           "workType": "feature",
           "priority": "high",
           "hubbslyDependencies": [
             "IBM-0101",
             "IBM-0102"
-          ]
+          ],
+          "implementationStatus": "done"
         }
       ],
       "points": 15,
-      "hubbslyId": "e4267e25-17c7-4d49-8366-49c133aadce2"
+      "hubbslyId": "e4267e25-17c7-4d49-8366-49c133aadce2",
+      "implementationStatus": "done"
     },
     {
       "key": "TCM-F03",

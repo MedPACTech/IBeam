@@ -144,3 +144,6 @@ Deployment configuration, identity storage choices, MFA/bootstrap, onboarding, e
 ## Configurable diagnostic text
 
 IBeam:Management:Diagnostics:Errors:Sanitization:Enabled and Logs:Sanitization:Enabled default to true, including blank values. Only false enables the typed unsanitized response object. Both module startup guards, readers and projections require an explicit non-Production host/deployment. /info advertises independent unsanitizedCapabilities; portal reads preserve only the verified operation's marked raw object. Mode changes invalidate target and portal links/cursors. Source/category/grant/budget restrictions and metadata-only audit are unchanged. Details, allowed environment names, repository ports and integration examples are in the [sanitization guide](https://github.com/MedPACTech/IBeam/blob/development/docs/management/diagnostic-sanitization.md).
+## Customer directory forwarding
+
+`AddIBeamManagementPortalCustomerDirectories(configuration)` registers typed tenant/user/invitation directory services with current support grants, scoped signed HTTPS calls and encrypted pagination. Supply a delegated actor provider and a separate portal cursor key. See [customer directory API](../docs/management/customer-identity-api.md).

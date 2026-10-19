@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0102 are complete (25 points); 15 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0103 are complete (30 points); 14 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -187,9 +187,9 @@ Feature dependencies: TCM-F01.
 
 Feature acceptance:
 
-- [ ] Tenant list/detail and tenant-user list/detail work against actual target Identity storage with bounded paging.
-- [ ] Pending/disabled statuses are explicit and customer membership in another tenant or app is never revealed.
-- [ ] Portal reads enforce live grants and do not copy customer directories into portal storage.
+- [x] Tenant list/detail and tenant-user list/detail work against actual target Identity storage with bounded paging.
+- [x] Pending/disabled statuses are explicit and customer membership in another tenant or app is never revealed.
+- [x] Portal reads enforce live grants and do not copy customer directories into portal storage.
 
 ### IBM-0101 / TCM-004: Implement bounded target tenant directory and detail reads
 
@@ -235,22 +235,24 @@ Verification evidence: 474 tests passed, zero failures/skips, including signed u
 
 ### IBM-0103 / TCM-006: Expose portal tenant and user directory routes with safe forwarding
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 60. Hubbsly ID: ed0d6dcf-7d2a-4dbc-a218-64dcd63ce38c.
+Estimate: **5 points**. Lane: Done. Delivery order: 60. Hubbsly ID: ed0d6dcf-7d2a-4dbc-a218-64dcd63ce38c.
 
 Dependencies: IBM-0101, IBM-0102.
 
-Add IManagementCustomerIdentityClient and IManagementCustomerIdentityService, plus ManagementTenantsController and ManagementCustomerUsersController. Expose GET /api/management/applications/{applicationId}/tenants[/{tenantId}] and /tenants/{tenantId}/users[/{userId}]. Reuse approved HTTPS origins, secret resolution, TLS/DNS/IP pinning, bounded transport and live connection/assignment checks. Wrap target continuations in support-user/app/query-bound portal tokens.
+Implemented IManagementCustomerIdentityClient and typed IManagementPortalCustomerDirectory<T> services through the opt-in ManagementPortalCustomerDirectoriesController. GET selected-app tenants, tenant users and invitations (list/detail) with live authorization, signed fixed-path HTTPS, safe typed projection and encrypted support-user/app/query-bound pagination. See docs/management/customer-identity-api.md.
 
 Proposed paths: IBeam.Management.Services/CustomerIdentity/, IBeam.Management.Api/Controllers/ManagementTenantsController.cs, IBeam.Management.Api/Controllers/ManagementCustomerUsersController.cs, IBeam.Tests.Management.CustomerIdentity/, docs/management/customer-identity-api.md. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Every portal route checks the selected app, required read grant and target capability before resolving secrets or issuing a target request; direct service invocation enforces the same checks.
-- [ ] Read responses follow IBeam envelopes with data arrays and top-level paging metadata; an empty page with continuation remains traversable.
-- [ ] Portal accepts only validated allowlisted target DTO fields and applies body/page/timeout limits; malformed/oversized/provider error responses become safe failures.
-- [ ] Existing SSRF protections cover these target paths, redirects are rejected and no caller-supplied target URL or storage connection is accepted.
-- [ ] Cross-user/app/organization/realm/filter cursor replay fails; revoked assignments and changed connections invalidate subsequent requests without re-login.
-- [ ] Tests exercise two apps with overlapping tenant/user IDs and prove isolation; neither portal persistence nor diagnostic logging stores returned directory payloads.
+- [x] Every portal route checks the selected app, required read grant and target capability before resolving secrets or issuing a target request; direct service invocation enforces the same checks.
+- [x] Read responses follow IBeam envelopes with data arrays and top-level paging metadata; an empty page with continuation remains traversable.
+- [x] Portal accepts only validated allowlisted target DTO fields and applies body/page/timeout limits; malformed/oversized/provider error responses become safe failures.
+- [x] Existing SSRF protections cover these target paths, redirects are rejected and no caller-supplied target URL or storage connection is accepted.
+- [x] Cross-user/app/organization/realm/filter cursor replay fails; revoked assignments and changed connections invalidate subsequent requests without re-login.
+- [x] Tests exercise two apps with overlapping tenant/user IDs and prove isolation; neither portal persistence nor diagnostic logging stores returned directory payloads.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 570 Management tests passed, zero failures/skips; three affected packages packed and inspected. All six signed portal read routes, isolated apps, safe projection and cursor/access failures verified. See Hubbsly IBM-0103.
 
 ## TCM-F03: Reliable tenant creation and administration
 

@@ -23,6 +23,10 @@ public static class ManagementAuditOperations
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal) {
         "management.identity.read", "management.identity.bootstrap", "management.diagnostics.info",
         "management.identity.info", "management.portal.customer-identity.info", "management.portal.customer-identity.authorize",
+        "management.portal.customer-identity.connection", "management.portal.customer-identity.connection-check",
+        "management.portal.customer-identity.tenants.list", "management.portal.customer-identity.tenants.read",
+        "management.portal.customer-identity.users.list", "management.portal.customer-identity.users.read",
+        "management.portal.customer-identity.invites.list", "management.portal.customer-identity.invites.read",
         "management.portal.customer-identity.delegate", "management.identity.delegation.validate", "management.identity.delegation.require",
         "management.identity.tenants.read",
         "management.identity.users.read", "management.identity.invites.read", "management.identity.tenant-scope.require",

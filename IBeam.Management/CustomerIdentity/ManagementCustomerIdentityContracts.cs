@@ -62,7 +62,10 @@ public interface IManagementCustomerIdentityCapability
 }
 
 public sealed record ManagementCustomerTenantDto(Guid TenantId, string Name, string Status,
-    DateTimeOffset? CreatedUtc, DateTimeOffset? UpdatedUtc, string? Version);
+    DateTimeOffset? CreatedUtc, DateTimeOffset? UpdatedUtc, string? Version)
+{
+    public override string ToString() => "Management customer tenant (identity fields redacted)";
+}
 public sealed record ManagementCustomerUserDto(Guid TenantId, Guid UserId, string? Email,
     string? FirstName, string? LastName, string Status, IReadOnlyList<Guid> RoleIds, IReadOnlyList<string> RoleNames)
 {
