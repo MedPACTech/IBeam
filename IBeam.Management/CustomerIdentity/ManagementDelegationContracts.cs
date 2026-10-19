@@ -17,6 +17,7 @@ public sealed class ManagementDelegationRequest
     public required string Method { get; init; }
     [JsonIgnore] public string PathAndQuery { get; init; } = "";
     [JsonIgnore] public ReadOnlyMemory<byte> Body { get; init; }
+    [JsonIgnore] public string? IdempotencyKey { get; init; }
     public override string ToString() => "Management delegated request (binding redacted)";
 }
 public interface IManagementDelegatedActorProvider
@@ -27,6 +28,9 @@ public interface IManagementDelegatedActorValidator
 {
     Task<ManagementDelegatedActor> ValidateAsync(string assertion, string operation, ManagementDelegationRequest request,
         ClaimsPrincipal authenticatedMachine, CancellationToken ct = default);
+    /// <summary>Only fixed receipt GET endpoints may use the original write authority from a verified assertion.</summary>
+    Task<ManagementDelegatedActor> ValidateReceiptAsync(string assertion, ManagementDelegationRequest request,
+        ClaimsPrincipal authenticatedMachine, CancellationToken ct = default) => throw new ManagementAccessDeniedException();
 }
 public interface IManagementDelegatedActorContext { ManagementDelegatedActor? Current { get; } }
 public interface IManagementCustomerIdentityTargetAccessService

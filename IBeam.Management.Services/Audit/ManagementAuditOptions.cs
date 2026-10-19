@@ -29,6 +29,8 @@ public static class ManagementAuditOperations
         "management.portal.customer-identity.invites.list", "management.portal.customer-identity.invites.read",
         "management.portal.customer-identity.delegate", "management.identity.delegation.validate", "management.identity.delegation.require",
         "management.identity.tenants.read",
+        "management.identity.operations.execute", "management.identity.operations.read", "management.identity.operations.audit",
+        "management.portal.customer-identity.operations.read",
         "management.identity.users.read", "management.identity.invites.read", "management.identity.tenant-scope.require",
         "management.diagnostics.errors.read", "management.diagnostics.logs.read",
         "management.credentials.authenticate", "management.credentials.issue", "management.credentials.rotate", "management.credentials.revoke",

@@ -49,6 +49,20 @@ public sealed class ManagementCustomerIdentityClient(ManagementConnectionNetwork
         if (info.ApplicationKey != c.ApplicationKey || info.Environment != c.Environment || info.IdentityRealmId != c.IdentityRealmId ||
             !info.Capabilities.Contains(operation, StringComparer.Ordinal)) throw new ManagementCustomerIdentityResponseException();
     }
+    public async Task<ManagementIdentityOperationDto> GetOperationAsync(ManagementCustomerIdentityConnection c, Guid operationId, string authority, CancellationToken ct = default)
+    {
+        if (operationId == Guid.Empty || !IBeam.Management.Services.CustomerIdentity.Delegation.ManagementDelegationBinding.Mutating(authority) &&
+            authority != ManagementCustomerIdentityOperations.OnboardingRead) throw new ManagementCustomerIdentityInvalidRequestException();
+        await Verify(c, authority, ct);
+        using var body = await Get(c, authority, "/api/management-identity/operations/" + operationId.ToString("D"), true, ct);
+        var result = Data<ManagementIdentityOperationDto>(body.RootElement) ?? throw new ManagementCustomerIdentityResponseException();
+        if (result.OperationId != operationId || result.ResourceId == Guid.Empty || result.Status is not ("pending" or "running" or "succeeded" or "uncertain") ||
+            result.Step is < 0 or > 1 || result.ExpiresUtc <= result.CreatedUtc || result.UpdatedUtc < result.CreatedUtc ||
+            result.Operation != authority && !(authority == ManagementCustomerIdentityOperations.OnboardingRead &&
+                result.Operation is ManagementCustomerIdentityOperations.OnboardingCreate or ManagementCustomerIdentityOperations.OnboardingRetry))
+            throw new ManagementCustomerIdentityResponseException();
+        return new(result.OperationId, result.Operation, result.Status, result.Step, result.ResourceId, result.CreatedUtc, result.UpdatedUtc, result.ExpiresUtc);
+    }
     private static T? Data<T>(JsonElement root)
     {
         try { return root.GetProperty("data").Deserialize<T>(Json); }

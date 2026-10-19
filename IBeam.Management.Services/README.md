@@ -1,5 +1,7 @@
 # IBeam.Management.Services
 
+IBM-0104 adds safe selected-app operation receipt forwarding. Non-GET delegated assertions bind the Idempotency-Key as well as exact method/path/body. See docs/management/customer-identity-operations.md.
+
 IBM-0100: AddIBeamManagementActorDelegation(configuration) enables server-only short-lived RS256 support actor assertions. Supply a dedicated signing-key provider and durable metadata audit repository; configure explicit issuer/target audiences. Browser-facing APIs never return assertions or keys. See docs/management/customer-identity-delegation.md.
 
 IBM-0099: independent management.identity customer operation names are now valid machine capabilities and app assignments. Composite operation checks, per-app delegation ceilings, effective selector/discovery projection and IManagementCustomerIdentityAuthorizationService are documented in docs/management/customer-identity-permissions.md. Existing diagnostic credentials/assignments gain nothing automatically.

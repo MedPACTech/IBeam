@@ -22,13 +22,20 @@ internal sealed class ManagementDelegatedActorValidator(ManagementCustomerIdenti
 {
     public Task<ManagementDelegatedActor> ValidateAsync(string assertion, string operation, ManagementDelegationRequest request,
         ClaimsPrincipal authenticatedMachine, CancellationToken ct = default)
+        => Validate(assertion, operation, request, authenticatedMachine, ct);
+    public Task<ManagementDelegatedActor> ValidateReceiptAsync(string assertion, ManagementDelegationRequest request,
+        ClaimsPrincipal authenticatedMachine, CancellationToken ct = default)
+        => Validate(assertion, null, request, authenticatedMachine, ct);
+    private Task<ManagementDelegatedActor> Validate(string assertion, string? operation, ManagementDelegationRequest request,
+        ClaimsPrincipal authenticatedMachine, CancellationToken ct)
         => operations.ExecuteAsync(this, async token =>
         {
             context.Set(null);
             try
             {
-                var credentialId = await credentials.RequireAsync(authenticatedMachine, operation, token);
-                if (assertion is not { Length: > 0 and <= 8192 } || ManagementDelegationBinding.Mutating(operation) && request.Method == "GET")
+                var receipt = operation is null;
+                if (assertion is not { Length: > 0 and <= 8192 } || receipt && !ManagementDelegationBinding.IsReceiptRead(request) ||
+                    !receipt && ManagementDelegationBinding.Mutating(operation!) && request.Method == "GET")
                     throw new ManagementAccessDeniedException();
                 ValidateShape(assertion);
                 var handler = new JwtSecurityTokenHandler { MapInboundClaims = false, MaximumTokenSizeInBytes = 8192 };
@@ -49,6 +56,13 @@ internal sealed class ManagementDelegatedActorValidator(ManagementCustomerIdenti
                         exp.Value > clock.GetUtcNow().UtcDateTime
                 }, out _);
                 var claims = principal.Claims.ToArray();
+                if (receipt)
+                {
+                    operation = Single(claims, "operation");
+                    if (!ManagementDelegationBinding.Mutating(operation) && operation != ManagementCustomerIdentityOperations.OnboardingRead)
+                        throw new ManagementAccessDeniedException();
+                }
+                var credentialId = await credentials.RequireAsync(authenticatedMachine, operation!, token);
                 var issued = DateTimeOffset.FromUnixTimeSeconds(long.Parse(Single(claims, "iat"), System.Globalization.CultureInfo.InvariantCulture));
                 var expires = DateTimeOffset.FromUnixTimeSeconds(long.Parse(Single(claims, "exp"), System.Globalization.CultureInfo.InvariantCulture));
                 var notBefore = DateTimeOffset.FromUnixTimeSeconds(long.Parse(Single(claims, "nbf"), System.Globalization.CultureInfo.InvariantCulture));
@@ -65,8 +79,8 @@ internal sealed class ManagementDelegatedActorValidator(ManagementCustomerIdenti
                 if (correlation.Length != 32 || !correlation.All(x => x is >= 'a' and <= 'f' or >= '0' and <= '9')) throw new ManagementAccessDeniedException();
                 var actor = new ManagementDelegatedActor(binding.OrganizationId, GuidClaim(claims, "sub"), binding.ApplicationId,
                     realm.Value.IdentityRealmId, credentialId, deployment.Value.ApplicationKey, deployment.Value.Environment,
-                    operation, GuidClaim(claims, "jti"), expires, correlation);
-                if ((request.Method != "GET" || ManagementDelegationBinding.Mutating(operation)) &&
+                    operation!, GuidClaim(claims, "jti"), expires, correlation);
+                if (request.Method != "GET" &&
                     !await replay.TryClaimAsync(actor.IdentityRealmId, binding.Issuer, actor.AssertionId, expires, token))
                     throw new ManagementAccessDeniedException();
                 context.Set(actor); audit.AcceptMachineCorrelation(correlation);

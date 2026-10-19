@@ -25,7 +25,7 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
     public Guid OtherOrg { get; } = Guid.NewGuid();
     public Guid ForeignUser { get; } = Guid.NewGuid();
     public CustomerDirectoryBackend Directories { get; } = new();
-    public static async Task<PortalHttpFixture> CreateAsync(bool install = true, bool selector = false, bool audit = false, bool customerIdentity = false, bool customerDirectories = false)
+    public static async Task<PortalHttpFixture> CreateAsync(bool install = true, bool selector = false, bool audit = false, bool customerIdentity = false, bool customerDirectories = false, bool customerOperations = false)
     {
         var f = new PortalHttpFixture();
         f.Data.Access.Users[(f.Data.Access.Org, f.OtherUser)] = new(f.Data.Access.Org, f.OtherUser, true, false);
@@ -54,13 +54,14 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
         if (install) b.Services.AddIBeamManagementPortalDiagnosticsApi(b.Configuration);
         if (selector) b.Services.AddIBeamManagementApplicationSelectorApi(b.Configuration);
         if (customerIdentity) b.Services.AddIBeamManagementCustomerIdentityApi(b.Configuration);
-        if (customerDirectories) {
+        if (customerDirectories || customerOperations) {
             b.Services.AddSingleton<IBeam.Management.CustomerIdentity.IManagementDelegatedActorProvider>(f.Directories);
             b.Services.AddSingleton<IBeam.Management.CustomerIdentity.IManagementCustomerIdentityClient>(provider =>
                 new IBeam.Management.Services.CustomerIdentity.ManagementCustomerIdentityClient(f.Data.Network,
                     provider.GetRequiredService<IOptions<IBeam.Management.Services.CustomerIdentity.ManagementPortalCustomerDirectoryOptions>>(), f.Directories)
                     { TestTransportFactory = () => new CustomerDirectoryBackend.Handler(f.Directories) });
-            b.Services.AddIBeamManagementPortalCustomerDirectoriesApi(b.Configuration);
+            if (customerDirectories) b.Services.AddIBeamManagementPortalCustomerDirectoriesApi(b.Configuration);
+            if (customerOperations) b.Services.AddIBeamManagementPortalIdentityOperationsApi(b.Configuration);
         }
         if (audit) { b.Services.AddSingleton<IManagementAuditRepository>(f.Audit); b.Services.AddIBeamManagementAudit(b.Configuration); }
         f.App = b.Build(); f.App.UseAuthentication(); f.App.UseAuthorization(); f.App.MapControllers();

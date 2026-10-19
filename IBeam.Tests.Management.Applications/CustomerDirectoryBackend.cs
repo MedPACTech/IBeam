@@ -14,13 +14,14 @@ internal sealed class CustomerDirectoryBackend : IManagementDelegatedActorProvid
     public Guid Tenant { get; } = Guid.NewGuid();
     public Guid User { get; } = Guid.NewGuid();
     public Guid Invite { get; } = Guid.NewGuid();
+    public Guid Operation { get; } = Guid.NewGuid();
     public Dictionary<string, (Guid App, ManagementCustomerIdentityInfo Info, string Key)> Targets { get; } = [];
     public List<(Guid App, string Operation, string Path)> Assertions { get; } = [];
     public int Calls { get; private set; }
     public bool Empty { get; set; }
     public string? Failure { get; set; }
     public Func<CancellationToken, Task>? DuringData { get; set; }
-    public async Task<Guid> AddApp(PortalHttpFixture f, string key = "qurvia", string[]? human = null)
+    public async Task<Guid> AddApp(PortalHttpFixture f, string key = "qurvia", string[]? human = null, bool includeOperations = false)
     {
         var id = await f.Data.AddApp(key);
         var grants = human ?? ReadOperations;
@@ -31,7 +32,8 @@ internal sealed class CustomerDirectoryBackend : IManagementDelegatedActorProvid
         f.Data.Access.Actor = f.Data.Access.Reader; f.Data.Access.CanAdminister = false;
         var row = f.Data.Credentials.Rows.Single(x => x.ApplicationId == id);
         var info = new ManagementCustomerIdentityInfo(key, "Production", Guid.NewGuid(), "dedicated-app", 1,
-            new[] { ManagementCustomerIdentityOperations.Info }.Concat(ReadOperations).ToArray());
+            new[] { ManagementCustomerIdentityOperations.Info }.Concat(ReadOperations)
+                .Concat(includeOperations ? new[] { ManagementCustomerIdentityOperations.TenantsCreate, ManagementCustomerIdentityOperations.OnboardingRead } : []).ToArray());
         f.Data.Credentials.Rows[f.Data.Credentials.Rows.IndexOf(row)] = row with { Capabilities = info.Capabilities, CustomerIdentity = new("available", info) };
         Targets[new Uri(row.BaseUrl).Host] = (id, info, ConnectionFixture.Key + "-" + key);
         return id;
@@ -56,6 +58,14 @@ internal sealed class CustomerDirectoryBackend : IManagementDelegatedActorProvid
             return Response(info); }
         Assert.AreEqual("fixture-actor", request.Headers.GetValues("X-IBeam-Management-Actor").Single());
         var proof = Assertions.Last(); Assert.AreEqual(target.App, proof.App); Assert.AreEqual(uri.PathAndQuery, proof.Path);
+        if (uri.AbsolutePath.Contains("/operations/", StringComparison.Ordinal)) {
+            Assert.AreEqual(ManagementCustomerIdentityOperations.TenantsCreate, proof.Operation);
+            var now = DateTimeOffset.UtcNow;
+            return Response(new { operationId = Failure == "receipt-id" ? Guid.NewGuid() : Operation,
+                operation = Failure == "receipt-authority" ? ManagementCustomerIdentityOperations.TenantsUpdate : ManagementCustomerIdentityOperations.TenantsCreate,
+                status = "succeeded", step = 1, resourceId = Tenant, createdUtc = now.AddMinutes(-2), updatedUtc = now,
+                expiresUtc = now.AddDays(1), fingerprint = Canary, body = Canary });
+        }
         var resource = uri.AbsolutePath.Contains("/users", StringComparison.Ordinal) ? "users" : uri.AbsolutePath.Contains("/invites", StringComparison.Ordinal) ? "invites" : "tenants";
         Assert.AreEqual("management.identity." + resource + ".read", proof.Operation);
         if (DuringData is not null) await DuringData(ct);

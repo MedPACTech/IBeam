@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0103 are complete (30 points); 14 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0104 are complete (35 points); 13 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -270,7 +270,7 @@ Feature acceptance:
 
 ### IBM-0104 / TCM-007: Persist target operation receipts, idempotency and safe mutation audit
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 70. Hubbsly ID: c29951e3-c511-42c2-a03a-4b269162f3a9.
+Estimate: **5 points**. Lane: Done. Delivery order: 70. Hubbsly ID: c29951e3-c511-42c2-a03a-4b269162f3a9.
 
 Dependencies: IBM-0100.
 
@@ -278,14 +278,16 @@ Add ManagementIdentityOperationEntity/IManagementIdentityOperationRepository and
 
 Proposed paths: IBeam.Management/Entities/, IBeam.Management/CustomerIdentity/, IBeam.Management.Repositories.AzureTable/CustomerIdentity/, IBeam.Management.Identity.Target.Services/Operations/, IBeam.Management.Identity.Target.Api/Controllers/ManagementIdentityOperationsController.cs, IBeam.Management.Services/CustomerIdentity/, IBeam.Management.Api/Controllers/ManagementIdentityOperationsController.cs. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Idempotency-Key is mandatory for mutating customer-management requests; scope includes support organization, target realm/app, operation and resource, with a canonical payload fingerprint.
-- [ ] Same key and same request returns the existing operation/result; same key with changed request returns 409; concurrent requests cannot reserve duplicate work.
-- [ ] Operation rows use atomic claims/ETags and stable resource IDs; a crash after a downstream write resumes or reconciles that write instead of blindly creating it again.
-- [ ] Safe audit intent is persisted before a mutation; inability to record it prevents a new mutation, and persisted outbox-style events can be delivered without repeating customer changes.
-- [ ] Receipts contain no raw request bodies, email/password/invite secrets or customer profiles; retention, idempotency expiry and safe polling limits are documented.
-- [ ] Operation reads require the original write authority or explicit onboarding.read as appropriate plus app scope; unrelated apps/organizations cannot enumerate or retrieve receipts.
+- [x] Idempotency-Key is mandatory for mutating customer-management requests; scope includes support organization, target realm/app, operation and resource, with a canonical payload fingerprint.
+- [x] Same key and same request returns the existing operation/result; same key with changed request returns 409; concurrent requests cannot reserve duplicate work.
+- [x] Operation rows use atomic claims/ETags and stable resource IDs; a crash after a downstream write resumes or reconciles that write instead of blindly creating it again.
+- [x] Safe audit intent is persisted before a mutation; inability to record it prevents a new mutation, and persisted outbox-style events can be delivered without repeating customer changes.
+- [x] Receipts contain no raw request bodies, email/password/invite secrets or customer profiles; retention, idempotency expiry and safe polling limits are documented.
+- [x] Operation reads require the original write authority or explicit onboarding.read as appropriate plus app scope; unrelated apps/organizations cannot enumerate or retrieve receipts.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 601 Management tests passed, zero failures/skips. Six packages packed and inspected. Real storage/signed receipt reads, concurrent claims, crash/lease recovery, safe outbox redelivery and portal authority/projection tests verified. See Hubbsly IBM-0104.
 
 ### IBM-0105 / TCM-008: Create and rename target tenants through existing Identity services
 

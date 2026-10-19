@@ -27,10 +27,16 @@ public static class ManagementDelegationBinding
             request.PathAndQuery is not { Length: > 0 and <= 16384 } ||
             !request.PathAndQuery.StartsWith("/api/management-identity/", StringComparison.Ordinal) ||
             request.PathAndQuery.Any(char.IsControl) || request.PathAndQuery.Contains('#') || request.Body.Length > 32768 ||
-            request.Method == "GET" && !request.Body.IsEmpty) throw new ManagementAccessDeniedException();
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(request.Method + "\n" + request.PathAndQuery + "\n" +
-            Convert.ToHexString(SHA256.HashData(request.Body.Span))))).ToLowerInvariant();
+            request.Method == "GET" && (!request.Body.IsEmpty || request.IdempotencyKey is not null) ||
+            request.Method != "GET" && !ValidIdempotencyKey(request.IdempotencyKey)) throw new ManagementAccessDeniedException();
+        var bound = request.Method + "\n" + request.PathAndQuery + "\n" + Convert.ToHexString(SHA256.HashData(request.Body.Span));
+        if (request.Method != "GET") bound += "\n" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(request.IdempotencyKey!)));
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(bound))).ToLowerInvariant();
     }
+    public static bool ValidIdempotencyKey(string? value) => value is { Length: >= 8 and <= 128 } && value.All(x => char.IsAsciiLetterOrDigit(x) || x is '-' or '_' or '.');
+    public static bool IsReceiptRead(ManagementDelegationRequest request) => request.Method == "GET" &&
+        request.PathAndQuery.StartsWith("/api/management-identity/operations/", StringComparison.Ordinal) &&
+        Guid.TryParseExact(request.PathAndQuery["/api/management-identity/operations/".Length..], "D", out var id) && id != Guid.Empty;
     public static bool ValidName(string? name) => !string.IsNullOrWhiteSpace(name) && name.Length <= 200 && !name.Any(char.IsControl);
     public static bool ValidKey(SecurityKey key) => key is RsaSecurityKey && key.KeySize >= 2048 &&
         key.KeyId is { Length: > 0 and <= 100 } && key.KeyId.All(x => char.IsAsciiLetterOrDigit(x) || x is '-' or '_');

@@ -26,8 +26,9 @@ internal sealed class ManagementCustomerIdentityAuthenticationHandler(IOptionsMo
             if (Request.Method != "GET" || Request.Path != "/api/management-identity/info")
             {
                 var operation = Context.GetEndpoint()?.Metadata.GetMetadata<ManagementCustomerIdentityOperationAttribute>()?.Operation;
+                var receipt = Context.GetEndpoint()?.Metadata.GetMetadata<ManagementIdentityOperationReceiptAttribute>() is not null;
                 var validator = actorValidators.SingleOrDefault();
-                if (operation is null || validator is null || !Request.Headers.TryGetValue("X-IBeam-Management-Actor", out var assertion) ||
+                if (operation is null && !receipt || validator is null || !Request.Headers.TryGetValue("X-IBeam-Management-Actor", out var assertion) ||
                     assertion.Count != 1 || assertion[0] is not { Length: > 0 and <= 8192 } || Request.ContentLength > 32768)
                     return AuthenticateResult.Fail("Management authentication was not completed.");
                 Request.EnableBuffering(bufferThreshold: 32768, bufferLimit: 32769);
@@ -43,8 +44,14 @@ internal sealed class ManagementCustomerIdentityAuthenticationHandler(IOptionsMo
                 Request.Body.Position = 0;
                 var path = Context.Features.Get<IHttpRequestFeature>()?.RawTarget;
                 if (string.IsNullOrEmpty(path)) path = Request.GetEncodedPathAndQuery();
-                await validator.ValidateAsync(assertion[0]!, operation, new ManagementDelegationRequest {
-                    Method = Request.Method, PathAndQuery = path, Body = body.ToArray() }, principal, Context.RequestAborted);
+                string? idempotency = null;
+                if (Request.Method != "GET") {
+                    if (!Request.Headers.TryGetValue("Idempotency-Key", out var keys) || keys.Count != 1) return AuthenticateResult.Fail("Management authentication was not completed.");
+                    idempotency = keys[0];
+                }
+                var binding = new ManagementDelegationRequest { Method = Request.Method, PathAndQuery = path, Body = body.ToArray(), IdempotencyKey = idempotency };
+                if (receipt) await validator.ValidateReceiptAsync(assertion[0]!, binding, principal, Context.RequestAborted);
+                else await validator.ValidateAsync(assertion[0]!, operation!, binding, principal, Context.RequestAborted);
             }
             return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
         }

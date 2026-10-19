@@ -1,5 +1,7 @@
 # IBeam.Management.Identity.Target.Services
 
+IBM-0104 adds durable operation reservation, canonical keyed fingerprints, ETag claims, stable resource IDs, reconciliation and repeatable metadata audit delivery. Business handlers must use conditional downstream writes; leases alone cannot provide exactly-once behavior. See docs/management/customer-identity-operations.md.
+
 IBM-0102 adds independent read-only customer membership/invitation directory services with exact tenant scope, protected paging, bounded role/contact metadata and no global profile lookup. Invitation expiry is projected without writes. See docs/management/customer-user-directory.md for source and field semantics.
 
 IBM-0101: IManagementTenantDirectoryService performs authenticated metadata-only tenant reads through an entity-focused read repository. One bounded provider page per request; empty filtered pages may have continuation. No full-directory materialization, customer profiles or writes. See docs/management/customer-tenant-directory.md.

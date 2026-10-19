@@ -15,6 +15,7 @@ public static class ManagementPortalCustomerDirectoryExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddScoped<IManagementCustomerIdentityConnectionResolver, ManagementCustomerIdentityConnectionResolver>();
         services.TryAddScoped<IManagementCustomerIdentityClient, ManagementCustomerIdentityClient>();
+        services.TryAddScoped<IManagementPortalIdentityOperationService, ManagementPortalIdentityOperationService>();
         services.TryAddScoped<IManagementPortalCustomerDirectory<ManagementCustomerTenantDto>, ManagementPortalCustomerDirectory<ManagementCustomerTenantDto>>();
         services.TryAddScoped<IManagementPortalCustomerDirectory<ManagementCustomerUserDto>, ManagementPortalCustomerDirectory<ManagementCustomerUserDto>>();
         services.TryAddScoped<IManagementPortalCustomerDirectory<ManagementCustomerInvitationDto>, ManagementPortalCustomerDirectory<ManagementCustomerInvitationDto>>();

@@ -1,5 +1,7 @@
 # IBeam.Management.Identity.Target.Api
 
+IBM-0104 adds opt-in AddIBeamManagementIdentityOperationsApi: scoped signed receipt GETs, using original write authority or explicit onboarding.read. Mutation requests now require a signed Idempotency-Key; receipt infrastructure grants no business write capability. See docs/management/customer-identity-operations.md.
+
 IBM-0102 adds independent AddIBeamManagementCustomerUserDirectoryApi and AddIBeamManagementCustomerInvitationDirectoryApi registrations. They expose tenant-scoped list/detail GET routes under /users and /invites with separate signed operations. No accept/resend/revoke/provision routes are installed here. See docs/management/customer-user-directory.md.
 
 IBM-0101 adds optional AddIBeamManagementTenantDirectoryApi(configuration): signed tenants.read list/detail routes with protected paging and generic validation errors. Supply the existing target's dedicated read-only tenant table adapter and a separate directory protection key. See docs/management/customer-tenant-directory.md. Portal forwarding remains IBM-0103.

@@ -25,6 +25,8 @@ public interface IManagementCustomerIdentityClient
 {
     Task<ManagementCustomerDirectoryPage<T>> ListAsync<T>(ManagementCustomerIdentityConnection connection, Guid? tenantId, ManagementCustomerDirectoryQuery query, CancellationToken ct = default) where T : class;
     Task<T> FindAsync<T>(ManagementCustomerIdentityConnection connection, Guid? tenantId, Guid id, CancellationToken ct = default) where T : class;
+    Task<ManagementIdentityOperationDto> GetOperationAsync(ManagementCustomerIdentityConnection connection, Guid operationId, string authority,
+        CancellationToken ct = default) => throw new ManagementCustomerIdentityUnavailableException();
 }
 public interface IManagementPortalCustomerDirectory<T> where T : class
 {

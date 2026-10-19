@@ -6,3 +6,7 @@ public sealed class ManagementCustomerIdentityOperationAttribute(string operatio
 {
     public string Operation { get; } = operation;
 }
+
+/// <summary>Only operation receipt GETs accept the original write authority, after signature verification and stored-scope checks.</summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class ManagementIdentityOperationReceiptAttribute : Attribute;

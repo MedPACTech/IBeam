@@ -68,12 +68,14 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             .Returns(() => Granted ? Task.CompletedTask : Task.FromException(new ManagementAccessDeniedException()));
     }
     public static async Task<DelegationFixture> Start(IManagementCustomerTenantReadRepository? tenants = null,
-        IManagementCustomerUserReadRepository? users = null, IManagementCustomerInvitationReadRepository? invites = null)
+        IManagementCustomerUserReadRepository? users = null, IManagementCustomerInvitationReadRepository? invites = null,
+        IManagementIdentityOperationRepository? operations = null, IManagementIdentityOperationAuditRepository? operationAudit = null)
     {
         var f = new DelegationFixture();
         f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities
             .Concat(users is null ? [] : new[] { ManagementCustomerIdentityOperations.UsersRead })
-            .Concat(invites is null ? [] : new[] { ManagementCustomerIdentityOperations.InvitesRead }).ToArray() };
+            .Concat(invites is null ? [] : new[] { ManagementCustomerIdentityOperations.InvitesRead })
+            .Concat(operations is null ? [] : new[] { ManagementCustomerIdentityOperations.OnboardingRead }).ToArray() };
         var b = WebApplication.CreateBuilder(); b.Logging.ClearProviders(); b.WebHost.UseTestServer();
         b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
             ["IBeam:Management:Diagnostics:ApplicationKey"] = "atlas", ["IBeam:Management:Diagnostics:Environment"] = "Testing",
@@ -89,6 +91,9 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             ["IBeam:Management:CustomerIdentity:UserDirectory:ProtectionKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
             ["IBeam:Management:CustomerIdentity:EnabledOperations:2"] = ManagementCustomerIdentityOperations.UsersRead,
             ["IBeam:Management:CustomerIdentity:EnabledOperations:3"] = ManagementCustomerIdentityOperations.InvitesRead });
+        if (operations is not null) b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
+            ["IBeam:Management:CustomerIdentity:EnabledOperations:4"] = ManagementCustomerIdentityOperations.OnboardingRead,
+            ["IBeam:Management:CustomerIdentity:Operations:FingerprintKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) });
         b.Services.AddSingleton(f);
         b.Services.AddSingleton<IManagementApiCredentialRepository>(f.Credentials);
         b.Services.AddSingleton<IManagementActorValidationKeyProvider>(f);
@@ -100,6 +105,11 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         b.Services.AddControllers().ConfigureApplicationPartManager(x => x.ApplicationParts.Clear());
         b.Services.AddIBeamManagementCustomerIdentityTargetApi(b.Configuration);
         b.Services.AddIBeamManagementDelegatedActors(b.Configuration);
+        if (operations is not null) {
+            b.Services.AddSingleton(operations);
+            b.Services.AddSingleton<IManagementIdentityOperationAuditRepository>(operationAudit ?? new OperationFixture());
+            b.Services.AddIBeamManagementIdentityOperationsApi(b.Configuration);
+        }
         if (tenants is not null)
         {
             b.Services.AddSingleton<IManagementCustomerTenantReadRepository>(tenants);
@@ -138,12 +148,13 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         return f;
     }
     public Task<ManagementActorAssertion> Issue(string operation, string method = "GET", string path = "/api/management-identity/probe", byte[]? body = null)
-        => Issuer.IssueAsync(Application, operation, new() { Method = method, PathAndQuery = path, Body = body ?? [] });
+        => Issuer.IssueAsync(Application, operation, new() { Method = method, PathAndQuery = path, Body = body ?? [], IdempotencyKey = method == "GET" ? null : "fixture-idempotency" });
     public async Task<HttpResponseMessage> Send(ManagementActorAssertion? assertion, string method = "GET", string path = "/api/management-identity/probe", byte[]? body = null)
     {
         using var request = new HttpRequestMessage(new HttpMethod(method), path);
         request.Headers.Add("X-IBeam-Management-Key", Key);
         if (assertion is not null) request.Headers.Add("X-IBeam-Management-Actor", assertion.Value);
+        if (method != "GET") request.Headers.Add("Idempotency-Key", "fixture-idempotency");
         if (body is not null) { request.Content = new ByteArrayContent(body); request.Content.Headers.ContentType = new("application/json"); }
         return await Client.SendAsync(request);
     }
