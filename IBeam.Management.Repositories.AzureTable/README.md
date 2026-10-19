@@ -1,5 +1,7 @@
 # IBeam.Management.Repositories.AzureTable
 
+IBM-0102 adds explicit TenantUsers and TenantInvites read adapters. They query one TEN|tenant-ID partition and USR| or INV| row prefix, select only approved membership/invitation metadata, and never access token-index partitions, profiles, OTP/session/user credential tables or runtime schemas. Read-only SAS is sufficient. See docs/management/customer-user-directory.md.
+
 IBM-0101: AddIBeamManagementAzureTableCustomerTenantReader accepts an explicit existing target customer tenants table, including read-only SAS. Reads only TEN partition metadata and one provider page; never creates schema or selects consumer profiles. No portal/global TableClient is replaced. See docs/management/customer-tenant-directory.md.
 
 Optional repository adapter for IBeam Management. It depends on core contracts and Azure Tables, with no Services, API or Identity dependency.

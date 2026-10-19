@@ -66,10 +66,16 @@ public sealed record ManagementCustomerTenantDto(Guid TenantId, string Name, str
 public sealed record ManagementCustomerUserDto(Guid TenantId, Guid UserId, string? Email,
     string? FirstName, string? LastName, string Status, IReadOnlyList<Guid> RoleIds, IReadOnlyList<string> RoleNames)
 {
+    public DateTimeOffset? CreatedUtc { get; init; }
+    public DateTimeOffset? UpdatedUtc { get; init; }
+    public string? Version { get; init; }
     public override string ToString() => "Management customer user (identity fields redacted)";
 }
 public sealed record ManagementCustomerDirectoryQuery(int PageSize = 50, string? ContinuationToken = null,
-    string? Status = null, string? NamePrefix = null);
+    string? Status = null, string? NamePrefix = null)
+{
+    public override string ToString() => "Customer directory query (state redacted)";
+}
 public sealed record ManagementCustomerDirectoryPage<T>(IReadOnlyList<T> Items, int PageSize, string? ContinuationToken);
 /// <summary>Optional bounded target query ports. Implementations must enforce the configured realm/app scope.</summary>
 public interface IManagementTenantDirectoryQuery

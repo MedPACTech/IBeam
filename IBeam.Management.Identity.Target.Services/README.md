@@ -1,5 +1,7 @@
 # IBeam.Management.Identity.Target.Services
 
+IBM-0102 adds independent read-only customer membership/invitation directory services with exact tenant scope, protected paging, bounded role/contact metadata and no global profile lookup. Invitation expiry is projected without writes. See docs/management/customer-user-directory.md for source and field semantics.
+
 IBM-0101: IManagementTenantDirectoryService performs authenticated metadata-only tenant reads through an entity-focused read repository. One bounded provider page per request; empty filtered pages may have continuation. No full-directory materialization, customer profiles or writes. See docs/management/customer-tenant-directory.md.
 
 IBM-0100: AddIBeamManagementDelegatedActors(configuration) validates short-lived signed actors bound to the exact target/request/machine credential. Customer services must call IManagementCustomerIdentityTargetAccessService.RequireAsync before store access; direct calls without a verified scoped actor fail. Mutation assertions require a dedicated atomic replay store. No customer identity or membership is fabricated. See docs/management/customer-identity-delegation.md.

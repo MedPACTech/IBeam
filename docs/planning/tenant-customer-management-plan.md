@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0101 are complete (20 points); 16 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0102 are complete (25 points); 15 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -214,7 +214,7 @@ Verification evidence: 462 tests passed, zero failures/skips, including signed H
 
 ### IBM-0102 / TCM-005: Implement tenant-scoped customer user and invitation directory reads
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 50. Hubbsly ID: 27348e0a-7107-41b9-9fb7-1cd4adbee681.
+Estimate: **5 points**. Lane: Done. Delivery order: 50. Hubbsly ID: 27348e0a-7107-41b9-9fb7-1cd4adbee681.
 
 Dependencies: IBM-0101.
 
@@ -222,14 +222,16 @@ Add IManagementCustomerUserDirectoryService with paged Identity membership/invit
 
 Proposed paths: IBeam.Management/CustomerIdentity/, IBeam.Management.Identity.Target.Services/Users/, IBeam.Identity.Repositories.AzureTable/Stores/AzureTableTenantMembershipStore.cs, IBeam.Identity.Repositories.AzureTable/Stores/AzureTableTenantInviteStore.cs, IBeam.Management.Identity.Target.Api/Controllers/ManagementCustomerUsersController.cs, IBeam.Tests.Management.CustomerIdentity/. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] User list/detail returns user ID, email, available first/last name, tenant membership status, permitted role IDs/names and timestamps; optional absent fields remain absent.
-- [ ] Pending invitations are distinguishable from active/disabled memberships and require invites.read; users.read alone does not disclose invitation recipients.
-- [ ] Membership lookup always verifies route tenant/app scope; a user belonging to multiple tenants reveals only the requested authorized membership.
-- [ ] Pages are bounded with authenticated scope/filter-bound cursors; per-page user/role lookups and provider requests have explicit limits and cancellation.
-- [ ] Passwords, hashes, phone/device/IP data, OTP/session/security stamps, invite tokens/links and arbitrary profile metadata never appear in lists, details, logs or audit.
-- [ ] Isolated provider fixtures cover active/disabled users, pending/expired/revoked invitations, large tenants, missing users and cross-tenant/app substitution.
+- [x] User list/detail returns user ID, email, available first/last name, tenant membership status, permitted role IDs/names and timestamps; optional absent fields remain absent.
+- [x] Pending invitations are distinguishable from active/disabled memberships and require invites.read; users.read alone does not disclose invitation recipients.
+- [x] Membership lookup always verifies route tenant/app scope; a user belonging to multiple tenants reveals only the requested authorized membership.
+- [x] Pages are bounded with authenticated scope/filter-bound cursors; per-page user/role lookups and provider requests have explicit limits and cancellation.
+- [x] Passwords, hashes, phone/device/IP data, OTP/session/security stamps, invite tokens/links and arbitrary profile metadata never appear in lists, details, logs or audit.
+- [x] Isolated provider fixtures cover active/disabled users, pending/expired/revoked invitations, large tenants, missing users and cross-tenant/app substitution.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 474 tests passed, zero failures/skips, including signed user/invite reads over read-only storage with unchanged invitation state. See Hubbsly IBM-0102 for delivery evidence.
 
 ### IBM-0103 / TCM-006: Expose portal tenant and user directory routes with safe forwarding
 

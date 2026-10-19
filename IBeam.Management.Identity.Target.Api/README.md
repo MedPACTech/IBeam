@@ -1,5 +1,7 @@
 # IBeam.Management.Identity.Target.Api
 
+IBM-0102 adds independent AddIBeamManagementCustomerUserDirectoryApi and AddIBeamManagementCustomerInvitationDirectoryApi registrations. They expose tenant-scoped list/detail GET routes under /users and /invites with separate signed operations. No accept/resend/revoke/provision routes are installed here. See docs/management/customer-user-directory.md.
+
 IBM-0101 adds optional AddIBeamManagementTenantDirectoryApi(configuration): signed tenants.read list/detail routes with protected paging and generic validation errors. Supply the existing target's dedicated read-only tenant table adapter and a separate directory protection key. See docs/management/customer-tenant-directory.md. Portal forwarding remains IBM-0103.
 
 IBM-0100: future customer action endpoints also require a verified X-IBeam-Management-Actor assertion and a server-owned ManagementCustomerIdentityOperationAttribute. Install AddIBeamManagementDelegatedActors(configuration) with pinned public-key provider, atomic replay store and durable audit repository. GET /api/management-identity/info remains machine-only. No data routes are installed by this security foundation. See docs/management/customer-identity-delegation.md.
