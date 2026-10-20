@@ -33,3 +33,5 @@ IBM-0113: tenant status is an independent exact-version, idempotent command with
 IBM-0114: onboarding policy keys, role templates and initializer selection are target-owned. Required initialization must reconcile durably by stable operation/tenant before invitations; Unknown never blindly initializes. Typed hook context excludes profiles and credentials. Identity-only remains independent of commercial modules. See docs/management/customer-onboarding-policy.md.
 
 IBM-0115: provenance is evidence-based optional target metadata: support-provisioned, self-service or unknown. Trusted self-service recorder has no HTTP endpoint and never infers origin or changes native signup. Reads enrich one bounded page without writes; missing evidence stays unknown. See docs/management/tenant-provenance.md.
+
+IBM-0117: an app assignment can contain both diagnostic permissions and every explicitly assignable customer operation (16 total currently). Bound the size from the known catalog; keep distinct known values, live assignment checks and independent delegation ceilings. Unknown/wildcard authority stays rejected.

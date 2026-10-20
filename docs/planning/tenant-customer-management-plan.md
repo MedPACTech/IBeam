@@ -1,12 +1,14 @@
 # Tenant and Customer User Management
 
-Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
+Date: 2026-10-19. Status: implementation complete; all 20 cards delivered in order and merged into development.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0116 are complete (99 points); 1 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: shipped. IBM-0098 through IBM-0117 are complete (104 points); All 20 cards and 104 points are complete.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
 IBeam Management 2.15.0; original Management API epic is shipped. This is a new follow-on epic, not a reopening of completed work.
+
+Final verification: 1,076 NuGet-only regression tests, seven temporary-host tests and fresh/repeated real-MFA enterprise smoke checks passed. The local API is `http://127.0.0.1:5155`; the reusable setup and frontend handoff are in [Management.Bootstrap](../../samples/Management.Bootstrap/README.md). The final tested private package build is `2.16.0-dev.tcm.117.1`; publication/deployment are separate work.
 
 ## Outcome
 
@@ -587,9 +589,9 @@ Feature dependencies: TCM-F01, TCM-F02, TCM-F03, TCM-F04, TCM-F05, TCM-F06, TCM-
 
 Feature acceptance:
 
-- [ ] A package-only portal and two isolated customer targets complete enterprise onboarding and customer lifecycle flows.
-- [ ] Security, partial failure, audit and existing diagnostics regressions pass.
-- [ ] A repeatable local demo and frontend handoff document actual routes, auth, schemas, permissions and failure handling.
+- [x] A package-only portal and two isolated customer targets complete enterprise onboarding and customer lifecycle flows.
+- [x] Security, partial failure, audit and existing diagnostics regressions pass.
+- [x] A repeatable local demo and frontend handoff document actual routes, auth, schemas, permissions and failure handling.
 
 ### IBM-0116 / TCM-019: Verify enterprise lifecycle, authorization matrix and payload-free audit end to end
 
@@ -615,22 +617,24 @@ Verification evidence: 1072 NuGet-only tests passed, zero failures/skips; compan
 
 ### IBM-0117 / TCM-020: Deliver repeatable enterprise demo seeds and baseline app API handoff
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 200. Hubbsly ID: bffc8020-903f-40c5-83cd-f6f323b297d5.
+Estimate: **5 points**. Lane: Done. Delivery order: 200. Hubbsly ID: bffc8020-903f-40c5-83cd-f6f323b297d5.
 
 Dependencies: IBM-0116.
 
-Extend the existing portable NuGet-consuming host/sample and add a separate opt-in local target Identity host/fixtures as necessary. Keep the temporary IBeam.ADMIN.API repository as host placement only; no rename/new repository is required. Provide trusted idempotent setup/seeds for synthetic apps, existing/self-signup/enterprise tenants, active/pending/disabled customers and support access profiles. Update baseline app prompt and exact API contracts for tenant/user UI and enterprise onboarding. Put reusable package-only sample/docs in framework first; temporary host edits occur when implementing this card.
+Implemented a versioned package-only Management bootstrap, trusted repeatable local setup with separate support/customer processes, real MFA/native enterprise acceptance and a complete frontend handoff. Fresh and repeat startup preserve credentials and access changes; reciprocal controller boundaries prevent auth realm leakage. Added explicit host-sender Identity API composition and corrected the full diagnostic/customer permission limit. Updated and locally merged the temporary host without renaming/pushing it. See samples/Management.Bootstrap/README.md and docs/baseline-app-prompt.md in that sample.
 
 Proposed paths: samples/Management.CustomerIdentity.PackageSmoke/, docs/management/customer-identity-api.md, docs/management/enterprise-onboarding.md, IBeam.ADMIN.API/.scripts/, IBeam.ADMIN.API/docs/baseline-app-prompt.md, IBeam.ADMIN.API/docs/agent-management-handoff.md. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Fresh documented local startup builds the package-only support/target hosts, seeds synthetic identities/tenants and allows a real support login/MFA enterprise workflow without customer production access.
-- [ ] Seeding is trusted CLI-only, repeatable and preserves deliberately changed/revoked access by default; reset/restore behavior is explicit and isolated to the demo instance.
-- [ ] Demo uses isolated local storage/target fixtures, generated private credentials and real authorization checks; no anonymous setup endpoints, hard-coded OTP bypass or production network/security exceptions are introduced.
-- [ ] Handoff inventories exact routes/DTOs/envelopes, paging, permissions, idempotency keys, versions, pending/unknown operations, invite states, role catalog and safe customer acceptance links.
-- [ ] Baseline frontend needs only API URL and normal support login; machine keys, signing material, target storage settings and customer passwords never reach browser code.
-- [ ] Repeatable smoke checks demonstrate tenant/user visibility, enterprise onboarding and multi-app denial; frontend implementation and production deployment remain outside this card.
+- [x] Fresh documented local startup builds the package-only support/target hosts, seeds synthetic identities/tenants and allows a real support login/MFA enterprise workflow without customer production access.
+- [x] Seeding is trusted CLI-only, repeatable and preserves deliberately changed/revoked access by default; reset/restore behavior is explicit and isolated to the demo instance.
+- [x] Demo uses isolated local storage/target fixtures, generated private credentials and real authorization checks; no anonymous setup endpoints, hard-coded OTP bypass or production network/security exceptions are introduced.
+- [x] Handoff inventories exact routes/DTOs/envelopes, paging, permissions, idempotency keys, versions, pending/unknown operations, invite states, role catalog and safe customer acceptance links.
+- [x] Baseline frontend needs only API URL and normal support login; machine keys, signing material, target storage settings and customer passwords never reach browser code.
+- [x] Repeatable smoke checks demonstrate tenant/user visibility, enterprise onboarding and multi-app denial; frontend implementation and production deployment remain outside this card.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 1076 NuGet-only regression tests passed, zero failures/skips; 31 dependencies packed and 16 roots inspected. Fresh/repeated live enterprise MFA/acceptance, realm/CORS/assignment checks pass; credential/config hashes preserved. Seven existing temporary host tests pass. API running at 127.0.0.1:5155; temporary development f9c9d1e3a3254873f46d57fed5598b9f4b90c5e6.
 
 ## Deferred scope
 

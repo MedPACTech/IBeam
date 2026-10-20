@@ -121,7 +121,7 @@ public sealed class ManagementApplicationAccessService(IManagementApplicationAcc
     private static bool Known(string permission) => permission is ManagementOperations.ErrorsRead or ManagementOperations.LogsRead ||
         ManagementCustomerIdentityPermissionPolicy.IsAssignable(permission);
     private static bool ValidPermissions(IReadOnlyList<string>? permissions)
-        => permissions is { Count: > 0 and <= 15 } && permissions.All(Known) && permissions.Distinct(StringComparer.Ordinal).Count() == permissions.Count;
+        => permissions is { Count: > 0 } && permissions.Count <= 2 + ManagementCustomerIdentityOperations.All.Count(ManagementCustomerIdentityPermissionPolicy.IsAssignable) && permissions.All(Known) && permissions.Distinct(StringComparer.Ordinal).Count() == permissions.Count;
     private static bool ValidVersion(string? version) => !string.IsNullOrWhiteSpace(version) && version.Length <= 256 && version != "*";
     private static void RequireCeiling(ClaimsIdentity actor, IReadOnlyList<string> permissions, Guid applicationId)
     {

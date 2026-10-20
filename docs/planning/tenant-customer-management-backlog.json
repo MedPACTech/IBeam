@@ -4,8 +4,8 @@
   "projectId": "7082c7e5-ab08-42e8-a1a3-67eba0755c5d",
   "productId": "38d04a26-2c32-b02e-0b2a-c49a044ad016",
   "sourceUrl": "https://github.com/MedPACTech/IBeam",
-  "stage": "in_flight",
-  "laneKey": "triage",
+  "stage": "shipped",
+  "laneKey": "done",
   "points": 104,
   "baseline": "IBeam Management 2.15.0; original Management API epic is shipped. This is a new follow-on epic, not a reopening of completed work.",
   "common": {
@@ -1024,21 +1024,24 @@
           "hubbslySourceKey": "IBM-0117",
           "sortOrder": 200,
           "boardKey": "hub",
-          "laneKey": "triage",
+          "laneKey": "done",
           "sourceSystem": "codex",
           "sourceKey": "IBM-0117",
           "sourceUrl": "https://github.com/MedPACTech/IBeam",
-          "description": "Planning reference: TCM-020. Feature: TCM-F08. Estimate: 5 points. Delivery order: 200. Dependencies: TCM-019 / IBM-0116.\r\n\r\nExtend the existing portable NuGet-consuming host/sample and add a separate opt-in local target Identity host/fixtures as necessary. Keep the temporary IBeam.ADMIN.API repository as host placement only; no rename/new repository is required. Provide trusted idempotent setup/seeds for synthetic apps, existing/self-signup/enterprise tenants, active/pending/disabled customers and support access profiles. Update baseline app prompt and exact API contracts for tenant/user UI and enterprise onboarding. Put reusable package-only sample/docs in framework first; temporary host edits occur when implementing this card.\r\n\r\nPortal API -> Management services -> scoped HTTPS client -> target Identity Management API -> Identity management services -> existing Identity services/stores or entity-focused repositories. Custom service operations execute through IServiceOperationExecutor. Customer Identity is registered only in the target app; the support host retains its isolated identity realm.\r\n\r\nEvery operation requires an enabled app connection, live support assignment, independent human operation permission, target machine capability and target host policy. No support administrator bypass, customer impersonation, raw credential/token output, customer business records, global customer-account disable, or direct portal access to customer storage.\r\n\r\nPlan: docs/planning/tenant-customer-management-plan.md and tenant-customer-management-backlog.json. Proposed paths/routes are implementation guidance; this card is not implemented yet. Initial supported provider is Azure Table; unsupported adapters advertise no capability.",
-          "acceptanceCriteriaJson": "[{\"t\":\"Fresh documented local startup builds the package-only support/target hosts, seeds synthetic identities/tenants and allows a real support login/MFA enterprise workflow without customer production access.\",\"met\":false},{\"t\":\"Seeding is trusted CLI-only, repeatable and preserves deliberately changed/revoked access by default; reset/restore behavior is explicit and isolated to the demo instance.\",\"met\":false},{\"t\":\"Demo uses isolated local storage/target fixtures, generated private credentials and real authorization checks; no anonymous setup endpoints, hard-coded OTP bypass or production network/security exceptions are introduced.\",\"met\":false},{\"t\":\"Handoff inventories exact routes/DTOs/envelopes, paging, permissions, idempotency keys, versions, pending/unknown operations, invite states, role catalog and safe customer acceptance links.\",\"met\":false},{\"t\":\"Baseline frontend needs only API URL and normal support login; machine keys, signing material, target storage settings and customer passwords never reach browser code.\",\"met\":false},{\"t\":\"Repeatable smoke checks demonstrate tenant/user visibility, enterprise onboarding and multi-app denial; frontend implementation and production deployment remain outside this card.\",\"met\":false}]",
+          "description": "Implemented a versioned package-only Management bootstrap, trusted repeatable local setup with separate support/customer processes, real MFA/native enterprise acceptance and a complete frontend handoff. Fresh and repeat startup preserve credentials and access changes; reciprocal controller boundaries prevent auth realm leakage. Added explicit host-sender Identity API composition and corrected the full diagnostic/customer permission limit. Updated and locally merged the temporary host without renaming/pushing it. See samples/Management.Bootstrap/README.md and docs/baseline-app-prompt.md in that sample.",
+          "acceptanceCriteriaJson": "[{\"t\":\"Fresh documented local startup builds the package-only support/target hosts, seeds synthetic identities/tenants and allows a real support login/MFA enterprise workflow without customer production access.\",\"met\":true},{\"t\":\"Seeding is trusted CLI-only, repeatable and preserves deliberately changed/revoked access by default; reset/restore behavior is explicit and isolated to the demo instance.\",\"met\":true},{\"t\":\"Demo uses isolated local storage/target fixtures, generated private credentials and real authorization checks; no anonymous setup endpoints, hard-coded OTP bypass or production network/security exceptions are introduced.\",\"met\":true},{\"t\":\"Handoff inventories exact routes/DTOs/envelopes, paging, permissions, idempotency keys, versions, pending/unknown operations, invite states, role catalog and safe customer acceptance links.\",\"met\":true},{\"t\":\"Baseline frontend needs only API URL and normal support login; machine keys, signing material, target storage settings and customer passwords never reach browser code.\",\"met\":true},{\"t\":\"Repeatable smoke checks demonstrate tenant/user visibility, enterprise onboarding and multi-app denial; frontend implementation and production deployment remain outside this card.\",\"met\":true}]",
           "workType": "feature",
           "priority": "high",
           "hubbslyDependencies": [
             "IBM-0116"
-          ]
+          ],
+          "implementationStatus": "done",
+          "verification": "1076 NuGet-only regression tests passed, zero failures/skips; 31 dependencies packed and 16 roots inspected. Fresh/repeated live enterprise MFA/acceptance, realm/CORS/assignment checks pass; credential/config hashes preserved. Seven existing temporary host tests pass. API running at 127.0.0.1:5155; temporary development f9c9d1e3a3254873f46d57fed5598b9f4b90c5e6."
         }
       ],
       "points": 13,
-      "hubbslyId": "f0c0d853-3d88-4597-b4c8-0bf0d0b02d59"
+      "hubbslyId": "f0c0d853-3d88-4597-b4c8-0bf0d0b02d59",
+      "implementationStatus": "done"
     }
   ],
   "outOfScope": [
@@ -1054,5 +1057,8 @@
     "Optional directory indexes are derived target-local metadata only, added only if provider query behavior requires them, with trusted idempotent backfill and documented consistency.",
     "Initial concrete provider is Azure Table. Provider-neutral ports and fail-closed capability discovery allow optional future adapters without claiming unimplemented EF support."
   ],
-  "epicId": "42983501-610a-498d-a61e-b89469759f09"
+  "epicId": "42983501-610a-498d-a61e-b89469759f09",
+  "implementationStatus": "done",
+  "completedDate": "2026-10-20",
+  "verification": "1076 package-only regression tests plus seven temporary-host tests and fresh/repeat real-MFA enterprise smoke checks passed. Final private package build 2.16.0-dev.tcm.117.1; no package publication or production deployment."
 }
