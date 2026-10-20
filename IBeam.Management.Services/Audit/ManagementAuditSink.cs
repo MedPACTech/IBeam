@@ -59,6 +59,7 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
             OrganizationId = org, ActorUserId = actor, CredentialId = credential, SubjectType = subject,
             ApplicationId = delegated?.ApplicationId ?? (isApp ? transaction.EntityId : null),
             SubjectId = transaction.Action.StartsWith("management.portal.customer-identity.tenants.create.", StringComparison.Ordinal) ||
+                transaction.Action.StartsWith("management.portal.customer-identity.onboarding.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.tenants.update.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.operations.reconcile.", StringComparison.Ordinal)
                 ? !transaction.Action.EndsWith(".unknown", StringComparison.Ordinal) && transaction.TenantId is { } target && target != Guid.Empty ? target : null :

@@ -16,6 +16,7 @@ public static class ManagementEnterpriseOnboardingServiceExtensions
         services.TryAddScoped<IExternalTenantInviteService>(p => p.GetRequiredService<ITenantInviteService>() is IExternalTenantInviteService service && service.SupportsDurableCreation
             ? service : throw new InvalidOperationException("Onboarding requires a durable external Identity invitation adapter."));
         services.TryAddScoped<IManagementEnterpriseOnboardingService, ManagementEnterpriseOnboardingService>();
+        services.TryAddScoped<IManagementEnterpriseOnboardingCommandService, ManagementEnterpriseOnboardingCommandService>();
         return services;
     }
 }

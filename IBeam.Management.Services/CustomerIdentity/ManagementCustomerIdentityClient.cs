@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 namespace IBeam.Management.Services.CustomerIdentity;
 
 /// <summary>Fixed read paths, exact scoped actor proof, pinned HTTPS and typed allowlisted response projection. No raw proxying.</summary>
-public sealed class ManagementCustomerIdentityClient(ManagementConnectionNetworkPolicy network, IOptions<ManagementPortalCustomerDirectoryOptions> options,
+public sealed partial class ManagementCustomerIdentityClient(ManagementConnectionNetworkPolicy network, IOptions<ManagementPortalCustomerDirectoryOptions> options,
     IManagementDelegatedActorProvider actors) : IManagementCustomerIdentityClient
 {
     internal Func<HttpMessageHandler>? TestTransportFactory { get; init; }
@@ -104,10 +104,11 @@ public sealed class ManagementCustomerIdentityClient(ManagementConnectionNetwork
         if (row is null || row.OperationId == Guid.Empty || id.HasValue && row.OperationId != id || row.ResourceId == Guid.Empty ||
             row.Status is not ("pending" or "running" or "succeeded" or "uncertain") || row.Step is < 0 or > 1 ||
             (row.Status == "succeeded") != (row.Step == 1) || row.ExpiresUtc <= row.CreatedUtc || row.UpdatedUtc < row.CreatedUtc ||
-            row.Operation != authority && !(authority == ManagementCustomerIdentityOperations.OnboardingRead &&
+            row.Operation != authority && !(authority is ManagementCustomerIdentityOperations.OnboardingRead or ManagementCustomerIdentityOperations.OnboardingRetry &&
                 row.Operation is ManagementCustomerIdentityOperations.OnboardingCreate or ManagementCustomerIdentityOperations.OnboardingRetry))
             throw new ManagementCustomerIdentityResponseException();
-        return new(row.OperationId, row.Operation, row.Status, row.Step, row.ResourceId, row.CreatedUtc, row.UpdatedUtc, row.ExpiresUtc);
+        return new(row.OperationId, row.Operation, row.Status, row.Step, row.ResourceId, row.CreatedUtc, row.UpdatedUtc, row.ExpiresUtc) {
+            Onboarding = row.Onboarding is null ? null : SafeOnboarding(row.Onboarding, row) };
     }
     private static T? Data<T>(JsonElement root)
     {

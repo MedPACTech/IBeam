@@ -272,7 +272,8 @@ public sealed partial class TenantInviteServiceTests
         ITenantMembershipStore? memberships = null,
         IIdentityUserExtensionCoordinator? extensions = null,
         ITokenService? tokens = null,
-        Guid? tenantId = null)
+        Guid? tenantId = null,
+        IOtpChallengeStore? otpChallenges = null)
     {
         var effectiveTenantId = tenantId ?? Guid.NewGuid();
         var tenants = new Mock<IIdentityTenantService>(MockBehavior.Strict);
@@ -303,7 +304,7 @@ public sealed partial class TenantInviteServiceTests
                 Microsoft.Extensions.Logging.Abstractions.NullLogger<DefaultTenantInviteLinkPolicy>.Instance)),
             new DefaultTenantInviteMessageFactory(),
             Mock.Of<IOtpService>(MockBehavior.Strict),
-            Mock.Of<IOtpChallengeStore>(MockBehavior.Strict),
+            otpChallenges ?? Mock.Of<IOtpChallengeStore>(MockBehavior.Strict),
             tokens ?? Mock.Of<ITokenService>(MockBehavior.Strict),
             new NoOpAuthEventPublisher(),
             Options.Create(new AuthEventOptions()),

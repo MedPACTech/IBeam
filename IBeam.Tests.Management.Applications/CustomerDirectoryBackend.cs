@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.WebUtilities;
 namespace IBeam.Tests.Management.Applications;
 
 // Transport-only fixture. Real signing and target validation are exercised by the target integration suite.
-internal sealed class CustomerDirectoryBackend : IManagementDelegatedActorProvider
+internal sealed partial class CustomerDirectoryBackend : IManagementDelegatedActorProvider
 {
     public static readonly string[] ReadOperations = [ManagementCustomerIdentityOperations.TenantsRead,
         ManagementCustomerIdentityOperations.UsersRead, ManagementCustomerIdentityOperations.InvitesRead];
@@ -33,7 +33,7 @@ internal sealed class CustomerDirectoryBackend : IManagementDelegatedActorProvid
     public bool Empty { get; set; }
     public string? Failure { get; set; }
     public Func<CancellationToken, Task>? DuringData { get; set; }
-    public async Task<Guid> AddApp(PortalHttpFixture f, string key = "qurvia", string[]? human = null, bool includeOperations = false, bool includeMutations = false)
+    public async Task<Guid> AddApp(PortalHttpFixture f, string key = "qurvia", string[]? human = null, bool includeOperations = false, bool includeMutations = false, bool includeOnboarding = false)
     {
         var id = await f.Data.AddApp(key);
         var grants = human ?? ReadOperations;
@@ -46,8 +46,9 @@ internal sealed class CustomerDirectoryBackend : IManagementDelegatedActorProvid
         var info = new ManagementCustomerIdentityInfo(key, "Production", Guid.NewGuid(), "dedicated-app", 1,
             new[] { ManagementCustomerIdentityOperations.Info }.Concat(ReadOperations)
                 .Concat(includeOperations || includeMutations ? new[] { ManagementCustomerIdentityOperations.TenantsCreate, ManagementCustomerIdentityOperations.OnboardingRead } : [])
-                .Concat(includeMutations ? new[] { ManagementCustomerIdentityOperations.TenantsUpdate } : []).ToArray()) {
-                    OperationReceiptProtocolVersion = includeMutations ? 1 : 0 };
+                .Concat(includeMutations ? new[] { ManagementCustomerIdentityOperations.TenantsUpdate } : [])
+                .Concat(includeOnboarding ? ManagementCustomerIdentityPermissionPolicy.RequiredFor(ManagementCustomerIdentityOperations.OnboardingRetry).Concat(new[] { ManagementCustomerIdentityOperations.OnboardingRead }) : []).Distinct().ToArray()) {
+                    OperationReceiptProtocolVersion = includeMutations || includeOnboarding ? 1 : 0 };
         f.Data.Credentials.Rows[f.Data.Credentials.Rows.IndexOf(row)] = row with { Capabilities = info.Capabilities, CustomerIdentity = new("available", info) };
         Targets[new Uri(row.BaseUrl).Host] = (id, info, ConnectionFixture.Key + "-" + key);
         return id;
@@ -79,6 +80,8 @@ internal sealed class CustomerDirectoryBackend : IManagementDelegatedActorProvid
         CollectionAssert.AreEqual(proof.Body, request.Content is null ? Array.Empty<byte>() : await request.Content.ReadAsByteArrayAsync(ct));
         Assert.AreEqual(proof.Key, request.Headers.TryGetValues("Idempotency-Key", out var keys) ? keys.Single() : null);
         Assert.AreEqual(proof.Version, request.Headers.TryGetValues("If-Match", out var versions) ? versions.Single() : null);
+        if (EnableOnboarding && (uri.AbsolutePath.Contains("/enterprise-onboardings", StringComparison.Ordinal) || uri.AbsolutePath.Contains("/operations/", StringComparison.Ordinal)))
+            return await Onboarding(request, proof.Operation, ct);
         if (EnableMutations && (uri.AbsolutePath == "/api/management-identity/operations/resolve" || request.Method != HttpMethod.Get))
             return await Mutate(request, proof.Operation, assertion, ct);
         if (EnableMutations && uri.AbsolutePath.Contains("/operations/", StringComparison.Ordinal)) {

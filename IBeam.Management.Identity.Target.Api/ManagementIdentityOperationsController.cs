@@ -10,7 +10,7 @@ namespace IBeam.Management.Identity.Target.Api;
 [ServiceFilter(typeof(ManagementCustomerIdentityTargetFilter), Order = -3000)]
 [HttpLogging(HttpLoggingFields.None)]
 [Route("api/management-identity/operations")]
-public sealed class ManagementIdentityOperationsController(IManagementIdentityOperationService service, IManagementDelegatedActorContext actors) : ApiControllerBase
+public sealed class ManagementIdentityOperationsController(IManagementIdentityOperationQueryService service, IManagementDelegatedActorContext actors) : ApiControllerBase
 {
     [HttpGet("{operationId:guid}"), ActionName("GetIdentityOperation"), ManagementIdentityOperationReceipt]
     public async Task<IActionResult> GetAsync(Guid operationId, CancellationToken ct)

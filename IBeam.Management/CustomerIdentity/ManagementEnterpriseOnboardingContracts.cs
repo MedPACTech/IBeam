@@ -13,7 +13,22 @@ public sealed class CreateManagementEnterpriseOnboarding
 /// <summary>Status is business progress. Processing receipts succeeding means setup finished, never customer acceptance.</summary>
 public sealed record ManagementEnterpriseOnboardingDto(Guid OperationId, Guid OnboardingId, Guid? TenantId, Guid InviteId,
     string Status, string Step, string DeliveryStatus, bool Completed, string? ErrorCode,
-    DateTimeOffset CreatedUtc, DateTimeOffset ExpiresUtc);
+    DateTimeOffset CreatedUtc, DateTimeOffset ExpiresUtc)
+{
+    public string NextAction => Completed ? "none" : Status == "awaiting-acceptance" ? "await-customer" : "poll";
+}
+public interface IManagementEnterpriseOnboardingCommandService
+{
+    Task<ManagementIdentityOperationDto> CreateAsync(CreateManagementEnterpriseOnboarding request, string key, CancellationToken ct = default);
+    Task<ManagementIdentityOperationDto> RetryAsync(Guid operationId, string key, CancellationToken ct = default);
+}
+public interface IManagementPortalEnterpriseOnboardingService
+{
+    Task<ManagementPortalOperationResult> CreateAsync(Guid applicationId, CreateManagementEnterpriseOnboarding request, string key, CancellationToken ct = default);
+    Task<ManagementPortalOperationResult> RetryAsync(Guid applicationId, Guid operationId, string key, CancellationToken ct = default);
+}
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class RetryManagementEnterpriseOnboarding;
 public interface IManagementEnterpriseOnboardingService
 {
     Task<ManagementEnterpriseOnboardingDto> CreateAsync(CreateManagementEnterpriseOnboarding request, string idempotencyKey, CancellationToken ct = default);

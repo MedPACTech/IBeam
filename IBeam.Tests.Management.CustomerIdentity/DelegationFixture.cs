@@ -74,9 +74,11 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
     public static async Task<DelegationFixture> Start(IManagementCustomerTenantReadRepository? tenants = null,
         IManagementCustomerUserReadRepository? users = null, IManagementCustomerInvitationReadRepository? invites = null,
         IManagementIdentityOperationRepository? operations = null, IManagementIdentityOperationAuditRepository? operationAudit = null,
-        IIdentityTenantStore? tenantStore = null, IManagementTenantAdministrationRepository? tenantMetadata = null, bool compositeOnboarding = false)
+        IIdentityTenantStore? tenantStore = null, IManagementTenantAdministrationRepository? tenantMetadata = null, bool compositeOnboarding = false,
+        OnboardingFixture? onboarding = null)
     {
         var f = new DelegationFixture();
+        if (onboarding is not null) { compositeOnboarding = true; tenantMetadata ??= new TenantMetadataStore(); operations ??= new OperationStore(); }
         if (tenantMetadata is not null && operations is null) operations = new OperationStore();
         f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities
             .Concat(users is null ? [] : new[] { ManagementCustomerIdentityOperations.UsersRead })
@@ -85,7 +87,7 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         if (tenantMetadata is not null) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Concat(new[] { ManagementCustomerIdentityOperations.TenantsUpdate }).ToArray() };
         var b = WebApplication.CreateBuilder(); b.Logging.ClearProviders(); b.WebHost.UseTestServer();
         if (compositeOnboarding) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Concat(
-            ManagementCustomerIdentityPermissionPolicy.RequiredFor(ManagementCustomerIdentityOperations.OnboardingCreate)).Distinct().ToArray() };
+            ManagementCustomerIdentityPermissionPolicy.RequiredFor(onboarding is null ? ManagementCustomerIdentityOperations.OnboardingCreate : ManagementCustomerIdentityOperations.OnboardingRetry)).Distinct().ToArray() };
         b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
             ["IBeam:Management:Diagnostics:ApplicationKey"] = "atlas", ["IBeam:Management:Diagnostics:Environment"] = "Testing",
             ["IBeam:Management:CustomerIdentity:IdentityRealmId"] = DiscoveryProtocolTests.Info.IdentityRealmId.ToString(),
@@ -134,6 +136,13 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             b.Services.Configure<AuthEventOptions>(x => x.StrictPublishFailures = true);
             b.Services.AddSingleton(tenantMetadata);
             b.Services.AddIBeamManagementTenantAdministrationApi(b.Configuration);
+        }
+        if (onboarding is not null) {
+            b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["IBeam:Management:CustomerIdentity:Onboarding:Policies:enterprise-owner"] = "Owner" });
+            b.Services.AddSingleton(onboarding.External); b.Services.AddSingleton(onboarding.InviteStore); b.Services.AddSingleton(onboarding.RoleStore);
+            b.Services.AddSingleton(onboarding.Users.Object); b.Services.AddSingleton(onboarding.Memberships.Object);
+            b.Services.AddSingleton<IManagementEnterpriseOnboardingRepository>(onboarding.Jobs);
+            b.Services.AddIBeamManagementEnterpriseOnboardingApi(b.Configuration);
         }
         if (tenants is not null)
         {

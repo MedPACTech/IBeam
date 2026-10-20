@@ -89,3 +89,5 @@ Deployment configuration, identity storage choices, MFA/bootstrap, onboarding, e
 ## Customer directory portal routes
 
 Explicitly register `AddIBeamManagementPortalCustomerDirectoriesApi(configuration)` plus delegated actor signing on the support host to expose selected-app tenant, user and invitation reads. See [registration, routes and security](../docs/management/customer-identity-api.md). This adds no customer Identity dependency to the support host.
+
+Enterprise onboarding HTTP and portal registration, safe business status, scoped operation polling and explicit retry: [API contract](../docs/management/enterprise-onboarding-api.md).

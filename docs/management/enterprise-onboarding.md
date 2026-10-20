@@ -1,6 +1,6 @@
 # Enterprise onboarding services
 
-IBM-0107 adds target-side services. HTTP endpoints and portal integration follow in IBM-0108. The support host does not register customer Identity or a customer connection string.
+IBM-0107 adds target-side services. IBM-0108 supplies [HTTP endpoints and portal integration](enterprise-onboarding-api.md). The support host does not register customer Identity or a customer connection string.
 
 ## Target registration
 

@@ -47,3 +47,5 @@ The target contracts are described in [tenant reads](customer-tenant-directory.m
 IBM-0106 adds optional tenant create/rename and opaque operation tracking with independent write grants, signed idempotency/version headers, 202 unknown outcomes and scoped read-only receipt lookup. See [tenant portal writes and frontend flow](customer-tenant-portal-writes.md).
 
 See [enterprise onboarding services](enterprise-onboarding.md) for IBM-0107 target orchestration, recovery storage, policy configuration and customer acceptance. HTTP/portal onboarding routes follow in IBM-0108.
+
+IBM-0108 [enterprise onboarding API](enterprise-onboarding-api.md) adds explicit target/portal create and retry routes and authoritative business status on shared operation polls.

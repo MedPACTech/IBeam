@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0107 are complete (53 points); 10 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0108 are complete (58 points); 9 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -341,9 +341,9 @@ Feature dependencies: TCM-F03.
 
 Feature acceptance:
 
-- [ ] One enterprise onboarding request creates one tenant and one recoverable administrator invitation.
-- [ ] Customer ownership and password/email verification stay in the application's established Identity acceptance flow.
-- [ ] Partial completion and uncertain email delivery are visible and safely recoverable.
+- [x] One enterprise onboarding request creates one tenant and one recoverable administrator invitation.
+- [x] Customer ownership and password/email verification stay in the application's established Identity acceptance flow.
+- [x] Partial completion and uncertain email delivery are visible and safely recoverable.
 
 ### IBM-0107 / TCM-010: Orchestrate enterprise tenant and initial administrator invitation
 
@@ -369,22 +369,24 @@ Verification evidence: 942 tests passed, zero failures/skips; seven packages pac
 
 ### IBM-0108 / TCM-011: Expose enterprise onboarding create, status and safe retry APIs
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 110. Hubbsly ID: 57012a51-990f-4deb-898f-8a057cfb9393.
+Estimate: **5 points**. Lane: Done. Delivery order: 110. Hubbsly ID: 57012a51-990f-4deb-898f-8a057cfb9393.
 
 Dependencies: IBM-0106, IBM-0107.
 
-Target routes: POST /api/management-identity/enterprise-onboardings, GET /operations/{operationId}, POST /enterprise-onboardings/{operationId}/retry. Mirror under /api/management/applications/{applicationId}. Return operation ID, tenant ID when available, safe invitation status and permitted next action; reuse the operation polling contract and expose no invite redemption token or private mail outbox.
+Implemented opt-in enterprise onboarding create/retry routes at target and portal, authoritative business status on shared operation polling, safe lost-response reconciliation and current composite retry authorization. See docs/management/enterprise-onboarding-api.md.
 
 Proposed paths: IBeam.Management.Identity.Target.Api/Controllers/ManagementEnterpriseOnboardingController.cs, IBeam.Management.Api/Controllers/ManagementEnterpriseOnboardingController.cs, IBeam.Management.Services/CustomerIdentity/, IBeam.Tests.Management.CustomerIdentity/, docs/management/customer-identity-api.md. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Create validates required name/email/policy/idempotency and returns a resumable operation; all progress is scoped to the selected application/environment and customer tenant.
-- [ ] Read and retry enforce their explicit operations; retry also rechecks every underlying write grant before executing unfinished steps.
-- [ ] Terminal completed operations do not create another tenant/invitation; changed payloads require a new request and cannot modify an existing operation through retry.
-- [ ] Acceptance status is reconciled from authoritative target invitation/membership state; revoked/expired/wrong-recipient invitations never produce completed onboarding.
-- [ ] Only safe error codes, step names, timestamps and resource IDs are returned; SMTP/provider exceptions, invite links/tokens and customer payloads remain private.
-- [ ] Tests cover email delivery failure, lost response after commit, revoked permission while waiting, cross-app operation ID replay and successful acceptance by a new or existing customer.
+- [x] Create validates required name/email/policy/idempotency and returns a resumable operation; all progress is scoped to the selected application/environment and customer tenant.
+- [x] Read and retry enforce their explicit operations; retry also rechecks every underlying write grant before executing unfinished steps.
+- [x] Terminal completed operations do not create another tenant/invitation; changed payloads require a new request and cannot modify an existing operation through retry.
+- [x] Acceptance status is reconciled from authoritative target invitation/membership state; revoked/expired/wrong-recipient invitations never produce completed onboarding.
+- [x] Only safe error codes, step names, timestamps and resource IDs are returned; SMTP/provider exceptions, invite links/tokens and customer payloads remain private.
+- [x] Tests cover email delivery failure, lost response after commit, revoked permission while waiting, cross-app operation ID replay and successful acceptance by a new or existing customer.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 960 tests passed, zero failures/skips; five packages built/packed/inspected. Signed target/portal recovery, live revocation, isolation and actual verified new/existing customer acceptance passed. See Hubbsly IBM-0108.
 
 ## TCM-F05: Customer provisioning and invitation management
 

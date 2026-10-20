@@ -137,7 +137,7 @@ public sealed class ManagementIdentityOperationService(IManagementIdentityOperat
             row.Fingerprint.Length != 64 || row.Status is not ("pending" or "running" or "succeeded" or "uncertain") || row.Step is < 0 or > 1 ||
             row.IntentAuditId == Guid.Empty || row.CorrelationId.Length != 32 || row.ExpiresUtc <= row.CreatedUtc)
             throw new ManagementCustomerIdentityUnavailableException();
-        if (row.Operation != authority && !(authority == ManagementCustomerIdentityOperations.OnboardingRead &&
+        if (row.Operation != authority && !(authority is ManagementCustomerIdentityOperations.OnboardingRead or ManagementCustomerIdentityOperations.OnboardingRetry &&
             row.Operation is ManagementCustomerIdentityOperations.OnboardingCreate or ManagementCustomerIdentityOperations.OnboardingRetry))
             throw new ManagementAccessDeniedException();
     }

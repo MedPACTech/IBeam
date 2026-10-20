@@ -18,7 +18,8 @@ public sealed class PortalMutationReferences(IOptions<ManagementPortalCustomerDi
     {
         var next = state with { TargetOperationId = result?.OperationId ?? state.TargetOperationId };
         var reference = Codec().Protect(Purpose, Context(c, state.Lookup.Operation), next);
-        return new(reference, result?.Status ?? "unknown", result, state.ExpiresUtc);
+        var onboarding = result?.Operation is ManagementCustomerIdentityOperations.OnboardingCreate or ManagementCustomerIdentityOperations.OnboardingRetry;
+        return new(reference, result?.Onboarding?.Status ?? (onboarding ? "unknown" : result?.Status ?? "unknown"), result, state.ExpiresUtc);
     }
     internal PortalMutationState Read(ManagementCustomerIdentityConnection c, string authority, string reference)
     {

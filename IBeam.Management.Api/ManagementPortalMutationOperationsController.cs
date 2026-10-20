@@ -14,6 +14,6 @@ public sealed class ManagementPortalMutationOperationsController(IManagementPort
     public async Task<IActionResult> GetAsync(Guid applicationId, string reference, [FromQuery] string authority, CancellationToken ct)
     {
         var result = await service.GetAsync(applicationId, reference, authority, ct);
-        var response = (ObjectResult)OkResponse(result); response.StatusCode = result.Status == "succeeded" ? 200 : 202; return response;
+        var response = (ObjectResult)OkResponse(result); response.StatusCode = result.Status == "succeeded" || result.Operation?.Onboarding?.Completed == true ? 200 : 202; return response;
     }
 }

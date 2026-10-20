@@ -15,7 +15,15 @@ public sealed class ManagementIdentityMutationRequest
     public override string ToString() => "Management mutation request (payload and key redacted)";
 }
 public sealed record ManagementIdentityOperationDto(Guid OperationId, string Operation, string Status, int Step,
-    Guid ResourceId, DateTimeOffset CreatedUtc, DateTimeOffset UpdatedUtc, DateTimeOffset ExpiresUtc);
+    Guid ResourceId, DateTimeOffset CreatedUtc, DateTimeOffset UpdatedUtc, DateTimeOffset ExpiresUtc)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ManagementEnterpriseOnboardingDto? Onboarding { get; init; }
+}
+public interface IManagementIdentityOperationQueryService
+{
+    Task<ManagementIdentityOperationDto> GetAsync(Guid id, string authority, CancellationToken ct = default);
+    Task<ManagementIdentityOperationDto> ResolveAsync(ManagementIdentityOperationLookup request, string key, string authority, CancellationToken ct = default);
+}
 public sealed record ManagementIdentityMutationContext(Guid OperationId, Guid ResourceId, Guid ResourceScope, int Step, bool IsRecovery);
 public enum ManagementIdentityReconciliation { Absent, Applied, Unknown }
 /// <summary>Trusted business adapter: reconcile by stable ID/postcondition and apply with provider conditional writes.

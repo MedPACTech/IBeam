@@ -8,7 +8,7 @@ namespace IBeam.Management.Identity.Target.Api;
 [NonController, Authorize(Policy = ManagementCustomerIdentityTargetApiExtensions.Policy), HttpLogging(HttpLoggingFields.None)]
 [ServiceFilter(typeof(ManagementCustomerIdentityTargetFilter), Order = -3000)]
 [Route("api/management-identity/operations/resolve")]
-public sealed class ManagementIdentityOperationLookupController(IManagementIdentityOperationLookupService service, IManagementDelegatedActorContext actors) : ApiControllerBase
+public sealed class ManagementIdentityOperationLookupController(IManagementIdentityOperationQueryService service, IManagementDelegatedActorContext actors) : ApiControllerBase
 {
     [HttpPost, ManagementIdentityOperationReceipt]
     public async Task<IActionResult> ResolveAsync([FromBody] ManagementIdentityOperationLookup request, [FromHeader(Name = "Idempotency-Key")] string key, CancellationToken ct)

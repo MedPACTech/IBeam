@@ -179,15 +179,20 @@ internal sealed class OnboardingFixture : IManagementCustomerIdentityTargetAcces
     public ManagementEnterpriseOnboardingOptions Policy { get; } = new() { Policies = new() { ["enterprise-owner"] = "Owner" } };
     public CreateManagementEnterpriseOnboarding Request => new() { TenantName = "Private Enterprise", InitialAdminEmail = "enterprise@example.test", PolicyKey = "enterprise-owner", ExternalReference = "CRM:12" };
     public IManagementEnterpriseOnboardingService Service { get; }
+    public IExternalTenantInviteService External { get; }
+    public ITenantInviteStore InviteStore { get; }
+    public ITenantRoleStore RoleStore { get; }
     public OnboardingFixture()
     {
         Operation.Actor = Operation.Actor with { Operation = ManagementCustomerIdentityOperations.OnboardingCreate };
         var coordinator = new ManagementIdentityOperationService(Operation.Store, Operation, this, Options.Create(Operation.Options), Operation.Clock, new ServiceOperationExecutor());
         var tenants = new ManagementTenantAdministrationService(Tenants.Identity, Tenants.Metadata, coordinator, this, Options.Create(Operation.Options), new ServiceOperationExecutor());
         var roles = new Mock<ITenantRoleStore>();
+        RoleStore = roles.Object;
         roles.Setup(x => x.GetRolesAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync((Guid id, CancellationToken _) =>
             LocalRole ? new[] { new TenantRole(id, RoleId, "Owner", true, true, DateTimeOffset.UtcNow) } : Array.Empty<TenantRole>());
         var external = new Mock<IExternalTenantInviteService>(); external.SetupGet(x => x.SupportsDurableCreation).Returns(true);
+        External = external.Object;
         external.Setup(x => x.EnsureAsync(It.IsAny<ExternalTenantInviteRequest>(), It.IsAny<CancellationToken>())).ReturnsAsync((ExternalTenantInviteRequest request, CancellationToken _) => {
             LastRequest = request;
             if (!InviteRows.TryGetValue(request.InviteId, out var row)) {
@@ -204,6 +209,7 @@ internal sealed class OnboardingFixture : IManagementCustomerIdentityTargetAcces
                 Sends++; return FailDelivery ? Task.FromException(new Exception("MAIL-SECRET-CANARY")) : Task.CompletedTask;
             });
         var invites = new Mock<ITenantInviteStore>();
+        InviteStore = invites.Object;
         invites.Setup(x => x.GetAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Guid tenant, Guid id, CancellationToken _) => InviteRows.TryGetValue(id, out var row) && row.TenantId == tenant ? row : null);
         Memberships.Setup(x => x.GetTenantForUserAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))

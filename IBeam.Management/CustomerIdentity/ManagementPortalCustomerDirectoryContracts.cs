@@ -23,6 +23,10 @@ public interface IManagementCustomerIdentityConnectionResolver
 }
 public interface IManagementCustomerIdentityClient
 {
+    Task<ManagementIdentityOperationDto> CreateOnboardingAsync(ManagementCustomerIdentityConnection connection, CreateManagementEnterpriseOnboarding request,
+        string key, CancellationToken ct = default) => throw new ManagementCustomerIdentityUnavailableException();
+    Task<ManagementIdentityOperationDto> RetryOnboardingAsync(ManagementCustomerIdentityConnection connection, Guid operationId,
+        string key, CancellationToken ct = default) => throw new ManagementCustomerIdentityUnavailableException();
     Task<ManagementCustomerDirectoryPage<T>> ListAsync<T>(ManagementCustomerIdentityConnection connection, Guid? tenantId, ManagementCustomerDirectoryQuery query, CancellationToken ct = default) where T : class;
     Task<T> FindAsync<T>(ManagementCustomerIdentityConnection connection, Guid? tenantId, Guid id, CancellationToken ct = default) where T : class;
     Task<ManagementIdentityOperationDto> GetOperationAsync(ManagementCustomerIdentityConnection connection, Guid operationId, string authority,
