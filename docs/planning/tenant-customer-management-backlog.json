@@ -687,12 +687,12 @@
           "hubbslySourceKey": "IBM-0111",
           "sortOrder": 140,
           "boardKey": "hub",
-          "laneKey": "triage",
+          "laneKey": "done",
           "sourceSystem": "codex",
           "sourceKey": "IBM-0111",
           "sourceUrl": "https://github.com/MedPACTech/IBeam",
-          "description": "Planning reference: TCM-014. Feature: TCM-F05. Estimate: 5 points. Delivery order: 140. Dependencies: TCM-006 / IBM-0103, TCM-009 / IBM-0106, TCM-012 / IBM-0109, TCM-013 / IBM-0110.\r\n\r\nMirror assignable-roles, users/provision and invitation list/detail/resend/revoke under /api/management/applications/{applicationId}/tenants/{tenantId}. Add typed safe DTO forwarding, operation receipt reconciliation, target-host-owned policy metadata and frontend examples for selecting a tenant/role, inviting a user and tracking status.\r\n\r\nPortal API -> Management services -> scoped HTTPS client -> target Identity Management API -> Identity management services -> existing Identity services/stores or entity-focused repositories. Custom service operations execute through IServiceOperationExecutor. Customer Identity is registered only in the target app; the support host retains its isolated identity realm.\r\n\r\nEvery operation requires an enabled app connection, live support assignment, independent human operation permission, target machine capability and target host policy. No support administrator bypass, customer impersonation, raw credential/token output, customer business records, global customer-account disable, or direct portal access to customer storage.\r\n\r\nPlan: docs/planning/tenant-customer-management-plan.md and tenant-customer-management-backlog.json. Proposed paths/routes are implementation guidance; this card is not implemented yet. Initial supported provider is Azure Table; unsupported adapters advertise no capability.",
-          "acceptanceCriteriaJson": "[{\"t\":\"Portal exposes the documented role/provision/invite routes through thin controllers with the same independent operation checks as target services.\",\"met\":false},{\"t\":\"Unauthorized role/recipient/tenant substitution is rejected before mutation, and live assignment/target policy is rechecked on every attempt.\",\"met\":false},{\"t\":\"Mutation forwarding preserves idempotency and version checks; uncertain target writes remain reconcilable through operation polling.\",\"met\":false},{\"t\":\"Known existing customer identities are reused only by target Identity logic; portal does not maintain a customer account table or a global email lookup.\",\"met\":false},{\"t\":\"Safe envelopes distinguish pending, sent, failed/unknown delivery, accepted, expired and revoked states without exposing credentials or inviting operator impersonation.\",\"met\":false},{\"t\":\"HTTP tests cover multiple applications, support users with read-only/provision-only grants, accepted/expired/revoked invites and permission loss between role discovery and submit.\",\"met\":false}]",
+          "description": "Implemented selected-app portal role catalog, invitation-only provisioning, bounded invitation reads and exact-version resend/revoke, with independent live grants, typed safe HTTPS forwarding and read-only invitation status reconciliation through protected receipts. See docs/management/portal-customer-provisioning.md.",
+          "acceptanceCriteriaJson": "[{\"t\":\"Portal exposes the documented role/provision/invite routes through thin controllers with the same independent operation checks as target services.\",\"met\":true},{\"t\":\"Unauthorized role/recipient/tenant substitution is rejected before mutation, and live assignment/target policy is rechecked on every attempt.\",\"met\":true},{\"t\":\"Mutation forwarding preserves idempotency and version checks; uncertain target writes remain reconcilable through operation polling.\",\"met\":true},{\"t\":\"Known existing customer identities are reused only by target Identity logic; portal does not maintain a customer account table or a global email lookup.\",\"met\":true},{\"t\":\"Safe envelopes distinguish pending, sent, failed/unknown delivery, accepted, expired and revoked states without exposing credentials or inviting operator impersonation.\",\"met\":true},{\"t\":\"HTTP tests cover multiple applications, support users with read-only/provision-only grants, accepted/expired/revoked invites and permission loss between role discovery and submit.\",\"met\":true}]",
           "workType": "feature",
           "priority": "high",
           "hubbslyDependencies": [
@@ -700,11 +700,14 @@
             "IBM-0106",
             "IBM-0109",
             "IBM-0110"
-          ]
+          ],
+          "implementationStatus": "done",
+          "verification": "1011 tests passed with zero failures/skips, including 17 new portal HTTP and three new signed target polling cases; four changed packages packed and inspected locally at 2.16.0-dev.tcm.111."
         }
       ],
       "points": 15,
-      "hubbslyId": "a1c149de-3381-4546-b836-bd8709a99412"
+      "hubbslyId": "a1c149de-3381-4546-b836-bd8709a99412",
+      "implementationStatus": "done"
     },
     {
       "key": "TCM-F06",

@@ -18,6 +18,9 @@ public sealed class CustomerInvitationLifecycleHttpTests
             "POST", path + "/resend", body, key, currentVersion), "POST", path + "/resend", body, key, currentVersion);
         using var first = await Send("http-resend-first-intent", version); Assert.AreEqual(HttpStatusCode.OK, first.StatusCode, await first.Content.ReadAsStringAsync());
         using var repeated = await Send("http-resend-first-intent", version); Assert.AreEqual(HttpStatusCode.OK, repeated.StatusCode); Assert.AreEqual(1, data.Sends);
+        var operationPath = first.Headers.Location!.ToString();
+        using var operation = await f.Send(await f.Issue(ManagementCustomerIdentityOperations.InvitesManage, path: operationPath), path: operationPath);
+        Assert.AreEqual(HttpStatusCode.OK, operation.StatusCode); Assert.Contains("\"deliveryStatus\":\"sent\"", await operation.Content.ReadAsStringAsync()); Assert.AreEqual(1, data.Sends);
         using var stale = await Send("http-resend-second-intent", version); Assert.AreEqual(HttpStatusCode.PreconditionFailed, stale.StatusCode);
         using var limited = await Send("http-resend-third-intent", data.Row.Version!); Assert.AreEqual(HttpStatusCode.TooManyRequests, limited.StatusCode);
         Assert.DoesNotContain(data.LastToken!, await first.Content.ReadAsStringAsync());

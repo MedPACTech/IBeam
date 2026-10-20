@@ -103,6 +103,9 @@ public sealed class ManagementCustomerInvitationService(IManagementCustomerInvit
                     Users.ManagementCustomerDirectoryRuntime.RoleNames(projected.RoleNamesJson, true), projected.CreatedUtc, projected.ExpiresUtc,
                     projected.ModifiedUtc ?? projected.RevokedUtc ?? projected.RedeemedUtc ?? projected.SentUtc, projected.Version);
                 await access.RequireAsync(Authority, cancellation);
+                var deliveryStatus = journal?.DeliveryStatus ?? "unknown";
+                if (deliveryStatus == "sending" && journal?.DeliveryLeaseUtc <= clock.GetUtcNow()) deliveryStatus = "unknown";
+                receipt = receipt with { Invitation = new(tenant, id, state == "redeemed" ? "accepted" : state, deliveryStatus, native.Version!) };
                 return new ManagementCustomerInvitationResult(receipt, status, dto);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }

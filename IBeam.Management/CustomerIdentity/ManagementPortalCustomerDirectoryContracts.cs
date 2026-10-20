@@ -23,6 +23,12 @@ public interface IManagementCustomerIdentityConnectionResolver
 }
 public interface IManagementCustomerIdentityClient
 {
+    Task<IReadOnlyList<ManagementAssignableRoleDto>> ListAssignableRolesAsync(ManagementCustomerIdentityConnection connection, Guid tenantId, CancellationToken ct = default)
+        => throw new ManagementCustomerIdentityUnavailableException();
+    Task<ManagementCustomerProvisioningResult> ProvisionUserAsync(ManagementCustomerIdentityConnection connection, Guid tenantId, ProvisionManagementCustomerUser request, string key, CancellationToken ct = default)
+        => throw new ManagementCustomerIdentityUnavailableException();
+    Task<ManagementCustomerInvitationResult> ChangeInvitationAsync(ManagementCustomerIdentityConnection connection, Guid tenantId, Guid inviteId, bool revoke, string key, string version, CancellationToken ct = default)
+        => throw new ManagementCustomerIdentityUnavailableException();
     Task<ManagementIdentityOperationDto> CreateOnboardingAsync(ManagementCustomerIdentityConnection connection, CreateManagementEnterpriseOnboarding request,
         string key, CancellationToken ct = default) => throw new ManagementCustomerIdentityUnavailableException();
     Task<ManagementIdentityOperationDto> RetryOnboardingAsync(ManagementCustomerIdentityConnection connection, Guid operationId,

@@ -21,6 +21,7 @@ public static class ManagementCustomerInvitationServiceExtensions
         services.TryAddScoped<IManagedTenantInviteDeliveryService>(p => p.GetRequiredService<ITenantInviteService>() as IManagedTenantInviteDeliveryService
             ?? throw new InvalidOperationException("A conditional native invitation delivery adapter is required."));
         services.TryAddScoped<IManagementCustomerInvitationService, ManagementCustomerInvitationService>();
+        services.TryAddScoped<IManagementCustomerInvitationOperationQuery, ManagementCustomerInvitationOperationQuery>();
         return services;
     }
 }

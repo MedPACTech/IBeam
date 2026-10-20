@@ -15,6 +15,10 @@ public sealed class ManagementIdentityOperationQueryService(IManagementIdentityO
         => Run(async token => await Enrich(await lookup.ResolveAsync(request, key, authority, token), authority, token), ct);
     private async Task<ManagementIdentityOperationDto> Enrich(ManagementIdentityOperationDto receipt, string authority, CancellationToken ct)
     {
+        if (receipt.Operation is ManagementCustomerIdentityOperations.UsersProvision or ManagementCustomerIdentityOperations.InvitesManage) {
+            var invitations = provider.GetService<IManagementCustomerInvitationOperationQuery>();
+            return invitations is null ? receipt : receipt with { Invitation = await invitations.GetAsync(receipt, authority, ct) };
+        }
         if (receipt.Operation is not (ManagementCustomerIdentityOperations.OnboardingCreate or ManagementCustomerIdentityOperations.OnboardingRetry)) return receipt;
         var onboarding = provider.GetService<IManagementEnterpriseOnboardingService>();
         if (onboarding is null) return receipt;

@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0110 are complete (68 points); 7 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0111 are complete (73 points); 6 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -398,9 +398,9 @@ Feature dependencies: TCM-F02, TCM-F03.
 
 Feature acceptance:
 
-- [ ] Operators can discover permitted roles and invite/provision customers into an existing tenant without handling passwords.
-- [ ] Invitation list, detail, resend and revoke are tenant-scoped and retry-safe.
-- [ ] A customer already in another tenant keeps that identity and existing memberships.
+- [x] Operators can discover permitted roles and invite/provision customers into an existing tenant without handling passwords.
+- [x] Invitation list, detail, resend and revoke are tenant-scoped and retry-safe.
+- [x] A customer already in another tenant keeps that identity and existing memberships.
 
 ### IBM-0109 / TCM-012: Add approved role catalog and target customer provisioning adapter
 
@@ -446,22 +446,24 @@ Verification evidence: 991 tests passed, zero failures/skips, including signed H
 
 ### IBM-0111 / TCM-014: Expose portal provisioning, role catalog and invitation lifecycle routes
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 140. Hubbsly ID: b221b8cb-8baf-4717-a06f-22b61c98a29b.
+Estimate: **5 points**. Lane: Done. Delivery order: 140. Hubbsly ID: b221b8cb-8baf-4717-a06f-22b61c98a29b.
 
 Dependencies: IBM-0103, IBM-0106, IBM-0109, IBM-0110.
 
-Mirror assignable-roles, users/provision and invitation list/detail/resend/revoke under /api/management/applications/{applicationId}/tenants/{tenantId}. Add typed safe DTO forwarding, operation receipt reconciliation, target-host-owned policy metadata and frontend examples for selecting a tenant/role, inviting a user and tracking status.
+Implemented selected-app portal role catalog, invitation-only provisioning, bounded invitation reads and exact-version resend/revoke, with independent live grants, typed safe HTTPS forwarding and read-only invitation status reconciliation through protected receipts. See docs/management/portal-customer-provisioning.md.
 
 Proposed paths: IBeam.Management.Api/Controllers/ManagementCustomerUsersController.cs, IBeam.Management.Api/Controllers/ManagementCustomerInvitationsController.cs, IBeam.Management.Services/CustomerIdentity/, IBeam.Tests.Management.CustomerIdentity/, docs/management/customer-identity-api.md. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Portal exposes the documented role/provision/invite routes through thin controllers with the same independent operation checks as target services.
-- [ ] Unauthorized role/recipient/tenant substitution is rejected before mutation, and live assignment/target policy is rechecked on every attempt.
-- [ ] Mutation forwarding preserves idempotency and version checks; uncertain target writes remain reconcilable through operation polling.
-- [ ] Known existing customer identities are reused only by target Identity logic; portal does not maintain a customer account table or a global email lookup.
-- [ ] Safe envelopes distinguish pending, sent, failed/unknown delivery, accepted, expired and revoked states without exposing credentials or inviting operator impersonation.
-- [ ] HTTP tests cover multiple applications, support users with read-only/provision-only grants, accepted/expired/revoked invites and permission loss between role discovery and submit.
+- [x] Portal exposes the documented role/provision/invite routes through thin controllers with the same independent operation checks as target services.
+- [x] Unauthorized role/recipient/tenant substitution is rejected before mutation, and live assignment/target policy is rechecked on every attempt.
+- [x] Mutation forwarding preserves idempotency and version checks; uncertain target writes remain reconcilable through operation polling.
+- [x] Known existing customer identities are reused only by target Identity logic; portal does not maintain a customer account table or a global email lookup.
+- [x] Safe envelopes distinguish pending, sent, failed/unknown delivery, accepted, expired and revoked states without exposing credentials or inviting operator impersonation.
+- [x] HTTP tests cover multiple applications, support users with read-only/provision-only grants, accepted/expired/revoked invites and permission loss between role discovery and submit.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 1011 tests passed with zero failures/skips, including 17 new portal HTTP and three new signed target polling cases; four changed packages packed and inspected locally at 2.16.0-dev.tcm.111.
 
 ## TCM-F06: Tenant and membership access lifecycle
 

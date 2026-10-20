@@ -108,7 +108,8 @@ public sealed partial class ManagementCustomerIdentityClient(ManagementConnectio
                 row.Operation is ManagementCustomerIdentityOperations.OnboardingCreate or ManagementCustomerIdentityOperations.OnboardingRetry))
             throw new ManagementCustomerIdentityResponseException();
         return new(row.OperationId, row.Operation, row.Status, row.Step, row.ResourceId, row.CreatedUtc, row.UpdatedUtc, row.ExpiresUtc) {
-            Onboarding = row.Onboarding is null ? null : SafeOnboarding(row.Onboarding, row) };
+            Onboarding = row.Onboarding is null ? null : SafeOnboarding(row.Onboarding, row),
+            Invitation = row.Invitation is null ? null : SafeInvitationOperation(row.Invitation, row) };
     }
     private static T? Data<T>(JsonElement root)
     {
@@ -154,7 +155,7 @@ public sealed partial class ManagementCustomerIdentityClient(ManagementConnectio
             if (response.StatusCode == HttpStatusCode.TooManyRequests) throw new ManagementCustomerIdentityRateLimitException();
             if ((int)response.StatusCode >= 500) throw new ManagementCustomerIdentityUnavailableException();
             var expected = method == "GET" || receiptLookup ? response.StatusCode == HttpStatusCode.OK :
-                response.StatusCode == HttpStatusCode.Accepted || response.StatusCode == (method == "POST" ? HttpStatusCode.Created : HttpStatusCode.OK);
+                response.StatusCode == HttpStatusCode.Accepted || response.StatusCode == HttpStatusCode.OK || method == "POST" && response.StatusCode == HttpStatusCode.Created;
             if (!expected || response.Content.Headers.ContentLength > options.Value.MaximumResponseBytes)
                 throw new ManagementCustomerIdentityResponseException();
             using var stream = await response.Content.ReadAsStreamAsync(ct);

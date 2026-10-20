@@ -18,6 +18,12 @@ public sealed record ManagementIdentityOperationDto(Guid OperationId, string Ope
     Guid ResourceId, DateTimeOffset CreatedUtc, DateTimeOffset UpdatedUtc, DateTimeOffset ExpiresUtc)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ManagementEnterpriseOnboardingDto? Onboarding { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ManagementCustomerInvitationOperationDto? Invitation { get; init; }
+}
+public sealed record ManagementCustomerInvitationOperationDto(Guid TenantId, Guid InviteId, string Status, string DeliveryStatus, string Version);
+public interface IManagementCustomerInvitationOperationQuery
+{
+    Task<ManagementCustomerInvitationOperationDto?> GetAsync(ManagementIdentityOperationDto receipt, string authority, CancellationToken ct = default);
 }
 public interface IManagementIdentityOperationQueryService
 {

@@ -16,6 +16,9 @@ public sealed class ManagementPortalMutationOperationService(PortalMutationRunti
                 try {
                     result = state.TargetOperationId is Guid id ? await client.GetOperationAsync(c, id, authority, attempt.Token) :
                         await client.ResolveOperationAsync(c, state.Lookup, state.IdempotencyKey, authority, attempt.Token);
+                    if (result?.Invitation is { } invitation && (invitation.TenantId != state.Lookup.ResourceScope ||
+                        authority == ManagementCustomerIdentityOperations.InvitesManage && invitation.InviteId != state.Lookup.ExistingResourceId))
+                        throw new ManagementCustomerIdentityResponseException();
                 }
                 catch (ManagementCustomerIdentityNotFoundException) { result = null; }
                 catch (Exception ex) when (PortalMutationRuntime.Uncertain(ex, token)) { result = null; }

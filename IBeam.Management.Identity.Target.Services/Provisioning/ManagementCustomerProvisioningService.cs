@@ -90,6 +90,8 @@ public sealed class ManagementCustomerProvisioningService(IManagementCustomerPro
                         current.DeliveryStatus == "sending" && current.DeliveryLeaseUtc <= clock.GetUtcNow() ? "unknown" : current.DeliveryStatus;
                     dto = new(tenantId, id, saved.Email, null, null, state, saved.RoleIds, saved.RoleNames, row.CreatedUtc, row.ExpiresUtc,
                         row.ModifiedUtc ?? row.SentUtc ?? row.RedeemedUtc ?? row.RevokedUtc, row.Version);
+                    var deliveryStatus = current.DeliveryStatus == "sending" && current.DeliveryLeaseUtc <= clock.GetUtcNow() ? "unknown" : current.DeliveryStatus;
+                    receipt = receipt with { Invitation = new(tenantId, id, state == "redeemed" ? "accepted" : state, deliveryStatus, row.Version) };
                 }
                 await access.RequireAsync(actor.Operation, deadline.Token);
                 return new ManagementCustomerProvisioningResult(receipt, status, dto);

@@ -26,6 +26,7 @@ public static class ManagementCustomerProvisioningServiceExtensions
         services.TryAddScoped<IExternalTenantInviteService>(p => p.GetRequiredService<ITenantInviteService>() is IExternalTenantInviteService service && service.SupportsDurableCreation
             ? service : throw new InvalidOperationException("A durable external Identity invitation adapter is required."));
         services.TryAddScoped<IManagementCustomerProvisioningService, ManagementCustomerProvisioningService>();
+        services.TryAddScoped<IManagementCustomerInvitationOperationQuery, IBeam.Management.Identity.Target.Services.Invitations.ManagementCustomerInvitationOperationQuery>();
         return services;
     }
 }

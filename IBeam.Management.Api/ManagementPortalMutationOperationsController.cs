@@ -14,6 +14,8 @@ public sealed class ManagementPortalMutationOperationsController(IManagementPort
     public async Task<IActionResult> GetAsync(Guid applicationId, string reference, [FromQuery] string authority, CancellationToken ct)
     {
         var result = await service.GetAsync(applicationId, reference, authority, ct);
-        var response = (ObjectResult)OkResponse(result); response.StatusCode = result.Status == "succeeded" || result.Operation?.Onboarding?.Completed == true ? 200 : 202; return response;
+        var response = (ObjectResult)OkResponse(result); response.StatusCode = result.Status == "succeeded" || result.Operation?.Onboarding?.Completed == true ||
+            result.Operation?.Invitation?.Status is "accepted" or "expired" or "revoked" ||
+            result.Operation?.Operation == ManagementCustomerIdentityOperations.InvitesManage && result.Operation.Status == "succeeded" ? 200 : 202; return response;
     }
 }

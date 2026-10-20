@@ -29,3 +29,5 @@ Enterprise onboarding HTTP and portal registration, safe business status, scoped
 Approved tenant roles and invitation-only customer provisioning: [registration and API contract](../docs/management/customer-provisioning.md). Catalog visibility uses the independent roles.read grant; no account/membership is created before customer verification.
 
 IBM-0110 invitation resend/revoke uses exact versions, durable private delivery recovery and native acceptance claims. See [invitation lifecycle](../docs/management/customer-invitation-lifecycle.md).
+
+IBM-0111 selected-app role catalog, customer provisioning and invitation lifecycle forwarding plus read-only receipt status: [portal API contract](../docs/management/portal-customer-provisioning.md).

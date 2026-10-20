@@ -20,7 +20,10 @@ public sealed class ManagementAuditContext : IManagementAuditContext
 /// <summary>Explicit allowlist prevents arbitrary action/message text being persisted.</summary>
 public static class ManagementAuditOperations
 {
-    public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal) {
+    public static readonly IReadOnlySet<string> All = Create();
+    private static IReadOnlySet<string> Create()
+    {
+    var actions = new HashSet<string>(StringComparer.Ordinal) {
         "management.identity.read", "management.identity.bootstrap", "management.diagnostics.info",
         "management.identity.info", "management.portal.customer-identity.info", "management.portal.customer-identity.authorize",
         "management.portal.customer-identity.connection", "management.portal.customer-identity.connection-check",
@@ -32,6 +35,8 @@ public static class ManagementAuditOperations
         "management.identity.tenants.create", "management.identity.tenants.update",
         "management.identity.onboarding.create", "management.identity.onboarding.read", "management.identity.onboarding.retry",
         "management.identity.roles.catalog", "management.identity.users.provision",
+        "management.identity.invites.manage.resend", "management.identity.invites.manage.revoke", "management.identity.invitations.operation.read",
+        "management.portal.customer-identity.roles.catalog",
         "management.portal.customer-identity.onboarding.create", "management.portal.customer-identity.onboarding.retry",
         "management.portal.customer-identity.onboarding.create.unknown", "management.portal.customer-identity.onboarding.retry.unknown",
         "management.portal.customer-identity.onboarding.create.in-progress", "management.portal.customer-identity.onboarding.retry.in-progress",
@@ -61,6 +66,13 @@ public static class ManagementAuditOperations
         "management.support-invitations.create", "management.support-invitations.accept", "management.support-users.disable",
         "management.portal.errors.list", "management.portal.errors.read", "management.portal.logs.list", "management.portal.logs.read", "management.portal.applications.list"
     };
+    foreach (var action in new[] { "users.provision", "invites.resend", "invites.revoke" }) {
+        actions.Add("management.portal.customer-identity." + action);
+        foreach (var status in new[] { "pending", "sending", "sent", "failed", "unknown", "accepted", "redeemed", "expired", "revoked", "superseded", "not-required" })
+            actions.Add("management.portal.customer-identity." + action + "." + status);
+    }
+    return actions;
+    }
     public static bool IsManagementService(object service) => service.GetType().Assembly.GetName().Name is
         "IBeam.Management.Services" or "IBeam.Management.Identity.Services" or "IBeam.Management.Identity.Target.Services";
 }

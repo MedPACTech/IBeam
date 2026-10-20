@@ -42,4 +42,28 @@ public sealed class CustomerProvisioningHttpTests
         using var missing = await f.Send(await f.Issue(ManagementCustomerIdentityOperations.UsersProvision, "POST", missingPath, body), "POST", missingPath, body);
         Assert.AreEqual(HttpStatusCode.NotFound, missing.StatusCode); Assert.HasCount(0, data.Data.InviteRows);
     }
+    [TestMethod]
+    [DataRow("redeemed")] [DataRow("expired")] [DataRow("revoked")]
+    public async Task ProvisionReceiptPollingReadsCurrentNativeStateWithoutDecryptingOrSending(string state)
+    {
+        var data = new ProvisioningFixture(); await using var f = await DelegationFixture.Start(provisioning: data);
+        var path = "/api/management-identity/tenants/" + data.Tenant + "/users/provision";
+        var body = JsonSerializer.SerializeToUtf8Bytes(data.Request, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        using var created = await f.Send(await f.Issue(ManagementCustomerIdentityOperations.UsersProvision, "POST", path, body), "POST", path, body);
+        Assert.AreEqual(HttpStatusCode.Accepted, created.StatusCode);
+        using var initial = JsonDocument.Parse(await created.Content.ReadAsStringAsync()); var id = initial.RootElement.GetProperty("data").GetProperty("operation").GetProperty("operationId").GetGuid();
+        var native = data.Data.InviteRows.Values.Single(); data.Data.InviteRows[native.InviteId] = native with { Status = state, Version = "fixture-invite-version" };
+        data.Journal.Rows[data.Journal.Rows.Keys.Single()] = data.Journal.Rows.Values.Single() with { EncryptedInput = "Intentionally not decryptable: query needs metadata only" };
+        var pollPath = "/api/management-identity/operations/" + id;
+        using var poll = await f.Send(await f.Issue(ManagementCustomerIdentityOperations.UsersProvision, path: pollPath), path: pollPath);
+        Assert.AreEqual(HttpStatusCode.OK, poll.StatusCode, await poll.Content.ReadAsStringAsync());
+        using var json = JsonDocument.Parse(await poll.Content.ReadAsStringAsync()); var invitation = json.RootElement.GetProperty("data").GetProperty("invitation");
+        Assert.AreEqual(state == "redeemed" ? "accepted" : state, invitation.GetProperty("status").GetString());
+        Assert.AreEqual(data.Tenant, invitation.GetProperty("tenantId").GetGuid()); Assert.AreEqual(native.InviteId, invitation.GetProperty("inviteId").GetGuid());
+        Assert.DoesNotContain(data.Request.Email, await poll.Content.ReadAsStringAsync()); Assert.DoesNotContain(data.Data.LastRequest!.Token, await poll.Content.ReadAsStringAsync());
+        Assert.AreEqual(1, data.Data.Sends);
+        f.Credentials.Row = f.Credentials.Row with { Status = "Revoked", RevokedUtc = DateTimeOffset.UtcNow };
+        using var denied = await f.Send(await f.Issue(ManagementCustomerIdentityOperations.UsersProvision, path: pollPath), path: pollPath);
+        Assert.AreEqual(HttpStatusCode.Unauthorized, denied.StatusCode);
+    }
 }
