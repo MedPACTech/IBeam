@@ -1,4 +1,6 @@
-﻿# IBeam.Identity.Services
+# IBeam.Identity.Services
+
+IBM-0105: AddIBeamIdentityTenantAdministration registers an optional external tenant adapter over existing Identity creation/hooks and conditional rename ports. Recovery resumes lifecycle work with no customer actor, membership, default tenant or token. See docs/management/customer-tenant-administration.md.
 
 Core identity orchestration package for OTP, password, OAuth, tokens, and tenant selection.
 

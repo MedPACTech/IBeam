@@ -27,10 +27,12 @@ public static class ManagementDelegationBinding
             request.PathAndQuery is not { Length: > 0 and <= 16384 } ||
             !request.PathAndQuery.StartsWith("/api/management-identity/", StringComparison.Ordinal) ||
             request.PathAndQuery.Any(char.IsControl) || request.PathAndQuery.Contains('#') || request.Body.Length > 32768 ||
-            request.Method == "GET" && (!request.Body.IsEmpty || request.IdempotencyKey is not null) ||
+            request.Method == "GET" && (!request.Body.IsEmpty || request.IdempotencyKey is not null || request.IfMatch is not null) ||
+            request.IfMatch is not null && (request.IfMatch.Length is < 1 or > 256 || request.IfMatch.Any(char.IsControl)) ||
             request.Method != "GET" && !ValidIdempotencyKey(request.IdempotencyKey)) throw new ManagementAccessDeniedException();
         var bound = request.Method + "\n" + request.PathAndQuery + "\n" + Convert.ToHexString(SHA256.HashData(request.Body.Span));
         if (request.Method != "GET") bound += "\n" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(request.IdempotencyKey!)));
+        if (request.IfMatch is not null) bound += "\nif-match\n" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(request.IfMatch)));
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(bound))).ToLowerInvariant();
     }
     public static bool ValidIdempotencyKey(string? value) => value is { Length: >= 8 and <= 128 } && value.All(x => char.IsAsciiLetterOrDigit(x) || x is '-' or '_' or '.');

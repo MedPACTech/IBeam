@@ -1,4 +1,7 @@
 using System.Collections.Concurrent;
+using IBeam.Identity.Interfaces;
+using IBeam.Identity.Options;
+using IBeam.Identity.Services.Tenants;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Security.Claims;
@@ -46,6 +49,7 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
     public int Executions { get; set; }
     public ReplayStore Replay { get; } = new();
     public AuditStore Audit { get; } = new();
+    public TenantAdministrationHooks TenantHooks { get; } = new();
     public WebApplication App { get; private set; } = null!;
     public HttpClient Client { get; private set; } = null!;
     public IManagementDelegatedActorProvider Issuer { get; private set; } = null!;
@@ -69,13 +73,16 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
     }
     public static async Task<DelegationFixture> Start(IManagementCustomerTenantReadRepository? tenants = null,
         IManagementCustomerUserReadRepository? users = null, IManagementCustomerInvitationReadRepository? invites = null,
-        IManagementIdentityOperationRepository? operations = null, IManagementIdentityOperationAuditRepository? operationAudit = null)
+        IManagementIdentityOperationRepository? operations = null, IManagementIdentityOperationAuditRepository? operationAudit = null,
+        IIdentityTenantStore? tenantStore = null, IManagementTenantAdministrationRepository? tenantMetadata = null)
     {
         var f = new DelegationFixture();
+        if (tenantMetadata is not null && operations is null) operations = new OperationStore();
         f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities
             .Concat(users is null ? [] : new[] { ManagementCustomerIdentityOperations.UsersRead })
             .Concat(invites is null ? [] : new[] { ManagementCustomerIdentityOperations.InvitesRead })
             .Concat(operations is null ? [] : new[] { ManagementCustomerIdentityOperations.OnboardingRead }).ToArray() };
+        if (tenantMetadata is not null) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Concat(new[] { ManagementCustomerIdentityOperations.TenantsUpdate }).ToArray() };
         var b = WebApplication.CreateBuilder(); b.Logging.ClearProviders(); b.WebHost.UseTestServer();
         b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
             ["IBeam:Management:Diagnostics:ApplicationKey"] = "atlas", ["IBeam:Management:Diagnostics:Environment"] = "Testing",
@@ -94,6 +101,8 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         if (operations is not null) b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
             ["IBeam:Management:CustomerIdentity:EnabledOperations:4"] = ManagementCustomerIdentityOperations.OnboardingRead,
             ["IBeam:Management:CustomerIdentity:Operations:FingerprintKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) });
+        if (tenantMetadata is not null) b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
+            ["IBeam:Management:CustomerIdentity:EnabledOperations:5"] = ManagementCustomerIdentityOperations.TenantsUpdate });
         b.Services.AddSingleton(f);
         b.Services.AddSingleton<IManagementApiCredentialRepository>(f.Credentials);
         b.Services.AddSingleton<IManagementActorValidationKeyProvider>(f);
@@ -109,6 +118,16 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             b.Services.AddSingleton(operations);
             b.Services.AddSingleton<IManagementIdentityOperationAuditRepository>(operationAudit ?? new OperationFixture());
             b.Services.AddIBeamManagementIdentityOperationsApi(b.Configuration);
+        }
+        if (tenantMetadata is not null) {
+            b.Services.AddSingleton<IIdentityTenantStore>(tenantStore ?? new ConditionalTenantStore());
+            b.Services.AddScoped<IIdentityTenantService, IdentityTenantService>();
+            b.Services.AddSingleton<ITenantExtensionCoordinator>(f.TenantHooks);
+            b.Services.AddSingleton(Mock.Of<IAuthEventPublisher>());
+            b.Services.AddSingleton(Mock.Of<IAuthLifecycleHook>());
+            b.Services.Configure<AuthEventOptions>(x => x.StrictPublishFailures = true);
+            b.Services.AddSingleton(tenantMetadata);
+            b.Services.AddIBeamManagementTenantAdministrationApi(b.Configuration);
         }
         if (tenants is not null)
         {
@@ -147,14 +166,17 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             new ManagementAuditContext(), TimeProvider.System, new ServiceOperationExecutor());
         return f;
     }
-    public Task<ManagementActorAssertion> Issue(string operation, string method = "GET", string path = "/api/management-identity/probe", byte[]? body = null)
-        => Issuer.IssueAsync(Application, operation, new() { Method = method, PathAndQuery = path, Body = body ?? [], IdempotencyKey = method == "GET" ? null : "fixture-idempotency" });
-    public async Task<HttpResponseMessage> Send(ManagementActorAssertion? assertion, string method = "GET", string path = "/api/management-identity/probe", byte[]? body = null)
+    public Task<ManagementActorAssertion> Issue(string operation, string method = "GET", string path = "/api/management-identity/probe", byte[]? body = null,
+        string idempotencyKey = "fixture-idempotency", string? ifMatch = null)
+        => Issuer.IssueAsync(Application, operation, new() { Method = method, PathAndQuery = path, Body = body ?? [], IdempotencyKey = method == "GET" ? null : idempotencyKey, IfMatch = ifMatch });
+    public async Task<HttpResponseMessage> Send(ManagementActorAssertion? assertion, string method = "GET", string path = "/api/management-identity/probe", byte[]? body = null,
+        string idempotencyKey = "fixture-idempotency", string? ifMatch = null)
     {
         using var request = new HttpRequestMessage(new HttpMethod(method), path);
         request.Headers.Add("X-IBeam-Management-Key", Key);
         if (assertion is not null) request.Headers.Add("X-IBeam-Management-Actor", assertion.Value);
-        if (method != "GET") request.Headers.Add("Idempotency-Key", "fixture-idempotency");
+        if (method != "GET") request.Headers.Add("Idempotency-Key", idempotencyKey);
+        if (ifMatch is not null) request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
         if (body is not null) { request.Content = new ByteArrayContent(body); request.Content.Headers.ContentType = new("application/json"); }
         return await Client.SendAsync(request);
     }

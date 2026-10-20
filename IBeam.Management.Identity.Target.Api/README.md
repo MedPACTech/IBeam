@@ -1,5 +1,7 @@
 # IBeam.Management.Identity.Target.Api
 
+IBM-0105 adds opt-in AddIBeamManagementTenantAdministrationApi: signed POST tenants and exact-If-Match PATCH tenant name. Extra consumer/profile fields are rejected; missing conditional adapters advertise no update capability. Includes receipt routes. See docs/management/customer-tenant-administration.md.
+
 IBM-0104 adds opt-in AddIBeamManagementIdentityOperationsApi: scoped signed receipt GETs, using original write authority or explicit onboarding.read. Mutation requests now require a signed Idempotency-Key; receipt infrastructure grants no business write capability. See docs/management/customer-identity-operations.md.
 
 IBM-0102 adds independent AddIBeamManagementCustomerUserDirectoryApi and AddIBeamManagementCustomerInvitationDirectoryApi registrations. They expose tenant-scoped list/detail GET routes under /users and /invites with separate signed operations. No accept/resend/revoke/provision routes are installed here. See docs/management/customer-user-directory.md.

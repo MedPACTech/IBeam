@@ -1,3 +1,5 @@
 # IBeam.Management.Identity.Target.Api
 
 Read the repository .agent/implementation-guide.md before changes. This optional module runs inside the customer application's target host, not the support Identity host. Preserve API -> Services -> Repository, explicit named machine authentication, live credential checks and app/environment/Identity realm binding. No automatic customer membership for support staff, no customer principal impersonation, no direct portal DB access. Custom operations use IServiceOperationExecutor and metadata-only Management audit. Advertise only installed operations with usable adapters. Do not log keys, actor assertions, Identity profiles, tokens, OTPs or raw provider errors. IBM-0098 installs discovery only; tenant/user operations and delegated actors are later cards.
+
+IBM-0105 explicitly adds tenant administration and receipt modules. Keep POST/PATCH bodies typed and profile-free; If-Match and Idempotency-Key must be covered by the actor binding. Rename capability must resolve a real optional conditional adapter; no administrator bypass or automatic customer memberships.

@@ -45,11 +45,16 @@ internal sealed class ManagementCustomerIdentityAuthenticationHandler(IOptionsMo
                 var path = Context.Features.Get<IHttpRequestFeature>()?.RawTarget;
                 if (string.IsNullOrEmpty(path)) path = Request.GetEncodedPathAndQuery();
                 string? idempotency = null;
+                string? ifMatch = null;
                 if (Request.Method != "GET") {
                     if (!Request.Headers.TryGetValue("Idempotency-Key", out var keys) || keys.Count != 1) return AuthenticateResult.Fail("Management authentication was not completed.");
                     idempotency = keys[0];
+                    if (Request.Headers.TryGetValue("If-Match", out var versions)) {
+                        if (versions.Count != 1) return AuthenticateResult.Fail("Management authentication was not completed.");
+                        ifMatch = versions[0];
+                    }
                 }
-                var binding = new ManagementDelegationRequest { Method = Request.Method, PathAndQuery = path, Body = body.ToArray(), IdempotencyKey = idempotency };
+                var binding = new ManagementDelegationRequest { Method = Request.Method, PathAndQuery = path, Body = body.ToArray(), IdempotencyKey = idempotency, IfMatch = ifMatch };
                 if (receipt) await validator.ValidateReceiptAsync(assertion[0]!, binding, principal, Context.RequestAborted);
                 else await validator.ValidateAsync(assertion[0]!, operation!, binding, principal, Context.RequestAborted);
             }

@@ -18,6 +18,7 @@ public sealed class ManagementDelegationRequest
     [JsonIgnore] public string PathAndQuery { get; init; } = "";
     [JsonIgnore] public ReadOnlyMemory<byte> Body { get; init; }
     [JsonIgnore] public string? IdempotencyKey { get; init; }
+    [JsonIgnore] public string? IfMatch { get; init; }
     public override string ToString() => "Management delegated request (binding redacted)";
 }
 public interface IManagementDelegatedActorProvider

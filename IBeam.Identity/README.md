@@ -1,5 +1,7 @@
 # IBeam.Identity
 
+IBM-0105 adds optional IIdentityTenantConditionalStore / IIdentityTenantAdministrationService and VersionedIdentityTenant contracts without changing existing tenant store/service interfaces. External lifecycle contexts can redact failure details; the flag grants no authority. See docs/management/customer-tenant-administration.md.
+
 `IBeam.Identity` is the contract package for the IBeam identity domain.
 
 ## Narrative Introduction

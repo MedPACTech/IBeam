@@ -56,6 +56,8 @@ public sealed class ManagementTenantDirectoryService(IManagementCustomerTenantRe
     private static ManagementCustomerTenantDto? Project(ManagementCustomerTenantReadEntity row)
     {
         var status = string.IsNullOrWhiteSpace(row.Status) ? "Active" : row.Status;
+        status = string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase) ? "Active" :
+            string.Equals(status, "Disabled", StringComparison.OrdinalIgnoreCase) ? "Disabled" : status;
         if (!Guid.TryParseExact(row.RowKey, "D", out var tenantId) || tenantId == Guid.Empty ||
             row.Name is not { Length: > 0 and <= 512 } || row.Name.Any(char.IsControl) || string.IsNullOrWhiteSpace(row.Name) ||
             status is not ("Active" or "Disabled") || row.Version is not { Length: > 0 and <= 256 }) return null;

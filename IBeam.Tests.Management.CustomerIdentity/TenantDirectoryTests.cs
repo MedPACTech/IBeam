@@ -12,6 +12,17 @@ namespace IBeam.Tests.Management.CustomerIdentity;
 [TestClass]
 public sealed class TenantDirectoryTests
 {
+    [TestMethod, DataRow("aCtIvE", "Active"), DataRow("dIsAbLeD", "Disabled")]
+    public async Task LegacyStatusCasingProjectsCanonicallyWithoutRewritingProviderRows(string stored, string expected)
+    {
+        var repository = new TenantRows(); repository.Rows[0] = repository.Rows[0] with { Status = stored };
+        await using var f = await DelegationFixture.Start(repository);
+        var path = "/api/management-identity/tenants/" + repository.Rows[0].RowKey;
+        using var response = await f.Send(await f.Issue(ManagementCustomerIdentityOperations.TenantsRead, path: path), path: path);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.AreEqual(HttpStatusCode.OK, response.StatusCode); Assert.AreEqual(expected, json.RootElement.GetProperty("data").GetProperty("status").GetString());
+        Assert.AreEqual(stored, repository.Rows[0].Status);
+    }
     [TestMethod]
     public void DirectoryProtectionKeysAreNeverSerializedOrDisplayed()
     {

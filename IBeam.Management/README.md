@@ -1,5 +1,7 @@
 # IBeam.Management
 
+IBM-0105 adds typed tenant create/rename commands, safe operation/tenant results and separate provenance/external-reference metadata ports. No Identity or ASP.NET dependency is added to core. See docs/management/customer-tenant-administration.md.
+
 Transport-independent contracts for support management. This package has no Identity, ASP.NET Core, service or repository dependency.
 
 Customer Identity discovery and bounded directory contracts are in the CustomerIdentity namespace. IBM-0098 adds typed module/realm metadata only; it does not install tenant/user read or provisioning endpoints. See docs/management/customer-identity-discovery.md and the follow-on tenant/customer management backlog.

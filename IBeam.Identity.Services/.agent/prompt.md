@@ -62,3 +62,5 @@ Provider or infrastructure integration tests should be opt-in when they require 
 ## Packaging
 
 The `.agent/prompt.md` file is included in the NuGet package by the repository-level packaging rules. Keep it useful for agents consuming the package from source or from the package artifact.
+
+IBM-0105 external tenant administration reuses Identity creation/lifecycle services with an optional conditional store. Preserve null customer AuthUserId, RequireLifecycleDelivery and RedactFailureDetails for external operations. These flags convey no permission; target Management authorization is separate. Recovery hooks can receive null previous state and must be idempotent by operation ID.

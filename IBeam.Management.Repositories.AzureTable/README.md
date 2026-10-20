@@ -1,5 +1,7 @@
 # IBeam.Management.Repositories.AzureTable
 
+IBM-0105 adds separate target tenant administration metadata with atomic case-insensitive external-reference reservation and conditional lifecycle phase updates. No customer extension/profile rows or runtime schema creation. See docs/management/customer-tenant-administration.md.
+
 IBM-0104 adds explicit target operation metadata and idempotent mutation-audit adapters: scoped point reads, atomic inserts, required ETags and append-once audit IDs. Provision tables in trusted setup; no runtime schema creation/deletion, raw idempotency key or customer request storage. See docs/management/customer-identity-operations.md.
 
 IBM-0102 adds explicit TenantUsers and TenantInvites read adapters. They query one TEN|tenant-ID partition and USR| or INV| row prefix, select only approved membership/invitation metadata, and never access token-index partitions, profiles, OTP/session/user credential tables or runtime schemas. Read-only SAS is sufficient. See docs/management/customer-user-directory.md.

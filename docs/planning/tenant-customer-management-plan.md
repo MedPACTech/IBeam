@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0104 are complete (35 points); 13 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0105 are complete (40 points); 12 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -291,7 +291,7 @@ Verification evidence: 601 Management tests passed, zero failures/skips. Six pac
 
 ### IBM-0105 / TCM-008: Create and rename target tenants through existing Identity services
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 80. Hubbsly ID: 6a9b1040-b64d-4fca-a839-f45338820449.
+Estimate: **5 points**. Lane: Done. Delivery order: 80. Hubbsly ID: 6a9b1040-b64d-4fca-a839-f45338820449.
 
 Dependencies: IBM-0101, IBM-0104.
 
@@ -299,14 +299,16 @@ Add IManagementTenantAdministrationService with POST /api/management-identity/te
 
 Proposed paths: IBeam.Management.Identity.Target.Services/Tenants/, IBeam.Management.Identity.Target.Api/Controllers/ManagementTenantsController.cs, IBeam.Management/Entities/, IBeam.Management.Repositories.AzureTable/CustomerIdentity/, IBeam.Identity/Interfaces/IIdentityTenantService.cs, IBeam.Identity.Services/Tenants/IdentityTenantService.cs. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Create validates bounded name/optional external reference, reserves a stable tenant ID and creates exactly one tenant through Identity services; duplicate external references follow an explicit target-scoped uniqueness policy.
-- [ ] Support creation returns only tenant metadata/operation reference and grants the operator no customer membership, customer role, token or default tenant.
-- [ ] Rename requires tenants.update and the returned version/If-Match; missing or stale versions cannot silently overwrite another change.
-- [ ] Existing Identity store interfaces remain compatible; any concurrency addition uses an additive optional port and unsupported adapters advertise no update capability.
-- [ ] Consumer extension failures are recorded as recoverable operation steps; retries reconcile the existing tenant and no untracked partial tenant or destructive automatic rollback occurs.
-- [ ] Legacy tenant rows are not rewritten on reads; provenance never infers self-signup from missing metadata and arbitrary consumer profile fields are rejected.
+- [x] Create validates bounded name/optional external reference, reserves a stable tenant ID and creates exactly one tenant through Identity services; duplicate external references follow an explicit target-scoped uniqueness policy.
+- [x] Support creation returns only tenant metadata/operation reference and grants the operator no customer membership, customer role, token or default tenant.
+- [x] Rename requires tenants.update and the returned version/If-Match; missing or stale versions cannot silently overwrite another change.
+- [x] Existing Identity store interfaces remain compatible; any concurrency addition uses an additive optional port and unsupported adapters advertise no update capability.
+- [x] Consumer extension failures are recorded as recoverable operation steps; retries reconcile the existing tenant and no untracked partial tenant or destructive automatic rollback occurs.
+- [x] Legacy tenant rows are not rewritten on reads; provenance never infers self-signup from missing metadata and arbitrary consumer profile fields are rejected.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 907 tests passed, zero failures/skips; eight packages packed and inspected. Signed tenant creation/versioned rename, real provider lifecycle recovery/reference uniqueness, safe provenance and legacy column/casing preservation verified. See Hubbsly IBM-0105.
 
 ### IBM-0106 / TCM-009: Expose portal tenant create and update with operation reconciliation
 

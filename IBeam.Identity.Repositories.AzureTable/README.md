@@ -1,4 +1,6 @@
-﻿# IBeam.Identity.Repositories.AzureTable
+# IBeam.Identity.Repositories.AzureTable
+
+IBM-0105: AzureTableIdentityTenantStore also implements IIdentityTenantConditionalStore. Exact ETags guard rename; a merge preserves consumer columns and adds LastOperationId only on managed writes. Legacy missing creation timestamps project as null and reads never rewrite rows. See docs/management/customer-tenant-administration.md.
 
 Azure Table Storage provider for IBeam identity store contracts.
 
