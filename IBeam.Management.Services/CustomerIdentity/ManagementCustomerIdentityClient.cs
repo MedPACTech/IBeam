@@ -77,7 +77,7 @@ public sealed partial class ManagementCustomerIdentityClient(ManagementConnectio
         var result = Data<ManagementTenantMutationResult>(document.RootElement) ?? throw new ManagementCustomerIdentityResponseException();
         var receipt = SafeOperation(result.Operation, operation, null);
         var completed = receipt.Status == "succeeded";
-        if (tenantId is Guid expected && receipt.ResourceId != expected || result.Source is not ("unknown" or "support-provisioned") ||
+        if (tenantId is Guid expected && receipt.ResourceId != expected || !ManagementTenantSources.IsValid(result.Source) ||
             result.ExternalReference is { } reference && (reference.Length is < 1 or > 128 || reference.Any(x => !char.IsAsciiLetterOrDigit(x) && x is not ('-' or '_' or '.' or ':' or '/'))) ||
             completed && response.Status != (tenantId is null ? HttpStatusCode.Created : HttpStatusCode.OK) ||
             !completed && (response.Status != HttpStatusCode.Accepted || result.Tenant is not null) ||
@@ -192,8 +192,8 @@ public sealed partial class ManagementCustomerIdentityClient(ManagementConnectio
     {
         object safe = value switch {
             ManagementCustomerTenantDto tenant when tenant.TenantId != Guid.Empty && (id is null || id == tenant.TenantId) &&
-                Text(tenant.Name, 512) && tenant.Status is ("Active" or "Disabled") && Text(tenant.Version, 256, true)
-                => new ManagementCustomerTenantDto(tenant.TenantId, tenant.Name, tenant.Status, tenant.CreatedUtc, tenant.UpdatedUtc, tenant.Version),
+                Text(tenant.Name, 512) && tenant.Status is ("Active" or "Disabled") && Text(tenant.Version, 256, true) && ManagementTenantSources.IsValid(tenant.Source)
+                => new ManagementCustomerTenantDto(tenant.TenantId, tenant.Name, tenant.Status, tenant.CreatedUtc, tenant.UpdatedUtc, tenant.Version) { Source = tenant.Source },
             ManagementCustomerUserDto user when user.UserId != Guid.Empty && user.TenantId == tenantId && (id is null || id == user.UserId) &&
                 Text(user.Email, 320, true) && Text(user.FirstName, 128, true) && Text(user.LastName, 128, true) &&
                 user.Status is ("active" or "disabled") && Text(user.Version, 256, true) => Copy(user),

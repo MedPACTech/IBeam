@@ -8,6 +8,15 @@ namespace IBeam.Tests.Management.Applications;
 [TestClass]
 public sealed class PortalCustomerDirectoryTests
 {
+    [TestMethod, DataRow("unknown"), DataRow("self-service"), DataRow("support-provisioned")]
+    public async Task TrustedTenantSourceSurvivesPortalProjectionWithoutCustomerData(string source)
+    {
+        await using var f = await PortalHttpFixture.CreateAsync(customerDirectories: true);
+        f.Directories.TenantSource = source;
+        var app = await f.Directories.AddApp(f, "qurvia", [ManagementCustomerIdentityOperations.TenantsRead]);
+        using var response = await f.Get(Path(app)); using var body = await Ok(response);
+        Assert.AreEqual(source, body.RootElement.GetProperty("data")[0].GetProperty("source").GetString());
+    }
     [TestMethod]
     public void DirectoryDebugStringsDoNotContainCustomerIdentityOrSigningMaterial()
     {

@@ -34,7 +34,7 @@ public static class ManagementAuditOperations
         "management.identity.tenants.read",
         "management.identity.tenants.create", "management.identity.tenants.update", "management.identity.tenants.status",
         "management.identity.onboarding.create", "management.identity.onboarding.read", "management.identity.onboarding.retry",
-        "management.identity.roles.catalog", "management.identity.users.provision",
+        "management.identity.tenants.provenance", "management.identity.roles.catalog", "management.identity.users.provision",
         "management.identity.memberships.manage", "management.identity.roles.assign",
         "management.identity.invites.manage.resend", "management.identity.invites.manage.revoke", "management.identity.invitations.operation.read",
         "management.portal.customer-identity.roles.catalog", "management.portal.customer-identity.onboarding.policies",

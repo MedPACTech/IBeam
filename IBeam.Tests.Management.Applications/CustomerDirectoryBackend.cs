@@ -30,6 +30,7 @@ internal sealed partial class CustomerDirectoryBackend : IManagementDelegatedAct
     private readonly Dictionary<(string Host, string Operation, string Key, Guid Scope), MutationState> _mutations = [];
     private readonly Dictionary<(string Host, Guid Id), TenantState> _tenantStates = [];
     public int Calls { get; private set; }
+    public string TenantSource { get; set; } = "unknown";
     public bool Empty { get; set; }
     public string? Failure { get; set; }
     public Func<CancellationToken, Task>? DuringData { get; set; }
@@ -120,7 +121,7 @@ internal sealed partial class CustomerDirectoryBackend : IManagementDelegatedAct
                 lastName = (string?)null, status = "active", roleIds = Array.Empty<Guid>(), roleNames = Array.Empty<string>(), version = "v1", tokenHash = Canary, profile = Canary },
             "invites" => new { tenantId = tenant, inviteId = Invite, email = target.Info.ApplicationKey + "@example.test", firstName = (string?)null,
                 lastName = (string?)null, status = "pending", roleIds = Array.Empty<Guid>(), roleNames = Array.Empty<string>(), version = "v1", token = Canary, redirect = Canary },
-            _ => new { tenantId = Tenant, name = target.Info.ApplicationKey, status = "Active", version = "v1", profile = Canary } };
+            _ => new { tenantId = Tenant, name = target.Info.ApplicationKey, status = "Active", version = "v1", source = TenantSource, profile = Canary } };
         var query = QueryHelpers.ParseQuery(uri.Query);
         if (!query.ContainsKey("pageSize")) return Response(row);
         var size = int.Parse(query["pageSize"].ToString());

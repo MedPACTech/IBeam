@@ -8,7 +8,8 @@ namespace IBeam.Management.Identity.Target.Services.Tenants;
 
 public sealed class ManagementTenantDirectoryService(IManagementCustomerTenantReadRepository repository,
     IManagementCustomerIdentityTargetAccessService access, IOptions<ManagementTenantDirectoryOptions> options,
-    IOptions<ManagementCustomerIdentityTargetOptions> realm, TimeProvider clock, IServiceOperationExecutor operations)
+    IOptions<ManagementCustomerIdentityTargetOptions> realm, TimeProvider clock, IServiceOperationExecutor operations,
+    IManagementTenantAdministrationRepository? metadata = null)
     : IManagementTenantDirectoryService, IManagementTenantDirectoryQuery
 {
     private sealed record Cursor(string Continuation, DateTimeOffset ExpiresUtc)
@@ -34,6 +35,7 @@ public sealed class ManagementTenantDirectoryService(IManagementCustomerTenantRe
             var items = page.Items.Select(Project).Where(x => x is not null).Cast<ManagementCustomerTenantDto>()
                 .Where(x => (query.Status is null || x.Status == query.Status) &&
                     (prefix is null || x.Name.Trim().ToUpperInvariant().StartsWith(prefix, StringComparison.Ordinal))).ToArray();
+            for (var index = 0; index < items.Length; index++) items[index] = await WithSource(items[index], actor, token);
             await access.RequireAsync(ManagementCustomerIdentityOperations.TenantsRead, token);
             string? continuation;
             try { continuation = page.ContinuationToken is null ? null : codec.Protect("customer-tenants", context, new Cursor(page.ContinuationToken, expiry)); }
@@ -44,15 +46,24 @@ public sealed class ManagementTenantDirectoryService(IManagementCustomerTenantRe
     public Task<ManagementCustomerTenantDto?> FindAsync(Guid tenantId, CancellationToken ct = default)
         => Run<ManagementCustomerTenantDto?>(async token =>
         {
-            await access.RequireAsync(ManagementCustomerIdentityOperations.TenantsRead, token);
+            var actor = await access.RequireAsync(ManagementCustomerIdentityOperations.TenantsRead, token);
             if (tenantId == Guid.Empty) throw new ManagementCustomerIdentityInvalidRequestException();
             var row = await repository.FindAsync(tenantId, token);
             var result = row is null ? null : Project(row);
             if (result is null || result.TenantId != tenantId) throw new ManagementCustomerIdentityNotFoundException();
+            result = await WithSource(result, actor, token);
             await access.RequireAsync(ManagementCustomerIdentityOperations.TenantsRead, token);
             return result;
         }, tenantId, ct);
 
+    private async Task<ManagementCustomerTenantDto> WithSource(ManagementCustomerTenantDto tenant, ManagementDelegatedActor actor, CancellationToken ct)
+    {
+        var row = metadata is null ? null : await metadata.GetAsync(new(actor.IdentityRealmId, actor.ApplicationKey, actor.Environment), tenant.TenantId, ct);
+        if (row is not null && (row.TenantId != tenant.TenantId || row.IdentityRealmId != actor.IdentityRealmId ||
+            row.ApplicationKey != actor.ApplicationKey || row.Environment != actor.Environment || !ManagementTenantSources.IsValid(row.Source)))
+            throw new ManagementCustomerIdentityUnavailableException();
+        return tenant with { Source = row?.Source ?? ManagementTenantSources.Unknown };
+    }
     private static ManagementCustomerTenantDto? Project(ManagementCustomerTenantReadEntity row)
     {
         var status = string.IsNullOrWhiteSpace(row.Status) ? "Active" : row.Status;

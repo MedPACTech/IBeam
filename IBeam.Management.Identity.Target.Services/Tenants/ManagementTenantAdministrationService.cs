@@ -85,7 +85,7 @@ public sealed partial class ManagementTenantAdministrationService(IIdentityTenan
                 string.Equals(tenant.Status, "Disabled", StringComparison.OrdinalIgnoreCase) ? "Disabled" : tenant.Status;
             if (tenant.TenantId != receipt.ResourceId || tenant.Name is not { Length: > 0 and <= 512 } || tenant.Name.Any(char.IsControl) ||
                 status is not ("Active" or "Disabled") || row.Version?.Length > 256) throw new ManagementCustomerIdentityUnavailableException();
-            result = new(tenant.TenantId, tenant.Name, status, tenant.CreatedAt, tenant.UpdatedAt, row.Version);
+            result = new(tenant.TenantId, tenant.Name, status, tenant.CreatedAt, tenant.UpdatedAt, row.Version) { Source = metadata?.Source ?? ManagementTenantSources.Unknown };
         }
         await access.RequireAsync(actor.Operation, ct);
         return new(receipt, result, metadata?.Source ?? "unknown", metadata?.ExternalReference);
@@ -94,7 +94,7 @@ public sealed partial class ManagementTenantAdministrationService(IIdentityTenan
     {
         var row = await repository.GetAsync(Scope(actor), tenantId, ct);
         if (row is not null && (row.IdentityRealmId != actor.IdentityRealmId || row.ApplicationKey != actor.ApplicationKey || row.Environment != actor.Environment ||
-            row.TenantId != tenantId || row.Source is not ("unknown" or "support-provisioned") || row.Phase is not ("creating" or "renaming" or "status-changing" or "ready") ||
+            row.TenantId != tenantId || !ManagementTenantSources.IsValid(row.Source) || row.Phase is not ("creating" or "renaming" or "status-changing" or "ready") ||
             row.LastOperationId == Guid.Empty || Reference(row.ExternalReference) != row.ExternalReference)) throw new ManagementCustomerIdentityUnavailableException();
         return row;
     }

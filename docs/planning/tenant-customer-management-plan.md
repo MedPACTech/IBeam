@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0114 are complete (88 points); 3 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0115 are complete (91 points); 2 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -531,9 +531,9 @@ Feature dependencies: TCM-F03, TCM-F04, TCM-F05.
 
 Feature acceptance:
 
-- [ ] Target-owned onboarding policies determine permitted roles, redirects and optional application initialization.
-- [ ] Self-signup and support-provisioned tenants share Identity services without duplicate account stores or changed public registration policy.
-- [ ] Unsupported optional adapters fail clearly and advertise only their implemented capabilities.
+- [x] Target-owned onboarding policies determine permitted roles, redirects and optional application initialization.
+- [x] Self-signup and support-provisioned tenants share Identity services without duplicate account stores or changed public registration policy.
+- [x] Unsupported optional adapters fail clearly and advertise only their implemented capabilities.
 
 ### IBM-0114 / TCM-017: Add target-owned onboarding policy and idempotent consumer extension hooks
 
@@ -558,22 +558,24 @@ Verification evidence: 1057 regression tests passed, zero failures/skips; final 
 
 ### IBM-0115 / TCM-018: Verify self-signup coexistence and document trustworthy tenant provenance
 
-Estimate: **3 points**. Lane: Triage. Delivery order: 180. Hubbsly ID: 1610c64c-908f-47da-b949-3effb1c8b2df.
+Estimate: **3 points**. Lane: Done. Delivery order: 180. Hubbsly ID: 1610c64c-908f-47da-b949-3effb1c8b2df.
 
 Dependencies: IBM-0105, IBM-0114.
 
-Define tenant provenance values support-provisioned, self-service and unknown. Reuse ManagementTenantAdministrationEntity as optional target-local metadata, with a trusted event/hook for consumers to record self-service creation. Do not rewrite old tenants or infer their signup channel. Document and test that ordinary registration/provisioning continues using existing Identity services while enterprise management uses its separate authorization entry point.
+Implemented explicit tenant provenance and optional trusted target-only self-service evidence recording. Existing tenants remain unknown without durable evidence; preserve creation evidence, references and mutation fences. Bounded read-only tenant directory enrichment and safe portal source projection added; ordinary customer signup and enterprise invite acceptance remain native Identity flows. See docs/management/tenant-provenance.md.
 
 Proposed paths: IBeam.Management.Identity.Target.Services/Tenants/, IBeam.Management.Repositories.AzureTable/CustomerIdentity/, IBeam.Tests.Management.CustomerIdentity/, IBeam.Tests.Identity.Services/, docs/management/enterprise-onboarding.md. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Support-created tenants record their known provenance and operation ID; existing tenants remain unknown unless a trusted migration/event supplies evidence.
-- [ ] Self-service provenance can be recorded only by a trusted target service integration, never by a public signup body or support query parameter.
-- [ ] Existing signup, invitation acceptance, MFA, tenant selection and default-membership behaviors pass focused regressions without adding management credentials or forcing a new signup mode.
-- [ ] The same customer can retain a self-service tenant and accept an enterprise invitation without duplicate global Identity accounts or accidental role transfer.
-- [ ] Directory provenance filters, when supported, use bounded target queries and expose unknown explicitly; missing metadata is not described as self-signup.
-- [ ] Docs distinguish management application, support organization and customer tenant, and explain storage/realm choices and optional provenance setup.
+- [x] Support-created tenants record their known provenance and operation ID; existing tenants remain unknown unless a trusted migration/event supplies evidence.
+- [x] Self-service provenance can be recorded only by a trusted target service integration, never by a public signup body or support query parameter.
+- [x] Existing signup, invitation acceptance, MFA, tenant selection and default-membership behaviors pass focused regressions without adding management credentials or forcing a new signup mode.
+- [x] The same customer can retain a self-service tenant and accept an enterprise invitation without duplicate global Identity accounts or accidental role transfer.
+- [x] Directory provenance filters, when supported, use bounded target queries and expose unknown explicitly; missing metadata is not described as self-signup.
+- [x] Docs distinguish management application, support organization and customer tenant, and explain storage/realm choices and optional provenance setup.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 1071 regression tests passed with zero failures/skips and two isolated Azurite fixtures; three changed NuGet packages packed/content inspected. Trusted replay/conflicts, provider isolation, support-create/rename provenance, portal source projection and existing-user invitation role/default preservation covered.
 
 ## TCM-F08: End-to-end verification and baseline application handoff
 

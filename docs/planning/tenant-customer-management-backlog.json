@@ -905,22 +905,25 @@
           "hubbslySourceKey": "IBM-0115",
           "sortOrder": 180,
           "boardKey": "hub",
-          "laneKey": "triage",
+          "laneKey": "done",
           "sourceSystem": "codex",
           "sourceKey": "IBM-0115",
           "sourceUrl": "https://github.com/MedPACTech/IBeam",
-          "description": "Planning reference: TCM-018. Feature: TCM-F07. Estimate: 3 points. Delivery order: 180. Dependencies: TCM-008 / IBM-0105, TCM-017 / IBM-0114.\r\n\r\nDefine tenant provenance values support-provisioned, self-service and unknown. Reuse ManagementTenantAdministrationEntity as optional target-local metadata, with a trusted event/hook for consumers to record self-service creation. Do not rewrite old tenants or infer their signup channel. Document and test that ordinary registration/provisioning continues using existing Identity services while enterprise management uses its separate authorization entry point.\r\n\r\nPortal API -> Management services -> scoped HTTPS client -> target Identity Management API -> Identity management services -> existing Identity services/stores or entity-focused repositories. Custom service operations execute through IServiceOperationExecutor. Customer Identity is registered only in the target app; the support host retains its isolated identity realm.\r\n\r\nEvery operation requires an enabled app connection, live support assignment, independent human operation permission, target machine capability and target host policy. No support administrator bypass, customer impersonation, raw credential/token output, customer business records, global customer-account disable, or direct portal access to customer storage.\r\n\r\nPlan: docs/planning/tenant-customer-management-plan.md and tenant-customer-management-backlog.json. Proposed paths/routes are implementation guidance; this card is not implemented yet. Initial supported provider is Azure Table; unsupported adapters advertise no capability.",
-          "acceptanceCriteriaJson": "[{\"t\":\"Support-created tenants record their known provenance and operation ID; existing tenants remain unknown unless a trusted migration/event supplies evidence.\",\"met\":false},{\"t\":\"Self-service provenance can be recorded only by a trusted target service integration, never by a public signup body or support query parameter.\",\"met\":false},{\"t\":\"Existing signup, invitation acceptance, MFA, tenant selection and default-membership behaviors pass focused regressions without adding management credentials or forcing a new signup mode.\",\"met\":false},{\"t\":\"The same customer can retain a self-service tenant and accept an enterprise invitation without duplicate global Identity accounts or accidental role transfer.\",\"met\":false},{\"t\":\"Directory provenance filters, when supported, use bounded target queries and expose unknown explicitly; missing metadata is not described as self-signup.\",\"met\":false},{\"t\":\"Docs distinguish management application, support organization and customer tenant, and explain storage/realm choices and optional provenance setup.\",\"met\":false}]",
+          "description": "Implemented explicit tenant provenance and optional trusted target-only self-service evidence recording. Existing tenants remain unknown without durable evidence; preserve creation evidence, references and mutation fences. Bounded read-only tenant directory enrichment and safe portal source projection added; ordinary customer signup and enterprise invite acceptance remain native Identity flows. See docs/management/tenant-provenance.md.",
+          "acceptanceCriteriaJson": "[{\"t\":\"Support-created tenants record their known provenance and operation ID; existing tenants remain unknown unless a trusted migration/event supplies evidence.\",\"met\":true},{\"t\":\"Self-service provenance can be recorded only by a trusted target service integration, never by a public signup body or support query parameter.\",\"met\":true},{\"t\":\"Existing signup, invitation acceptance, MFA, tenant selection and default-membership behaviors pass focused regressions without adding management credentials or forcing a new signup mode.\",\"met\":true},{\"t\":\"The same customer can retain a self-service tenant and accept an enterprise invitation without duplicate global Identity accounts or accidental role transfer.\",\"met\":true},{\"t\":\"Directory provenance filters, when supported, use bounded target queries and expose unknown explicitly; missing metadata is not described as self-signup.\",\"met\":true},{\"t\":\"Docs distinguish management application, support organization and customer tenant, and explain storage/realm choices and optional provenance setup.\",\"met\":true}]",
           "workType": "feature",
           "priority": "high",
           "hubbslyDependencies": [
             "IBM-0105",
             "IBM-0114"
-          ]
+          ],
+          "implementationStatus": "done",
+          "verification": "1071 regression tests passed with zero failures/skips and two isolated Azurite fixtures; three changed NuGet packages packed/content inspected. Trusted replay/conflicts, provider isolation, support-create/rename provenance, portal source projection and existing-user invitation role/default preservation covered."
         }
       ],
       "points": 8,
-      "hubbslyId": "d438c6c4-ab70-4c31-be89-144ce26bb5d2"
+      "hubbslyId": "d438c6c4-ab70-4c31-be89-144ce26bb5d2",
+      "implementationStatus": "done"
     },
     {
       "key": "TCM-F08",

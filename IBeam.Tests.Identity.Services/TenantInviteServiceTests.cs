@@ -135,6 +135,102 @@ public sealed partial class TenantInviteServiceTests
     }
 
     [TestMethod]
+    public async Task ExistingSelfServiceCustomerAcceptsEnterpriseInviteWithoutNewGlobalAccountOrRoleTransfer()
+    {
+        var tenantId = Guid.NewGuid();
+        var invitedBy = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var roleId = Guid.NewGuid();
+        var user = new IdentityUser(userId, "invited@example.com", true, PhoneNumber: "+16145551212");
+        var sender = new RecordingIdentitySender();
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var roles = new Mock<ITenantRoleService>(MockBehavior.Strict);
+        var memberships = new Mock<ITenantMembershipStore>(MockBehavior.Strict);
+        var extensions = new Mock<IIdentityUserExtensionCoordinator>(MockBehavior.Strict);
+        var tokens = new Mock<ITokenService>(MockBehavior.Strict);
+
+        users.Setup(x => x.FindByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+
+        roles.Setup(x => x.EnsureTenantMembershipAndGrantRolesAsync(
+                It.Is<TenantMembershipRoleBootstrapRequest>(r =>
+                    r.TenantId == tenantId &&
+                    r.UserId == userId &&
+                    r.RoleNames!.SequenceEqual(new[] { "Member" }) &&
+                    !r.SetAsDefault &&
+                    r.UserEmail == "invited@example.com" &&
+                    r.UserPhoneNumber == "+16145551212"),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UserTenantRoleAssignment(
+                tenantId,
+                userId,
+                [new TenantRole(tenantId, roleId, "Member", false, true, DateTimeOffset.UtcNow)]));
+
+        memberships.Setup(x => x.GetTenantForUserAsync(userId, tenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TenantInfo(tenantId, "Workspace", ["Member"], true, [roleId]));
+
+        extensions.Setup(x => x.EnsureExtensionAsync(
+                It.Is<IdentityUser>(u => u.UserId == userId),
+                It.Is<UserExtensionContext>(c =>
+                    c.Operation == "invite-accepted" &&
+                    c.TenantId == tenantId &&
+                    c.UserId == userId &&
+                    c.NormalizedEmail == "invited@example.com" &&
+                    c.FirstName == "Ada" &&
+                    c.Metadata!["source"] == "test"),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        tokens.Setup(x => x.CreateAccessTokenAsync(
+                userId,
+                tenantId,
+                It.Is<IReadOnlyList<ClaimItem>>(claims =>
+                    claims.Any(c => c.Type == "tid" && c.Value == tenantId.ToString("D")) &&
+                    claims.Count(c => c.Type == "role") == 1 && claims.Any(c => c.Type == "role" && c.Value == "Member") &&
+                    claims.Any(c => c.Type == "rid" && c.Value == roleId.ToString("D"))),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TokenResult("jwt", DateTimeOffset.UtcNow.AddHours(1), []));
+
+        var sut = CreateService(
+            sender: sender,
+            users: users.Object,
+            roles: roles.Object,
+            memberships: memberships.Object,
+            extensions: extensions.Object,
+            tokens: tokens.Object,
+            tenantId: tenantId);
+
+        var created = await sut.CreateInviteAsync(
+            tenantId,
+            new TenantInviteCreateRequest(
+                TenantInviteDestinationTypes.Email,
+                Email: "invited@example.com",
+                FirstName: "Ada",
+                RoleNames: ["Member"],
+                SetAsDefaultTenant: false,
+                Metadata: new Dictionary<string, string> { ["source"] = "test" }),
+            invitedBy);
+
+        var accepted = await sut.AcceptInviteAsync(
+            new TenantInviteAcceptRequest(
+                InviteToken: created.InviteToken,
+                Mode: TenantInviteAcceptModes.ExistingSession),
+            userId);
+
+        Assert.AreEqual(TenantInviteStatuses.Redeemed, accepted.Invite.Status);
+        Assert.AreEqual(userId, accepted.User.UserId);
+        Assert.IsFalse(accepted.CreatedNewUser);
+        Assert.IsNotNull(accepted.Token);
+        users.VerifyAll();
+        users.VerifyNoOtherCalls();
+        roles.VerifyAll();
+        roles.VerifyNoOtherCalls();
+        memberships.VerifyAll();
+        extensions.VerifyAll();
+        tokens.VerifyAll();
+    }
+
+    [TestMethod]
     public async Task ListInvitesAsync_ActiveOnly_ReturnsOnlyUnexpiredPendingOrSent()
     {
         var tenantId = Guid.NewGuid();
