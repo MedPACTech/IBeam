@@ -17,6 +17,10 @@ internal sealed partial class CustomerDirectoryBackend
     private async Task<HttpResponseMessage> Onboarding(HttpRequestMessage request, string operation, CancellationToken ct)
     {
         var uri = request.RequestUri!;
+        if (request.Method == HttpMethod.Get && uri.AbsolutePath.EndsWith("/enterprise-onboardings/policies", StringComparison.Ordinal)) {
+            Assert.AreEqual(ManagementCustomerIdentityOperations.OnboardingRead, operation);
+            return new(HttpStatusCode.OK) { Content = JsonContent.Create(new { success = true, data = new[] { new { key = "enterprise-owner", requiresInitialization = true, initializerKey = Canary } } }) };
+        }
         if (request.Method == HttpMethod.Get) {
             lock (_onboard) {
                 var row = _onboard.Where(x => x.Key.Host == uri.Host).Select(x => x.Value.Receipt).FirstOrDefault(x => uri.AbsolutePath.EndsWith(x.OperationId.ToString("D"), StringComparison.Ordinal));

@@ -9,6 +9,17 @@ namespace IBeam.Tests.Management.CustomerIdentity;
 [TestClass]
 public sealed class EnterpriseOnboardingHttpTests
 {
+    [TestMethod]
+    public async Task PolicyDiscoveryRequiresSignedOnboardingReadAndDoesNotExposeImplementation()
+    {
+        var data = new OnboardingFixture(); await using var f = await DelegationFixture.Start(onboarding: data);
+        var path = "/api/management-identity/enterprise-onboardings/policies";
+        using var response = await f.Send(await f.Issue(ManagementCustomerIdentityOperations.OnboardingRead, path: path), path: path);
+        var text = await response.Content.ReadAsStringAsync(); Assert.AreEqual(HttpStatusCode.OK, response.StatusCode, text);
+        Assert.Contains("enterprise-owner", text); Assert.DoesNotContain("Owner", text); Assert.AreEqual(0, data.Sends);
+        using var wrong = await f.Send(await f.Issue(ManagementCustomerIdentityOperations.UsersRead, path: path), path: path);
+        Assert.AreNotEqual(HttpStatusCode.OK, wrong.StatusCode);
+    }
     private const string Path = "/api/management-identity/enterprise-onboardings";
     private static byte[] Body(OnboardingFixture data) => JsonSerializer.SerializeToUtf8Bytes(data.Request, new JsonSerializerOptions(JsonSerializerDefaults.Web));
     private static async Task<ManagementIdentityOperationDto> Parse(HttpResponseMessage response, HttpStatusCode expected)

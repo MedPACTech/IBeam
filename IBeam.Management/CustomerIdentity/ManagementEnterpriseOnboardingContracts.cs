@@ -24,6 +24,7 @@ public interface IManagementEnterpriseOnboardingCommandService
 }
 public interface IManagementPortalEnterpriseOnboardingService
 {
+    Task<IReadOnlyList<ManagementCustomerOnboardingPolicyDto>> ListPoliciesAsync(Guid applicationId, CancellationToken ct = default) => throw new ManagementCustomerIdentityUnavailableException();
     Task<ManagementPortalOperationResult> CreateAsync(Guid applicationId, CreateManagementEnterpriseOnboarding request, string key, CancellationToken ct = default);
     Task<ManagementPortalOperationResult> RetryAsync(Guid applicationId, Guid operationId, string key, CancellationToken ct = default);
 }

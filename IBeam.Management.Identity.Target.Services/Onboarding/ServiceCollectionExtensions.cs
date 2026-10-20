@@ -12,9 +12,11 @@ public static class ManagementEnterpriseOnboardingServiceExtensions
     {
         services.AddIBeamManagementTenantAdministration(configuration);
         services.AddOptions<ManagementEnterpriseOnboardingOptions>().Bind(configuration.GetSection(ManagementEnterpriseOnboardingOptions.SectionName))
-            .Validate(x => x.IsValid(), "Onboarding requires explicit policy keys mapped to target-local Admin or Owner roles.").ValidateOnStart();
+            .Validate(x => x.IsValid(), "Onboarding requires explicit policy keys mapped to target-local administrator roles.").ValidateOnStart();
         services.TryAddScoped<IExternalTenantInviteService>(p => p.GetRequiredService<ITenantInviteService>() is IExternalTenantInviteService service && service.SupportsDurableCreation
             ? service : throw new InvalidOperationException("Onboarding requires a durable external Identity invitation adapter."));
+        services.TryAddScoped<IManagementCustomerOnboardingPolicy, ConfiguredManagementCustomerOnboardingPolicy>();
+        services.TryAddScoped<IManagementCustomerOnboardingPolicyCatalog, ManagementCustomerOnboardingPolicyCatalog>();
         services.TryAddScoped<IManagementEnterpriseOnboardingService, ManagementEnterpriseOnboardingService>();
         services.TryAddScoped<IManagementEnterpriseOnboardingCommandService, ManagementEnterpriseOnboardingCommandService>();
         return services;

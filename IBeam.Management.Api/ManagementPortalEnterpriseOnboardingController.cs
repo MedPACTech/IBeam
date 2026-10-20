@@ -9,6 +9,8 @@ namespace IBeam.Management.Api;
 [Route("api/management/applications/{applicationId:guid}/enterprise-onboardings")]
 public sealed class ManagementPortalEnterpriseOnboardingController(IManagementPortalEnterpriseOnboardingService service) : ApiControllerBase
 {
+    [HttpGet("policies")]
+    public async Task<IActionResult> Policies(Guid applicationId, CancellationToken ct) => OkResponse(await service.ListPoliciesAsync(applicationId, ct));
     [HttpPost]
     public async Task<IActionResult> Create(Guid applicationId, [FromBody] CreateManagementEnterpriseOnboarding request, [FromHeader(Name = "Idempotency-Key")] string key, CancellationToken ct)
     { var result = await service.CreateAsync(applicationId, request, key, ct); return Reply(applicationId, ManagementCustomerIdentityOperations.OnboardingCreate, result); }

@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0113 are complete (83 points); 4 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0114 are complete (88 points); 3 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -537,22 +537,24 @@ Feature acceptance:
 
 ### IBM-0114 / TCM-017: Add target-owned onboarding policy and idempotent consumer extension hooks
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 170. Hubbsly ID: 25134d07-2f7c-48fd-84c2-838e76c049a4.
+Estimate: **5 points**. Lane: Done. Delivery order: 170. Hubbsly ID: 25134d07-2f7c-48fd-84c2-838e76c049a4.
 
 Dependencies: IBM-0107, IBM-0109.
 
-Add IManagementCustomerOnboardingPolicy, trusted policy-key discovery and optional idempotent initialization hooks layered over IIdentityTenantExtension. Host policy controls whether enterprise onboarding is enabled, initial-admin/member role templates, approved redirects and required app initialization. Hooks receive operation/tenant IDs and safe typed context, not portal-supplied arbitrary customer profile JSON. Existing Licensing/Billing/Credits can be integrated by consumers through these hooks without becoming required dependencies.
+Implemented target-owned onboarding policy discovery, explicit administrator templates and optional durable consumer initialization before invitation persistence/delivery. Required hooks reconcile stable operation/tenant IDs; disabled, missing and Unknown policies/hooks fail closed with safe recovery. Identity-only consumers have no commercial dependencies. See docs/management/customer-onboarding-policy.md.
 
 Proposed paths: IBeam.Management/CustomerIdentity/, IBeam.Management.Identity.Target.Services/Policies/, IBeam.Management.Identity.Target.Services/Onboarding/, IBeam.Identity/Interfaces/IIdentityTenantExtension.cs, docs/management/enterprise-onboarding.md, IBeam.Tests.Management.CustomerIdentity/. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Only host-registered enabled policy keys are discoverable/accepted; caller input cannot select arbitrary implementations, storage accounts, redirect hosts or service URLs.
-- [ ] Default Identity-only onboarding works without Billing, Licensing, Credits, SSO, application-profile repositories or a particular consumer app.
-- [ ] Optional initialization executes with a durable operation key and idempotent/reconcilable semantics; restart/retry cannot duplicate consumer resources.
-- [ ] A required policy/hook denial or failure blocks the affected workflow step with a safe recoverable status and creates no silent partial success.
-- [ ] Role templates and redirect destinations are validated by target-owned policy; the management user cannot supply permissions or customer data through an unvalidated extension bag.
-- [ ] Tests use two consumer policies and failure injection to prove optional composition and preserve separate support/customer identity containers.
+- [x] Only host-registered enabled policy keys are discoverable/accepted; caller input cannot select arbitrary implementations, storage accounts, redirect hosts or service URLs.
+- [x] Default Identity-only onboarding works without Billing, Licensing, Credits, SSO, application-profile repositories or a particular consumer app.
+- [x] Optional initialization executes with a durable operation key and idempotent/reconcilable semantics; restart/retry cannot duplicate consumer resources.
+- [x] A required policy/hook denial or failure blocks the affected workflow step with a safe recoverable status and creates no silent partial success.
+- [x] Role templates and redirect destinations are validated by target-owned policy; the management user cannot supply permissions or customer data through an unvalidated extension bag.
+- [x] Tests use two consumer policies and failure injection to prove optional composition and preserve separate support/customer identity containers.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 1057 regression tests passed, zero failures/skips; final target suite 228 passed; five affected NuGet packages packed and inspected. Signed target/portal policy discovery, two consumer policies, disabled policy, lost acknowledgements, Unknown/missing hooks and native extension bridge covered.
 
 ### IBM-0115 / TCM-018: Verify self-signup coexistence and document trustworthy tenant provenance
 

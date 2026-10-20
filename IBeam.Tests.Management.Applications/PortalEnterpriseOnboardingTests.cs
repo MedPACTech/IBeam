@@ -7,6 +7,17 @@ namespace IBeam.Tests.Management.Applications;
 [TestClass]
 public sealed class PortalEnterpriseOnboardingTests
 {
+    [TestMethod]
+    public async Task PolicyDiscoveryIsAppBoundSignedAndDropsTargetPrivateFields()
+    {
+        await using var f = await PortalHttpFixture.CreateAsync(customerOnboarding: true);
+        var app = await App(f);
+        using var response = await f.Get(Path(app) + "/policies");
+        var text = await response.Content.ReadAsStringAsync(); Assert.AreEqual(HttpStatusCode.OK, response.StatusCode, text);
+        Assert.Contains("enterprise-owner", text); Assert.DoesNotContain(CustomerDirectoryBackend.Canary, text);
+        using var anonymous = await f.Get(Path(app) + "/policies", token: "");
+        Assert.AreNotEqual(HttpStatusCode.OK, anonymous.StatusCode);
+    }
     private static readonly string[] Grants = ManagementCustomerIdentityPermissionPolicy.RequiredFor(ManagementCustomerIdentityOperations.OnboardingRetry)
         .Concat(new[] { ManagementCustomerIdentityOperations.OnboardingRead }).ToArray();
     private static string Path(Guid app) => "/api/management/applications/" + app + "/enterprise-onboardings";

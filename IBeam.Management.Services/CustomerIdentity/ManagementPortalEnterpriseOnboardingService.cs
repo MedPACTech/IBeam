@@ -6,6 +6,15 @@ namespace IBeam.Management.Services.CustomerIdentity;
 public sealed class ManagementPortalEnterpriseOnboardingService(PortalMutationRuntime runtime, PortalMutationReferences references,
     IManagementCustomerIdentityClient client) : IManagementPortalEnterpriseOnboardingService
 {
+    public Task<IReadOnlyList<ManagementCustomerOnboardingPolicyDto>> ListPoliciesAsync(Guid app, CancellationToken ct = default)
+        => runtime.Run(this, app, "management.portal.customer-identity.onboarding.policies", async token => {
+            const string authority = ManagementCustomerIdentityOperations.OnboardingRead;
+            await runtime.Authorize(app, authority, token);
+            var connection = await runtime.Resolve(app, authority, token);
+            IReadOnlyList<ManagementCustomerOnboardingPolicyDto> result;
+            using (var attempt = runtime.Attempt(token)) result = await client.ListOnboardingPoliciesAsync(connection, attempt.Token);
+            await runtime.Recheck(connection, authority, token); return result;
+        }, ct);
     public Task<ManagementPortalOperationResult> CreateAsync(Guid applicationId, CreateManagementEnterpriseOnboarding request, string key, CancellationToken ct = default)
         => Execute(applicationId, null, request, key, ct);
     public Task<ManagementPortalOperationResult> RetryAsync(Guid applicationId, Guid operationId, string key, CancellationToken ct = default)

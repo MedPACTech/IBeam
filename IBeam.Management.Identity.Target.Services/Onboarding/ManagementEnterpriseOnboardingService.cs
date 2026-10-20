@@ -15,12 +15,13 @@ public sealed class ManagementEnterpriseOnboardingService(IManagementEnterpriseO
     IManagementTenantAdministrationService tenants, IExternalTenantInviteService externalInvites, ITenantInviteStore invites,
     ITenantRoleStore roles, IIdentityUserStore users, ITenantMembershipStore memberships,
     IManagementCustomerIdentityTargetAccessService access, IOptions<ManagementEnterpriseOnboardingOptions> policies,
-    IOptions<ManagementIdentityOperationOptions> options, TimeProvider clock, IServiceOperationExecutor operations)
+    IOptions<ManagementIdentityOperationOptions> options, TimeProvider clock, IServiceOperationExecutor operations, IManagementCustomerOnboardingPolicy? policyProvider = null,
+    IEnumerable<IManagementCustomerOnboardingInitializer>? initializers = null)
     : IManagementEnterpriseOnboardingService
 {
     public Task<ManagementEnterpriseOnboardingDto> CreateAsync(CreateManagementEnterpriseOnboarding request, string idempotencyKey, CancellationToken ct = default)
         => Run(ManagementCustomerIdentityOperations.OnboardingCreate, async (actor, token) => {
-            var input = Validate(request);
+            var input = await Validate(request, token);
             ManagementIdentityOperationDto receipt;
             try {
                 receipt = await receipts.ExecuteAsync(new() { Operation = actor.Operation, IdempotencyKey = idempotencyKey,
@@ -60,7 +61,7 @@ public sealed class ManagementEnterpriseOnboardingService(IManagementEnterpriseO
     public Task<ManagementEnterpriseOnboardingDto> RetryAsync(Guid onboardingId, string idempotencyKey, CancellationToken ct = default)
         => Run(ManagementCustomerIdentityOperations.OnboardingRetry, async (actor, token) => {
             var row = await Read(actor, onboardingId, token) ?? throw new ManagementCustomerIdentityNotFoundException();
-            _ = Unprotect(row); // Current policy must still approve the persisted intent.
+            _ = await Unprotect(row, ct: token); // Current policy must still approve the persisted intent.
             try {
                 await receipts.ExecuteAsync(new() { Operation = actor.Operation, ResourceScope = onboardingId, ExistingResourceId = onboardingId,
                     IdempotencyKey = idempotencyKey, CanonicalPayload = JsonSerializer.SerializeToUtf8Bytes(new { OnboardingId = onboardingId }) },
@@ -81,7 +82,7 @@ public sealed class ManagementEnterpriseOnboardingService(IManagementEnterpriseO
     }
     private async Task ResumeCore(ManagementDelegatedActor actor, ManagementEnterpriseOnboardingEntity row, bool explicitRetry, CancellationToken ct)
     {
-        var input = Unprotect(row);
+        var input = await Unprotect(row, ct: ct);
         if (row.Step != "invitation-persisted") {
             ManagementTenantMutationResult tenant;
             try { tenant = await tenants.CreateAsync(new() { Name = input.TenantName, ExternalReference = input.ExternalReference }, ChildKey(row), ct); }
@@ -98,6 +99,21 @@ public sealed class ManagementEnterpriseOnboardingService(IManagementEnterpriseO
             if (tenant.Operation.Status != "succeeded") throw new ManagementCustomerIdentityUnavailableException();
             if (tenant.Tenant?.Status != "Active") throw new ManagementIdentityOperationConflictException();
             var tenantId = row.TenantId ?? throw new ManagementCustomerIdentityUnavailableException();
+            if (input.InitializerKey is { } initializerKey) {
+                var hook = (initializers ?? []).SingleOrDefault(x => x.Key == initializerKey);
+                row = await Save(row with { Step = "consumer-initialization", ErrorCode = "consumer-initialization-incomplete" }, ct);
+                if (hook is null) throw new ManagementCustomerIdentityUnavailableException();
+                var context = new ManagementCustomerInitializationContext(actor.IdentityRealmId, actor.OrganizationId, actor.ApplicationId,
+                    row.OperationId, row.OnboardingId, tenantId, input.PolicyKey);
+                await access.RequireAsync(actor.Operation, ct);
+                var state = await hook.ReconcileAsync(context, ct);
+                if (state == ManagementCustomerInitializationState.Absent) {
+                    await hook.InitializeAsync(context, ct);
+                    state = await hook.ReconcileAsync(context, ct);
+                }
+                if (state != ManagementCustomerInitializationState.Applied) throw new ManagementCustomerIdentityUnavailableException();
+                row = await Save(row with { Step = "extensions-completed", ErrorCode = null }, ct);
+            }
             var approved = (await roles.GetRolesAsync(tenantId, ct)).Where(x => x.TenantId == tenantId && x.IsActive && x.Name == input.RoleName).ToArray();
             if (approved.Length != 1) {
                 await Save(row with { ErrorCode = "administrator-role-unavailable" }, ct);
@@ -105,6 +121,7 @@ public sealed class ManagementEnterpriseOnboardingService(IManagementEnterpriseO
             }
             await access.RequireAsync(actor.Operation, ct);
             await externalInvites.EnsureAsync(new() { TenantId = tenantId, InviteId = row.InviteId,
+                ApprovedRoleNames = [input.RoleName],
                 Actor = new(actor.OrganizationId, row.CreatedByUserId, actor.ApplicationId, row.OperationId), Email = input.InitialAdminEmail,
                 Token = input.Token, RoleIds = [approved[0].RoleId], CreatedUtc = row.CreatedUtc, ExpiresUtc = row.ExpiresUtc }, ct);
             row = await Save(row with { Step = "invitation-persisted", ErrorCode = null }, ct);
@@ -137,7 +154,7 @@ public sealed class ManagementEnterpriseOnboardingService(IManagementEnterpriseO
         string? error = row.ErrorCode; var completed = false;
         if (row.Step == "invitation-persisted" && row.TenantId is Guid tenant) {
             var invite = await invites.GetAsync(tenant, row.InviteId, ct) ?? throw new ManagementCustomerIdentityUnavailableException();
-            var input = Unprotect(row, false);
+            var input = await Unprotect(row, false, ct);
             if (invite.Status == "redeemed" && invite.RedeemedByUserId is Guid userId) {
                 var user = await users.FindByIdAsync(userId, ct);
                 var membership = await memberships.GetTenantForUserAsync(userId, tenant, ct);
@@ -159,25 +176,28 @@ public sealed class ManagementEnterpriseOnboardingService(IManagementEnterpriseO
         var row = await repository.GetAsync(Scope(actor), id, ct);
         if (row is not null && (row.Scope != Scope(actor) || row.ApplicationKey != actor.ApplicationKey || row.Environment != actor.Environment ||
             row.OnboardingId != id || row.OperationId == Guid.Empty || row.CreatedByUserId == Guid.Empty || row.InviteId != StableInvite(row.OperationId) ||
-            row.Step is not ("tenant-creation" or "tenant-extensions" or "extensions-completed" or "invitation-persisted") ||
+            row.Step is not ("tenant-creation" or "tenant-extensions" or "extensions-completed" or "consumer-initialization" or "invitation-persisted") ||
             row.DeliveryStatus is not ("pending" or "sending" or "sent" or "failed" or "unknown") ||
             row.DeliveryAttempts is < 0 or > 100 || row.ErrorCode is not (null or "tenant-setup-incomplete" or "administrator-role-unavailable" or
-                "setup-recovery-required" or "delivery-not-sent" or "delivery-unconfirmed") ||
+                "consumer-initialization-incomplete" or "setup-recovery-required" or "delivery-not-sent" or "delivery-unconfirmed") ||
             row.ExpiresUtc <= clock.GetUtcNow())) throw new ManagementCustomerIdentityNotFoundException();
         return row;
     }
     private Task<ManagementEnterpriseOnboardingEntity> Save(ManagementEnterpriseOnboardingEntity row, CancellationToken ct)
         => repository.ReplaceAsync(row, row.Version, ct);
-    private RecoveryInput Validate(CreateManagementEnterpriseOnboarding request)
+    private async Task<RecoveryInput> Validate(CreateManagementEnterpriseOnboarding request, CancellationToken ct = default)
     {
         if (request is null || string.IsNullOrWhiteSpace(request.TenantName) || request.TenantName.Length > 512 || request.TenantName.Any(char.IsControl) ||
             request.InitialAdminEmail is null || request.InitialAdminEmail.Length is < 3 or > 320 || request.InitialAdminEmail.Any(char.IsControl) ||
             !MailAddress.TryCreate(request.InitialAdminEmail.Trim(), out var address) || address.Address != request.InitialAdminEmail.Trim() ||
-            request.PolicyKey is null || !policies.Value.IsValid() || !policies.Value.Policies.TryGetValue(request.PolicyKey, out var role) ||
+            !ManagementEnterpriseOnboardingOptions.ValidKey(request.PolicyKey) || !policies.Value.IsValid() ||
             request.ExternalReference is { } reference && (reference.Length > 128 || reference.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_' or '.' or ':' or '/'))))
             throw new ManagementCustomerIdentityInvalidRequestException();
-        return new(request.TenantName.Trim(), address.Address.ToLowerInvariant(), request.ExternalReference is "" ? null : request.ExternalReference, request.PolicyKey, role, "");
+        var policy = OnboardingPolicyValidation.Validate(await PolicyProvider.GetEnabledAsync(ct)).SingleOrDefault(x => x.Key == request.PolicyKey)
+            ?? throw new ManagementAccessDeniedException();
+        return new(request.TenantName.Trim(), address.Address.ToLowerInvariant(), request.ExternalReference is "" ? null : request.ExternalReference, request.PolicyKey, policy.InitialAdministratorRole, "", policy.InitializerKey);
     }
+    private IManagementCustomerOnboardingPolicy PolicyProvider => policyProvider ?? new ConfiguredManagementCustomerOnboardingPolicy(policies);
     private byte[] Key() => HMACSHA256.HashData(Convert.FromBase64String(options.Value.FingerprintKey), Encoding.UTF8.GetBytes("ibeam-onboarding-recovery-v1"));
     private static byte[] Binding(ManagementEnterpriseOnboardingEntity row) => JsonSerializer.SerializeToUtf8Bytes(new {
         row.Scope, row.ApplicationKey, row.Environment, row.OperationId, row.OnboardingId, row.InviteId, row.CreatedByUserId, row.CreatedUtc, row.ExpiresUtc });
@@ -187,24 +207,25 @@ public sealed class ManagementEnterpriseOnboardingService(IManagementEnterpriseO
         using var aes = new AesGcm(Key(), 16); aes.Encrypt(nonce, body, cipher, tag, Binding(row));
         return Convert.ToBase64String(nonce.Concat(tag).Concat(cipher).ToArray());
     }
-    private RecoveryInput Unprotect(ManagementEnterpriseOnboardingEntity row, bool requireCurrentPolicy = true)
+    private async Task<RecoveryInput> Unprotect(ManagementEnterpriseOnboardingEntity row, bool requireCurrentPolicy = true, CancellationToken ct = default)
     {
         var bytes = Convert.FromBase64String(row.EncryptedInput);
         if (bytes.Length is < 29 or > 8192) throw new ManagementCustomerIdentityUnavailableException();
         var plain = new byte[bytes.Length - 28]; using var aes = new AesGcm(Key(), 16);
         aes.Decrypt(bytes.AsSpan(0, 12), bytes.AsSpan(28), bytes.AsSpan(12, 16), plain, Binding(row));
         var input = JsonSerializer.Deserialize<RecoveryInput>(plain) ?? throw new ManagementCustomerIdentityUnavailableException();
-        if (input.Token.Length != 44 || input.RoleName is not ("Admin" or "Owner")) throw new ManagementAccessDeniedException();
+        if (input.Token.Length != 44 || !Provisioning.ManagementCustomerProvisioningOptions.ValidRoleName(input.RoleName)) throw new ManagementAccessDeniedException();
         if (requireCurrentPolicy) {
-            var approved = Validate(new() { TenantName = input.TenantName, InitialAdminEmail = input.InitialAdminEmail, ExternalReference = input.ExternalReference, PolicyKey = input.PolicyKey });
-            if (approved.RoleName != input.RoleName) throw new ManagementAccessDeniedException();
+            var approved = await Validate(new() { TenantName = input.TenantName, InitialAdminEmail = input.InitialAdminEmail, ExternalReference = input.ExternalReference, PolicyKey = input.PolicyKey }, ct);
+            if (approved.RoleName != input.RoleName || approved.InitializerKey != input.InitializerKey) throw new ManagementAccessDeniedException();
         }
         return input;
     }
     private static Guid StableInvite(Guid operation) => new(SHA256.HashData(Encoding.UTF8.GetBytes("onboarding-invite-v1:" + operation.ToString("D"))).AsSpan(0, 16));
     private static string ChildKey(ManagementEnterpriseOnboardingEntity row) => "onboard-" + row.OperationId.ToString("N") + "-tenant";
     private static ManagementIdentityOperationScope Scope(ManagementDelegatedActor actor) => new(actor.IdentityRealmId, actor.OrganizationId, actor.ApplicationId);
-    private sealed record RecoveryInput(string TenantName, string InitialAdminEmail, string? ExternalReference, string PolicyKey, string RoleName, string Token)
+    private sealed record RecoveryInput(string TenantName, string InitialAdminEmail, string? ExternalReference, string PolicyKey, string RoleName, string Token,
+        [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string? InitializerKey = null)
     { public override string ToString() => "Onboarding recovery input (redacted)"; }
     private Task<ManagementEnterpriseOnboardingDto> Run(string operation, Func<ManagementDelegatedActor, CancellationToken, Task<ManagementEnterpriseOnboardingDto>> run, CancellationToken ct)
         => operations.ExecuteAsync(this, async token => {

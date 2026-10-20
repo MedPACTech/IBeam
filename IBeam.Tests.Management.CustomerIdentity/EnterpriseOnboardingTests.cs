@@ -180,6 +180,7 @@ internal sealed class OnboardingFixture : IManagementCustomerIdentityTargetAcces
     public bool FailBeforeSender { get; set; }
     public bool FailAfterInvite { get; set; }
     public bool LocalRole { get; set; } = true;
+    public string LocalRoleName { get; set; } = "Owner";
     public int Sends { get; private set; }
     public ExternalTenantInviteRequest? LastRequest { get; private set; }
     public List<Guid> MembershipCalls { get; } = [];
@@ -191,7 +192,7 @@ internal sealed class OnboardingFixture : IManagementCustomerIdentityTargetAcces
     public IExternalTenantInviteService External { get; }
     public ITenantInviteStore InviteStore { get; }
     public ITenantRoleStore RoleStore { get; }
-    public OnboardingFixture()
+    public OnboardingFixture(IManagementCustomerOnboardingInitializer? initializer = null)
     {
         Operation.Actor = Operation.Actor with { Operation = ManagementCustomerIdentityOperations.OnboardingCreate };
         var coordinator = new ManagementIdentityOperationService(Operation.Store, Operation, this, Options.Create(Operation.Options), Operation.Clock, new ServiceOperationExecutor());
@@ -199,7 +200,7 @@ internal sealed class OnboardingFixture : IManagementCustomerIdentityTargetAcces
         var roles = new Mock<ITenantRoleStore>();
         RoleStore = roles.Object;
         roles.Setup(x => x.GetRolesAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync((Guid id, CancellationToken _) =>
-            LocalRole ? new[] { new TenantRole(id, RoleId, "Owner", true, true, DateTimeOffset.UtcNow) } : Array.Empty<TenantRole>());
+            LocalRole ? new[] { new TenantRole(id, RoleId, LocalRoleName, true, true, DateTimeOffset.UtcNow) } : Array.Empty<TenantRole>());
         var external = new Mock<IExternalTenantInviteService>(); external.SetupGet(x => x.SupportsDurableCreation).Returns(true);
         External = external.Object;
         external.Setup(x => x.EnsureAsync(It.IsAny<ExternalTenantInviteRequest>(), It.IsAny<CancellationToken>())).ReturnsAsync((ExternalTenantInviteRequest request, CancellationToken _) => {
@@ -224,7 +225,7 @@ internal sealed class OnboardingFixture : IManagementCustomerIdentityTargetAcces
         Memberships.Setup(x => x.GetTenantForUserAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .Callback((Guid id, Guid _, CancellationToken _) => MembershipCalls.Add(id)).ReturnsAsync((TenantInfo?)null);
         Service = new ManagementEnterpriseOnboardingService(Jobs, coordinator, coordinator, tenants, external.Object, invites.Object,
-            roles.Object, Users.Object, Memberships.Object, this, Options.Create(Policy), Options.Create(Operation.Options), Operation.Clock, new ServiceOperationExecutor());
+            roles.Object, Users.Object, Memberships.Object, this, Options.Create(Policy), Options.Create(Operation.Options), Operation.Clock, new ServiceOperationExecutor(), initializers: initializer is null ? [] : [initializer]);
     }
     public Task<ManagementDelegatedActor> RequireAsync(string operation, CancellationToken ct = default)
         => Allowed && ManagementCustomerIdentityPermissionPolicy.RequiredFor(Operation.Actor.Operation).Contains(operation)

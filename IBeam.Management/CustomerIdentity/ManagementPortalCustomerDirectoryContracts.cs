@@ -23,6 +23,7 @@ public interface IManagementCustomerIdentityConnectionResolver
 }
 public interface IManagementCustomerIdentityClient
 {
+    Task<IReadOnlyList<ManagementCustomerOnboardingPolicyDto>> ListOnboardingPoliciesAsync(ManagementCustomerIdentityConnection connection, CancellationToken ct = default) => throw new ManagementCustomerIdentityUnavailableException();
     Task<ManagementTenantMutationResult> SetTenantStatusAsync(ManagementCustomerIdentityConnection connection, Guid tenantId, bool active,
         string expectedVersion, string key, CancellationToken ct = default) => throw new ManagementCustomerIdentityUnavailableException();
     Task<ManagementCustomerMembershipResult> SetMembershipAsync(ManagementCustomerIdentityConnection connection, Guid tenantId, Guid userId,

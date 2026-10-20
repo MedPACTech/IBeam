@@ -8,8 +8,10 @@ namespace IBeam.Management.Identity.Target.Api;
 [NonController, Authorize(Policy = ManagementCustomerIdentityTargetApiExtensions.Policy), HttpLogging(HttpLoggingFields.None)]
 [ServiceFilter(typeof(ManagementCustomerIdentityTargetFilter), Order = -3000)]
 [Route("api/management-identity/enterprise-onboardings")]
-public sealed class ManagementEnterpriseOnboardingController(IManagementEnterpriseOnboardingCommandService service) : ApiControllerBase
+public sealed class ManagementEnterpriseOnboardingController(IManagementEnterpriseOnboardingCommandService service, IManagementCustomerOnboardingPolicyCatalog catalog) : ApiControllerBase
 {
+    [HttpGet("policies"), ManagementCustomerIdentityOperation(ManagementCustomerIdentityOperations.OnboardingRead)]
+    public async Task<IActionResult> Policies(CancellationToken ct) => OkResponse(await catalog.ListAsync(ct));
     [HttpPost, ManagementCustomerIdentityOperation(ManagementCustomerIdentityOperations.OnboardingCreate)]
     public async Task<IActionResult> Create([FromBody] CreateManagementEnterpriseOnboarding request, [FromHeader(Name = "Idempotency-Key")] string key, CancellationToken ct)
     { var result = await service.CreateAsync(request, key, ct); return Reply(result); }

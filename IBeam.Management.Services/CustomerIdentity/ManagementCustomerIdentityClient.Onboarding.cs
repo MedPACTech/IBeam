@@ -4,6 +4,16 @@ namespace IBeam.Management.Services.CustomerIdentity;
 
 public sealed partial class ManagementCustomerIdentityClient
 {
+    public async Task<IReadOnlyList<ManagementCustomerOnboardingPolicyDto>> ListOnboardingPoliciesAsync(ManagementCustomerIdentityConnection c, CancellationToken ct = default)
+    {
+        const string authority = ManagementCustomerIdentityOperations.OnboardingRead;
+        await Verify(c, authority, ct);
+        using var document = await Get(c, authority, "/api/management-identity/enterprise-onboardings/policies", true, ct);
+        var rows = Data<ManagementCustomerOnboardingPolicyDto[]>(document.RootElement);
+        if (rows is null || rows.Length > 32 || rows.Any(x => x is null || !PolicyKey(x.Key)) ||
+            rows.Select(x => x.Key).Distinct(StringComparer.Ordinal).Count() != rows.Length) throw new ManagementCustomerIdentityResponseException();
+        return rows.Select(x => new ManagementCustomerOnboardingPolicyDto(x.Key, x.RequiresInitialization)).ToArray();
+    }
     public Task<ManagementIdentityOperationDto> CreateOnboardingAsync(ManagementCustomerIdentityConnection connection, CreateManagementEnterpriseOnboarding request,
         string key, CancellationToken ct = default) => Onboard(connection, null, request, key, ct);
     public Task<ManagementIdentityOperationDto> RetryOnboardingAsync(ManagementCustomerIdentityConnection connection, Guid operationId,
@@ -25,10 +35,10 @@ public sealed partial class ManagementCustomerIdentityClient
             row.OperationId == Guid.Empty || row.OnboardingId != receipt.ResourceId || row.InviteId == Guid.Empty || row.TenantId == Guid.Empty ||
             receipt.Operation == ManagementCustomerIdentityOperations.OnboardingCreate && row.OperationId != receipt.OperationId ||
             row.Status is not ("in-progress" or "recoverable-failure" or "awaiting-acceptance" or "completed") ||
-            row.Step is not ("tenant-creation" or "tenant-extensions" or "extensions-completed" or "invitation-persisted") ||
+            row.Step is not ("tenant-creation" or "tenant-extensions" or "extensions-completed" or "consumer-initialization" or "invitation-persisted") ||
             row.DeliveryStatus is not ("pending" or "sending" or "sent" or "failed" or "unknown") ||
             row.Completed != (row.Status == "completed") || row.Completed && (row.TenantId is null || row.Step != "invitation-persisted") ||
-            row.ErrorCode is not (null or "tenant-setup-incomplete" or "administrator-role-unavailable" or "setup-recovery-required" or
+            row.ErrorCode is not (null or "tenant-setup-incomplete" or "administrator-role-unavailable" or "setup-recovery-required" or "consumer-initialization-incomplete" or
                 "delivery-not-sent" or "delivery-unconfirmed" or "invitation-unavailable") || row.ExpiresUtc <= row.CreatedUtc ||
             row.Step != "tenant-creation" && row.TenantId is null) throw new ManagementCustomerIdentityResponseException();
         return new(row.OperationId, row.OnboardingId, row.TenantId, row.InviteId, row.Status, row.Step, row.DeliveryStatus,
