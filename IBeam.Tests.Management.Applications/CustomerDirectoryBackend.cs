@@ -19,6 +19,7 @@ internal sealed partial class CustomerDirectoryBackend : IManagementDelegatedAct
     public Dictionary<string, (Guid App, ManagementCustomerIdentityInfo Info, string Key)> Targets { get; } = [];
     public List<(Guid App, string Operation, string Path)> Assertions { get; } = [];
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (Guid App, string Operation, string Path, string Method, string? Key, string? Version, byte[] Body)> _proofs = [];
+    public Func<HttpRequestMessage, string, CancellationToken, Task<HttpResponseMessage>>? Forward { get; set; }
     public bool EnableMutations { get; set; }
     public int MutationCalls { get; private set; }
     public int MutationWrites { get; private set; }
@@ -84,6 +85,7 @@ internal sealed partial class CustomerDirectoryBackend : IManagementDelegatedAct
         CollectionAssert.AreEqual(proof.Body, request.Content is null ? Array.Empty<byte>() : await request.Content.ReadAsByteArrayAsync(ct));
         Assert.AreEqual(proof.Key, request.Headers.TryGetValues("Idempotency-Key", out var keys) ? keys.Single() : null);
         Assert.AreEqual(proof.Version, request.Headers.TryGetValues("If-Match", out var versions) ? versions.Single() : null);
+        if (Forward is not null) return await Forward(request, proof.Operation, ct);
         if (EnableTenantStatus && (uri.AbsolutePath.EndsWith("/activate", StringComparison.Ordinal) || uri.AbsolutePath.EndsWith("/deactivate", StringComparison.Ordinal) ||
             uri.AbsolutePath.Contains("/operations/", StringComparison.Ordinal))) return await TenantStatus(request, proof.Operation, ct);
         if (EnableMemberships && (uri.AbsolutePath.EndsWith("/membership", StringComparison.Ordinal) || uri.AbsolutePath.EndsWith("/roles", StringComparison.Ordinal) ||

@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0115 are complete (91 points); 2 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0116 are complete (99 points); 1 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -593,23 +593,25 @@ Feature acceptance:
 
 ### IBM-0116 / TCM-019: Verify enterprise lifecycle, authorization matrix and payload-free audit end to end
 
-Estimate: **8 points**. Lane: Triage. Delivery order: 190. Hubbsly ID: cb1b22fa-39e0-4fee-ad55-8e25b0b1312d.
+Estimate: **8 points**. Lane: Done. Delivery order: 190. Hubbsly ID: cb1b22fa-39e0-4fee-ad55-8e25b0b1312d.
 
 Dependencies: IBM-0108, IBM-0111, IBM-0112, IBM-0113, IBM-0115.
 
-Create focused service/HTTP/provider suites and a package-only smoke sample with one support API and two isolated customer Identity targets. Test enterprise create -> admin invitation -> customer acceptance -> directory -> additional member -> role/status changes. Exercise permission/credential revocation, signed delegation, retries/crashes, provider failures, multi-app storage isolation and metadata-only audit. Validate Azure Table as the initial supported adapter; other providers must not advertise unimplemented query/concurrency capabilities.
+Implemented reproducible Release package validation across 31 generated dependencies, zero source ProjectReferences and the complete management/customer regression matrix. Added one support API plus two isolated customer targets driving enterprise onboarding, native verified acceptance, directory, member provisioning, role/status changes, last-admin protection and live revocation. Tested Azure Table scope/concurrency and documented exact synthetic transport/provider/auth compatibility boundaries. See samples/Management.CustomerIdentity.PackageSmoke/README.md.
 
 Proposed paths: IBeam.Tests.Management.CustomerIdentity/, IBeam.Tests.Management.Applications/, IBeam.Tests.Management.Identity/, IBeam.Tests.Identity.Services/, IBeam.Tests.Identity.Api/, samples/Management.CustomerIdentity.PackageSmoke/, docs/management/customer-identity-verification.md. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Package-only consumers restore built NuGets without source ProjectReferences and run the full enterprise flow against two isolated targets with overlapping customer IDs.
-- [ ] Matrix covers no auth/wrong realm, insufficient human grants, insufficient machine capabilities, invalid assertions, cross-app/tenant IDs/cursors, disabled entities and live revocation.
-- [ ] Crash injection after each durable step, duplicate/concurrent requests, unknown email delivery and lost HTTP responses produce one tenant/invitation and reconcilable outcomes.
-- [ ] Customer acceptance proves recipient ownership, grants only allowed tenant roles and preserves existing other-tenant memberships; last-admin and tenant-disable rules hold for active sessions.
-- [ ] Success, denial, conflict, retry and failure audit events correlate portal actor and target credential/resource IDs without email/profile/payload/token/secret canaries, including provider exception paths.
-- [ ] Existing errors/logs, sanitization, support identity/assignment and customer signup/auth regressions pass; read-only permissions issue no customer writes.
-- [ ] Build/pack checks, exact tested provider support and known compatibility/migration requirements are recorded; no NuGet publish, production deployment or release tag is performed by this card.
+- [x] Package-only consumers restore built NuGets without source ProjectReferences and run the full enterprise flow against two isolated targets with overlapping customer IDs.
+- [x] Matrix covers no auth/wrong realm, insufficient human grants, insufficient machine capabilities, invalid assertions, cross-app/tenant IDs/cursors, disabled entities and live revocation.
+- [x] Crash injection after each durable step, duplicate/concurrent requests, unknown email delivery and lost HTTP responses produce one tenant/invitation and reconcilable outcomes.
+- [x] Customer acceptance proves recipient ownership, grants only allowed tenant roles and preserves existing other-tenant memberships; last-admin and tenant-disable rules hold for active sessions.
+- [x] Success, denial, conflict, retry and failure audit events correlate portal actor and target credential/resource IDs without email/profile/payload/token/secret canaries, including provider exception paths.
+- [x] Existing errors/logs, sanitization, support identity/assignment and customer signup/auth regressions pass; read-only permissions issue no customer writes.
+- [x] Build/pack checks, exact tested provider support and known compatibility/migration requirements are recorded; no NuGet publish, production deployment or release tag is performed by this card.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 1072 NuGet-only tests passed, zero failures/skips; companion two-target diagnostics smoke passed. 31 dependencies built/packed; 16 root modules content-inspected; assets verified package-only. Final composed-flow rerun passed after cleanup checks.
 
 ### IBM-0117 / TCM-020: Deliver repeatable enterprise demo seeds and baseline app API handoff
 

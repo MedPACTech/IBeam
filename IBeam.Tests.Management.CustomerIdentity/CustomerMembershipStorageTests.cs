@@ -189,9 +189,9 @@ internal sealed class MembershipStorageFixture : IAsyncDisposable
     public AzureTableIdentityTenantStore Tenants { get; private set; } = null!;
     public TenantRole Owner { get; private set; } = null!; public TenantRole MemberRole { get; private set; } = null!;
     public IdentityTenantMembershipAdministrationService Administration(IIdentityTenantMembershipConditionalStore? store = null) => new(store ?? Members, Roles, Tenants, new ServiceOperationExecutor());
-    public static async Task<MembershipStorageFixture> Create()
+    public static async Task<MembershipStorageFixture> Create(string? connectionOverride = null)
     {
-        var connection = Environment.GetEnvironmentVariable("IBEAM_MANAGEMENT_TEST_STORAGE"); if (string.IsNullOrWhiteSpace(connection)) Assert.Inconclusive("Private Azurite required.");
+        var connection = connectionOverride ?? Environment.GetEnvironmentVariable("IBEAM_MANAGEMENT_TEST_STORAGE"); if (string.IsNullOrWhiteSpace(connection)) Assert.Inconclusive("Private Azurite required.");
         var f = new MembershipStorageFixture(); var suffix = Guid.NewGuid().ToString("N");
         f.Primary = new(connection, "MemberPrimary" + suffix); f.Secondary = new(connection, "MemberSecondary" + suffix);
         f.RoleTable = new(connection, "MemberRoles" + suffix); f.TenantTable = new(connection, "MemberTenants" + suffix);

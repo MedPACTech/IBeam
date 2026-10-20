@@ -36,9 +36,9 @@ namespace IBeam.Tests.Management.CustomerIdentity;
 
 internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSigningKeyProvider, IManagementActorValidationKeyProvider
 {
-    public Guid Organization { get; } = Guid.NewGuid();
-    public Guid User { get; } = Guid.NewGuid();
-    public Guid Application { get; } = Guid.NewGuid();
+    public Guid Organization { get; private set; } = Guid.NewGuid();
+    public Guid User { get; private set; } = Guid.NewGuid();
+    public Guid Application { get; private set; } = Guid.NewGuid();
     public TargetCredentials Credentials { get; } = new();
     public string Key { get; }
     public RSA Rsa { get; } = RSA.Create(2048);
@@ -76,9 +76,16 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         IManagementIdentityOperationRepository? operations = null, IManagementIdentityOperationAuditRepository? operationAudit = null,
         IIdentityTenantStore? tenantStore = null, IManagementTenantAdministrationRepository? tenantMetadata = null, bool compositeOnboarding = false,
         OnboardingFixture? onboarding = null, ProvisioningFixture? provisioning = null, InvitationLifecycleFixture? invitations = null,
-        MembershipStorageFixture? memberships = null, IIdentityTenantMembershipConditionalStore? membershipWrites = null, bool tenantStatus = false)
+        MembershipStorageFixture? memberships = null, IIdentityTenantMembershipConditionalStore? membershipWrites = null, bool tenantStatus = false, Guid? organization = null, Guid? supportUser = null, Guid? application = null,
+        Guid? identityRealm = null, string applicationKey = "atlas", string environment = "Testing", Func<IBeam.Identity.Models.IdentityTenant, Task>? createdHook = null)
     {
         var f = new DelegationFixture();
+        f.Organization = organization ?? f.Organization; f.User = supportUser ?? f.User; f.Application = application ?? f.Application;
+        f.Authorization.Setup(x => x.RequireAsync(f.Application, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(() => f.Granted ? Task.CompletedTask : Task.FromException(new ManagementAccessDeniedException()));
+        f.TenantHooks.CreatedAction = createdHook;
+        var realmId = identityRealm ?? DiscoveryProtocolTests.Info.IdentityRealmId;
+        f.Credentials.Row = f.Credentials.Row with { ApplicationKey = applicationKey, Environment = environment };
         if (tenantStatus) { tenantMetadata ??= new TenantMetadataStore(); operations ??= new OperationStore(); }
         if (memberships is not null) { operations ??= new OperationStore(); tenantStore ??= memberships.Tenants; }
         if (invitations is not null) {
@@ -104,8 +111,8 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             ManagementCustomerIdentityOperations.MembershipsManage, ManagementCustomerIdentityOperations.RolesAssign }).Distinct().ToArray() };
         if (tenantStatus) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Append(ManagementCustomerIdentityOperations.TenantsStatus).ToArray() };
         b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
-            ["IBeam:Management:Diagnostics:ApplicationKey"] = "atlas", ["IBeam:Management:Diagnostics:Environment"] = "Testing",
-            ["IBeam:Management:CustomerIdentity:IdentityRealmId"] = DiscoveryProtocolTests.Info.IdentityRealmId.ToString(),
+            ["IBeam:Management:Diagnostics:ApplicationKey"] = applicationKey, ["IBeam:Management:Diagnostics:Environment"] = environment,
+            ["IBeam:Management:CustomerIdentity:IdentityRealmId"] = realmId.ToString(),
             ["IBeam:Management:CustomerIdentity:DedicatedApplicationRealm"] = "true",
             ["IBeam:Management:CustomerIdentity:EnabledOperations:0"] = ManagementCustomerIdentityOperations.TenantsRead,
             ["IBeam:Management:CustomerIdentity:EnabledOperations:1"] = ManagementCustomerIdentityOperations.TenantsCreate,
@@ -212,13 +219,13 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         f.App = b.Build(); f.App.UseAuthentication(); f.App.UseAuthorization(); f.App.MapControllers();
         try { await f.App.StartAsync(); f.Client = f.App.GetTestClient(); }
         catch { await f.App.DisposeAsync(); f.Rsa.Dispose(); throw; }
-        var app = new ManagementApplicationEntity { OrganizationId = f.Organization, ApplicationId = f.Application, ApplicationKey = "atlas",
-            Environment = "Testing", BaseUrl = "https://atlas.example", IsEnabled = true, ActiveCredentialId = Guid.NewGuid(), Version = "app-v1" };
+        var app = new ManagementApplicationEntity { OrganizationId = f.Organization, ApplicationId = f.Application, ApplicationKey = applicationKey,
+            Environment = environment, BaseUrl = "https://atlas.example", IsEnabled = true, ActiveCredentialId = Guid.NewGuid(), Version = "app-v1" };
         var applications = new Mock<IManagementApplicationStateProvider>();
         applications.Setup(x => x.GetAsync(f.Organization, f.Application, It.IsAny<CancellationToken>())).ReturnsAsync(app);
         var connection = new ManagementApplicationCredentialEntity { OrganizationId = f.Organization, ApplicationId = f.Application,
             CredentialId = app.ActiveCredentialId.Value, BaseUrl = app.BaseUrl, SecretReference = "private-fixture-reference",
-            Capabilities = f.Credentials.Row.Capabilities, CustomerIdentity = new("available", DiscoveryProtocolTests.Info with { Capabilities = f.Credentials.Row.Capabilities }) };
+            Capabilities = f.Credentials.Row.Capabilities, CustomerIdentity = new("available", DiscoveryProtocolTests.Info with { ApplicationKey = applicationKey, Environment = environment, IdentityRealmId = realmId, Capabilities = f.Credentials.Row.Capabilities }) };
         var credentials = new Mock<IManagementApplicationCredentialRepository>();
         credentials.Setup(x => x.GetAsync(f.Organization, f.Application, connection.CredentialId, It.IsAny<CancellationToken>())).ReturnsAsync(connection);
         var secrets = new Mock<IManagementSecretStore>();

@@ -1,8 +1,9 @@
-param([string]$OutputDirectory,[string]$PackageVersion,[switch]$ReusePackages)
+param([string]$OutputDirectory,[string]$PackageVersion,[switch]$ReusePackages,[string[]]$AdditionalModules=@())
 $ErrorActionPreference='Stop'
 $repo=Split-Path $PSScriptRoot -Parent
 if (-not $OutputDirectory) {$OutputDirectory=Join-Path $repo ('_tmp_pkg_smoke/management-'+[Guid]::NewGuid().ToString('N'))}
 if (-not $PackageVersion) {$PackageVersion='0.0.0-management.smoke.'+[Guid]::NewGuid().ToString('N')}
+$OutputDirectory=[IO.Path]::GetFullPath($OutputDirectory)
 $feed=Join-Path $OutputDirectory 'feed'; $hostFolder=Join-Path $OutputDirectory 'consumer'
 New-Item -ItemType Directory -Path $feed,$hostFolder -Force|Out-Null
 $ordered=[Collections.Generic.List[string]]::new(); $visited=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -15,9 +16,12 @@ function Visit([string]$project) {
  $ordered.Add($project)
 }
 $modules=@('IBeam.Management','IBeam.Management.Services','IBeam.Management.Api','IBeam.Management.Diagnostics.Api','IBeam.Management.Repositories.AzureTable','IBeam.Management.Identity.Services','IBeam.Management.Identity.Api','IBeam.Management.Secrets.AzureKeyVault')
+$modules=@($modules+$AdditionalModules|Select-Object -Unique)
 foreach ($module in $modules) {Visit (Join-Path $repo "$module/$module.csproj")}
 if (-not $ReusePackages) { foreach ($project in $ordered) {
- & dotnet pack $project -c Release --nologo -v quiet "-p:ReleasePackageVersion=$PackageVersion" -p:WarningLevel=0 -o $feed
+ & dotnet build $project -c Release --nologo -v quiet "-p:ReleasePackageVersion=$PackageVersion" -p:GeneratePackageOnBuild=false -p:WarningLevel=0
+ if ($LASTEXITCODE -ne 0) {throw ('Build failed: '+[IO.Path]::GetFileName($project))}
+ & dotnet pack $project --no-build -c Release --nologo -v quiet "-p:ReleasePackageVersion=$PackageVersion" -p:WarningLevel=0 -o $feed
  if ($LASTEXITCODE -ne 0) {throw ('Pack failed: '+[IO.Path]::GetFileName($project))}
 }
 }

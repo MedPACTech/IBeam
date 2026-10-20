@@ -117,7 +117,7 @@ public sealed class CustomerProvisioningTests
 
 internal sealed class ProvisioningFixture : IManagementCustomerIdentityTargetAccessService, IManagementAssignableRoleReadRepository, IManagementCustomerInvitationReadRepository
 {
-    public OnboardingFixture Data { get; } = new();
+    public OnboardingFixture Data { get; }
     public ProvisioningJournal Journal { get; } = new();
     public Guid Tenant { get; } = Guid.NewGuid();
     public Guid Role => Data.RoleId;
@@ -128,8 +128,9 @@ internal sealed class ProvisioningFixture : IManagementCustomerIdentityTargetAcc
     public ProvisionManagementCustomerUser Request => new() { Email = "customer@example.test", PolicyKey = "default", RoleIds = [Role] };
     public IManagementCustomerProvisioningService Service { get; }
     public IManagementAssignableRoleCatalogService Catalog { get; }
-    public ProvisioningFixture()
+    public ProvisioningFixture(OnboardingFixture? data = null)
     {
+        Data = data ?? new();
         Data.Operation.Actor = Data.Operation.Actor with { Operation = ManagementCustomerIdentityOperations.UsersProvision };
         Roles[Role] = "Member";
         Data.Tenants.Store.Rows[Tenant] = new(new IdentityTenant(Tenant, "Private"), "v1", null);

@@ -36,6 +36,7 @@ internal sealed class TenantAdministrationHooks : ITenantExtensionCoordinator
 {
     public int Created { get; private set; }
     public int Updated { get; private set; }
+    public Func<IdentityTenant, Task>? CreatedAction { get; set; }
     public bool FailCreated { get; set; }
     public bool FailUpdated { get; set; }
     public bool FailStatus { get; set; }
@@ -43,8 +44,8 @@ internal sealed class TenantAdministrationHooks : ITenantExtensionCoordinator
     public int Deactivated { get; private set; }
     public TenantExtensionContext? Context { get; private set; }
     public IdentityTenant? Previous { get; private set; }
-    public Task OnTenantCreatedAsync(IdentityTenant tenant, TenantExtensionContext context, CancellationToken ct = default)
-    { Created++; Context = context; if (FailCreated) throw new Exception("CONSUMER-PROFILE-SECRET-CANARY"); return Task.CompletedTask; }
+    public async Task OnTenantCreatedAsync(IdentityTenant tenant, TenantExtensionContext context, CancellationToken ct = default)
+    { Created++; Context = context; if (FailCreated) throw new Exception("CONSUMER-PROFILE-SECRET-CANARY"); if (CreatedAction is not null) await CreatedAction(tenant); }
     public Task OnTenantUpdatedAsync(IdentityTenant tenant, IdentityTenant? previous, TenantExtensionContext context, CancellationToken ct = default)
     { Updated++; Context = context; Previous = previous; if (FailUpdated) throw new Exception("CONSUMER-PROFILE-SECRET-CANARY"); return Task.CompletedTask; }
     public Task EnsureExtensionAsync(IdentityTenant tenant, TenantExtensionContext context, CancellationToken ct = default) => Task.CompletedTask;
