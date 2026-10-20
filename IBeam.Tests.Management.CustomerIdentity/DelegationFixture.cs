@@ -74,7 +74,7 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
     public static async Task<DelegationFixture> Start(IManagementCustomerTenantReadRepository? tenants = null,
         IManagementCustomerUserReadRepository? users = null, IManagementCustomerInvitationReadRepository? invites = null,
         IManagementIdentityOperationRepository? operations = null, IManagementIdentityOperationAuditRepository? operationAudit = null,
-        IIdentityTenantStore? tenantStore = null, IManagementTenantAdministrationRepository? tenantMetadata = null)
+        IIdentityTenantStore? tenantStore = null, IManagementTenantAdministrationRepository? tenantMetadata = null, bool compositeOnboarding = false)
     {
         var f = new DelegationFixture();
         if (tenantMetadata is not null && operations is null) operations = new OperationStore();
@@ -84,6 +84,8 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             .Concat(operations is null ? [] : new[] { ManagementCustomerIdentityOperations.OnboardingRead }).ToArray() };
         if (tenantMetadata is not null) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Concat(new[] { ManagementCustomerIdentityOperations.TenantsUpdate }).ToArray() };
         var b = WebApplication.CreateBuilder(); b.Logging.ClearProviders(); b.WebHost.UseTestServer();
+        if (compositeOnboarding) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Concat(
+            ManagementCustomerIdentityPermissionPolicy.RequiredFor(ManagementCustomerIdentityOperations.OnboardingCreate)).Distinct().ToArray() };
         b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
             ["IBeam:Management:Diagnostics:ApplicationKey"] = "atlas", ["IBeam:Management:Diagnostics:Environment"] = "Testing",
             ["IBeam:Management:CustomerIdentity:IdentityRealmId"] = DiscoveryProtocolTests.Info.IdentityRealmId.ToString(),
@@ -103,6 +105,8 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             ["IBeam:Management:CustomerIdentity:Operations:FingerprintKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) });
         if (tenantMetadata is not null) b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
             ["IBeam:Management:CustomerIdentity:EnabledOperations:5"] = ManagementCustomerIdentityOperations.TenantsUpdate });
+        if (compositeOnboarding) b.Configuration.AddInMemoryCollection(ManagementCustomerIdentityOperations.All.Where(ManagementCustomerIdentityPermissionPolicy.IsAssignable)
+            .Select((operation, index) => new KeyValuePair<string, string?>("IBeam:Management:CustomerIdentity:EnabledOperations:" + index, operation)));
         b.Services.AddSingleton(f);
         b.Services.AddSingleton<IManagementApiCredentialRepository>(f.Credentials);
         b.Services.AddSingleton<IManagementActorValidationKeyProvider>(f);
@@ -111,6 +115,8 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         b.Services.AddSingleton<IProbeAdapter, ProbeAdapter>();
         b.Services.AddSingleton<IManagementCustomerIdentityCapability>(new Capability(ManagementCustomerIdentityOperations.TenantsRead));
         b.Services.AddSingleton<IManagementCustomerIdentityCapability>(new Capability(ManagementCustomerIdentityOperations.TenantsCreate));
+        if (compositeOnboarding) foreach (var operation in ManagementCustomerIdentityPermissionPolicy.RequiredFor(ManagementCustomerIdentityOperations.OnboardingCreate))
+            b.Services.AddSingleton<IManagementCustomerIdentityCapability>(new Capability(operation));
         b.Services.AddControllers().ConfigureApplicationPartManager(x => x.ApplicationParts.Clear());
         b.Services.AddIBeamManagementCustomerIdentityTargetApi(b.Configuration);
         b.Services.AddIBeamManagementDelegatedActors(b.Configuration);
@@ -234,5 +240,17 @@ public sealed class DelegationProbeController(IManagementCustomerIdentityTargetA
         var actor = await access.RequireAsync(ManagementCustomerIdentityOperations.TenantsCreate, ct);
         HttpContext.RequestServices.GetRequiredService<DelegationFixture>().Executions++;
         return OkResponse(new { actor.UserId, actor.CredentialId });
+    }
+    [HttpPost("onboarding"), ManagementCustomerIdentityOperation(ManagementCustomerIdentityOperations.OnboardingCreate)]
+    public async Task<IActionResult> Composite(CancellationToken ct)
+    {
+        var parent = await access.RequireAsync(ManagementCustomerIdentityOperations.OnboardingCreate, ct);
+        var child = await access.RequireAsync(ManagementCustomerIdentityOperations.TenantsCreate, ct);
+        var context = HttpContext.RequestServices.GetRequiredService<IManagementDelegatedActorContext>().Current!;
+        var fixture = HttpContext.RequestServices.GetRequiredService<DelegationFixture>();
+        fixture.Credentials.Row = fixture.Credentials.Row with { Capabilities = fixture.Credentials.Row.Capabilities.Where(x => x != ManagementCustomerIdentityOperations.RolesAssign).ToArray() };
+        var denied = false;
+        try { await access.RequireAsync(ManagementCustomerIdentityOperations.TenantsCreate, ct); } catch (ManagementAccessDeniedException) { denied = true; }
+        return OkResponse(new { parent = parent.Operation, child = child.Operation, original = context.Operation, denied, child.UserId });
     }
 }

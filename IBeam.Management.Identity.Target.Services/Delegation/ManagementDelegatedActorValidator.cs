@@ -122,12 +122,16 @@ internal sealed class ManagementCustomerIdentityTargetAccessService(ManagementCu
         => operations.ExecuteAsync(this, async token =>
         {
             var actor = context.Current ?? throw new ManagementAccessDeniedException();
-            if (actor.Operation != operation || actor.ExpiresUtc <= clock.GetUtcNow() || actor.IdentityRealmId != realm.Value.IdentityRealmId ||
+            var child = actor.Operation is ManagementCustomerIdentityOperations.OnboardingCreate or ManagementCustomerIdentityOperations.OnboardingRetry &&
+                ManagementCustomerIdentityPermissionPolicy.RequiredFor(actor.Operation).Contains(operation, StringComparer.Ordinal);
+            if ((actor.Operation != operation && !child) || actor.ExpiresUtc <= clock.GetUtcNow() || actor.IdentityRealmId != realm.Value.IdentityRealmId ||
                 actor.ApplicationKey != deployment.Value.ApplicationKey || actor.Environment != deployment.Value.Environment)
                 throw new ManagementAccessDeniedException();
-            var credential = await credentials.RequireAsync(principals.GetPrincipal(), operation, token);
+            // A composite service may invoke its already-authorized prerequisites. Always recheck the
+            // complete original credential matrix; never mutate the verified assertion context/principal.
+            var credential = await credentials.RequireAsync(principals.GetPrincipal(), actor.Operation, token);
             if (actor.CredentialId != credential) throw new ManagementAccessDeniedException();
-            return actor;
+            return child ? actor with { Operation = operation } : actor;
         }, new ServiceOperationExecutionOptions { OperationName = "management.identity.delegation.require",
             AuditAction = "management.identity.delegation.require", EntityName = "ManagementDelegatedActor",
             PermissionEnabled = false, AuditEnabled = true }, ct);

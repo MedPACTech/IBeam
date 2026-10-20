@@ -914,3 +914,5 @@ public async Task UpdateProductAsync(
 - Identity extension scan prompt: [`../IBeam.AI.Enablement/examples/identity-extension-scan-prompt.md`](../IBeam.AI.Enablement/examples/identity-extension-scan-prompt.md)
 
 Agents should treat Identity as auth/account infrastructure and keep application domain behavior in the consuming application's services.
+
+Enterprise onboarding services and durable invitation recovery are documented in [enterprise onboarding](../docs/management/enterprise-onboarding.md). Target services are opt-in; portal/HTTP integration follows in IBM-0108.

@@ -368,3 +368,5 @@ Keep authorization-critical role assignment stable by preferring role IDs where 
 - Consuming API migration prompt: [`../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md`](../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
 
 Agents should keep auth orchestration in services and avoid putting tenant, role, OTP, or API credential rules into controllers or repositories.
+
+Enterprise onboarding services and durable invitation recovery are documented in [enterprise onboarding](../docs/management/enterprise-onboarding.md). Target services are opt-in; portal/HTTP integration follows in IBM-0108.

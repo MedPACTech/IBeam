@@ -24,6 +24,8 @@ Use stable operation names for service calls when this project adds service-leve
 
 Core identity contracts, models, options, and abstractions for IBeam authentication, users, tenants, roles, OTP, and credentials.
 
+External tenant invitation contracts are trusted server adapters, not authentication endpoints. No support GUID becomes a customer inviter. Stable creation and safe delivery are separate; Management supplies durable delivery claims and customer acceptance remains in existing Identity workflows.
+
 Layer role: `Core`.
 
 ## Public Surface

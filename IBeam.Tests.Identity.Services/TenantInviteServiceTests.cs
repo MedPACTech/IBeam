@@ -1,4 +1,4 @@
-﻿using IBeam.Identity.Events;
+using IBeam.Identity.Events;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
@@ -10,7 +10,7 @@ using Moq;
 namespace IBeam.Tests.Identity.Services;
 
 [TestClass]
-public sealed class TenantInviteServiceTests
+public sealed partial class TenantInviteServiceTests
 {
     [TestMethod]
     public async Task CreateInviteAsync_SendsInvite_WithoutResolvingDestinationUser()
@@ -265,7 +265,7 @@ public sealed class TenantInviteServiceTests
     }
 
     private static TenantInviteService CreateService(
-        InMemoryTenantInviteStore? store = null,
+        ITenantInviteStore? store = null,
         RecordingIdentitySender? sender = null,
         IIdentityUserStore? users = null,
         ITenantRoleService? roles = null,
@@ -278,8 +278,12 @@ public sealed class TenantInviteServiceTests
         var tenants = new Mock<IIdentityTenantService>(MockBehavior.Strict);
         tenants.Setup(x => x.FindByIdAsync(effectiveTenantId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new IdentityTenant(effectiveTenantId, "Workspace", "WORKSPACE"));
+        var externalRoles = new Mock<ITenantRoleStore>(MockBehavior.Strict);
+        if (roles is not null) externalRoles.Setup(x => x.GetRoleAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns((Guid tenant, Guid role, CancellationToken ct) => roles.GetRoleAsync(tenant, role, ct));
 
         return new TenantInviteService(
+            externalRoles.Object,
             store ?? new InMemoryTenantInviteStore(),
             tenants.Object,
             users ?? Mock.Of<IIdentityUserStore>(MockBehavior.Strict),

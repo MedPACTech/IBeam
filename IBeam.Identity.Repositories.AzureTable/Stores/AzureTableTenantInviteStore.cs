@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace IBeam.Identity.Repositories.AzureTable.Stores;
 
-public sealed class AzureTableTenantInviteStore : ITenantInviteStore
+public sealed partial class AzureTableTenantInviteStore : ITenantInviteStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -93,7 +93,11 @@ public sealed class AzureTableTenantInviteStore : ITenantInviteStore
                     cancellationToken: ct)
                 .ConfigureAwait(false);
 
-            return response.HasValue ? ToRecord(response.Value) : null;
+            if (!response.HasValue) return null;
+            // Token indexes may lag a cross-partition update or repair. The primary is authoritative.
+            var index = ToRecord(response.Value);
+            var current = await GetAsync(index.TenantId, index.InviteId, ct).ConfigureAwait(false);
+            return current?.TokenHash == tokenHash ? current : null;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

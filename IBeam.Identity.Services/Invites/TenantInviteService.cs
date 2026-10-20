@@ -15,7 +15,7 @@ using Microsoft.Extensions.Options;
 namespace IBeam.Identity.Services.Invites;
 
 [IBeamOperation("identity.tenantinvites")]
-public sealed class TenantInviteService : ITenantInviteService
+public sealed partial class TenantInviteService : ITenantInviteService
 {
     private static readonly TimeSpan DefaultInviteLifetime = TimeSpan.FromDays(7);
 
@@ -37,8 +37,32 @@ public sealed class TenantInviteService : ITenantInviteService
     private readonly ILogger<TenantInviteService> _logger;
     private readonly IServiceOperationExecutor _operations;
     private readonly IResourceAccessService? _resourceAccess;
+    private readonly ITenantRoleStore? _externalRoles;
 
     public TenantInviteService(
+        ITenantInviteStore invites,
+        IIdentityTenantService tenants,
+        IIdentityUserStore users,
+        ITenantRoleService roles,
+        ITenantProvisioningService tenantProvisioning,
+        ITenantMembershipStore memberships,
+        IIdentityUserExtensionCoordinator userExtensions,
+        IIdentityCommunicationSender sender,
+        ITenantInviteUrlBuilder urlBuilder,
+        ITenantInviteMessageFactory messageFactory,
+        IOtpService otpService,
+        IOtpChallengeStore otpChallenges,
+        ITokenService tokens,
+        IAuthEventPublisher events,
+        IOptions<AuthEventOptions> eventOptions,
+        ILogger<TenantInviteService> logger,
+        IResourceAccessService? resourceAccess = null,
+        IServiceOperationExecutor? operations = null)
+        : this(null, invites, tenants, users, roles, tenantProvisioning, memberships, userExtensions, sender, urlBuilder,
+            messageFactory, otpService, otpChallenges, tokens, events, eventOptions, logger, resourceAccess, operations) { }
+
+    public TenantInviteService(
+        ITenantRoleStore? externalRoles,
         ITenantInviteStore invites,
         IIdentityTenantService tenants,
         IIdentityUserStore users,
@@ -76,6 +100,7 @@ public sealed class TenantInviteService : ITenantInviteService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _resourceAccess = resourceAccess;
         _operations = operations ?? new ServiceOperationExecutor();
+        _externalRoles = externalRoles;
     }
 
     [IBeamOperation("identity.tenantinvites.create")]
@@ -341,6 +366,12 @@ public sealed class TenantInviteService : ITenantInviteService
             throw new IdentityValidationException("Invite is not active.");
 
         var mode = NormalizeAcceptMode(request.Mode);
+        // External onboarding invitations never authorize an unverified password reset/setup.
+        // Ordinary customer invitations retain their existing acceptance policy.
+        if (invite.InvitedByUserId == Guid.Empty && invite.Metadata?.GetValueOrDefault("origin") == "external-management" &&
+            mode == TenantInviteAcceptModes.EmailPassword &&
+            (string.IsNullOrWhiteSpace(request.ChallengeId) || string.IsNullOrWhiteSpace(request.VerificationToken)))
+            throw new IdentityValidationException("Verified email challenge is required.");
         await PublishInviteEventAsync(new TenantInviteAcceptRequestedEvent
         {
             InviteId = invite.InviteId,

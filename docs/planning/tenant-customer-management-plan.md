@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0106 are complete (45 points); 11 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0107 are complete (53 points); 10 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -347,7 +347,7 @@ Feature acceptance:
 
 ### IBM-0107 / TCM-010: Orchestrate enterprise tenant and initial administrator invitation
 
-Estimate: **8 points**. Lane: Triage. Delivery order: 100. Hubbsly ID: 5bf8918a-cd6e-4186-b8d3-2f0b0f7fb559.
+Estimate: **8 points**. Lane: Done. Delivery order: 100. Hubbsly ID: 5bf8918a-cd6e-4186-b8d3-2f0b0f7fb559.
 
 Dependencies: IBM-0105, IBM-0104, IBM-0099.
 
@@ -355,15 +355,17 @@ Add IManagementEnterpriseOnboardingService. Request includes tenant name, initia
 
 Proposed paths: IBeam.Management/CustomerIdentity/, IBeam.Management.Identity.Target.Services/Onboarding/, IBeam.Identity.Services/Invites/, IBeam.Identity/Interfaces/ITenantInviteService.cs, IBeam.Management.Repositories.AzureTable/CustomerIdentity/, IBeam.Tests.Management.CustomerIdentity/. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Onboarding requires onboarding.create plus tenants.create, invites.manage and approved roles.assign authority on both human and target credentials; direct service calls cannot bypass composite checks.
-- [ ] One idempotent request creates one tenant and one pending initial-admin invitation; retries after each crash point reuse the same tenant/invitation instead of creating duplicates.
-- [ ] Admin/Owner role templates are host-allowlisted and target-local; arbitrary role names, support roles, wildcard permissions or caller-provided redirect URLs are rejected.
-- [ ] New and existing customer identities must satisfy the existing verified recipient/password-setup acceptance flow; management never sets/returns passwords or grants support staff customer membership.
-- [ ] Status distinguishes tenant creation, extension completion, invitation persisted, delivery sent/failed/unknown, awaiting acceptance, completed and recoverable failure; sending an email alone never marks onboarding complete.
-- [ ] Delivery failure does not delete the tenant or create another invitation automatically; explicit retry/resend reconciles invitation state and records possible at-least-once email delivery.
-- [ ] Existing self-signup routes remain available and unchanged; pending onboarding never grants customer access before the intended administrator has valid tenant membership.
+- [x] Onboarding requires onboarding.create plus tenants.create, invites.manage and approved roles.assign authority on both human and target credentials; direct service calls cannot bypass composite checks.
+- [x] One idempotent request creates one tenant and one pending initial-admin invitation; retries after each crash point reuse the same tenant/invitation instead of creating duplicates.
+- [x] Admin/Owner role templates are host-allowlisted and target-local; arbitrary role names, support roles, wildcard permissions or caller-provided redirect URLs are rejected.
+- [x] New and existing customer identities must satisfy the existing verified recipient/password-setup acceptance flow; management never sets/returns passwords or grants support staff customer membership.
+- [x] Status distinguishes tenant creation, extension completion, invitation persisted, delivery sent/failed/unknown, awaiting acceptance, completed and recoverable failure; sending an email alone never marks onboarding complete.
+- [x] Delivery failure does not delete the tenant or create another invitation automatically; explicit retry/resend reconciles invitation state and records possible at-least-once email delivery.
+- [x] Existing self-signup routes remain available and unchanged; pending onboarding never grants customer access before the intended administrator has valid tenant membership.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 942 tests passed, zero failures/skips; seven packages packed and inspected. Durable tenant/invite/delivery recovery, verified acceptance and scoped ciphertext/CAS checks passed. See Hubbsly IBM-0107.
 
 ### IBM-0108 / TCM-011: Expose enterprise onboarding create, status and safe retry APIs
 

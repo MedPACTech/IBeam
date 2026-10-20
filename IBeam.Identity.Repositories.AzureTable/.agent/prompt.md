@@ -64,3 +64,5 @@ Provider or infrastructure integration tests should be opt-in when they require 
 The `.agent/prompt.md` file is included in the NuGet package by the repository-level packaging rules. Keep it useful for agents consuming the package from source or from the package artifact.
 
 IBM-0105 adds IIdentityTenantConditionalStore. Management renames must use the caller-provided ETag and merge only framework name/update/LastOperationId fields; preserve consumer columns and never refresh away the original precondition. Legacy missing creation times project null. Reads never add metadata or rewrite rows.
+
+IBM-0107 external invite Ensure uses a stable primary insert and validates immutable ownership/intent fields before repairing its token index. Never replace a redeemed/revoked primary during recovery. Token index reads must recheck the authoritative primary and exact token hash; stale indexes cannot restore old invitation authority. No schema creation or business orchestration in stores.

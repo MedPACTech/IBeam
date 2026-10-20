@@ -30,6 +30,7 @@ public static class ManagementAuditOperations
         "management.portal.customer-identity.delegate", "management.identity.delegation.validate", "management.identity.delegation.require",
         "management.identity.tenants.read",
         "management.identity.tenants.create", "management.identity.tenants.update",
+        "management.identity.onboarding.create", "management.identity.onboarding.read", "management.identity.onboarding.retry",
         "management.identity.operations.execute", "management.identity.operations.read", "management.identity.operations.audit",
         "management.identity.operations.resolve",
         "management.portal.customer-identity.operations.read",

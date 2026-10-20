@@ -64,3 +64,5 @@ Provider or infrastructure integration tests should be opt-in when they require 
 The `.agent/prompt.md` file is included in the NuGet package by the repository-level packaging rules. Keep it useful for agents consuming the package from source or from the package artifact.
 
 IBM-0105 external tenant administration reuses Identity creation/lifecycle services with an optional conditional store. Preserve null customer AuthUserId, RequireLifecycleDelivery and RedactFailureDetails for external operations. These flags convey no permission; target Management authorization is separate. Recovery hooks can receive null previous state and must be idempotent by operation ID.
+
+IBM-0107 adds an optional trusted external invitation adapter to TenantInviteService. It never creates membership before customer acceptance, never fabricates a customer inviter and never returns tokens/links. External password setup requires an email verification challenge. Preserve ordinary invite/self-signup behavior. The Management journal owns ETag delivery claims; do not rewrite invitation state after SMTP or silently retry ambiguous delivery.
