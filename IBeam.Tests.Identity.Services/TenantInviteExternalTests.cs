@@ -55,7 +55,7 @@ public sealed partial class TenantInviteServiceTests
         users.Verify(x => x.SetPasswordAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
     [TestMethod]
-    [DataRow("existing-session", false)] [DataRow("email-password", false)] [DataRow("email-password", true)]
+    [DataRow("existing-session", false)] [DataRow("email-password", false)] [DataRow("email-password", true)] [DataRow("otp", false)]
     public async Task ExternalInviteVerifiedCustomerAcceptsThroughOrdinaryMembershipAndExtensionFlow(string mode, bool newCustomer)
     {
         var tenant = Guid.NewGuid(); var user = new IdentityUser(Guid.NewGuid(), "enterprise@example.test", true);
@@ -63,6 +63,14 @@ public sealed partial class TenantInviteServiceTests
         var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
         users.Setup(x => x.FindByIdAsync(user.UserId, It.IsAny<CancellationToken>())).ReturnsAsync(user);
         var challenges = new Mock<IOtpChallengeStore>(MockBehavior.Strict);
+        var otp = new Mock<IOtpService>(MockBehavior.Strict);
+        if (mode == "otp") {
+            users.Setup(x => x.FindByEmailAsync(user.Email!, It.IsAny<CancellationToken>())).ReturnsAsync(user with { EmailConfirmed = false });
+            users.Setup(x => x.SetEmailConfirmedAsync(user.UserId, true, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+            otp.Setup(x => x.VerifyAsync(It.Is<OtpVerifyRequest>(r => r.ChallengeId == "verified-email-challenge"), It.IsAny<CancellationToken>())).ReturnsAsync(new OtpVerifyResult(true));
+            challenges.Setup(x => x.GetAsync("verified-email-challenge", It.IsAny<CancellationToken>())).ReturnsAsync(new OtpChallengeRecord("verified-email-challenge",
+                user.Email!, SenderPurpose.TenantInvitation, "hash", DateTimeOffset.UtcNow.AddMinutes(5), 0, tenant, true, "verified-email-proof", DateTimeOffset.UtcNow.AddMinutes(5)));
+        }
         if (mode == "email-password") {
             users.Setup(x => x.FindByEmailAsync(user.Email!, It.IsAny<CancellationToken>())).ReturnsAsync(newCustomer ? null : user with { EmailConfirmed = false });
             users.Setup(x => x.SetEmailConfirmedAsync(user.UserId, true, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
@@ -82,11 +90,11 @@ public sealed partial class TenantInviteServiceTests
         extensions.Setup(x => x.EnsureExtensionAsync(user, It.Is<UserExtensionContext>(c => c.Operation == "invite-accepted" && c.TenantId == tenant), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var tokens = new Mock<ITokenService>(MockBehavior.Strict);
         tokens.Setup(x => x.CreateAccessTokenAsync(user.UserId, tenant, It.IsAny<IReadOnlyList<ClaimItem>>(), It.IsAny<CancellationToken>())).ReturnsAsync(new TokenResult("customer-token", DateTimeOffset.UtcNow.AddHours(1), []));
-        var service = CreateService(new ExternalMemoryInvites(), users: users.Object, roles: roles.Object, memberships: memberships.Object, extensions: extensions.Object, tokens: tokens.Object, tenantId: tenant, otpChallenges: challenges.Object);
+        var service = CreateService(new ExternalMemoryInvites(), users: users.Object, roles: roles.Object, memberships: memberships.Object, extensions: extensions.Object, tokens: tokens.Object, tenantId: tenant, otpChallenges: challenges.Object, otp: otp.Object);
         var request = ExternalRequest(tenant, role.RoleId); await service.EnsureAsync(request);
         roles.Verify(x => x.EnsureTenantMembershipAndGrantRolesAsync(It.IsAny<TenantMembershipRoleBootstrapRequest>(), It.IsAny<CancellationToken>()), Times.Never);
         var accepted = await service.AcceptInviteAsync(new(InviteToken: request.Token, Mode: mode,
-            ChallengeId: mode == "email-password" ? "verified-email-challenge" : null,
+            ChallengeId: mode is "email-password" or "otp" ? "verified-email-challenge" : null, Code: mode == "otp" ? "123456" : null,
             VerificationToken: mode == "email-password" ? "verified-email-proof" : null, Password: "CustomerPassword123!"), mode == "existing-session" ? user.UserId : null);
         Assert.AreEqual("redeemed", accepted.Invite.Status); Assert.AreEqual(user.UserId, accepted.Invite.RedeemedByUserId);
         Assert.AreEqual(newCustomer, accepted.CreatedNewUser); Assert.AreEqual("Owner", accepted.Roles.Single().Name);
@@ -97,9 +105,50 @@ public sealed partial class TenantInviteServiceTests
         TenantId = tenant, InviteId = Guid.NewGuid(), Actor = new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()),
         Email = "enterprise@example.test", Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
         RoleIds = [role], CreatedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddDays(6) };
-    private sealed class ExternalMemoryInvites : ITenantInviteStore, IExternalTenantInviteStore
+    [TestMethod]
+    public async Task AcceptanceMustClaimTheCurrentInvitationBeforeMembershipOrTokenCreation()
+    {
+        var tenant = Guid.NewGuid(); var user = new IdentityUser(Guid.NewGuid(), "enterprise@example.test", true);
+        var roles = new Mock<ITenantRoleService>(MockBehavior.Strict);
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        users.Setup(x => x.FindByIdAsync(user.UserId, It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        var store = new ExternalMemoryInvites { FailClaim = true };
+        var request = ExternalRequest(tenant, Guid.NewGuid());
+        await store.CreateAsync(new(request.InviteId, tenant, "email", request.Email,
+            Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(request.Token))), "pending", request.CreatedUtc, Guid.Empty,
+            request.ExpiresUtc, RoleIds: request.RoleIds, Metadata: new Dictionary<string, string> { ["origin"] = "external-management" }));
+        var service = CreateService(store, users: users.Object, roles: roles.Object, tenantId: tenant);
+        await Assert.ThrowsAsync<IdentityConcurrencyException>(() => service.AcceptInviteAsync(new(InviteToken: request.Token, Mode: "existing-session"), user.UserId));
+        Assert.AreEqual(1, store.Claims);
+        roles.Verify(x => x.EnsureTenantMembershipAndGrantRolesAsync(It.IsAny<TenantMembershipRoleBootstrapRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+    [TestMethod]
+    public async Task ManagementResentCustomerOriginInvitationAlsoRequiresVerifiedPasswordChallenge()
+    {
+        var tenant = Guid.NewGuid(); var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var row = new TenantInviteRecord(Guid.NewGuid(), tenant, "email", "customer@example.test",
+            Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token))), "pending", DateTimeOffset.UtcNow,
+            Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(7), RoleIds: [Guid.NewGuid()], RequirePasswordSetup: true) { RequireVerifiedAcceptance = true };
+        var store = new ExternalMemoryInvites(); await store.CreateAsync(row);
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var service = CreateService(store, users: users.Object, tenantId: tenant);
+        await Assert.ThrowsAsync<IdentityValidationException>(() => service.AcceptInviteAsync(new(InviteToken: token, Mode: "email-password", Password: "NotStored123!")));
+        Assert.AreEqual(0, store.Claims);
+        users.Verify(x => x.SetPasswordAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+    private sealed class ExternalMemoryInvites : ITenantInviteStore, IExternalTenantInviteStore, IManagedTenantInviteStore
     {
         private readonly InMemoryTenantInviteStore store = new();
+        public bool FailClaim { get; set; }
+        public int Claims { get; private set; }
+        public async Task<TenantInviteRecord> BeginAcceptanceAsync(Guid tenant, Guid invite, string hash, Guid user, CancellationToken ct = default)
+        {
+            Claims++; if (FailClaim) throw new IdentityConcurrencyException();
+            var row = await store.GetAsync(tenant, invite, ct) ?? throw new IdentityConcurrencyException();
+            if (row.TokenHash != hash) throw new IdentityConcurrencyException();
+            return await store.UpdateAsync(row with { AcceptanceId = Guid.NewGuid(), AcceptanceUserId = user }, ct);
+        }
+        public Task<TenantInviteRecord> TransitionAsync(ManagedTenantInviteTransition request, CancellationToken ct = default) => throw new NotSupportedException();
         public async Task<TenantInviteRecord> EnsureAsync(TenantInviteRecord invite, CancellationToken ct = default)
             => await store.GetAsync(invite.TenantId, invite.InviteId, ct) ?? await store.CreateAsync(invite, ct);
         public Task<TenantInviteRecord> CreateAsync(TenantInviteRecord invite, CancellationToken ct = default) => store.CreateAsync(invite, ct);

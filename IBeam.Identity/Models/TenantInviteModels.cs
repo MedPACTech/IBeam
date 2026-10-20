@@ -100,6 +100,14 @@ public sealed record TenantInviteRecord(
     IReadOnlyDictionary<string, string>? Metadata = null,
     bool RequirePasswordSetup = false)
 {
+    [System.Text.Json.Serialization.JsonIgnore] public string? Version { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore] public Guid? AcceptanceId { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore] public Guid? AcceptanceUserId { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore] public Guid? LastTransitionOperationId { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore] public DateTimeOffset? LastResendUtc { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore] public DateTimeOffset? ResendWindowUtc { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore] public int ResendCount { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore] public bool RequireVerifiedAcceptance { get; init; }
     public bool IsRedeemable(DateTimeOffset now)
         => (string.Equals(Status, TenantInviteStatuses.Pending, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(Status, TenantInviteStatuses.Sent, StringComparison.OrdinalIgnoreCase)) &&

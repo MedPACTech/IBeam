@@ -4,7 +4,7 @@ using IBeam.Identity.Exceptions;
 using IBeam.Services.Abstractions;
 namespace IBeam.Identity.Services.Invites;
 
-public sealed partial class TenantInviteService : IExternalTenantInviteService
+public sealed partial class TenantInviteService : IExternalTenantInviteService, IManagedTenantInviteDeliveryService
 {
     public bool SupportsDurableCreation => _invites is IExternalTenantInviteStore && _externalRoles is not null;
     public Task<TenantInviteInfo> EnsureAsync(ExternalTenantInviteRequest request, CancellationToken ct = default)
@@ -43,14 +43,26 @@ public sealed partial class TenantInviteService : IExternalTenantInviteService
                 throw new IdentityValidationException("External invitation cannot be delivered.");
             // Reuse the application's approved link and message policies. Do not rewrite the invite after SMTP:
             // acceptance may have concurrently redeemed it. Durable delivery state belongs to the caller's journal.
-            IdentitySenderMessage message;
-            try {
-                var url = _urlBuilder.BuildInviteUrl(invite, token);
-                message = _messageFactory.CreateMessage(invite, token, url);
-            } catch { throw new IdentityInviteDeliveryNotSentException(); }
-            try { await _sender.SendAsync(message, cancellation); }
-            catch (OperationCanceledException) { throw; }
-            catch { throw new InvalidOperationException("External invitation delivery is unconfirmed."); }
+            await DeliverMessage(invite, token, cancellation);
         }, new ServiceOperationExecutionOptions { OperationName = "identity.tenantinvites.external.deliver",
             TenantId = tenantId, EntityId = inviteId, PermissionEnabled = false, AuditEnabled = false }, ct);
+
+    Task IManagedTenantInviteDeliveryService.DeliverAsync(Guid tenantId, Guid inviteId, Guid operationId, string token, CancellationToken ct)
+        => _operations.ExecuteAsync(this, async cancellation => {
+            var invite = await RequireInviteAsync(tenantId, inviteId, cancellation);
+            if (_invites is not IManagedTenantInviteStore || invite.LastTransitionOperationId != operationId ||
+                invite.TokenHash != HashToken(token) || !invite.IsRedeemable(DateTimeOffset.UtcNow) || invite.AcceptanceUserId is not null)
+                throw new IdentityConcurrencyException();
+            await DeliverMessage(invite, token, cancellation);
+        }, new ServiceOperationExecutionOptions { OperationName = "identity.tenantinvites.external.redeliver", TenantId = tenantId, EntityId = inviteId,
+            PermissionEnabled = false, AuditEnabled = false }, ct);
+    private async Task DeliverMessage(TenantInviteRecord invite, string token, CancellationToken ct)
+    {
+        IdentitySenderMessage message;
+        try { message = _messageFactory.CreateMessage(invite, token, _urlBuilder.BuildInviteUrl(invite, token)); }
+        catch { throw new IdentityInviteDeliveryNotSentException(); }
+        try { await _sender.SendAsync(message, ct); }
+        catch (OperationCanceledException) { throw; }
+        catch { throw new InvalidOperationException("External invitation delivery is unconfirmed."); }
+    }
 }

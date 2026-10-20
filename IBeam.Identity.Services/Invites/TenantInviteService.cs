@@ -271,7 +271,12 @@ public sealed partial class TenantInviteService : ITenantInviteService
             TraceId = ResolveTraceId()
         }, ct).ConfigureAwait(false);
 
-        var result = await SendInviteAsync(invite, CreateInviteToken(), ct).ConfigureAwait(false);
+        var resendToken = CreateInviteToken();
+        if (_invites is IManagedTenantInviteStore conditional) invite = await conditional.TransitionAsync(new() {
+            TenantId = tenantId, InviteId = inviteId, OperationId = Guid.NewGuid(), Kind = "resend", ExpectedVersion = invite.Version ?? "",
+            NowUtc = now, ExpiresUtc = invite.ExpiresUtc, TokenHash = HashToken(resendToken), CustomerActorId = resentByUserId,
+            ResendWindowUtc = invite.ResendWindowUtc ?? now, ResendCount = invite.ResendCount + 1 }, ct).ConfigureAwait(false);
+        var result = await SendInviteAsync(invite, resendToken, ct).ConfigureAwait(false);
 
         await PublishInviteEventAsync(new TenantInviteResentEvent
         {
@@ -362,13 +367,13 @@ public sealed partial class TenantInviteService : ITenantInviteService
         var invite = await FindByTokenAsync(request.InviteToken ?? request.InviteCode, ct).ConfigureAwait(false);
         var now = DateTimeOffset.UtcNow;
         invite = await ExpireIfNeededAsync(invite, now, ct).ConfigureAwait(false);
-        if (!invite.IsRedeemable(now))
+        if (!invite.IsRedeemable(now) && !(invite.Status is TenantInviteStatuses.Pending or TenantInviteStatuses.Sent && invite.AcceptanceUserId is not null))
             throw new IdentityValidationException("Invite is not active.");
 
         var mode = NormalizeAcceptMode(request.Mode);
-        // External onboarding invitations never authorize an unverified password reset/setup.
-        // Ordinary customer invitations retain their existing acceptance policy.
-        if (invite.InvitedByUserId == Guid.Empty && invite.Metadata?.GetValueOrDefault("origin") == "external-management" &&
+        // Externally created or management-resend invitations require verified password setup.
+        // Other customer invitations retain their existing acceptance policy.
+        if (RequiresVerifiedAcceptance(invite) &&
             mode == TenantInviteAcceptModes.EmailPassword &&
             (string.IsNullOrWhiteSpace(request.ChallengeId) || string.IsNullOrWhiteSpace(request.VerificationToken)))
             throw new IdentityValidationException("Verified email challenge is required.");
@@ -386,6 +391,10 @@ public sealed partial class TenantInviteService : ITenantInviteService
 
         var (user, createdNewUser) = await ResolveAcceptedUserAsync(invite, request, mode, authenticatedUserId, ct)
             .ConfigureAwait(false);
+
+        if (RequiresVerifiedAcceptance(invite))
+            EnsureUserOwnsVerifiedDestination(invite, user);
+        if (_invites is IManagedTenantInviteStore conditional) invite = await conditional.BeginAcceptanceAsync(invite.TenantId, invite.InviteId, invite.TokenHash, user.UserId, ct).ConfigureAwait(false);
 
         await PublishInviteEventAsync(new TenantInviteTenantUserLinkRequestedEvent
         {
@@ -549,7 +558,17 @@ public sealed partial class TenantInviteService : ITenantInviteService
         if (mode == TenantInviteAcceptModes.Otp || mode == TenantInviteAcceptModes.SmsOtp)
         {
             await VerifyOtpAsync(invite, request, ct).ConfigureAwait(false);
-            return await FindOrCreateUserForInviteAsync(invite, request.Password, ct).ConfigureAwait(false);
+            var resolved = await FindOrCreateUserForInviteAsync(invite, request.Password, ct).ConfigureAwait(false);
+            if (RequiresVerifiedAcceptance(invite) &&
+                invite.DestinationType == TenantInviteDestinationTypes.Email && !resolved.User.EmailConfirmed)
+            {
+                // The existing customer OTP flow just verified this exact invitation destination.
+                await _users.SetEmailConfirmedAsync(resolved.User.UserId, true, ct).ConfigureAwait(false);
+                var verified = await _users.FindByIdAsync(resolved.User.UserId, ct).ConfigureAwait(false)
+                    ?? throw new IdentityUnauthorizedException("Verified customer was not found.");
+                return (verified, resolved.CreatedNewUser);
+            }
+            return resolved;
         }
 
         if (mode == TenantInviteAcceptModes.EmailPassword)
@@ -809,7 +828,7 @@ public sealed partial class TenantInviteService : ITenantInviteService
 
     private async Task<TenantInviteRecord> ExpireIfNeededAsync(TenantInviteRecord invite, DateTimeOffset now, CancellationToken ct)
     {
-        if (invite.ExpiresUtc > now ||
+        if (invite.AcceptanceUserId is not null || invite.ExpiresUtc > now ||
             !string.Equals(invite.Status, TenantInviteStatuses.Pending, StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(invite.Status, TenantInviteStatuses.Sent, StringComparison.OrdinalIgnoreCase))
         {
@@ -1033,6 +1052,9 @@ public sealed partial class TenantInviteService : ITenantInviteService
         RandomNumberGenerator.Fill(bytes);
         return Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
     }
+
+    private static bool RequiresVerifiedAcceptance(TenantInviteRecord invite) => invite.RequireVerifiedAcceptance ||
+        invite.InvitedByUserId == Guid.Empty && invite.Metadata?.GetValueOrDefault("origin") == "external-management";
 
     private static string HashToken(string token)
     {

@@ -82,7 +82,7 @@ public sealed class ManagementSupportUserTests
             var invites = services.GetRequiredService<ITenantInviteStore>();
             var record = (await invites.GetAsync(f.OrganizationId, dto.InviteId))!;
             if (tamper == "expired") await invites.UpdateAsync(record with { ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(-1) });
-            if (tamper == "foreign") await invites.UpdateAsync(record with { TenantId = Guid.NewGuid() });
+            if (tamper == "foreign") await f.CorruptInvitationIndexTenantAsync(record.TokenHash);
             if (tamper == "role") await invites.UpdateAsync(record with { RoleIds = [Guid.NewGuid()] });
             if (tamper == "issuer-disabled") await services.GetRequiredService<ITenantMembershipStore>().DisableTenantMembershipAsync(f.OrganizationId, f.UserId);
             if (tamper == "wrong-password")

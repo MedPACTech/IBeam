@@ -34,7 +34,7 @@ public sealed partial class AzureTableTenantInviteStore : ITenantInviteStore
             tokenEntity.PartitionKey = TokenPk(invite.TokenHash);
             tokenEntity.RowKey = TokenRk();
             await Table().AddEntityAsync(tokenEntity, ct).ConfigureAwait(false);
-            return invite;
+            return await GetAsync(invite.TenantId, invite.InviteId, ct).ConfigureAwait(false) ?? throw new IdentityConcurrencyException();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -110,29 +110,19 @@ public sealed partial class AzureTableTenantInviteStore : ITenantInviteStore
         try
         {
             ct.ThrowIfCancellationRequested();
-            var existing = await GetAsync(invite.TenantId, invite.InviteId, ct).ConfigureAwait(false);
-            if (existing is not null &&
-                !string.Equals(existing.TokenHash, invite.TokenHash, StringComparison.Ordinal))
-            {
-                try
-                {
-                    await Table().DeleteEntityAsync(TokenPk(existing.TokenHash), TokenRk(), cancellationToken: ct)
-                        .ConfigureAwait(false);
-                }
-                catch (RequestFailedException ex) when (ex.Status == 404)
-                {
-                }
-            }
-
-            var tenantEntity = ToEntity(invite);
-            await Table().UpsertEntityAsync(tenantEntity, TableUpdateMode.Replace, ct).ConfigureAwait(false);
-
-            var tokenEntity = ToEntity(invite);
-            tokenEntity.PartitionKey = TokenPk(invite.TokenHash);
-            tokenEntity.RowKey = TokenRk();
-            await Table().UpsertEntityAsync(tokenEntity, TableUpdateMode.Replace, ct).ConfigureAwait(false);
-
-            return invite;
+            var existing = await GetAsync(invite.TenantId, invite.InviteId, ct).ConfigureAwait(false) ?? throw new IdentityConcurrencyException();
+            if (existing.Status == TenantInviteStatuses.Redeemed && invite.Status == TenantInviteStatuses.Redeemed &&
+                existing.RedeemedByUserId == invite.RedeemedByUserId && existing.AcceptanceId == invite.AcceptanceId) return existing;
+            if (invite.Version is not null && invite.Version != existing.Version) throw new IdentityConcurrencyException();
+            if (invite.Version is null && invite.TokenHash != existing.TokenHash) throw new IdentityConcurrencyException();
+            if (existing.AcceptanceUserId is Guid accepting && (invite.Status != TenantInviteStatuses.Redeemed || invite.RedeemedByUserId != accepting ||
+                invite.AcceptanceId != existing.AcceptanceId || invite.TokenHash != existing.TokenHash)) throw new IdentityConcurrencyException();
+            if (existing.Status is TenantInviteStatuses.Redeemed or TenantInviteStatuses.Revoked && invite.Status != existing.Status) throw new IdentityConcurrencyException();
+            try { await Table().UpdateEntityAsync(ToEntity(invite), new ETag(existing.Version!), TableUpdateMode.Merge, ct).ConfigureAwait(false); }
+            catch (RequestFailedException ex) when (ex.Status is 404 or 412) { throw new IdentityConcurrencyException(); }
+            var current = await GetAsync(invite.TenantId, invite.InviteId, ct).ConfigureAwait(false) ?? throw new IdentityConcurrencyException();
+            await EnsureTokenIndex(current, ct);
+            return current;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -143,6 +133,13 @@ public sealed partial class AzureTableTenantInviteStore : ITenantInviteStore
     private TenantInviteEntity ToEntity(TenantInviteRecord invite)
         => new()
         {
+            IBeamInviteAcceptanceId = invite.AcceptanceId?.ToString("D"),
+            IBeamInviteAcceptanceUserId = invite.AcceptanceUserId?.ToString("D"),
+            IBeamInviteLastOperationId = invite.LastTransitionOperationId?.ToString("D"),
+            IBeamInviteLastResendUtc = invite.LastResendUtc,
+            IBeamInviteResendWindowUtc = invite.ResendWindowUtc,
+            IBeamInviteResendCount = invite.ResendCount,
+            IBeamInviteRequireVerifiedAcceptance = invite.RequireVerifiedAcceptance,
             PartitionKey = TenantPk(invite.TenantId),
             RowKey = InviteRk(invite.InviteId),
             InviteId = invite.InviteId.ToString("D"),
@@ -178,6 +175,8 @@ public sealed partial class AzureTableTenantInviteStore : ITenantInviteStore
     {
         var tenantId = Guid.Parse(entity.TenantId);
         var inviteId = Guid.Parse(entity.InviteId);
+        if ((entity.IBeamInviteAcceptanceId is null) != (entity.IBeamInviteAcceptanceUserId is null))
+            throw new IdentityProviderException("Invitation transition metadata is invalid.");
         return new TenantInviteRecord(
             inviteId,
             tenantId,
@@ -206,11 +205,17 @@ public sealed partial class AzureTableTenantInviteStore : ITenantInviteStore
             entity.CorrelationId,
             entity.CausationId,
             Deserialize<Dictionary<string, string>>(entity.MetadataJson),
-            entity.RequirePasswordSetup);
+            entity.RequirePasswordSetup) {
+                Version = entity.ETag.ToString(), AcceptanceId = PrivateGuid(entity.IBeamInviteAcceptanceId),
+                AcceptanceUserId = PrivateGuid(entity.IBeamInviteAcceptanceUserId), LastTransitionOperationId = PrivateGuid(entity.IBeamInviteLastOperationId),
+                LastResendUtc = entity.IBeamInviteLastResendUtc, ResendWindowUtc = entity.IBeamInviteResendWindowUtc, ResendCount = entity.IBeamInviteResendCount,
+                RequireVerifiedAcceptance = entity.IBeamInviteRequireVerifiedAcceptance };
     }
 
     private static Guid? ParseNullableGuid(string? value)
         => Guid.TryParse(value, out var guid) ? guid : null;
+    private static Guid? PrivateGuid(string? value) => value is null ? null : Guid.TryParseExact(value, "D", out var guid) && guid != Guid.Empty
+        ? guid : throw new IdentityProviderException("Invitation transition metadata is invalid.");
 
     private static List<Guid> ParseGuidCsv(string? csv)
         => (csv ?? string.Empty)

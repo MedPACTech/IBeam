@@ -230,3 +230,5 @@ Identity AzureTable provider resolves connection string with fallback precedence
 Agents should keep provider code storage-focused. Tenant, role, OTP, API credential, and access rules belong in Identity/AccessControl services.
 
 Enterprise onboarding services and durable invitation recovery are documented in [enterprise onboarding](../docs/management/enterprise-onboarding.md). Target services are opt-in; portal/HTTP integration follows in IBM-0108.
+
+IBM-0110 invitation resend/revoke uses exact versions, durable private delivery recovery and native acceptance claims. See [invitation lifecycle](../docs/management/customer-invitation-lifecycle.md).

@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0109 are complete (63 points); 8 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0110 are complete (68 points); 7 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -425,22 +425,24 @@ Verification evidence: 975 tests passed, zero failures/skips; eight packages bui
 
 ### IBM-0110 / TCM-013: Implement paged invitation lifecycle with safe resend and revoke
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 130. Hubbsly ID: 20c2764e-b7b2-4e07-9363-22bca6f7cb96.
+Estimate: **5 points**. Lane: Done. Delivery order: 130. Hubbsly ID: 20c2764e-b7b2-4e07-9363-22bca6f7cb96.
 
 Dependencies: IBM-0109.
 
-Add IManagementCustomerInvitationService and target GET /tenants/{tenantId}/invites[/{inviteId}], POST /invites/{inviteId}/resend and POST /invites/{inviteId}/revoke. Reuse Identity lifecycle behavior with bounded store reads, operation receipts, rate limits and a trusted target redirect policy. Do not add management invitation acceptance endpoints.
+Implemented target invitation lifecycle with bounded safe reads, exact-version idempotent resend/revoke, target-owned roles/redirect/rate policy, private durable SMTP recovery and native verified acceptance claims. See docs/management/customer-invitation-lifecycle.md.
 
 Proposed paths: IBeam.Management.Identity.Target.Services/Invitations/, IBeam.Management.Identity.Target.Api/Controllers/ManagementCustomerInvitationsController.cs, IBeam.Identity.Services/Invites/TenantInviteService.cs, IBeam.Identity.Repositories.AzureTable/Stores/AzureTableTenantInviteStore.cs, IBeam.Tests.Management.CustomerIdentity/. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] List/detail requires invites.read, resend/revoke requires invites.manage; all calls verify tenant, app, current invitation state and live credentials.
-- [ ] Responses expose invitation ID, recipient email, permitted roles, status and timestamps only; raw redemption tokens/URLs and delivery credentials are never serialized or audited.
-- [ ] Resend/revoke require idempotency and expected version; replay, concurrent acceptance, revocation and expiration produce deterministic safe outcomes.
-- [ ] Resend rate limits are keyed by target/tenant/invitation and enforced server-side; resend cannot expand roles or replace recipient/redirect destinations.
-- [ ] Existing Identity acceptance verifies the intended recipient; revoked/expired/superseded tokens are rejected according to documented token-rotation behavior.
-- [ ] Pagination remains bounded and scope-bound; integration tests prove no duplicate invitations or silent success on mail failure and no cross-tenant invitation access.
+- [x] List/detail requires invites.read, resend/revoke requires invites.manage; all calls verify tenant, app, current invitation state and live credentials.
+- [x] Responses expose invitation ID, recipient email, permitted roles, status and timestamps only; raw redemption tokens/URLs and delivery credentials are never serialized or audited.
+- [x] Resend/revoke require idempotency and expected version; replay, concurrent acceptance, revocation and expiration produce deterministic safe outcomes.
+- [x] Resend rate limits are keyed by target/tenant/invitation and enforced server-side; resend cannot expand roles or replace recipient/redirect destinations.
+- [x] Existing Identity acceptance verifies the intended recipient; revoked/expired/superseded tokens are rejected according to documented token-rotation behavior.
+- [x] Pagination remains bounded and scope-bound; integration tests prove no duplicate invitations or silent success on mail failure and no cross-tenant invitation access.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 991 tests passed, zero failures/skips, including signed HTTP and isolated Azure Table concurrency/recovery cases; seven changed production packages packed and inspected locally at 2.16.0-dev.tcm.110.
 
 ### IBM-0111 / TCM-014: Expose portal provisioning, role catalog and invitation lifecycle routes
 

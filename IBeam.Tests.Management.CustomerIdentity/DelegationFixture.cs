@@ -75,9 +75,14 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         IManagementCustomerUserReadRepository? users = null, IManagementCustomerInvitationReadRepository? invites = null,
         IManagementIdentityOperationRepository? operations = null, IManagementIdentityOperationAuditRepository? operationAudit = null,
         IIdentityTenantStore? tenantStore = null, IManagementTenantAdministrationRepository? tenantMetadata = null, bool compositeOnboarding = false,
-        OnboardingFixture? onboarding = null, ProvisioningFixture? provisioning = null)
+        OnboardingFixture? onboarding = null, ProvisioningFixture? provisioning = null, InvitationLifecycleFixture? invitations = null)
     {
         var f = new DelegationFixture();
+        if (invitations is not null) {
+            operations ??= new OperationStore(); tenantStore ??= invitations.Data.Data.Tenants.Store;
+            var rows = new TenantRows(); rows.Rows.Clear(); rows.Rows.Add(new(invitations.Tenant.ToString("D"), "Private", "PRIVATE", "Active", null, null, "v1"));
+            tenants ??= rows; invites ??= invitations;
+        }
         if (onboarding is not null) { compositeOnboarding = true; tenantMetadata ??= new TenantMetadataStore(); operations ??= new OperationStore(); }
         if (provisioning is not null) { tenantMetadata ??= new TenantMetadataStore(); operations ??= new OperationStore(); tenantStore ??= provisioning.Data.Tenants.Store; }
         if (tenantMetadata is not null && operations is null) operations = new OperationStore();
@@ -91,6 +96,7 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             ManagementCustomerIdentityPermissionPolicy.RequiredFor(onboarding is null ? ManagementCustomerIdentityOperations.OnboardingCreate : ManagementCustomerIdentityOperations.OnboardingRetry)).Distinct().ToArray() };
         if (provisioning is not null) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Concat(
             ManagementCustomerIdentityPermissionPolicy.RequiredFor(ManagementCustomerIdentityOperations.UsersProvision)).Append(ManagementCustomerIdentityOperations.RolesRead).Distinct().ToArray() };
+        if (invitations is not null) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Append(ManagementCustomerIdentityOperations.InvitesManage).ToArray() };
         b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
             ["IBeam:Management:Diagnostics:ApplicationKey"] = "atlas", ["IBeam:Management:Diagnostics:Environment"] = "Testing",
             ["IBeam:Management:CustomerIdentity:IdentityRealmId"] = DiscoveryProtocolTests.Info.IdentityRealmId.ToString(),
@@ -110,7 +116,7 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             ["IBeam:Management:CustomerIdentity:Operations:FingerprintKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) });
         if (tenantMetadata is not null) b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
             ["IBeam:Management:CustomerIdentity:EnabledOperations:5"] = ManagementCustomerIdentityOperations.TenantsUpdate });
-        if (compositeOnboarding || provisioning is not null) b.Configuration.AddInMemoryCollection(ManagementCustomerIdentityOperations.All.Where(ManagementCustomerIdentityPermissionPolicy.IsAssignable)
+        if (compositeOnboarding || provisioning is not null || invitations is not null) b.Configuration.AddInMemoryCollection(ManagementCustomerIdentityOperations.All.Where(ManagementCustomerIdentityPermissionPolicy.IsAssignable)
             .Select((operation, index) => new KeyValuePair<string, string?>("IBeam:Management:CustomerIdentity:EnabledOperations:" + index, operation)));
         b.Services.AddSingleton(f);
         b.Services.AddSingleton<IManagementApiCredentialRepository>(f.Credentials);
@@ -155,6 +161,17 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             b.Services.AddSingleton<IManagementAssignableRoleReadRepository>(provisioning);
             b.Services.AddSingleton<IManagementCustomerInvitationReadRepository>(provisioning);
             b.Services.AddIBeamManagementCustomerProvisioningApi(b.Configuration);
+        }
+        if (invitations is not null) {
+            b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["IBeam:Management:CustomerIdentity:Invitations:ApprovedRoleNames:0"] = "Member" });
+            b.Services.AddSingleton<IIdentityTenantStore>(tenantStore!);
+            b.Services.AddSingleton<ITenantInviteStore>(invitations.Native.Object);
+            b.Services.AddSingleton<IManagedTenantInviteStore>(invitations);
+            b.Services.AddSingleton<IManagedTenantInviteDeliveryService>(invitations);
+            b.Services.AddSingleton<IManagementAssignableRoleReadRepository>(invitations.Data);
+            b.Services.AddSingleton<IManagementCustomerInvitationTransitionRepository>(invitations.Journal);
+            b.Services.AddSingleton<IManagementCustomerInvitationReadRepository>(invitations);
+            b.Services.AddIBeamManagementCustomerInvitationsApi(b.Configuration);
         }
         if (tenants is not null)
         {

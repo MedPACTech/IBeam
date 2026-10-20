@@ -19,6 +19,7 @@ internal sealed class ManagementCustomerIdentityTargetFilter : IResourceFilter, 
             ManagementCustomerIdentityInvalidRequestException => 400, ManagementCustomerIdentityNotFoundException => 404,
             ManagementIdentityOperationConflictException => 409,
             ManagementCustomerIdentityPreconditionException => 412,
+            ManagementCustomerIdentityRateLimitException => 429,
             ManagementCustomerIdentityUnavailableException => 503,
             ManagementConnectionInvalidException => 503, ManagementAuditUnavailableException => 503, _ => 0 };
         if (status == 0) return;
@@ -29,6 +30,7 @@ internal sealed class ManagementCustomerIdentityTargetFilter : IResourceFilter, 
         TraceId = trace, Errors = [new ApiError { Code = "Management.CustomerIdentityRequestFailed",
             Message = status switch { 400 => "The customer management request is invalid.", 403 => "Management access is not permitted.",
                 404 => "The customer management resource was not found.", 409 => "The management operation conflicts with an existing request.",
-                412 => "The tenant version has changed; read its current version before retrying.",
+                412 => "The resource version has changed; read its current version before retrying.",
+                429 => "Customer management is temporarily rate limited.",
                 _ => "Customer management is temporarily unavailable." } }] }) { StatusCode = status };
 }

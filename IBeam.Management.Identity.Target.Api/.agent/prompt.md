@@ -9,3 +9,5 @@ IBM-0106 receipt resolution is a fixed signed POST operations/resolve with an Id
 IBM-0108 onboarding POST/retry are explicit opt-in, typed and delegated under independent create/retry composite authority. Retry body is strictly empty JSON and cannot change intent. Operation GET/resolve use the query service for read-only authoritative onboarding status; never equate processing success with customer acceptance. Controllers preserve IBeam envelopes and use 202 until business completion.
 
 IBM-0109 role catalog requires its independent roles.read grant. Provisioning requires users.provision plus invitation/role prerequisites and strict recipient/policy/role-ID input, without passwords/redirects/access grants. These target modules are opt-in; portal provisioning/lifecycle comes in IBM-0111.
+
+IBM-0110: invitation transitions require exact ETags, stable operation IDs and native verified acceptance claims before membership. No claim stealing or automatic resend after SMTP uncertainty. Keep private ciphertext separate from safe receipts/audit and enforce target-owned roles/rate/redirect policy. See docs/management/customer-invitation-lifecycle.md.

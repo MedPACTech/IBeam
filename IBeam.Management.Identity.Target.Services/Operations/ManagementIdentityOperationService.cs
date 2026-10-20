@@ -210,7 +210,7 @@ public sealed class ManagementIdentityOperationService(IManagementIdentityOperat
             try { if (!options.Value.IsValid()) throw new ManagementCustomerIdentityUnavailableException(); return await run(timeout.Token); }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex) when (ex is ManagementAccessDeniedException or ManagementCustomerIdentityInvalidRequestException or
-                ManagementIdentityOperationConflictException or ManagementCustomerIdentityPreconditionException or ManagementCustomerIdentityNotFoundException or ManagementCustomerIdentityUnavailableException) { throw; }
+                ManagementIdentityOperationConflictException or ManagementCustomerIdentityPreconditionException or ManagementCustomerIdentityRateLimitException or ManagementCustomerIdentityNotFoundException or ManagementCustomerIdentityUnavailableException) { throw; }
             catch { throw new ManagementCustomerIdentityUnavailableException(); }
         }, new ServiceOperationExecutionOptions { OperationName = "management.identity.operations." + action, AuditAction = "management.identity.operations." + action,
             EntityName = "ManagementIdentityOperation", PermissionEnabled = false, AuditEnabled = true }, ct);
