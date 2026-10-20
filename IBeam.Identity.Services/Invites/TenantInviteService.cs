@@ -185,6 +185,7 @@ public sealed partial class TenantInviteService : ITenantInviteService
 
         var tenant = await _tenants.FindByIdAsync(tenantId, ct).ConfigureAwait(false)
             ?? throw new IdentityValidationException("Tenant not found.");
+        if (!tenant.IsActive) throw new IdentityValidationException("Tenant is unavailable.");
         var (destinationType, normalizedDestination) = NormalizeDestination(request);
         var token = CreateInviteToken();
         var now = DateTimeOffset.UtcNow;
@@ -254,6 +255,7 @@ public sealed partial class TenantInviteService : ITenantInviteService
     {
         ValidateTenantAndUser(tenantId, resentByUserId);
         var invite = await RequireInviteAsync(tenantId, inviteId, ct).ConfigureAwait(false);
+        await RequireActiveTenantAsync(tenantId, ct).ConfigureAwait(false);
         var now = DateTimeOffset.UtcNow;
         invite = await ExpireIfNeededAsync(invite, now, ct).ConfigureAwait(false);
         if (!invite.IsRedeemable(now))
@@ -365,6 +367,7 @@ public sealed partial class TenantInviteService : ITenantInviteService
         if (request is null) throw new ArgumentNullException(nameof(request));
 
         var invite = await FindByTokenAsync(request.InviteToken ?? request.InviteCode, ct).ConfigureAwait(false);
+        await RequireActiveTenantAsync(invite.TenantId, ct).ConfigureAwait(false);
         var now = DateTimeOffset.UtcNow;
         invite = await ExpireIfNeededAsync(invite, now, ct).ConfigureAwait(false);
         if (!invite.IsRedeemable(now) && !(invite.Status is TenantInviteStatuses.Pending or TenantInviteStatuses.Sent && invite.AcceptanceUserId is not null))
@@ -816,6 +819,10 @@ public sealed partial class TenantInviteService : ITenantInviteService
     private async Task<TenantInviteRecord> RequireInviteAsync(Guid tenantId, Guid inviteId, CancellationToken ct)
         => await _invites.GetAsync(tenantId, inviteId, ct).ConfigureAwait(false)
            ?? throw new IdentityValidationException("Invite not found.");
+
+    private async Task RequireActiveTenantAsync(Guid tenantId, CancellationToken ct)
+    { var tenant = await _tenants.FindByIdAsync(tenantId, ct).ConfigureAwait(false);
+      if (tenant is null || tenant.TenantId != tenantId || !tenant.IsActive) throw new IdentityValidationException("Tenant is unavailable."); }
 
     private async Task<TenantInviteRecord> FindByTokenAsync(string? tokenOrCode, CancellationToken ct)
     {

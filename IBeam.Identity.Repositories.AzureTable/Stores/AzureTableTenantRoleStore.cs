@@ -400,8 +400,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
             var changed = false;
             if (!IsActive(tenant.Status))
             {
-                tenant.Status = "Active";
-                changed = true;
+                throw new IdentityValidationException("Disabled tenant requires explicit activation.");
             }
 
             if (!string.IsNullOrWhiteSpace(tenantName) && !string.Equals(tenant.Name, name, StringComparison.Ordinal))
@@ -413,6 +412,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
 
             if (changed)
             {
+                tenant.LastOperationId = null;
                 tenant.UpdatedAt = now;
                 await TenantsTable().UpdateEntityAsync(tenant, tenant.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
             }

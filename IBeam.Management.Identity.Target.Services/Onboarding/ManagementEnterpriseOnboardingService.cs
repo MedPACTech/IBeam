@@ -96,6 +96,7 @@ public sealed class ManagementEnterpriseOnboardingService(IManagementEnterpriseO
             row = await Save(row with { TenantId = tenant.Operation.ResourceId, Step = tenant.Operation.Status == "succeeded" ? "extensions-completed" : "tenant-extensions",
                 ErrorCode = tenant.Operation.Status == "succeeded" ? null : "tenant-setup-incomplete" }, ct);
             if (tenant.Operation.Status != "succeeded") throw new ManagementCustomerIdentityUnavailableException();
+            if (tenant.Tenant?.Status != "Active") throw new ManagementIdentityOperationConflictException();
             var tenantId = row.TenantId ?? throw new ManagementCustomerIdentityUnavailableException();
             var approved = (await roles.GetRolesAsync(tenantId, ct)).Where(x => x.TenantId == tenantId && x.IsActive && x.Name == input.RoleName).ToArray();
             if (approved.Length != 1) {

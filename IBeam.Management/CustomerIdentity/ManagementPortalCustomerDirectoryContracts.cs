@@ -23,6 +23,8 @@ public interface IManagementCustomerIdentityConnectionResolver
 }
 public interface IManagementCustomerIdentityClient
 {
+    Task<ManagementTenantMutationResult> SetTenantStatusAsync(ManagementCustomerIdentityConnection connection, Guid tenantId, bool active,
+        string expectedVersion, string key, CancellationToken ct = default) => throw new ManagementCustomerIdentityUnavailableException();
     Task<ManagementCustomerMembershipResult> SetMembershipAsync(ManagementCustomerIdentityConnection connection, Guid tenantId, Guid userId,
         ChangeManagementCustomerMembership request, string version, string key, CancellationToken ct = default) => throw new ManagementCustomerIdentityUnavailableException();
     Task<ManagementCustomerMembershipResult> SetCustomerRolesAsync(ManagementCustomerIdentityConnection connection, Guid tenantId, Guid userId,

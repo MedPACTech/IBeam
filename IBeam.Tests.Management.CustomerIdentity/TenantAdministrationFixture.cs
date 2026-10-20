@@ -38,6 +38,9 @@ internal sealed class TenantAdministrationHooks : ITenantExtensionCoordinator
     public int Updated { get; private set; }
     public bool FailCreated { get; set; }
     public bool FailUpdated { get; set; }
+    public bool FailStatus { get; set; }
+    public int Activated { get; private set; }
+    public int Deactivated { get; private set; }
     public TenantExtensionContext? Context { get; private set; }
     public IdentityTenant? Previous { get; private set; }
     public Task OnTenantCreatedAsync(IdentityTenant tenant, TenantExtensionContext context, CancellationToken ct = default)
@@ -45,14 +48,18 @@ internal sealed class TenantAdministrationHooks : ITenantExtensionCoordinator
     public Task OnTenantUpdatedAsync(IdentityTenant tenant, IdentityTenant? previous, TenantExtensionContext context, CancellationToken ct = default)
     { Updated++; Context = context; Previous = previous; if (FailUpdated) throw new Exception("CONSUMER-PROFILE-SECRET-CANARY"); return Task.CompletedTask; }
     public Task EnsureExtensionAsync(IdentityTenant tenant, TenantExtensionContext context, CancellationToken ct = default) => Task.CompletedTask;
-    public Task OnTenantActivatedAsync(IdentityTenant tenant, TenantExtensionContext context, CancellationToken ct = default) => Task.CompletedTask;
-    public Task OnTenantDeactivatedAsync(IdentityTenant tenant, TenantExtensionContext context, CancellationToken ct = default) => Task.CompletedTask;
+    public Task OnTenantActivatedAsync(IdentityTenant tenant, TenantExtensionContext context, CancellationToken ct = default)
+    { Activated++; Context = context; if (FailStatus) throw new Exception("CONSUMER-STATUS-PROFILE-CANARY"); return Task.CompletedTask; }
+    public Task OnTenantDeactivatedAsync(IdentityTenant tenant, TenantExtensionContext context, CancellationToken ct = default)
+    { Deactivated++; Context = context; if (FailStatus) throw new Exception("CONSUMER-STATUS-PROFILE-CANARY"); return Task.CompletedTask; }
 }
-internal sealed class ConditionalTenantStore : IIdentityTenantStore, IIdentityTenantConditionalStore
+internal sealed class ConditionalTenantStore : IIdentityTenantStore, IIdentityTenantConditionalStore, IIdentityTenantStatusConditionalStore
 {
     public Dictionary<Guid, VersionedIdentityTenant> Rows { get; } = [];
     public int Creates { get; private set; }
     public int Renames { get; private set; }
+    public int StatusWrites { get; private set; }
+    public Func<Task>? BeforeStatus { get; set; }
     public Task<IdentityTenant?> FindByIdAsync(Guid id, CancellationToken ct = default) { lock (Rows) return Task.FromResult(Rows.GetValueOrDefault(id)?.Tenant); }
     public Task<VersionedIdentityTenant?> FindVersionedAsync(Guid id, CancellationToken ct = default) { lock (Rows) return Task.FromResult(Rows.GetValueOrDefault(id)); }
     public Task<IdentityTenant> CreateAsync(IdentityTenant tenant, CancellationToken ct = default)
@@ -72,6 +79,15 @@ internal sealed class ConditionalTenantStore : IIdentityTenantStore, IIdentityTe
             if (!Rows.TryGetValue(id, out var old) || old.Version != expectedVersion || expectedVersion == "*") throw new IdentityConcurrencyException();
             Renames++; Rows[id] = new(old.Tenant with { Name = name, NormalizedName = IdentityTenant.NormalizeName(name), UpdatedAt = DateTimeOffset.UtcNow },
                 Guid.NewGuid().ToString(), operationId); return Task.FromResult(Rows[id]);
+        }
+    }
+    public async Task<VersionedIdentityTenant> SetStatusConditionalAsync(Guid id, bool active, string version, Guid operation, CancellationToken ct = default)
+    {
+        if (BeforeStatus is { } callback) { BeforeStatus = null; await callback(); }
+        lock (Rows) {
+            if (!Rows.TryGetValue(id, out var current) || current.Version != version || version == "*") throw new IdentityConcurrencyException();
+            StatusWrites++; Rows[id] = new(current.Tenant with { Status = active ? "Active" : "Disabled", UpdatedAt = DateTimeOffset.UtcNow }, Guid.NewGuid().ToString(), operation);
+            return Rows[id];
         }
     }
 }

@@ -32,7 +32,7 @@ public static class ManagementAuditOperations
         "management.portal.customer-identity.invites.list", "management.portal.customer-identity.invites.read",
         "management.portal.customer-identity.delegate", "management.identity.delegation.validate", "management.identity.delegation.require",
         "management.identity.tenants.read",
-        "management.identity.tenants.create", "management.identity.tenants.update",
+        "management.identity.tenants.create", "management.identity.tenants.update", "management.identity.tenants.status",
         "management.identity.onboarding.create", "management.identity.onboarding.read", "management.identity.onboarding.retry",
         "management.identity.roles.catalog", "management.identity.users.provision",
         "management.identity.memberships.manage", "management.identity.roles.assign",
@@ -67,7 +67,7 @@ public static class ManagementAuditOperations
         "management.support-invitations.create", "management.support-invitations.accept", "management.support-users.disable",
         "management.portal.errors.list", "management.portal.errors.read", "management.portal.logs.list", "management.portal.logs.read", "management.portal.applications.list"
     };
-    foreach (var action in new[] { "users.provision", "invites.resend", "invites.revoke", "memberships.manage", "roles.assign" }) {
+    foreach (var action in new[] { "users.provision", "invites.resend", "invites.revoke", "memberships.manage", "roles.assign", "tenants.status" }) {
         actions.Add("management.portal.customer-identity." + action);
         foreach (var status in new[] { "pending", "running", "succeeded", "uncertain", "sending", "sent", "failed", "unknown", "accepted", "redeemed", "expired", "revoked", "superseded", "not-required" })
             actions.Add("management.portal.customer-identity." + action + "." + status);

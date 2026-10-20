@@ -28,9 +28,17 @@ public interface IManagementTenantAdministrationRepository
 }
 public interface IManagementTenantAdministrationService
 {
+    Task<ManagementTenantMutationResult> SetStatusAsync(Guid tenantId, bool active, string expectedVersion, string key, CancellationToken ct = default)
+        => throw new ManagementCustomerIdentityUnavailableException();
     Task<ManagementTenantMutationResult> CreateAsync(CreateManagementCustomerTenant request, string idempotencyKey, CancellationToken ct = default);
     Task<ManagementTenantMutationResult> RenameAsync(Guid tenantId, RenameManagementCustomerTenant request, string expectedVersion, string idempotencyKey, CancellationToken ct = default);
 }
 /// <summary>Presence advertises an actually usable optional conditional Identity adapter.</summary>
 public interface IManagementTenantRenameCapability;
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class ChangeManagementCustomerTenantStatus;
+public interface IManagementTenantStatusService
+{
+    Task<ManagementTenantMutationResult> SetStatusAsync(Guid tenantId, bool active, string expectedVersion, string key, CancellationToken ct = default);
+}
 public sealed class ManagementCustomerIdentityPreconditionException() : Exception("The tenant version has changed; read its current version before retrying.");

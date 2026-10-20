@@ -2,7 +2,7 @@ using IBeam.Management.CustomerIdentity;
 using IBeam.Management.Services.CustomerIdentity.Delegation;
 namespace IBeam.Management.Services.CustomerIdentity;
 
-public sealed class ManagementPortalTenantAdministrationService(PortalMutationRuntime runtime, PortalMutationReferences references,
+public sealed partial class ManagementPortalTenantAdministrationService(PortalMutationRuntime runtime, PortalMutationReferences references,
     IManagementCustomerIdentityClient client) : IManagementPortalTenantAdministrationService
 {
     public Task<ManagementPortalTenantMutationResult> CreateAsync(Guid app, CreateManagementCustomerTenant request, string idempotencyKey, CancellationToken ct = default)

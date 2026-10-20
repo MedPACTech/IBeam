@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0112 are complete (78 points); 5 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0113 are complete (83 points); 4 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -475,9 +475,9 @@ Feature dependencies: TCM-F03, TCM-F05.
 
 Feature acceptance:
 
-- [ ] Tenant status and customer membership/role operations are independently authorized and audited.
-- [ ] Membership changes do not globally disable the customer or alter other tenants.
-- [ ] Concurrent operations cannot remove the last eligible administrator or bypass access revocation.
+- [x] Tenant status and customer membership/role operations are independently authorized and audited.
+- [x] Membership changes do not globally disable the customer or alter other tenants.
+- [x] Concurrent operations cannot remove the last eligible administrator or bypass access revocation.
 
 ### IBM-0112 / TCM-015: Manage tenant membership status and approved roles without global account changes
 
@@ -502,22 +502,24 @@ Verification evidence: 1032 tests passed with zero failures/skips, including for
 
 ### IBM-0113 / TCM-016: Expose scoped tenant disable/reactivate and enforce customer access status
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 160. Hubbsly ID: 973792bb-c084-4d3a-8a13-a53980f45d1b.
+Estimate: **5 points**. Lane: Done. Delivery order: 160. Hubbsly ID: 973792bb-c084-4d3a-8a13-a53980f45d1b.
 
 Dependencies: IBM-0106, IBM-0112.
 
-Add POST /tenants/{tenantId}/deactivate and /activate at target and portal. IManagementTenantAdministrationService reuses Identity tenant status services with safe versioned concurrency. Deactivation blocks customer tenant use while preserving data; management can still read/recover the disabled tenant when explicitly authorized. Publish the customer authorization integration needed to honor tenant status.
+Implemented independently authorized, exact-version tenant activate/deactivate at target and portal, with required native lifecycle recovery and live customer request/refresh enforcement. Preserve memberships, global users, defaults and business/commercial data; block implicit bootstrap reactivation and unsafe disabled-tenant writes. See docs/management/customer-tenant-status.md.
 
 Proposed paths: IBeam.Management.Identity.Target.Services/Tenants/, IBeam.Management.Identity.Target.Api/Controllers/ManagementTenantsController.cs, IBeam.Management.Api/Controllers/ManagementTenantsController.cs, IBeam.Identity.Services/, IBeam.Identity.Api/Authorization/, IBeam.Tests.Management.CustomerIdentity/. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Status changes require tenants.status, expected version and Idempotency-Key on both portal and target; tenant read/create alone cannot change status.
-- [ ] Deactivation preserves Identity/business data, user global state and other tenants; no delete or automatic licensing/billing cancellation occurs.
-- [ ] Target customer tenant authorization and refresh reject disabled-tenant use within the documented revocation bound, including an already-issued token; custom authorization hosts have an explicit required integration contract.
-- [ ] Invitation/provisioning and role-changing writes fail for disabled tenants except specifically documented recovery operations; support read/activate remains independently permitted.
-- [ ] Reactivation preserves previous membership/role disables and does not reactivate unrelated accounts or failed onboarding steps.
-- [ ] Integration tests cover concurrent activate/deactivate, stale versions, lost responses, two tenants sharing a user, valid management recovery and safe correlated audit.
+- [x] Status changes require tenants.status, expected version and Idempotency-Key on both portal and target; tenant read/create alone cannot change status.
+- [x] Deactivation preserves Identity/business data, user global state and other tenants; no delete or automatic licensing/billing cancellation occurs.
+- [x] Target customer tenant authorization and refresh reject disabled-tenant use within the documented revocation bound, including an already-issued token; custom authorization hosts have an explicit required integration contract.
+- [x] Invitation/provisioning and role-changing writes fail for disabled tenants except specifically documented recovery operations; support read/activate remains independently permitted.
+- [x] Reactivation preserves previous membership/role disables and does not reactivate unrelated accounts or failed onboarding steps.
+- [x] Integration tests cover concurrent activate/deactivate, stale versions, lost responses, two tenants sharing a user, valid management recovery and safe correlated audit.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 1046 tests passed with zero failures/skips, including real provider concurrency/hook recovery and issued-token/refresh deactivation coverage; eight changed packages packed and inspected locally at 2.16.0-dev.tcm.113.
 
 ## TCM-F07: Consumer policies and self-service signup compatibility
 

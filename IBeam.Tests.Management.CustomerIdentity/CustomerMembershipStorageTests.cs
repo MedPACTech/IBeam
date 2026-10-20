@@ -126,8 +126,8 @@ public sealed class CustomerMembershipStorageTests
         await Assert.ThrowsAsync<IdentityValidationException>(() => f.Administration().SetEnabledAsync(f.Tenant, f.AdminA, false, legacy.Version, Guid.NewGuid(), [f.Owner.RoleId]));
     }
     [TestMethod, TestCategory("StorageIntegration")]
-    [DataRow(false)] [DataRow(true)]
-    public async Task AlreadyIssuedCustomerJwtAndRefreshLoseAccessImmediatelyAfterMembershipChange(bool changeRoles)
+    [DataRow(false, false)] [DataRow(true, false)] [DataRow(false, true)]
+    public async Task AlreadyIssuedCustomerJwtAndRefreshLoseAccessImmediatelyAfterMembershipOrTenantChange(bool changeRoles, bool changeTenant)
     {
         await using var f = await MembershipStorageFixture.Create();
         var access = new IdentityTenantAccessValidator(f.Members, f.Tenants, new ServiceOperationExecutor());
@@ -153,14 +153,22 @@ public sealed class CustomerMembershipStorageTests
         await app.StartAsync(); using var client = app.GetTestClient(); client.DefaultRequestHeaders.Authorization = new("Bearer", issued.AccessToken);
         using var before = await client.GetAsync("/private"); Assert.AreEqual(HttpStatusCode.OK, before.StatusCode);
         var original = (await f.Members.FindStateAsync(f.Tenant, f.AdminA))!;
-        var disabled = changeRoles ? await f.Administration().SetRolesAsync(f.Tenant, f.AdminA, [], original.Version, Guid.NewGuid(), [f.Owner.RoleId]) :
+        IdentityTenantMembershipState disabled;
+        if (changeTenant) {
+            var tenant = (await f.Tenants.FindVersionedAsync(f.Tenant))!;
+            await f.Tenants.SetStatusConditionalAsync(f.Tenant, false, tenant.Version!, Guid.NewGuid()); disabled = original;
+            await Assert.ThrowsAsync<IdentityValidationException>(() => f.Roles.EnsureTenantMembershipAndGrantRolesAsync(new(f.Tenant, f.AdminA, RoleIds: [f.Owner.RoleId])));
+            Assert.AreEqual(original.Version, (await f.Members.FindStateAsync(f.Tenant, f.AdminA))!.Version);
+        } else disabled = changeRoles ? await f.Administration().SetRolesAsync(f.Tenant, f.AdminA, [], original.Version, Guid.NewGuid(), [f.Owner.RoleId]) :
             await f.Administration().SetEnabledAsync(f.Tenant, f.AdminA, false, original.Version, Guid.NewGuid(), [f.Owner.RoleId]);
         using var denied = await client.GetAsync("/private"); Assert.AreEqual(HttpStatusCode.Unauthorized, denied.StatusCode);
         await Assert.ThrowsAsync<IdentityUnauthorizedException>(() => tokens.RefreshAccessTokenAsync(issued.RefreshToken!));
         client.DefaultRequestHeaders.Authorization = new("Bearer", otherIssued.AccessToken);
         using var otherAllowed = await client.GetAsync("/private"); Assert.AreEqual(HttpStatusCode.OK, otherAllowed.StatusCode);
         client.DefaultRequestHeaders.Authorization = new("Bearer", issued.AccessToken);
-        await f.Administration().SetEnabledAsync(f.Tenant, f.AdminA, true, disabled.Version, Guid.NewGuid(), [f.Owner.RoleId]);
+        if (changeTenant) {
+            var tenant = (await f.Tenants.FindVersionedAsync(f.Tenant))!; await f.Tenants.SetStatusConditionalAsync(f.Tenant, true, tenant.Version!, Guid.NewGuid());
+        } else await f.Administration().SetEnabledAsync(f.Tenant, f.AdminA, true, disabled.Version, Guid.NewGuid(), [f.Owner.RoleId]);
         using var stillOld = await client.GetAsync("/private"); Assert.AreEqual(HttpStatusCode.Unauthorized, stillOld.StatusCode);
         await Assert.ThrowsAsync<IdentityUnauthorizedException>(() => tokens.RefreshAccessTokenAsync(issued.RefreshToken!));
         if (changeRoles) {

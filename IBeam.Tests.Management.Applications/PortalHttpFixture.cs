@@ -25,7 +25,7 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
     public Guid OtherOrg { get; } = Guid.NewGuid();
     public Guid ForeignUser { get; } = Guid.NewGuid();
     public CustomerDirectoryBackend Directories { get; } = new();
-    public static async Task<PortalHttpFixture> CreateAsync(bool install = true, bool selector = false, bool audit = false, bool customerIdentity = false, bool customerDirectories = false, bool customerOperations = false, bool customerMutations = false, bool customerOnboarding = false, bool customerProvisioning = false, bool customerMemberships = false)
+    public static async Task<PortalHttpFixture> CreateAsync(bool install = true, bool selector = false, bool audit = false, bool customerIdentity = false, bool customerDirectories = false, bool customerOperations = false, bool customerMutations = false, bool customerOnboarding = false, bool customerProvisioning = false, bool customerMemberships = false, bool customerTenantStatus = false)
     {
         var f = new PortalHttpFixture();
         f.Data.Access.Users[(f.Data.Access.Org, f.OtherUser)] = new(f.Data.Access.Org, f.OtherUser, true, false);
@@ -57,7 +57,7 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
         if (install) b.Services.AddIBeamManagementPortalDiagnosticsApi(b.Configuration);
         if (selector) b.Services.AddIBeamManagementApplicationSelectorApi(b.Configuration);
         if (customerIdentity) b.Services.AddIBeamManagementCustomerIdentityApi(b.Configuration);
-        if (customerDirectories || customerOperations || customerMutations || customerOnboarding || customerProvisioning || customerMemberships) {
+        if (customerDirectories || customerOperations || customerMutations || customerOnboarding || customerProvisioning || customerMemberships || customerTenantStatus) {
             b.Services.AddSingleton<IBeam.Management.CustomerIdentity.IManagementDelegatedActorProvider>(f.Directories);
             b.Services.AddSingleton<IBeam.Management.CustomerIdentity.IManagementCustomerIdentityClient>(provider =>
                 new IBeam.Management.Services.CustomerIdentity.ManagementCustomerIdentityClient(f.Data.Network,
@@ -69,6 +69,7 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
             if (customerOnboarding) { f.Directories.EnableOnboarding = true; b.Services.AddIBeamManagementPortalEnterpriseOnboardingApi(b.Configuration); }
             if (customerProvisioning) { f.Directories.EnableProvisioning = true; b.Services.AddIBeamManagementPortalCustomerProvisioningApi(b.Configuration); }
             if (customerMemberships) { f.Directories.EnableMemberships = true; b.Services.AddIBeamManagementPortalCustomerMembershipApi(b.Configuration); }
+            if (customerTenantStatus) { f.Directories.EnableTenantStatus = true; b.Services.AddIBeamManagementPortalTenantStatusApi(b.Configuration); }
         }
         if (audit) { b.Services.AddSingleton<IManagementAuditRepository>(f.Audit); b.Services.AddIBeamManagementAudit(b.Configuration); }
         f.App = b.Build(); f.App.UseAuthentication(); f.App.UseAuthorization(); f.App.MapControllers();

@@ -274,12 +274,13 @@ public sealed partial class TenantInviteServiceTests
         ITokenService? tokens = null,
         Guid? tenantId = null,
         IOtpChallengeStore? otpChallenges = null,
-        IOtpService? otp = null)
+        IOtpService? otp = null,
+        bool tenantActive = true)
     {
         var effectiveTenantId = tenantId ?? Guid.NewGuid();
         var tenants = new Mock<IIdentityTenantService>(MockBehavior.Strict);
         tenants.Setup(x => x.FindByIdAsync(effectiveTenantId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IdentityTenant(effectiveTenantId, "Workspace", "WORKSPACE"));
+            .ReturnsAsync(new IdentityTenant(effectiveTenantId, "Workspace", "WORKSPACE", tenantActive ? "Active" : "Disabled"));
         var externalRoles = new Mock<ITenantRoleStore>(MockBehavior.Strict);
         if (roles is not null) externalRoles.Setup(x => x.GetRoleAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .Returns((Guid tenant, Guid role, CancellationToken ct) => roles.GetRoleAsync(tenant, role, ct));

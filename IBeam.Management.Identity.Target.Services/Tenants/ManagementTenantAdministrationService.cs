@@ -9,7 +9,7 @@ using IBeam.Services.Abstractions;
 using Microsoft.Extensions.Options;
 namespace IBeam.Management.Identity.Target.Services.Tenants;
 
-public sealed class ManagementTenantAdministrationService(IIdentityTenantAdministrationService identities,
+public sealed partial class ManagementTenantAdministrationService(IIdentityTenantAdministrationService identities,
     IManagementTenantAdministrationRepository repository, IManagementIdentityOperationService receipts,
     IManagementCustomerIdentityTargetAccessService access, IOptions<ManagementIdentityOperationOptions> options,
     IServiceOperationExecutor operations) : IManagementTenantAdministrationService, IManagementTenantRenameCapability
@@ -60,7 +60,7 @@ public sealed class ManagementTenantAdministrationService(IIdentityTenantAdminis
                         }
                         return ManagementIdentityReconciliation.Applied;
                     }
-                    if (tenant.Version != expectedVersion) throw new ManagementCustomerIdentityPreconditionException();
+                    if (tenant.Version != expectedVersion) { await AbandonUnapplied(actor, context, cancellation); throw new ManagementCustomerIdentityPreconditionException(); }
                     if (metadata is not null && metadata.Phase != "ready" && metadata.LastOperationId != context.OperationId)
                         throw new ManagementIdentityOperationConflictException();
                     return ManagementIdentityReconciliation.Absent;
@@ -68,7 +68,7 @@ public sealed class ManagementTenantAdministrationService(IIdentityTenantAdminis
                     await Begin(actor, context, "renaming", null, cancellation);
                     await access.RequireAsync(actor.Operation, cancellation);
                     try { await identities.RenameAsync(tenantId, name, expectedVersion, context.OperationId, Context(actor, context, false), cancellation); }
-                    catch (IdentityConcurrencyException) { throw new ManagementCustomerIdentityPreconditionException(); }
+                    catch (IdentityConcurrencyException) { await AbandonUnapplied(actor, context, cancellation); throw new ManagementCustomerIdentityPreconditionException(); }
                     await Complete(actor, context, cancellation);
                 }), token);
             return await Result(actor, result, token);
@@ -94,7 +94,7 @@ public sealed class ManagementTenantAdministrationService(IIdentityTenantAdminis
     {
         var row = await repository.GetAsync(Scope(actor), tenantId, ct);
         if (row is not null && (row.IdentityRealmId != actor.IdentityRealmId || row.ApplicationKey != actor.ApplicationKey || row.Environment != actor.Environment ||
-            row.TenantId != tenantId || row.Source is not ("unknown" or "support-provisioned") || row.Phase is not ("creating" or "renaming" or "ready") ||
+            row.TenantId != tenantId || row.Source is not ("unknown" or "support-provisioned") || row.Phase is not ("creating" or "renaming" or "status-changing" or "ready") ||
             row.LastOperationId == Guid.Empty || Reference(row.ExternalReference) != row.ExternalReference)) throw new ManagementCustomerIdentityUnavailableException();
         return row;
     }

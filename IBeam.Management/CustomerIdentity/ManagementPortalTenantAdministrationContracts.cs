@@ -8,6 +8,8 @@ public sealed record ManagementPortalTenantMutationResult(ManagementPortalOperat
 { public override string ToString() => "Portal tenant mutation (identity fields redacted)"; }
 public interface IManagementPortalTenantAdministrationService
 {
+    Task<ManagementPortalTenantMutationResult> SetStatusAsync(Guid appId, Guid tenantId, bool active, string version, string key, CancellationToken ct = default)
+        => throw new ManagementCustomerIdentityUnavailableException();
     Task<ManagementPortalTenantMutationResult> CreateAsync(Guid applicationId, CreateManagementCustomerTenant request, string idempotencyKey, CancellationToken ct = default);
     Task<ManagementPortalTenantMutationResult> RenameAsync(Guid applicationId, Guid tenantId, RenameManagementCustomerTenant request,
         string expectedVersion, string idempotencyKey, CancellationToken ct = default);

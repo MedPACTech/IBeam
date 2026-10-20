@@ -61,6 +61,7 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
             SubjectId = transaction.Action.StartsWith("management.portal.customer-identity.tenants.create.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.onboarding.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.tenants.update.", StringComparison.Ordinal) ||
+                transaction.Action.StartsWith("management.portal.customer-identity.tenants.status.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.users.provision.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.invites.resend.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.invites.revoke.", StringComparison.Ordinal) ||

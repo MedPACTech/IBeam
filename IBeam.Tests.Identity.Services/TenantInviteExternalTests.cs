@@ -106,6 +106,24 @@ public sealed partial class TenantInviteServiceTests
         Email = "enterprise@example.test", Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
         RoleIds = [role], CreatedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddDays(6) };
     [TestMethod]
+    public async Task DisabledTenantCannotCreateResendOrAcceptInvitationsOrReachCustomerAccountSetup()
+    {
+        var tenant = Guid.NewGuid(); var store = new ExternalMemoryInvites(); var sender = new RecordingIdentitySender();
+        var users = new Mock<IIdentityUserStore>(MockBehavior.Strict);
+        var service = CreateService(store, sender, users: users.Object, tenantId: tenant, tenantActive: false);
+        var request = ExternalRequest(tenant, Guid.NewGuid());
+        await Assert.ThrowsAsync<IdentityValidationException>(() => service.EnsureAsync(request));
+        await Assert.ThrowsAsync<IdentityValidationException>(() => service.CreateInviteAsync(tenant, new("email", Email: request.Email), Guid.NewGuid()));
+        await store.CreateAsync(new(request.InviteId, tenant, "email", request.Email,
+            Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(request.Token))), "pending", request.CreatedUtc,
+            Guid.NewGuid(), request.ExpiresUtc, RoleIds: request.RoleIds));
+        await Assert.ThrowsAsync<IdentityValidationException>(() => service.ResendInviteAsync(tenant, request.InviteId, Guid.NewGuid()));
+        await Assert.ThrowsAsync<IdentityValidationException>(() => service.AcceptInviteAsync(new(InviteToken: request.Token, Mode: "email-password", Password: "Private123!")));
+        Assert.HasCount(0, sender.Messages); Assert.AreEqual(0, store.Claims);
+        users.Verify(x => x.CreateAsync(It.IsAny<RegisterUserRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        users.Verify(x => x.SetPasswordAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+    [TestMethod]
     public async Task AcceptanceMustClaimTheCurrentInvitationBeforeMembershipOrTokenCreation()
     {
         var tenant = Guid.NewGuid(); var user = new IdentityUser(Guid.NewGuid(), "enterprise@example.test", true);

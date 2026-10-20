@@ -16,7 +16,7 @@ public sealed partial class TenantInviteService : IExternalTenantInviteService, 
                 request.RoleIds.Any(x => x == Guid.Empty) || request.ApprovedRoleNames is not { Count: > 0 and <= 32 } ||
                 request.ApprovedRoleNames.Any(x => string.IsNullOrWhiteSpace(x) || x.Length > 100 || x.Any(char.IsControl) || x.Contains('*') || x.Contains('?')) || request.ExpiresUtc <= DateTimeOffset.UtcNow ||
                 request.ExpiresUtc - request.CreatedUtc > TimeSpan.FromDays(7)) throw new IdentityValidationException("External invitation is invalid.");
-            _ = await _tenants.FindByIdAsync(request.TenantId, cancellation) ?? throw new IdentityValidationException("Tenant not found.");
+            await RequireActiveTenantAsync(request.TenantId, cancellation);
             var destination = NormalizeDestination(new(TenantInviteDestinationTypes.Email, Email: request.Email));
             // Roles must already exist locally (normally seeded by tenant lifecycle hooks). No role creation here.
             foreach (var id in request.RoleIds) {
@@ -58,6 +58,9 @@ public sealed partial class TenantInviteService : IExternalTenantInviteService, 
             PermissionEnabled = false, AuditEnabled = false }, ct);
     private async Task DeliverMessage(TenantInviteRecord invite, string token, CancellationToken ct)
     {
+        try { await RequireActiveTenantAsync(invite.TenantId, ct); }
+        catch (OperationCanceledException) { throw; }
+        catch { throw new IdentityInviteDeliveryNotSentException(); }
         IdentitySenderMessage message;
         try { message = _messageFactory.CreateMessage(invite, token, _urlBuilder.BuildInviteUrl(invite, token)); }
         catch { throw new IdentityInviteDeliveryNotSentException(); }

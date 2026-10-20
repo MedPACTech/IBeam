@@ -76,9 +76,10 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         IManagementIdentityOperationRepository? operations = null, IManagementIdentityOperationAuditRepository? operationAudit = null,
         IIdentityTenantStore? tenantStore = null, IManagementTenantAdministrationRepository? tenantMetadata = null, bool compositeOnboarding = false,
         OnboardingFixture? onboarding = null, ProvisioningFixture? provisioning = null, InvitationLifecycleFixture? invitations = null,
-        MembershipStorageFixture? memberships = null, IIdentityTenantMembershipConditionalStore? membershipWrites = null)
+        MembershipStorageFixture? memberships = null, IIdentityTenantMembershipConditionalStore? membershipWrites = null, bool tenantStatus = false)
     {
         var f = new DelegationFixture();
+        if (tenantStatus) { tenantMetadata ??= new TenantMetadataStore(); operations ??= new OperationStore(); }
         if (memberships is not null) { operations ??= new OperationStore(); tenantStore ??= memberships.Tenants; }
         if (invitations is not null) {
             operations ??= new OperationStore(); tenantStore ??= invitations.Data.Data.Tenants.Store;
@@ -101,6 +102,7 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         if (invitations is not null) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Append(ManagementCustomerIdentityOperations.InvitesManage).ToArray() };
         if (memberships is not null) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Concat(new[] {
             ManagementCustomerIdentityOperations.MembershipsManage, ManagementCustomerIdentityOperations.RolesAssign }).Distinct().ToArray() };
+        if (tenantStatus) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Append(ManagementCustomerIdentityOperations.TenantsStatus).ToArray() };
         b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
             ["IBeam:Management:Diagnostics:ApplicationKey"] = "atlas", ["IBeam:Management:Diagnostics:Environment"] = "Testing",
             ["IBeam:Management:CustomerIdentity:IdentityRealmId"] = DiscoveryProtocolTests.Info.IdentityRealmId.ToString(),
@@ -120,7 +122,7 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             ["IBeam:Management:CustomerIdentity:Operations:FingerprintKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) });
         if (tenantMetadata is not null) b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
             ["IBeam:Management:CustomerIdentity:EnabledOperations:5"] = ManagementCustomerIdentityOperations.TenantsUpdate });
-        if (compositeOnboarding || provisioning is not null || invitations is not null || memberships is not null) b.Configuration.AddInMemoryCollection(ManagementCustomerIdentityOperations.All.Where(ManagementCustomerIdentityPermissionPolicy.IsAssignable)
+        if (compositeOnboarding || provisioning is not null || invitations is not null || memberships is not null || tenantStatus) b.Configuration.AddInMemoryCollection(ManagementCustomerIdentityOperations.All.Where(ManagementCustomerIdentityPermissionPolicy.IsAssignable)
             .Select((operation, index) => new KeyValuePair<string, string?>("IBeam:Management:CustomerIdentity:EnabledOperations:" + index, operation)));
         b.Services.AddSingleton(f);
         b.Services.AddSingleton<IManagementApiCredentialRepository>(f.Credentials);
@@ -190,6 +192,7 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             b.Services.AddSingleton<IIdentityTenantAccessEnforcement, TestMembershipEnforcement>();
             b.Services.AddIBeamManagementCustomerMembershipApi(b.Configuration);
         }
+        if (tenantStatus) { b.Services.AddSingleton<IIdentityTenantAccessEnforcement, TestMembershipEnforcement>(); b.Services.AddIBeamManagementTenantStatusApi(b.Configuration); }
         if (tenants is not null)
         {
             b.Services.AddSingleton<IManagementCustomerTenantReadRepository>(tenants);

@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace IBeam.Identity.Repositories.AzureTable.Stores;
 
-public sealed class AzureTableIdentityTenantStore : IIdentityTenantStore, IIdentityTenantConditionalStore
+public sealed partial class AzureTableIdentityTenantStore : IIdentityTenantStore, IIdentityTenantConditionalStore
 {
     private readonly TableServiceClient _serviceClient;
     private readonly AzureTableIdentityOptions _opts;
@@ -121,6 +121,7 @@ public sealed class AzureTableIdentityTenantStore : IIdentityTenantStore, IIdent
             var entity = resp.Value;
             entity.Status = status.Trim();
             entity.UpdatedAt = DateTimeOffset.UtcNow;
+            entity.LastOperationId = null; // A legacy writer must not retain another command's reconciliation marker.
 
             await TenantsTable()
                 .UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct)

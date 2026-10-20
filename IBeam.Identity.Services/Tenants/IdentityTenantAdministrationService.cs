@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 namespace IBeam.Identity.Services.Tenants;
 
 /// <summary>Optional external administration adapter. Never creates/selects a customer membership for its caller.</summary>
-public sealed class IdentityTenantAdministrationService(IIdentityTenantService tenants, IIdentityTenantStore store,
+public sealed partial class IdentityTenantAdministrationService(IIdentityTenantService tenants, IIdentityTenantStore store,
     ITenantExtensionCoordinator extensions, IAuthLifecycleHook lifecycle, IAuthEventPublisher publisher,
     IOptions<AuthEventOptions> eventOptions, ILogger<IdentityTenantAdministrationService> logger, IServiceOperationExecutor operations)
     : IIdentityTenantAdministrationService
