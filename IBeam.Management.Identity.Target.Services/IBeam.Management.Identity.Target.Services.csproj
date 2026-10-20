@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><GeneratePackageOnBuild>true</GeneratePackageOnBuild><Description>Optional app-scoped customer Identity management services, separate from support Identity.</Description></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../IBeam.Management.Services/IBeam.Management.Services.csproj" /><ProjectReference Include="../IBeam.Identity.Services/IBeam.Identity.Services.csproj" /></ItemGroup>
+  <ItemGroup><None Include="README.md" Pack="true" PackagePath="/" /></ItemGroup>
+</Project>

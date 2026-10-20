@@ -1,5 +1,11 @@
 # IBeam.Management.Api
 
+IBM-0106 adds AddIBeamManagementPortalTenantAdministrationApi: selected-app tenant POST/PATCH with independent live grants, exact signed versions and one idempotent intent across caller retries. Unknown replies return encrypted tracking references with read-only reconciliation. See docs/management/customer-tenant-portal-writes.md.
+
+IBM-0104 adds AddIBeamManagementPortalIdentityOperationsApi for selected-app operation receipts with original operation authority, live assignment/connection checks and bounded signed HTTPS. See docs/management/customer-identity-operations.md.
+
+Optional customer-management discovery: after the normal support authentication and storage registrations, call AddIBeamManagementCustomerIdentityApi(configuration). This adds GET /api/management/applications/{applicationId}/customer-management and independent target module negotiation. It reports the last verified connection metadata and still requires a live app assignment. It does not register customer Identity or expose tenant/user data. See docs/management/customer-identity-discovery.md.
+
 Reusable portal API library. It does not run a server, own an identity database, or install login endpoints.
 
 The host must first register a dedicated support authentication scheme. It must validate a management-only audience/trust domain and issue management context only for enabled, MFA-completed support members. Ordinary customer tokens must not be accepted by this scheme.
@@ -80,3 +86,16 @@ GET /api/management/applications/{applicationId}/system-errors and /system-logs 
 
 Opt into services.AddIBeamManagementAudit(configuration) with a dedicated append-only repository for durable safe action history. It preserves the customer-service audit pipeline. No audit reader/mutation/delete API is installed. Defaults are fail-closed audit writes, 90-day expiry metadata and a five-second write deadline; deployment tooling must enforce retention. See the deployment handoff for non-transactional mutation/audit recovery.
 Deployment configuration, identity storage choices, MFA/bootstrap, onboarding, exact registrations/endpoints, network/proxy policy, secret rotation, audit retention/failure behavior and the deferred consumer host are covered by the [Management deployment handoff](https://github.com/MedPACTech/IBeam/blob/development/docs/management/deployment-and-handoff.md). [Source/history isolation](https://github.com/MedPACTech/IBeam/blob/development/docs/management/diagnostic-source-isolation.md) describes which historical rows may be exposed. Generated-package validation uses the package-only two-target smoke sample; IBM-0097 supplies independent host-owned errors/logs sanitization switches, safe by default and restricted to explicit non-Production contexts. See [sanitization settings](https://github.com/MedPACTech/IBeam/blob/development/docs/management/diagnostic-sanitization.md).
+## Customer directory portal routes
+
+Explicitly register `AddIBeamManagementPortalCustomerDirectoriesApi(configuration)` plus delegated actor signing on the support host to expose selected-app tenant, user and invitation reads. See [registration, routes and security](../docs/management/customer-identity-api.md). This adds no customer Identity dependency to the support host.
+
+Enterprise onboarding HTTP and portal registration, safe business status, scoped operation polling and explicit retry: [API contract](../docs/management/enterprise-onboarding-api.md).
+
+IBM-0111 selected-app role catalog, customer provisioning and invitation lifecycle forwarding plus read-only receipt status: [portal API contract](../docs/management/portal-customer-provisioning.md).
+
+IBM-0112 versioned tenant membership/role administration, concurrent final-administrator protection and required customer access enforcement: [lifecycle contract](../docs/management/customer-membership-lifecycle.md).
+
+IBM-0113 conditional tenant activation/deactivation, lifecycle recovery and current customer access rejection: [status contract](../docs/management/customer-tenant-status.md).
+
+Onboarding policy discovery and optional durable consumer initialization: [integration contract](../docs/management/customer-onboarding-policy.md).

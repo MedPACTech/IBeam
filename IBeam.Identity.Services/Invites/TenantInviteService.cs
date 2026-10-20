@@ -15,7 +15,7 @@ using Microsoft.Extensions.Options;
 namespace IBeam.Identity.Services.Invites;
 
 [IBeamOperation("identity.tenantinvites")]
-public sealed class TenantInviteService : ITenantInviteService
+public sealed partial class TenantInviteService : ITenantInviteService
 {
     private static readonly TimeSpan DefaultInviteLifetime = TimeSpan.FromDays(7);
 
@@ -37,8 +37,32 @@ public sealed class TenantInviteService : ITenantInviteService
     private readonly ILogger<TenantInviteService> _logger;
     private readonly IServiceOperationExecutor _operations;
     private readonly IResourceAccessService? _resourceAccess;
+    private readonly ITenantRoleStore? _externalRoles;
 
     public TenantInviteService(
+        ITenantInviteStore invites,
+        IIdentityTenantService tenants,
+        IIdentityUserStore users,
+        ITenantRoleService roles,
+        ITenantProvisioningService tenantProvisioning,
+        ITenantMembershipStore memberships,
+        IIdentityUserExtensionCoordinator userExtensions,
+        IIdentityCommunicationSender sender,
+        ITenantInviteUrlBuilder urlBuilder,
+        ITenantInviteMessageFactory messageFactory,
+        IOtpService otpService,
+        IOtpChallengeStore otpChallenges,
+        ITokenService tokens,
+        IAuthEventPublisher events,
+        IOptions<AuthEventOptions> eventOptions,
+        ILogger<TenantInviteService> logger,
+        IResourceAccessService? resourceAccess = null,
+        IServiceOperationExecutor? operations = null)
+        : this(null, invites, tenants, users, roles, tenantProvisioning, memberships, userExtensions, sender, urlBuilder,
+            messageFactory, otpService, otpChallenges, tokens, events, eventOptions, logger, resourceAccess, operations) { }
+
+    public TenantInviteService(
+        ITenantRoleStore? externalRoles,
         ITenantInviteStore invites,
         IIdentityTenantService tenants,
         IIdentityUserStore users,
@@ -76,6 +100,7 @@ public sealed class TenantInviteService : ITenantInviteService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _resourceAccess = resourceAccess;
         _operations = operations ?? new ServiceOperationExecutor();
+        _externalRoles = externalRoles;
     }
 
     [IBeamOperation("identity.tenantinvites.create")]
@@ -160,6 +185,7 @@ public sealed class TenantInviteService : ITenantInviteService
 
         var tenant = await _tenants.FindByIdAsync(tenantId, ct).ConfigureAwait(false)
             ?? throw new IdentityValidationException("Tenant not found.");
+        if (!tenant.IsActive) throw new IdentityValidationException("Tenant is unavailable.");
         var (destinationType, normalizedDestination) = NormalizeDestination(request);
         var token = CreateInviteToken();
         var now = DateTimeOffset.UtcNow;
@@ -229,6 +255,7 @@ public sealed class TenantInviteService : ITenantInviteService
     {
         ValidateTenantAndUser(tenantId, resentByUserId);
         var invite = await RequireInviteAsync(tenantId, inviteId, ct).ConfigureAwait(false);
+        await RequireActiveTenantAsync(tenantId, ct).ConfigureAwait(false);
         var now = DateTimeOffset.UtcNow;
         invite = await ExpireIfNeededAsync(invite, now, ct).ConfigureAwait(false);
         if (!invite.IsRedeemable(now))
@@ -246,7 +273,12 @@ public sealed class TenantInviteService : ITenantInviteService
             TraceId = ResolveTraceId()
         }, ct).ConfigureAwait(false);
 
-        var result = await SendInviteAsync(invite, CreateInviteToken(), ct).ConfigureAwait(false);
+        var resendToken = CreateInviteToken();
+        if (_invites is IManagedTenantInviteStore conditional) invite = await conditional.TransitionAsync(new() {
+            TenantId = tenantId, InviteId = inviteId, OperationId = Guid.NewGuid(), Kind = "resend", ExpectedVersion = invite.Version ?? "",
+            NowUtc = now, ExpiresUtc = invite.ExpiresUtc, TokenHash = HashToken(resendToken), CustomerActorId = resentByUserId,
+            ResendWindowUtc = invite.ResendWindowUtc ?? now, ResendCount = invite.ResendCount + 1 }, ct).ConfigureAwait(false);
+        var result = await SendInviteAsync(invite, resendToken, ct).ConfigureAwait(false);
 
         await PublishInviteEventAsync(new TenantInviteResentEvent
         {
@@ -335,12 +367,19 @@ public sealed class TenantInviteService : ITenantInviteService
         if (request is null) throw new ArgumentNullException(nameof(request));
 
         var invite = await FindByTokenAsync(request.InviteToken ?? request.InviteCode, ct).ConfigureAwait(false);
+        await RequireActiveTenantAsync(invite.TenantId, ct).ConfigureAwait(false);
         var now = DateTimeOffset.UtcNow;
         invite = await ExpireIfNeededAsync(invite, now, ct).ConfigureAwait(false);
-        if (!invite.IsRedeemable(now))
+        if (!invite.IsRedeemable(now) && !(invite.Status is TenantInviteStatuses.Pending or TenantInviteStatuses.Sent && invite.AcceptanceUserId is not null))
             throw new IdentityValidationException("Invite is not active.");
 
         var mode = NormalizeAcceptMode(request.Mode);
+        // Externally created or management-resend invitations require verified password setup.
+        // Other customer invitations retain their existing acceptance policy.
+        if (RequiresVerifiedAcceptance(invite) &&
+            mode == TenantInviteAcceptModes.EmailPassword &&
+            (string.IsNullOrWhiteSpace(request.ChallengeId) || string.IsNullOrWhiteSpace(request.VerificationToken)))
+            throw new IdentityValidationException("Verified email challenge is required.");
         await PublishInviteEventAsync(new TenantInviteAcceptRequestedEvent
         {
             InviteId = invite.InviteId,
@@ -355,6 +394,10 @@ public sealed class TenantInviteService : ITenantInviteService
 
         var (user, createdNewUser) = await ResolveAcceptedUserAsync(invite, request, mode, authenticatedUserId, ct)
             .ConfigureAwait(false);
+
+        if (RequiresVerifiedAcceptance(invite))
+            EnsureUserOwnsVerifiedDestination(invite, user);
+        if (_invites is IManagedTenantInviteStore conditional) invite = await conditional.BeginAcceptanceAsync(invite.TenantId, invite.InviteId, invite.TokenHash, user.UserId, ct).ConfigureAwait(false);
 
         await PublishInviteEventAsync(new TenantInviteTenantUserLinkRequestedEvent
         {
@@ -518,7 +561,17 @@ public sealed class TenantInviteService : ITenantInviteService
         if (mode == TenantInviteAcceptModes.Otp || mode == TenantInviteAcceptModes.SmsOtp)
         {
             await VerifyOtpAsync(invite, request, ct).ConfigureAwait(false);
-            return await FindOrCreateUserForInviteAsync(invite, request.Password, ct).ConfigureAwait(false);
+            var resolved = await FindOrCreateUserForInviteAsync(invite, request.Password, ct).ConfigureAwait(false);
+            if (RequiresVerifiedAcceptance(invite) &&
+                invite.DestinationType == TenantInviteDestinationTypes.Email && !resolved.User.EmailConfirmed)
+            {
+                // The existing customer OTP flow just verified this exact invitation destination.
+                await _users.SetEmailConfirmedAsync(resolved.User.UserId, true, ct).ConfigureAwait(false);
+                var verified = await _users.FindByIdAsync(resolved.User.UserId, ct).ConfigureAwait(false)
+                    ?? throw new IdentityUnauthorizedException("Verified customer was not found.");
+                return (verified, resolved.CreatedNewUser);
+            }
+            return resolved;
         }
 
         if (mode == TenantInviteAcceptModes.EmailPassword)
@@ -767,6 +820,10 @@ public sealed class TenantInviteService : ITenantInviteService
         => await _invites.GetAsync(tenantId, inviteId, ct).ConfigureAwait(false)
            ?? throw new IdentityValidationException("Invite not found.");
 
+    private async Task RequireActiveTenantAsync(Guid tenantId, CancellationToken ct)
+    { var tenant = await _tenants.FindByIdAsync(tenantId, ct).ConfigureAwait(false);
+      if (tenant is null || tenant.TenantId != tenantId || !tenant.IsActive) throw new IdentityValidationException("Tenant is unavailable."); }
+
     private async Task<TenantInviteRecord> FindByTokenAsync(string? tokenOrCode, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(tokenOrCode))
@@ -778,7 +835,7 @@ public sealed class TenantInviteService : ITenantInviteService
 
     private async Task<TenantInviteRecord> ExpireIfNeededAsync(TenantInviteRecord invite, DateTimeOffset now, CancellationToken ct)
     {
-        if (invite.ExpiresUtc > now ||
+        if (invite.AcceptanceUserId is not null || invite.ExpiresUtc > now ||
             !string.Equals(invite.Status, TenantInviteStatuses.Pending, StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(invite.Status, TenantInviteStatuses.Sent, StringComparison.OrdinalIgnoreCase))
         {
@@ -1002,6 +1059,9 @@ public sealed class TenantInviteService : ITenantInviteService
         RandomNumberGenerator.Fill(bytes);
         return Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
     }
+
+    private static bool RequiresVerifiedAcceptance(TenantInviteRecord invite) => invite.RequireVerifiedAcceptance ||
+        invite.InvitedByUserId == Guid.Empty && invite.Metadata?.GetValueOrDefault("origin") == "external-management";
 
     private static string HashToken(string token)
     {

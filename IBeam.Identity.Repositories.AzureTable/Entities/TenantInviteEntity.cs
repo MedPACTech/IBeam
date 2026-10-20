@@ -5,9 +5,19 @@ namespace IBeam.Identity.Repositories.AzureTable.Entities;
 
 public sealed class TenantInviteEntity : ITableEntity
 {
+    public bool IBeamInviteRequireVerifiedAcceptance { get; set; }
     public string PartitionKey { get; set; } = string.Empty;
     public string RowKey { get; set; } = string.Empty;
     public DateTimeOffset? Timestamp { get; set; }
+    public string? IBeamInviteAcceptanceId { get; set; }
+    public string? IBeamInviteAcceptanceUserId { get; set; }
+    public string? IBeamInviteLastOperationId { get; set; }
+    public DateTimeOffset? IBeamInviteLastResendUtc { get; set; }
+    public DateTimeOffset? IBeamInviteResendWindowUtc { get; set; }
+    public int IBeamInviteResendCount { get; set; }
+    public string? IBeamInviteLastManagementOrganizationId { get; set; }
+    public string? IBeamInviteLastManagementUserId { get; set; }
+    public string? IBeamInviteLastManagementApplicationId { get; set; }
     public ETag ETag { get; set; }
 
     public string InviteId { get; set; } = string.Empty;

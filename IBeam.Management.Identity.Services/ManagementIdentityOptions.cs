@@ -6,6 +6,14 @@ public sealed class ManagementIdentityOptions
     public Guid OrganizationId { get; set; }
     // Trusted one-off setup only; never enable this in a publicly running host.
     public bool BootstrapEnabled { get; set; }
+    /// <summary>Trusted app-scoped delegation ceilings, never customer operation assignments or implicit admin privileges.</summary>
+    public List<ManagementIdentityCustomerDelegation> CustomerDelegations { get; set; } = [];
+}
+public sealed class ManagementIdentityCustomerDelegation
+{
+    public Guid UserId { get; set; }
+    public Guid ApplicationId { get; set; }
+    public string[] Operations { get; set; } = [];
 }
 
 public static class ManagementIdentityRoles

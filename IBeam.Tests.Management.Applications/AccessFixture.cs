@@ -15,6 +15,7 @@ internal sealed class AccessFixture : IDisposable, IManagementPrincipalProvider,
     public bool CanAdminister { get; set; } = true;
     public bool DelegateErrors { get; set; } = true;
     public bool DelegateLogs { get; set; } = true;
+    public List<(Guid ApplicationId, string Operation)> CustomerDelegations { get; } = [];
     public MemoryApplications Apps { get; } = new();
     public MemoryAccess Access { get; } = new();
     public Dictionary<(Guid, Guid), ManagementSupportUserState> Users { get; } = [];
@@ -48,6 +49,8 @@ internal sealed class AccessFixture : IDisposable, IManagementPrincipalProvider,
         if (CanAdminister) claims.Add(new(ManagementClaimTypes.Permission, ManagementSupportOperations.AccessAdmin));
         if (DelegateErrors) claims.Add(new(ManagementClaimTypes.Permission, ManagementAccessDelegation.Errors));
         if (DelegateLogs) claims.Add(new(ManagementClaimTypes.Permission, ManagementAccessDelegation.Logs));
+        claims.AddRange(CustomerDelegations.Select(x => new Claim(ManagementClaimTypes.Permission,
+            IBeam.Management.CustomerIdentity.ManagementCustomerIdentityPermissionPolicy.DelegationFor(x.Operation, x.ApplicationId))));
         return new(new ClaimsIdentity(claims, "Support"));
     }
     public Task<ManagementSupportUserState?> GetAsync(Guid org, Guid user, CancellationToken ct = default) => Task.FromResult(Users.GetValueOrDefault((org, user)));

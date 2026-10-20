@@ -1,4 +1,6 @@
-﻿# IBeam.Identity.Services
+# IBeam.Identity.Services
+
+IBM-0105: AddIBeamIdentityTenantAdministration registers an optional external tenant adapter over existing Identity creation/hooks and conditional rename ports. Recovery resumes lifecycle work with no customer actor, membership, default tenant or token. See docs/management/customer-tenant-administration.md.
 
 Core identity orchestration package for OTP, password, OAuth, tokens, and tenant selection.
 
@@ -366,3 +368,13 @@ Keep authorization-critical role assignment stable by preferring role IDs where 
 - Consuming API migration prompt: [`../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md`](../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
 
 Agents should keep auth orchestration in services and avoid putting tenant, role, OTP, or API credential rules into controllers or repositories.
+
+Enterprise onboarding services and durable invitation recovery are documented in [enterprise onboarding](../docs/management/enterprise-onboarding.md). Target services are opt-in; portal/HTTP integration follows in IBM-0108.
+
+Approved tenant roles and invitation-only customer provisioning: [registration and API contract](../docs/management/customer-provisioning.md). Catalog visibility uses the independent roles.read grant; no account/membership is created before customer verification.
+
+IBM-0110 invitation resend/revoke uses exact versions, durable private delivery recovery and native acceptance claims. See [invitation lifecycle](../docs/management/customer-invitation-lifecycle.md).
+
+IBM-0112 versioned tenant membership/role administration, concurrent final-administrator protection and required customer access enforcement: [lifecycle contract](../docs/management/customer-membership-lifecycle.md).
+
+IBM-0113 conditional tenant activation/deactivation, lifecycle recovery and current customer access rejection: [status contract](../docs/management/customer-tenant-status.md).

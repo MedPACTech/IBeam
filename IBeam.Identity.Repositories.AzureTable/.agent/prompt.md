@@ -62,3 +62,13 @@ Provider or infrastructure integration tests should be opt-in when they require 
 ## Packaging
 
 The `.agent/prompt.md` file is included in the NuGet package by the repository-level packaging rules. Keep it useful for agents consuming the package from source or from the package artifact.
+
+IBM-0105 adds IIdentityTenantConditionalStore. Management renames must use the caller-provided ETag and merge only framework name/update/LastOperationId fields; preserve consumer columns and never refresh away the original precondition. Legacy missing creation times project null. Reads never add metadata or rewrite rows.
+
+IBM-0107 external invite Ensure uses a stable primary insert and validates immutable ownership/intent fields before repairing its token index. Never replace a redeemed/revoked primary during recovery. Token index reads must recheck the authoritative primary and exact token hash; stale indexes cannot restore old invitation authority. No schema creation or business orchestration in stores.
+
+IBM-0110: invitation transitions require exact ETags, stable operation IDs and native verified acceptance claims before membership. No claim stealing or automatic resend after SMTP uncertainty. Keep private ciphertext separate from safe receipts/audit and enforce target-owned roles/rate/redirect policy. See docs/management/customer-invitation-lifecycle.md.
+
+IBM-0112: membership and roles use caller ETags plus an atomic tenant-partition revision, target-owned immutable administrator roles and stable receipt IDs. Every native writer participates; protected legacy destructive writes fail closed. No implicit reactivation, global account/default/other-tenant edits or role restoration on re-enable. Customer request/refresh enforcement is required before capability registration; standard JWT uses live native versions, custom auth must explicitly integrate. Keep business eligibility in services and persistence fencing in stores. See docs/management/customer-membership-lifecycle.md.
+
+IBM-0113: tenant status is an independent exact-version, idempotent command with required lifecycle hooks and explicit customer request/refresh enforcement. Preserve global users, memberships, defaults and business/billing data. No bootstrap reactivation. Recover only owned status transitions; release only known unapplied metadata reservations after concurrent writes. See docs/management/customer-tenant-status.md.

@@ -12,6 +12,25 @@ namespace IBeam.Tests.Management.Credentials;
 public sealed class ManagementCredentialServiceTests
 {
     [TestMethod]
+    public async Task IdentityCredentialCapabilitiesAreExplicitAndNeverAddedToLegacyKeys()
+    {
+        await using var fixture = new CredentialFixture();
+        var legacy = await fixture.IssueAsync(ManagementOperations.DiagnosticsInfo, ManagementOperations.ErrorsRead);
+        var customer = await fixture.IssueAsync(IBeam.Management.CustomerIdentity.ManagementCustomerIdentityOperations.All.ToArray());
+        var validated = await fixture.Validator.ValidateAsync(customer.ApiKey);
+        Assert.IsNotNull(validated);
+        CollectionAssert.AreEquivalent(IBeam.Management.CustomerIdentity.ManagementCustomerIdentityOperations.All.ToArray(), validated.Capabilities.ToArray());
+        var old = await fixture.Validator.ValidateAsync(legacy.ApiKey);
+        Assert.IsNotNull(old);
+        Assert.IsFalse(old.Capabilities.Any(x => IBeam.Management.CustomerIdentity.ManagementCustomerIdentityOperations.All.Contains(x)));
+        var rotated = await fixture.Provisioning.RotateAsync(customer.Credential.CredentialId);
+        Assert.IsNull(await fixture.Validator.ValidateAsync(customer.ApiKey));
+        Assert.IsNotNull(await fixture.Validator.ValidateAsync(rotated.ApiKey));
+        await fixture.Provisioning.RevokeAsync(rotated.Credential.CredentialId);
+        Assert.IsNull(await fixture.Validator.ValidateAsync(rotated.ApiKey));
+        Assert.IsNotNull(await fixture.Validator.ValidateAsync(legacy.ApiKey));
+    }
+    [TestMethod]
     public async Task IssueRotateRevokePersistOnlyHashesAndImmediatelyInvalidateOldSecrets()
     {
         await using var fixture = new CredentialFixture();

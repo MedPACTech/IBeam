@@ -24,6 +24,10 @@ Use stable operation names for service calls when this project adds service-leve
 
 Core identity contracts, models, options, and abstractions for IBeam authentication, users, tenants, roles, OTP, and credentials.
 
+External tenant invitation contracts are trusted server adapters, not authentication endpoints. No support GUID becomes a customer inviter. Stable creation and safe delivery are separate; Management supplies durable delivery claims and customer acceptance remains in existing Identity workflows.
+
+ApprovedRoleNames on external invitation requests is a JSON-hidden trusted host-policy result. Never bind it from a public request. Recipients and tokens remain JSON-hidden and redacted; only native verified acceptance grants membership.
+
 Layer role: `Core`.
 
 ## Public Surface
@@ -62,3 +66,9 @@ Provider or infrastructure integration tests should be opt-in when they require 
 ## Packaging
 
 The `.agent/prompt.md` file is included in the NuGet package by the repository-level packaging rules. Keep it useful for agents consuming the package from source or from the package artifact.
+
+IBM-0110: invitation transitions require exact ETags, stable operation IDs and native verified acceptance claims before membership. No claim stealing or automatic resend after SMTP uncertainty. Keep private ciphertext separate from safe receipts/audit and enforce target-owned roles/rate/redirect policy. See docs/management/customer-invitation-lifecycle.md.
+
+IBM-0112: membership and roles use caller ETags plus an atomic tenant-partition revision, target-owned immutable administrator roles and stable receipt IDs. Every native writer participates; protected legacy destructive writes fail closed. No implicit reactivation, global account/default/other-tenant edits or role restoration on re-enable. Customer request/refresh enforcement is required before capability registration; standard JWT uses live native versions, custom auth must explicitly integrate. Keep business eligibility in services and persistence fencing in stores. See docs/management/customer-membership-lifecycle.md.
+
+IBM-0113: tenant status is an independent exact-version, idempotent command with required lifecycle hooks and explicit customer request/refresh enforcement. Preserve global users, memberships, defaults and business/billing data. No bootstrap reactivation. Recover only owned status transitions; release only known unapplied metadata reservations after concurrent writes. See docs/management/customer-tenant-status.md.

@@ -8,6 +8,10 @@ public sealed record TenantExtensionContext(
     string? TraceId = null,
     IReadOnlyDictionary<string, string>? Metadata = null)
 {
+    /// <summary>Privacy mode for external administration; this flag never confers Identity authority.</summary>
+    public bool RedactFailureDetails { get; init; }
+    /// <summary>Per-operation delivery requirement; normal Identity calls keep the host's existing failure policy.</summary>
+    public bool RequireLifecycleDelivery { get; init; }
     public static TenantExtensionContext Create(
         string operation,
         Guid? authUserId = null,

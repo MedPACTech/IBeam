@@ -24,7 +24,8 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
     public Guid OtherUser { get; } = Guid.NewGuid();
     public Guid OtherOrg { get; } = Guid.NewGuid();
     public Guid ForeignUser { get; } = Guid.NewGuid();
-    public static async Task<PortalHttpFixture> CreateAsync(bool install = true, bool selector = false, bool audit = false)
+    public CustomerDirectoryBackend Directories { get; } = new();
+    public static async Task<PortalHttpFixture> CreateAsync(bool install = true, bool selector = false, bool audit = false, bool customerIdentity = false, bool customerDirectories = false, bool customerOperations = false, bool customerMutations = false, bool customerOnboarding = false, bool customerProvisioning = false, bool customerMemberships = false, bool customerTenantStatus = false)
     {
         var f = new PortalHttpFixture();
         f.Data.Access.Users[(f.Data.Access.Org, f.OtherUser)] = new(f.Data.Access.Org, f.OtherUser, true, false);
@@ -35,7 +36,12 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
             ["IBeam:Management:Connections:ApprovedOrigins:1"] = "https://api.bindry.app",
             ["IBeam:Management:Connections:ApprovedOrigins:2"] = "https://api.medinsights.app",
             ["IBeam:Management:PortalDiagnostics:ProtectionKey"] = f.Data.Options.ProtectionKey,
-            ["IBeam:Management:PortalDiagnostics:TimeoutSeconds"] = "1" });
+            ["IBeam:Management:PortalDiagnostics:TimeoutSeconds"] = "1",
+            ["IBeam:Management:PortalCustomerIdentity:ProtectionKey"] = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)),
+            ["IBeam:Management:PortalCustomerIdentity:TimeoutSeconds"] = "1" });
+        b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
+            ["IBeam:Management:PortalCustomerIdentity:Mutations:AttemptTimeoutSeconds"] = "1",
+            ["IBeam:Management:PortalCustomerIdentity:Mutations:AuthorizationTimeoutSeconds"] = "1" });
         b.Services.AddSingleton(f);
         b.Services.AddAuthentication("Customer").AddScheme<AuthenticationSchemeOptions, PortalAuthentication>("Customer", _ => {})
             .AddScheme<AuthenticationSchemeOptions, PortalAuthentication>("Support", _ => {});
@@ -50,6 +56,21 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
         b.Services.AddSingleton<TimeProvider>(f.Data.Clock);
         if (install) b.Services.AddIBeamManagementPortalDiagnosticsApi(b.Configuration);
         if (selector) b.Services.AddIBeamManagementApplicationSelectorApi(b.Configuration);
+        if (customerIdentity) b.Services.AddIBeamManagementCustomerIdentityApi(b.Configuration);
+        if (customerDirectories || customerOperations || customerMutations || customerOnboarding || customerProvisioning || customerMemberships || customerTenantStatus) {
+            b.Services.AddSingleton<IBeam.Management.CustomerIdentity.IManagementDelegatedActorProvider>(f.Directories);
+            b.Services.AddSingleton<IBeam.Management.CustomerIdentity.IManagementCustomerIdentityClient>(provider =>
+                new IBeam.Management.Services.CustomerIdentity.ManagementCustomerIdentityClient(f.Data.Network,
+                    provider.GetRequiredService<IOptions<IBeam.Management.Services.CustomerIdentity.ManagementPortalCustomerDirectoryOptions>>(), f.Directories)
+                    { TestTransportFactory = () => new CustomerDirectoryBackend.Handler(f.Directories) });
+            if (customerDirectories) b.Services.AddIBeamManagementPortalCustomerDirectoriesApi(b.Configuration);
+            if (customerOperations) b.Services.AddIBeamManagementPortalIdentityOperationsApi(b.Configuration);
+            if (customerMutations) { f.Directories.EnableMutations = true; b.Services.AddIBeamManagementPortalTenantAdministrationApi(b.Configuration); }
+            if (customerOnboarding) { f.Directories.EnableOnboarding = true; b.Services.AddIBeamManagementPortalEnterpriseOnboardingApi(b.Configuration); }
+            if (customerProvisioning) { f.Directories.EnableProvisioning = true; b.Services.AddIBeamManagementPortalCustomerProvisioningApi(b.Configuration); }
+            if (customerMemberships) { f.Directories.EnableMemberships = true; b.Services.AddIBeamManagementPortalCustomerMembershipApi(b.Configuration); }
+            if (customerTenantStatus) { f.Directories.EnableTenantStatus = true; b.Services.AddIBeamManagementPortalTenantStatusApi(b.Configuration); }
+        }
         if (audit) { b.Services.AddSingleton<IManagementAuditRepository>(f.Audit); b.Services.AddIBeamManagementAudit(b.Configuration); }
         f.App = b.Build(); f.App.UseAuthentication(); f.App.UseAuthorization(); f.App.MapControllers();
         try { await f.App.StartAsync(); } catch { await f.App.DisposeAsync(); f.Data.Dispose(); throw; }

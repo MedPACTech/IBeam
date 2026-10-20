@@ -21,4 +21,5 @@ internal sealed class TenantEntity : ITableEntity
 
     public DateTimeOffset CreatedAt { get; set; }      // set explicitly on insert
     public DateTimeOffset? UpdatedAt { get; set; }
+    public Guid? LastOperationId { get; set; }
 }

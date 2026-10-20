@@ -1,5 +1,17 @@
 # IBeam.Management.Services
 
+IBM-0106 adds bounded signed tenant mutations and stateless encrypted operation references. A fresh authorization budget follows target timeouts; no generic write retry or tenant payload persistence is introduced. Lookup is a scoped read-only target request. See docs/management/customer-tenant-portal-writes.md.
+
+IBM-0105 extends delegated request binding to include an optional If-Match digest. Version changes cannot be substituted under a signed mutation proof. Target tenant creation/rename is documented in docs/management/customer-tenant-administration.md; portal write forwarding follows separately.
+
+IBM-0104 adds safe selected-app operation receipt forwarding. Non-GET delegated assertions bind the Idempotency-Key as well as exact method/path/body. See docs/management/customer-identity-operations.md.
+
+IBM-0100: AddIBeamManagementActorDelegation(configuration) enables server-only short-lived RS256 support actor assertions. Supply a dedicated signing-key provider and durable metadata audit repository; configure explicit issuer/target audiences. Browser-facing APIs never return assertions or keys. See docs/management/customer-identity-delegation.md.
+
+IBM-0099: independent management.identity customer operation names are now valid machine capabilities and app assignments. Composite operation checks, per-app delegation ceilings, effective selector/discovery projection and IManagementCustomerIdentityAuthorizationService are documented in docs/management/customer-identity-permissions.md. Existing diagnostic credentials/assignments gain nothing automatically.
+
+IBM-0098 adds optional CustomerIdentity module discovery through AddIBeamManagementCustomerIdentity(configuration). IManagementTargetProfileProbe negotiates diagnostics and customer Identity independently; the legacy probe and constructors remain available. Machine credentials may explicitly include management.identity.info for the optional target discovery endpoint; this confers no directory or write access. Portal services remain independent of customer Identity. See docs/management/customer-identity-discovery.md.
+
 Service boundary for management operations. Register `services.AddIBeamManagementServices()` and supply a trusted scoped `IManagementPrincipalProvider`, or use an API module which supplies the HTTP principal provider.
 
 `ManagementIdentityService.GetCurrentAsync` requires a named authenticated human, one nonempty management organization ID and `management.identity.read`. `ManagementDiagnosticsInfoService.GetAsync` requires a management credential ID, exact application/environment binding and `management.diagnostics.info`.
@@ -138,3 +150,22 @@ Deployment configuration, identity storage choices, MFA/bootstrap, onboarding, e
 ## Configurable diagnostic text
 
 IBeam:Management:Diagnostics:Errors:Sanitization:Enabled and Logs:Sanitization:Enabled default to true, including blank values. Only false enables the typed unsanitized response object. Both module startup guards, readers and projections require an explicit non-Production host/deployment. /info advertises independent unsanitizedCapabilities; portal reads preserve only the verified operation's marked raw object. Mode changes invalidate target and portal links/cursors. Source/category/grant/budget restrictions and metadata-only audit are unchanged. Details, allowed environment names, repository ports and integration examples are in the [sanitization guide](https://github.com/MedPACTech/IBeam/blob/development/docs/management/diagnostic-sanitization.md).
+## Customer directory forwarding
+
+`AddIBeamManagementPortalCustomerDirectories(configuration)` registers typed tenant/user/invitation directory services with current support grants, scoped signed HTTPS calls and encrypted pagination. Supply a delegated actor provider and a separate portal cursor key. See [customer directory API](../docs/management/customer-identity-api.md).
+
+Enterprise onboarding HTTP and portal registration, safe business status, scoped operation polling and explicit retry: [API contract](../docs/management/enterprise-onboarding-api.md).
+
+Approved tenant roles and invitation-only customer provisioning: [registration and API contract](../docs/management/customer-provisioning.md). Catalog visibility uses the independent roles.read grant; no account/membership is created before customer verification.
+
+IBM-0111 selected-app role catalog, customer provisioning and invitation lifecycle forwarding plus read-only receipt status: [portal API contract](../docs/management/portal-customer-provisioning.md).
+
+IBM-0112 versioned tenant membership/role administration, concurrent final-administrator protection and required customer access enforcement: [lifecycle contract](../docs/management/customer-membership-lifecycle.md).
+
+IBM-0113 conditional tenant activation/deactivation, lifecycle recovery and current customer access rejection: [status contract](../docs/management/customer-tenant-status.md).
+
+Onboarding policy discovery and optional durable consumer initialization: [integration contract](../docs/management/customer-onboarding-policy.md).
+
+Optional trusted tenant provenance and existing signup compatibility: [integration contract](../docs/management/tenant-provenance.md).
+
+IBM-0117: an app assignment can contain both diagnostic permissions and every explicitly assignable customer operation (16 total currently). Bound the size from the known catalog; keep distinct known values, live assignment checks and independent delegation ceilings. Unknown/wildcard authority stays rejected.

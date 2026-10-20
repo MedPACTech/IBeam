@@ -1,0 +1,5 @@
+[
+  { "applicationKey": "demo-atlas", "name": "Atlas Demo", "environment": "Testing", "baseUrl": "https://atlas.demo.invalid", "errorCount": 12, "logCount": 18 },
+  { "applicationKey": "demo-beacon", "name": "Beacon Demo", "environment": "Testing", "baseUrl": "https://beacon.demo.invalid", "errorCount": 4, "logCount": 10 },
+  { "applicationKey": "demo-cedar", "name": "Cedar Demo", "environment": "Testing", "baseUrl": "https://cedar.demo.invalid", "errorCount": 0, "logCount": 8 }
+]

@@ -5,6 +5,24 @@ namespace IBeam.Tests.Management.Applications;
 public sealed class ApplicationAccessTests
 {
     [TestMethod]
+    public async Task FullCustomerManagementCoexistsWithBothDiagnosticPermissionsAndStillRejectsUnknownAuthority()
+    {
+        using var f = new AccessFixture(); var app = await f.CreateApp();
+        var customer = IBeam.Management.CustomerIdentity.ManagementCustomerIdentityOperations.All
+            .Where(IBeam.Management.CustomerIdentity.ManagementCustomerIdentityPermissionPolicy.IsAssignable).ToArray();
+        foreach(var operation in customer) f.CustomerDelegations.Add((app, operation));
+        var permissions = customer.Concat(new[] { ManagementOperations.ErrorsRead, ManagementOperations.LogsRead }).ToArray();
+        Assert.HasCount(16, permissions);
+        var grant = await f.Service.PutAsync(app, f.Reader, new() { Permissions = permissions });
+        f.Actor = f.Reader; f.CanAdminister = false;
+        foreach(var permission in permissions) await f.Service.RequireAsync(app, permission);
+        f.Actor = f.Admin; f.CanAdminister = true;
+        await Assert.ThrowsAsync<ManagementApplicationInvalidException>(() => f.Service.PutAsync(app, f.Reader,
+            new() { Permissions = permissions.Append("management.identity.*").ToArray(), ExpectedVersion = grant.Version }));
+        f.Actor = f.Reader; f.CanAdminister = false;
+        foreach(var permission in permissions) await f.Service.RequireAsync(app, permission);
+    }
+    [TestMethod]
     public async Task IndependentPermissionsManyAppsAndRevocationAreLiveWithoutPrincipalRefresh()
     {
         using var f = new AccessFixture(); var app = await f.CreateApp(); var other = await f.CreateApp("bindry");

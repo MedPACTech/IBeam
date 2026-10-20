@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace IBeam.Identity.Repositories.AzureTable.Stores;
 
-public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
+public sealed partial class AzureTableTenantMembershipStore : ITenantMembershipStore
 {
     private readonly TableServiceClient _serviceClient;
     private readonly AzureTableIdentityOptions _opts;
@@ -101,6 +101,9 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
             if (!resp.HasValue) return null;
 
             var m = resp.Value;
+            IdentityTenantMembershipState? authoritative;
+            try { authoritative = await ReadStateAsync(tenantId, userId, true, ct).ConfigureAwait(false); }
+            catch (RequestFailedException ex) when (ex.Status == 404) { authoritative = null; } // Preserve standalone legacy UserTenants readers until a primary writer opts in.
 
             // Canonical tenant name
             var name = await TryGetTenantNameAsync(tenantId, ct).ConfigureAwait(false)
@@ -109,9 +112,9 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
             return new TenantInfo(
                 TenantId: tenantId,
                 Name: name,
-                Roles: SplitRoles(m.RolesCsv),
-                IsActive: IsActiveStatus(m.Status),
-                RoleIds: SplitRoleIds(m.RoleIdsCsv)
+                Roles: authoritative?.RoleNames ?? SplitRoles(m.RolesCsv),
+                IsActive: authoritative?.IsEnabled ?? IsActiveStatus(m.Status),
+                RoleIds: authoritative?.RoleIds ?? SplitRoleIds(m.RoleIdsCsv)
             );
         }
         catch (Exception ex)
@@ -273,6 +276,8 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
             var tenantUsers = GetTenantUsersTable();
             var userTenants = GetUserTenantsTable();
 
+            await TenantMembershipPartition.RequireLegacyDestructiveWrite(tenantUsers, _opts.TenantUsersPk(tenantId), ct).ConfigureAwait(false);
+
             var tenantUserResp = await tenantUsers
                 .GetEntityIfExistsAsync<TenantUserEntity>(
                     _opts.TenantUsersPk(tenantId),
@@ -296,7 +301,7 @@ public sealed class AzureTableTenantMembershipStore : ITenantMembershipStore
                 tenantUser.Status = "Disabled";
                 tenantUser.DisabledAt = now;
                 tenantUser.DisabledReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
-                await tenantUsers.UpdateEntityAsync(tenantUser, tenantUser.ETag, TableUpdateMode.Replace, ct)
+                await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, true)
                     .ConfigureAwait(false);
             }
 

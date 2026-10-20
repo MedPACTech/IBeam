@@ -68,7 +68,7 @@ public sealed class IdentityTenantService : IIdentityTenantService
             TraceId = lifecycleContext.TraceId
         };
         evt.Metadata["idempotencyKey"] = $"{TenantCreatedEvent.TypeName}:{created.TenantId:D}";
-        await InvokeLifecycleAndPublishAsync(evt, (hook, e, token) => hook.OnTenantCreatedAsync(e, token), ct)
+        await InvokeLifecycleAndPublishAsync(evt, (hook, e, token) => hook.OnTenantCreatedAsync(e, token), ct, lifecycleContext.RedactFailureDetails, lifecycleContext.RequireLifecycleDelivery)
             .ConfigureAwait(false);
 
         return created;
@@ -109,7 +109,7 @@ public sealed class IdentityTenantService : IIdentityTenantService
             TraceId = lifecycleContext.TraceId
         };
         evt.Metadata["idempotencyKey"] = $"{TenantUpdatedEvent.TypeName}:{updated.TenantId:D}";
-        await InvokeLifecycleAndPublishAsync(evt, (hook, e, token) => hook.OnTenantUpdatedAsync(e, token), ct)
+        await InvokeLifecycleAndPublishAsync(evt, (hook, e, token) => hook.OnTenantUpdatedAsync(e, token), ct, lifecycleContext.RedactFailureDetails, lifecycleContext.RequireLifecycleDelivery)
             .ConfigureAwait(false);
 
         return updated;
@@ -184,7 +184,7 @@ public sealed class IdentityTenantService : IIdentityTenantService
     private async Task InvokeLifecycleAndPublishAsync<TEvent>(
         TEvent evt,
         Func<IAuthLifecycleHook, TEvent, CancellationToken, Task> hookInvoker,
-        CancellationToken ct)
+        CancellationToken ct, bool redactFailureDetails = false, bool requireLifecycleDelivery = false)
         where TEvent : AuthLifecycleEventBase
     {
         try
@@ -194,8 +194,9 @@ public sealed class IdentityTenantService : IIdentityTenantService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to emit tenant lifecycle event {EventType}. EventId={EventId}", evt.EventType, evt.EventId);
-            if (_eventOptions.Value.StrictPublishFailures)
+            if (redactFailureDetails) _logger.LogError("Failed to emit tenant lifecycle event {EventType}. EventId={EventId}", evt.EventType, evt.EventId);
+            else _logger.LogError(ex, "Failed to emit tenant lifecycle event {EventType}. EventId={EventId}", evt.EventType, evt.EventId);
+            if (_eventOptions.Value.StrictPublishFailures || requireLifecycleDelivery)
                 throw;
         }
     }
