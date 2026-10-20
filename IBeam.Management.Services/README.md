@@ -155,3 +155,5 @@ IBeam:Management:Diagnostics:Errors:Sanitization:Enabled and Logs:Sanitization:E
 `AddIBeamManagementPortalCustomerDirectories(configuration)` registers typed tenant/user/invitation directory services with current support grants, scoped signed HTTPS calls and encrypted pagination. Supply a delegated actor provider and a separate portal cursor key. See [customer directory API](../docs/management/customer-identity-api.md).
 
 Enterprise onboarding HTTP and portal registration, safe business status, scoped operation polling and explicit retry: [API contract](../docs/management/enterprise-onboarding-api.md).
+
+Approved tenant roles and invitation-only customer provisioning: [registration and API contract](../docs/management/customer-provisioning.md). Catalog visibility uses the independent roles.read grant; no account/membership is created before customer verification.

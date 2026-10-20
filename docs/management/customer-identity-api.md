@@ -49,3 +49,5 @@ IBM-0106 adds optional tenant create/rename and opaque operation tracking with i
 See [enterprise onboarding services](enterprise-onboarding.md) for IBM-0107 target orchestration, recovery storage, policy configuration and customer acceptance. HTTP/portal onboarding routes follow in IBM-0108.
 
 IBM-0108 [enterprise onboarding API](enterprise-onboarding-api.md) adds explicit target/portal create and retry routes and authoritative business status on shared operation polls.
+
+IBM-0109 target [approved roles and customer provisioning](customer-provisioning.md) adds roles.read and strict tenant-scoped invitation provisioning. Portal mirrors follow in IBM-0111.

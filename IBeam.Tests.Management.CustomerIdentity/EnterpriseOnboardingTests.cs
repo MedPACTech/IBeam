@@ -157,6 +157,15 @@ public sealed class EnterpriseOnboardingTests
         await Assert.ThrowsAsync<ManagementIdentityOperationConflictException>(() => f.Service.RetryAsync(created.OnboardingId, "retry-enterprise-01"));
         Assert.AreEqual(1, f.Sends); Assert.AreEqual(1, f.Tenants.Store.Creates); Assert.HasCount(1, f.InviteRows);
     }
+    [TestMethod]
+    public async Task CrashBeforeDeliveryClaimResumesTheUnsentInviteWithoutAnotherTenantOrInvite()
+    {
+        var f = new OnboardingFixture(); f.Jobs.FailAfterPersisted = true;
+        var first = await f.Service.CreateAsync(f.Request, "enterprise-intent-01"); Assert.AreEqual("recoverable-failure", first.Status); Assert.AreEqual(0, f.Sends);
+        f.Jobs.FailAfterPersisted = false;
+        var resumed = await f.Service.CreateAsync(f.Request, "enterprise-intent-01");
+        Assert.AreEqual("awaiting-acceptance", resumed.Status); Assert.AreEqual(1, f.Sends); Assert.HasCount(1, f.InviteRows); Assert.AreEqual(1, f.Tenants.Store.Creates);
+    }
 }
 
 internal sealed class OnboardingFixture : IManagementCustomerIdentityTargetAccessService
@@ -225,6 +234,7 @@ internal sealed class OnboardingStore : IManagementEnterpriseOnboardingRepositor
 {
     public Dictionary<(ManagementIdentityOperationScope, Guid), ManagementEnterpriseOnboardingEntity> Rows { get; } = [];
     public bool FailSent { get; set; }
+    public bool FailAfterPersisted { get; set; }
     public Task<ManagementEnterpriseOnboardingEntity?> GetAsync(ManagementIdentityOperationScope scope, Guid id, CancellationToken ct = default)
     { lock (Rows) return Task.FromResult(Rows.GetValueOrDefault((scope, id))); }
     public Task<bool> TryCreateAsync(ManagementEnterpriseOnboardingEntity row, CancellationToken ct = default)
@@ -239,7 +249,9 @@ internal sealed class OnboardingStore : IManagementEnterpriseOnboardingRepositor
         lock (Rows) {
             if (FailSent && row.DeliveryStatus == "sent") throw new Exception("JOURNAL-SECRET-CANARY");
             if (!Rows.TryGetValue((row.Scope, row.OnboardingId), out var old) || old.Version != version) throw new ManagementIdentityOperationConflictException();
-            Rows[(row.Scope, row.OnboardingId)] = row = row with { Version = Guid.NewGuid().ToString() }; return Task.FromResult(row);
+            Rows[(row.Scope, row.OnboardingId)] = row = row with { Version = Guid.NewGuid().ToString() };
+            if (FailAfterPersisted && row.Step == "invitation-persisted" && row.DeliveryStatus == "pending") throw new Exception("JOURNAL-SECRET-CANARY");
+            return Task.FromResult(row);
         }
     }
 }

@@ -26,6 +26,8 @@ Core identity contracts, models, options, and abstractions for IBeam authenticat
 
 External tenant invitation contracts are trusted server adapters, not authentication endpoints. No support GUID becomes a customer inviter. Stable creation and safe delivery are separate; Management supplies durable delivery claims and customer acceptance remains in existing Identity workflows.
 
+ApprovedRoleNames on external invitation requests is a JSON-hidden trusted host-policy result. Never bind it from a public request. Recipients and tokens remain JSON-hidden and redacted; only native verified acceptance grants membership.
+
 Layer role: `Core`.
 
 ## Public Surface

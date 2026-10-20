@@ -31,6 +31,7 @@ public static class ManagementAuditOperations
         "management.identity.tenants.read",
         "management.identity.tenants.create", "management.identity.tenants.update",
         "management.identity.onboarding.create", "management.identity.onboarding.read", "management.identity.onboarding.retry",
+        "management.identity.roles.catalog", "management.identity.users.provision",
         "management.portal.customer-identity.onboarding.create", "management.portal.customer-identity.onboarding.retry",
         "management.portal.customer-identity.onboarding.create.unknown", "management.portal.customer-identity.onboarding.retry.unknown",
         "management.portal.customer-identity.onboarding.create.in-progress", "management.portal.customer-identity.onboarding.retry.in-progress",

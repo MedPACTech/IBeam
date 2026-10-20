@@ -14,12 +14,13 @@ public static class ManagementCustomerIdentityOperations
     public const string InvitesManage = "management.identity.invites.manage";
     public const string MembershipsManage = "management.identity.memberships.manage";
     public const string RolesAssign = "management.identity.roles.assign";
+    public const string RolesRead = "management.identity.roles.read";
     public const string OnboardingCreate = "management.identity.onboarding.create";
     public const string OnboardingRead = "management.identity.onboarding.read";
     public const string OnboardingRetry = "management.identity.onboarding.retry";
     public static IReadOnlyList<string> All { get; } = Array.AsReadOnly(new[] {
         Info, TenantsRead, TenantsCreate, TenantsUpdate, TenantsStatus, UsersRead, UsersProvision,
-        InvitesRead, InvitesManage, MembershipsManage, RolesAssign, OnboardingCreate, OnboardingRead, OnboardingRetry });
+        InvitesRead, InvitesManage, MembershipsManage, RolesAssign, RolesRead, OnboardingCreate, OnboardingRead, OnboardingRetry });
 }
 
 public sealed record ManagementCustomerIdentityInfo(string ApplicationKey, string Environment,

@@ -27,7 +27,7 @@ public sealed class ManagementEnterpriseOnboardingService(IManagementEnterpriseO
                     CanonicalPayload = JsonSerializer.SerializeToUtf8Bytes(input with { Token = "" }) },
                     new Handler(async (context, cancellation) => {
                         var row = await Read(actor, context.ResourceId, cancellation);
-                        return row?.Step == "invitation-persisted" ? ManagementIdentityReconciliation.Applied : ManagementIdentityReconciliation.Absent;
+                        return row?.Step == "invitation-persisted" && row.DeliveryStatus != "pending" ? ManagementIdentityReconciliation.Applied : ManagementIdentityReconciliation.Absent;
                     }, async (context, cancellation) => {
                         var row = await Read(actor, context.ResourceId, cancellation);
                         if (row is null) {

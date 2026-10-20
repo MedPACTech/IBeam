@@ -21,3 +21,5 @@ Issue an independent management.identity.info machine credential through trusted
 The portal separately opts into AddIBeamManagementCustomerIdentityApi(configuration), preserving its support login and customer-store isolation. Existing diagnostics-only connection registration and public constructors remain available. Never send machine keys or target storage credentials to a browser.
 
 Enterprise onboarding HTTP and portal registration, safe business status, scoped operation polling and explicit retry: [API contract](../docs/management/enterprise-onboarding-api.md).
+
+Approved tenant roles and invitation-only customer provisioning: [registration and API contract](../docs/management/customer-provisioning.md). Catalog visibility uses the independent roles.read grant; no account/membership is created before customer verification.

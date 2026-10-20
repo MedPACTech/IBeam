@@ -12,15 +12,16 @@ public sealed partial class TenantInviteService : IExternalTenantInviteService
             if (_invites is not IExternalTenantInviteStore store || _externalRoles is null || request is null || request.TenantId == Guid.Empty ||
                 request.InviteId == Guid.Empty || request.Actor is null || request.Actor.OperationId == Guid.Empty ||
                 request.Actor.OrganizationId == Guid.Empty || request.Actor.UserId == Guid.Empty || request.Actor.ApplicationId == Guid.Empty ||
-                request.Token.Length < 43 || request.Token.Length > 128 || request.RoleIds.Count is < 1 or > 4 ||
-                request.RoleIds.Any(x => x == Guid.Empty) || request.ExpiresUtc <= DateTimeOffset.UtcNow ||
+                request.Token.Length < 43 || request.Token.Length > 128 || request.RoleIds.Count is < 1 or > 8 ||
+                request.RoleIds.Any(x => x == Guid.Empty) || request.ApprovedRoleNames is not { Count: > 0 and <= 32 } ||
+                request.ApprovedRoleNames.Any(x => string.IsNullOrWhiteSpace(x) || x.Length > 100 || x.Any(char.IsControl) || x.Contains('*') || x.Contains('?')) || request.ExpiresUtc <= DateTimeOffset.UtcNow ||
                 request.ExpiresUtc - request.CreatedUtc > TimeSpan.FromDays(7)) throw new IdentityValidationException("External invitation is invalid.");
             _ = await _tenants.FindByIdAsync(request.TenantId, cancellation) ?? throw new IdentityValidationException("Tenant not found.");
             var destination = NormalizeDestination(new(TenantInviteDestinationTypes.Email, Email: request.Email));
             // Roles must already exist locally (normally seeded by tenant lifecycle hooks). No role creation here.
             foreach (var id in request.RoleIds) {
                 var role = await _externalRoles.GetRoleAsync(request.TenantId, id, cancellation);
-                if (role is null || role.TenantId != request.TenantId || !role.IsActive || role.Name is not ("Admin" or "Owner"))
+                if (role is null || role.TenantId != request.TenantId || !role.IsActive || !request.ApprovedRoleNames.Contains(role.Name, StringComparer.Ordinal))
                     throw new IdentityValidationException("External invitation role is unavailable.");
             }
             var row = new TenantInviteRecord(request.InviteId, request.TenantId, destination.Item1, destination.Item2,

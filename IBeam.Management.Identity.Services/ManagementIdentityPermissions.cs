@@ -11,7 +11,7 @@ public static class ManagementIdentityPermissions
             : [];
     public static bool ValidCustomerDelegations(ManagementIdentityOptions options) => options.CustomerDelegations is { Count: <= 1000 } &&
         options.CustomerDelegations.All(x => x is not null && x.UserId != Guid.Empty && x.ApplicationId != Guid.Empty &&
-            x.Operations is { Length: > 0 and <= 13 } && x.Operations.All(ManagementCustomerIdentityPermissionPolicy.IsAssignable) &&
+            x.Operations is { Length: > 0 } && x.Operations.Length < ManagementCustomerIdentityOperations.All.Count && x.Operations.All(ManagementCustomerIdentityPermissionPolicy.IsAssignable) &&
             x.Operations.Distinct(StringComparer.Ordinal).Count() == x.Operations.Length) &&
         options.CustomerDelegations.Select(x => (x.UserId, x.ApplicationId)).Distinct().Count() == options.CustomerDelegations.Count;
     public static IReadOnlyList<string> ForRoles(IEnumerable<string> roles)

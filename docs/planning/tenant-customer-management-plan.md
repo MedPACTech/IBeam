@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0108 are complete (58 points); 9 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0109 are complete (63 points); 8 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -404,22 +404,24 @@ Feature acceptance:
 
 ### IBM-0109 / TCM-012: Add approved role catalog and target customer provisioning adapter
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 120. Hubbsly ID: d63fbbd6-863c-4e0a-aa14-32460571b041.
+Estimate: **5 points**. Lane: Done. Delivery order: 120. Hubbsly ID: d63fbbd6-863c-4e0a-aa14-32460571b041.
 
 Dependencies: IBM-0102, IBM-0104.
 
-Add GET /api/management-identity/tenants/{tenantId}/assignable-roles and POST /tenants/{tenantId}/users/provision. IManagementCustomerProvisioningService coordinates ITenantUserProvisioningService/ITenantInviteService via a management-aware actor context. Initial release is invitation-based provisioning for both new and existing users; no temporary password, forced email verification, automatic takeover or silent privileged membership linking. Host-approved role catalog is limited to the selected tenant.
+Implemented target roles.read catalog and strict tenant-scoped invitation-only provisioning with host-approved roles, stable recipient/policy deduplication, fixed-route idempotency, private recovery journal and safe delivery outcomes. No pre-acceptance account or membership writes. See docs/management/customer-provisioning.md.
 
 Proposed paths: IBeam.Management.Identity.Target.Services/Users/, IBeam.Management.Identity.Target.Api/Controllers/ManagementCustomerUsersController.cs, IBeam.Identity.Services/Tenants/TenantUserProvisioningService.cs, IBeam.Identity/Models/TenantUserProvisioningModels.cs, IBeam.Tests.Management.CustomerIdentity/. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Provision requires users.provision, invites.manage and roles.assign for requested roles on both sides; catalog visibility never grants assignment permission.
-- [ ] Only host-allowlisted tenant role IDs/templates are returned/accepted; support, cross-tenant and caller-invented roles or access-grant payloads are rejected.
-- [ ] New users receive the existing secure invitation/password-setup path; existing users prove recipient ownership before gaining the new tenant membership.
-- [ ] Existing user email/password/global state and other tenant memberships are preserved; email matching is target-local and does not leak cross-app/global user existence.
-- [ ] Idempotent retries produce one effective invitation/provisioning outcome per tenant/recipient/policy and safe operation references, including crash after user or invitation persistence.
-- [ ] Pending invites, active members, disabled members, duplicate recipients, disabled tenants, role-policy denials and provider failure have documented safe outcomes.
+- [x] Provision requires users.provision, invites.manage and roles.assign for requested roles on both sides; catalog visibility never grants assignment permission.
+- [x] Only host-allowlisted tenant role IDs/templates are returned/accepted; support, cross-tenant and caller-invented roles or access-grant payloads are rejected.
+- [x] New users receive the existing secure invitation/password-setup path; existing users prove recipient ownership before gaining the new tenant membership.
+- [x] Existing user email/password/global state and other tenant memberships are preserved; email matching is target-local and does not leak cross-app/global user existence.
+- [x] Idempotent retries produce one effective invitation/provisioning outcome per tenant/recipient/policy and safe operation references, including crash after user or invitation persistence.
+- [x] Pending invites, active members, disabled members, duplicate recipients, disabled tenants, role-policy denials and provider failure have documented safe outcomes.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 975 tests passed, zero failures/skips; eight packages built/packed/inspected. Native Azure role/invitation provisioning, read-only catalog, scoped signed HTTP, duplicate/crash recovery and existing-account preservation verified. See Hubbsly IBM-0109.
 
 ### IBM-0110 / TCM-013: Implement paged invitation lifecycle with safe resend and revoke
 

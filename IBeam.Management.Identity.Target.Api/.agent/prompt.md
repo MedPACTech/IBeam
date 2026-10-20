@@ -7,3 +7,5 @@ IBM-0105 explicitly adds tenant administration and receipt modules. Keep POST/PA
 IBM-0106 receipt resolution is a fixed signed POST operations/resolve with an Idempotency-Key header and scope-only DTO. It performs no customer/operation mutation. Advertise the receipt protocol only with an installed endpoint and usable lookup adapter; require current original authority and fresh replay-protected proof.
 
 IBM-0108 onboarding POST/retry are explicit opt-in, typed and delegated under independent create/retry composite authority. Retry body is strictly empty JSON and cannot change intent. Operation GET/resolve use the query service for read-only authoritative onboarding status; never equate processing success with customer acceptance. Controllers preserve IBeam envelopes and use 202 until business completion.
+
+IBM-0109 role catalog requires its independent roles.read grant. Provisioning requires users.provision plus invitation/role prerequisites and strict recipient/policy/role-ID input, without passwords/redirects/access grants. These target modules are opt-in; portal provisioning/lifecycle comes in IBM-0111.

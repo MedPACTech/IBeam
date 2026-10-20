@@ -23,6 +23,8 @@ public sealed class ExternalTenantInviteRequest
     [System.Text.Json.Serialization.JsonIgnore] public string Email { get; init; } = "";
     [System.Text.Json.Serialization.JsonIgnore] public string Token { get; init; } = "";
     public required IReadOnlyList<Guid> RoleIds { get; init; }
+    /// <summary>Trusted host policy result, never accepted from a customer/management HTTP body.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public IReadOnlyList<string> ApprovedRoleNames { get; init; } = ["Admin", "Owner"];
     public required DateTimeOffset CreatedUtc { get; init; }
     public required DateTimeOffset ExpiresUtc { get; init; }
     public override string ToString() => "External invitation request (recipient and token redacted)";

@@ -17,7 +17,7 @@ public static class ManagementCustomerIdentityTargetServiceExtensions
             .Bind(configuration.GetSection(ManagementCustomerIdentityTargetOptions.SectionName))
             .Validate(x => x.IdentityRealmId != Guid.Empty && x.DedicatedApplicationRealm,
                 "An explicit non-empty customer Identity realm and DedicatedApplicationRealm=true are required. Shared app realms need a trusted scope adapter before support.")
-            .Validate(x => x.EnabledOperations is { Length: <= 13 } &&
+            .Validate(x => x.EnabledOperations is not null && x.EnabledOperations.Length < ManagementCustomerIdentityOperations.All.Count &&
                 x.EnabledOperations.All(ManagementCustomerIdentityPermissionPolicy.IsAssignable) &&
                 x.EnabledOperations.Distinct(StringComparer.Ordinal).Count() == x.EnabledOperations.Length,
                 "EnabledOperations must contain distinct, explicit customer operation names; wildcard/default authority is not supported.")
