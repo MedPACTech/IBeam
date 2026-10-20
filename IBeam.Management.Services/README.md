@@ -1,5 +1,7 @@
 # IBeam.Management.Services
 
+IBM-0106 adds bounded signed tenant mutations and stateless encrypted operation references. A fresh authorization budget follows target timeouts; no generic write retry or tenant payload persistence is introduced. Lookup is a scoped read-only target request. See docs/management/customer-tenant-portal-writes.md.
+
 IBM-0105 extends delegated request binding to include an optional If-Match digest. Version changes cannot be substituted under a signed mutation proof. Target tenant creation/rename is documented in docs/management/customer-tenant-administration.md; portal write forwarding follows separately.
 
 IBM-0104 adds safe selected-app operation receipt forwarding. Non-GET delegated assertions bind the Idempotency-Key as well as exact method/path/body. See docs/management/customer-identity-operations.md.

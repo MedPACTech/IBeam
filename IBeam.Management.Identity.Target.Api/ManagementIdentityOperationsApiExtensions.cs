@@ -13,6 +13,7 @@ public static class ManagementIdentityOperationsApiExtensions
     public static IServiceCollection AddIBeamManagementIdentityOperationsApi(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddIBeamManagementIdentityOperations(configuration);
+        services.AddSingleton<IManagementIdentityReceiptProtocol, ReceiptProtocol>();
         services.AddSingleton<IManagementCustomerIdentityCapability, Capability>();
         services.AddHostedService<DependencyValidator>();
         services.AddControllers().ConfigureApplicationPartManager(x => {
@@ -24,11 +25,12 @@ public static class ManagementIdentityOperationsApiExtensions
         public string Operation => ManagementCustomerIdentityOperations.OnboardingRead;
         public Type RequiredServiceType => typeof(IManagementIdentityOperationService);
     }
+    private sealed class ReceiptProtocol : IManagementIdentityReceiptProtocol { public int Version => 1; }
     private sealed class Feature : IApplicationFeatureProvider<ControllerFeature>
     {
         public void PopulateFeature(IEnumerable<ApplicationPart> parts, ControllerFeature feature) {
-            var type = typeof(ManagementIdentityOperationsController).GetTypeInfo();
-            if (!feature.Controllers.Contains(type)) feature.Controllers.Add(type); }
+            foreach (var type in new[] { typeof(ManagementIdentityOperationsController), typeof(ManagementIdentityOperationLookupController) }.Select(x => x.GetTypeInfo()))
+                if (!feature.Controllers.Contains(type)) feature.Controllers.Add(type); }
     }
     private sealed class DependencyValidator(IServiceScopeFactory scopes) : IHostedService
     {

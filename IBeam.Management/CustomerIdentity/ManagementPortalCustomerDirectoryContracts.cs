@@ -27,6 +27,12 @@ public interface IManagementCustomerIdentityClient
     Task<T> FindAsync<T>(ManagementCustomerIdentityConnection connection, Guid? tenantId, Guid id, CancellationToken ct = default) where T : class;
     Task<ManagementIdentityOperationDto> GetOperationAsync(ManagementCustomerIdentityConnection connection, Guid operationId, string authority,
         CancellationToken ct = default) => throw new ManagementCustomerIdentityUnavailableException();
+    Task<ManagementTenantMutationResult> CreateTenantAsync(ManagementCustomerIdentityConnection connection, CreateManagementCustomerTenant request,
+        string idempotencyKey, CancellationToken ct = default) => throw new ManagementCustomerIdentityUnavailableException();
+    Task<ManagementTenantMutationResult> RenameTenantAsync(ManagementCustomerIdentityConnection connection, Guid tenantId, RenameManagementCustomerTenant request,
+        string expectedVersion, string idempotencyKey, CancellationToken ct = default) => throw new ManagementCustomerIdentityUnavailableException();
+    Task<ManagementIdentityOperationDto?> ResolveOperationAsync(ManagementCustomerIdentityConnection connection, ManagementIdentityOperationLookup request,
+        string idempotencyKey, string authority, CancellationToken ct = default) => throw new ManagementCustomerIdentityUnavailableException();
 }
 public interface IManagementPortalCustomerDirectory<T> where T : class
 {

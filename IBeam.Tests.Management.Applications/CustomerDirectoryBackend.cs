@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using IBeam.Management;
 using IBeam.Management.CustomerIdentity;
 using Microsoft.AspNetCore.WebUtilities;
@@ -17,11 +18,22 @@ internal sealed class CustomerDirectoryBackend : IManagementDelegatedActorProvid
     public Guid Operation { get; } = Guid.NewGuid();
     public Dictionary<string, (Guid App, ManagementCustomerIdentityInfo Info, string Key)> Targets { get; } = [];
     public List<(Guid App, string Operation, string Path)> Assertions { get; } = [];
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (Guid App, string Operation, string Path, string Method, string? Key, string? Version, byte[] Body)> _proofs = [];
+    public bool EnableMutations { get; set; }
+    public int MutationCalls { get; private set; }
+    public int MutationWrites { get; private set; }
+    public int LookupCalls { get; private set; }
+    public List<string> MutationProofs { get; } = [];
+    public Func<CancellationToken, Task>? DuringMutation { get; set; }
+    private sealed record TenantState(Guid Id, string Name, string Version, string? Reference);
+    private sealed record MutationState(string Fingerprint, ManagementIdentityOperationDto Receipt, ManagementCustomerTenantDto Tenant, string? Reference);
+    private readonly Dictionary<(string Host, string Operation, string Key, Guid Scope), MutationState> _mutations = [];
+    private readonly Dictionary<(string Host, Guid Id), TenantState> _tenantStates = [];
     public int Calls { get; private set; }
     public bool Empty { get; set; }
     public string? Failure { get; set; }
     public Func<CancellationToken, Task>? DuringData { get; set; }
-    public async Task<Guid> AddApp(PortalHttpFixture f, string key = "qurvia", string[]? human = null, bool includeOperations = false)
+    public async Task<Guid> AddApp(PortalHttpFixture f, string key = "qurvia", string[]? human = null, bool includeOperations = false, bool includeMutations = false)
     {
         var id = await f.Data.AddApp(key);
         var grants = human ?? ReadOperations;
@@ -33,16 +45,21 @@ internal sealed class CustomerDirectoryBackend : IManagementDelegatedActorProvid
         var row = f.Data.Credentials.Rows.Single(x => x.ApplicationId == id);
         var info = new ManagementCustomerIdentityInfo(key, "Production", Guid.NewGuid(), "dedicated-app", 1,
             new[] { ManagementCustomerIdentityOperations.Info }.Concat(ReadOperations)
-                .Concat(includeOperations ? new[] { ManagementCustomerIdentityOperations.TenantsCreate, ManagementCustomerIdentityOperations.OnboardingRead } : []).ToArray());
+                .Concat(includeOperations || includeMutations ? new[] { ManagementCustomerIdentityOperations.TenantsCreate, ManagementCustomerIdentityOperations.OnboardingRead } : [])
+                .Concat(includeMutations ? new[] { ManagementCustomerIdentityOperations.TenantsUpdate } : []).ToArray()) {
+                    OperationReceiptProtocolVersion = includeMutations ? 1 : 0 };
         f.Data.Credentials.Rows[f.Data.Credentials.Rows.IndexOf(row)] = row with { Capabilities = info.Capabilities, CustomerIdentity = new("available", info) };
         Targets[new Uri(row.BaseUrl).Host] = (id, info, ConnectionFixture.Key + "-" + key);
         return id;
     }
     public Task<ManagementActorAssertion> IssueAsync(Guid app, string operation, ManagementDelegationRequest request, CancellationToken ct = default)
     {
-        Assert.AreEqual("GET", request.Method); Assert.AreEqual(0, request.Body.Length);
-        Assertions.Add((app, operation, request.PathAndQuery));
-        return Task.FromResult(new ManagementActorAssertion { Value = "fixture-actor", ExpiresUtc = DateTimeOffset.UtcNow.AddSeconds(30) });
+        if (request.Method == "GET") { Assert.AreEqual(0, request.Body.Length); Assert.IsNull(request.IdempotencyKey); Assert.IsNull(request.IfMatch); }
+        else Assert.IsTrue(IBeam.Management.Services.CustomerIdentity.Delegation.ManagementDelegationBinding.ValidIdempotencyKey(request.IdempotencyKey));
+        var value = "fixture-actor-" + Guid.NewGuid().ToString("N");
+        lock (Assertions) Assertions.Add((app, operation, request.PathAndQuery));
+        _proofs[value] = (app, operation, request.PathAndQuery, request.Method, request.IdempotencyKey, request.IfMatch, request.Body.ToArray());
+        return Task.FromResult(new ManagementActorAssertion { Value = value, ExpiresUtc = DateTimeOffset.UtcNow.AddSeconds(30) });
     }
     public sealed class Handler(CustomerDirectoryBackend backend) : HttpMessageHandler
     { protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) => backend.Handle(request, ct); }
@@ -55,15 +72,27 @@ internal sealed class CustomerDirectoryBackend : IManagementDelegatedActorProvid
         if (uri.AbsolutePath.EndsWith("/info", StringComparison.Ordinal)) {
             Assert.IsFalse(request.Headers.Contains("X-IBeam-Management-Actor"));
             var info = Failure == "realm" ? target.Info with { IdentityRealmId = Guid.NewGuid() } : target.Info;
+            if (Failure == "old-receipt-protocol") info = info with { OperationReceiptProtocolVersion = 0 };
             return Response(info); }
-        Assert.AreEqual("fixture-actor", request.Headers.GetValues("X-IBeam-Management-Actor").Single());
-        var proof = Assertions.Last(); Assert.AreEqual(target.App, proof.App); Assert.AreEqual(uri.PathAndQuery, proof.Path);
+        var assertion = request.Headers.GetValues("X-IBeam-Management-Actor").Single();
+        var proof = _proofs[assertion]; Assert.AreEqual(target.App, proof.App); Assert.AreEqual(uri.PathAndQuery, proof.Path); Assert.AreEqual(request.Method.Method, proof.Method);
+        CollectionAssert.AreEqual(proof.Body, request.Content is null ? Array.Empty<byte>() : await request.Content.ReadAsByteArrayAsync(ct));
+        Assert.AreEqual(proof.Key, request.Headers.TryGetValues("Idempotency-Key", out var keys) ? keys.Single() : null);
+        Assert.AreEqual(proof.Version, request.Headers.TryGetValues("If-Match", out var versions) ? versions.Single() : null);
+        if (EnableMutations && (uri.AbsolutePath == "/api/management-identity/operations/resolve" || request.Method != HttpMethod.Get))
+            return await Mutate(request, proof.Operation, assertion, ct);
+        if (EnableMutations && uri.AbsolutePath.Contains("/operations/", StringComparison.Ordinal)) {
+            lock (_mutations) {
+                var found = _mutations.Where(x => x.Key.Host == uri.Host).Select(x => x.Value).SingleOrDefault(x => uri.AbsolutePath.EndsWith(x.Receipt.OperationId.ToString("D"), StringComparison.Ordinal));
+                return found is null ? new(HttpStatusCode.NotFound) : Response(found.Receipt);
+            }
+        }
         if (uri.AbsolutePath.Contains("/operations/", StringComparison.Ordinal)) {
             Assert.AreEqual(ManagementCustomerIdentityOperations.TenantsCreate, proof.Operation);
             var now = DateTimeOffset.UtcNow;
             return Response(new { operationId = Failure == "receipt-id" ? Guid.NewGuid() : Operation,
                 operation = Failure == "receipt-authority" ? ManagementCustomerIdentityOperations.TenantsUpdate : ManagementCustomerIdentityOperations.TenantsCreate,
-                status = "succeeded", step = 1, resourceId = Tenant, createdUtc = now.AddMinutes(-2), updatedUtc = now,
+                status = "succeeded", step = Failure == "receipt-step" ? 0 : 1, resourceId = Tenant, createdUtc = now.AddMinutes(-2), updatedUtc = now,
                 expiresUtc = now.AddDays(1), fingerprint = Canary, body = Canary });
         }
         var resource = uri.AbsolutePath.Contains("/users", StringComparison.Ordinal) ? "users" : uri.AbsolutePath.Contains("/invites", StringComparison.Ordinal) ? "invites" : "tenants";
@@ -88,4 +117,46 @@ internal sealed class CustomerDirectoryBackend : IManagementDelegatedActorProvid
             continuationToken = query.ContainsKey("continuationToken") ? null : "provider-next" }) };
     }
     private static HttpResponseMessage Response(object data) => new(HttpStatusCode.OK) { Content = JsonContent.Create(new { success = true, data }) };
+    private async Task<HttpResponseMessage> Mutate(HttpRequestMessage request, string operation, string assertion, CancellationToken ct)
+    {
+        var uri = request.RequestUri!; var key = request.Headers.GetValues("Idempotency-Key").Single();
+        var bytes = await request.Content!.ReadAsByteArrayAsync(ct);
+        if (uri.AbsolutePath == "/api/management-identity/operations/resolve") {
+            var lookup = JsonSerializer.Deserialize<ManagementIdentityOperationLookup>(bytes, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+            Assert.AreEqual(operation, lookup.Operation); LookupCalls++;
+            lock (_mutations) return _mutations.TryGetValue((uri.Host, operation, key, lookup.ResourceScope), out var found) ? Response(found.Receipt) : new(HttpStatusCode.NotFound);
+        }
+        MutationState state;
+        var create = request.Method == HttpMethod.Post;
+        var id = create ? Guid.Empty : Guid.Parse(uri.Segments.Last());
+        Assert.AreEqual(create ? ManagementCustomerIdentityOperations.TenantsCreate : ManagementCustomerIdentityOperations.TenantsUpdate, operation);
+        var version = request.Headers.TryGetValues("If-Match", out var values) ? values.Single() : null;
+        var fingerprint = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)) + ":" + version;
+        using var body = JsonDocument.Parse(bytes); var name = body.RootElement.GetProperty("name").GetString()!;
+        string? reference = create && body.RootElement.TryGetProperty("externalReference", out var ext) ? ext.GetString() : null;
+        lock (_mutations) {
+            MutationCalls++; MutationProofs.Add(assertion);
+            var identity = (uri.Host, operation, key, id);
+            if (_mutations.TryGetValue(identity, out var old)) {
+                if (old.Fingerprint != fingerprint) return new(HttpStatusCode.Conflict) { Content = new StringContent(Canary) };
+                state = old;
+            } else {
+                if (create) id = _tenantStates.ContainsKey((uri.Host, Tenant)) ? Guid.NewGuid() : Tenant;
+                else if (!_tenantStates.TryGetValue((uri.Host, id), out var existing)) return new(HttpStatusCode.NotFound);
+                else if (existing.Version != version) return new(HttpStatusCode.PreconditionFailed) { Content = new StringContent(Canary) };
+                var current = new TenantState(id, name, Guid.NewGuid().ToString(), reference ?? (_tenantStates.TryGetValue((uri.Host, id), out var existingRow) ? existingRow.Reference : null));
+                _tenantStates[(uri.Host, id)] = current; MutationWrites++;
+                var now = DateTimeOffset.UtcNow;
+                var receipt = new ManagementIdentityOperationDto(Guid.NewGuid(), operation, "succeeded", 1, id, now, now, now.AddDays(1));
+                state = new(fingerprint, receipt, new(id, name, "Active", now, now, current.Version), current.Reference);
+                _mutations.Add(identity, state);
+            }
+        }
+        if (DuringMutation is not null) await DuringMutation(ct);
+        if (Failure == "after-commit-timeout") await Task.Delay(Timeout.Infinite, ct);
+        if (Failure == "after-commit-malformed") return new(HttpStatusCode.Created) { Content = new StringContent(Canary) };
+        if (Failure == "after-commit-503") return new(HttpStatusCode.ServiceUnavailable) { Content = new StringContent(Canary) };
+        return new(create ? HttpStatusCode.Created : HttpStatusCode.OK) { Content = JsonContent.Create(new { success = true,
+            data = new { operation = state.Receipt, tenant = state.Tenant, source = "support-provisioned", externalReference = state.Reference, profile = Canary, password = Canary } }) };
+    }
 }

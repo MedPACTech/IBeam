@@ -25,7 +25,7 @@ public sealed class PortalIdentityOperationTests
         Assert.AreEqual(2, f.Audit.Rows.Count(x => x.Operation == "management.portal.customer-identity.operations.read" && x.Succeeded));
     }
     [TestMethod]
-    [DataRow("receipt-id")] [DataRow("receipt-authority")]
+    [DataRow("receipt-id")] [DataRow("receipt-authority")] [DataRow("receipt-step")]
     public async Task ReceiptSubstitutionFromATargetFailsClosed(string failure)
     {
         await using var f = await PortalHttpFixture.CreateAsync(install: false, customerOperations: true);

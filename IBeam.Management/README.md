@@ -1,5 +1,7 @@
 # IBeam.Management
 
+IBM-0106 adds safe portal mutation/tracking contracts, typed operation lookup and optional operationReceiptProtocolVersion discovery. These are independent of grants and keep core free of Identity/HTTP dependencies. See docs/management/customer-tenant-portal-writes.md.
+
 IBM-0105 adds typed tenant create/rename commands, safe operation/tenant results and separate provenance/external-reference metadata ports. No Identity or ASP.NET dependency is added to core. See docs/management/customer-tenant-administration.md.
 
 Transport-independent contracts for support management. This package has no Identity, ASP.NET Core, service or repository dependency.

@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0105 are complete (40 points); 12 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0106 are complete (45 points); 11 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -264,9 +264,9 @@ Feature dependencies: TCM-F01, TCM-F02.
 
 Feature acceptance:
 
-- [ ] Retries do not duplicate tenants or overwrite concurrent changes.
-- [ ] Mutation receipts and safe audit intent survive process restarts and uncertain target responses.
-- [ ] Existing tenants remain usable and portal staff are not automatically linked to customer organizations.
+- [x] Retries do not duplicate tenants or overwrite concurrent changes.
+- [x] Mutation receipts and safe audit intent survive process restarts and uncertain target responses.
+- [x] Existing tenants remain usable and portal staff are not automatically linked to customer organizations.
 
 ### IBM-0104 / TCM-007: Persist target operation receipts, idempotency and safe mutation audit
 
@@ -312,7 +312,7 @@ Verification evidence: 907 tests passed, zero failures/skips; eight packages pac
 
 ### IBM-0106 / TCM-009: Expose portal tenant create and update with operation reconciliation
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 90. Hubbsly ID: 2a754d75-3fdc-4a4c-9dd1-9d0ae99f7d33.
+Estimate: **5 points**. Lane: Done. Delivery order: 90. Hubbsly ID: 2a754d75-3fdc-4a4c-9dd1-9d0ae99f7d33.
 
 Dependencies: IBM-0103, IBM-0104, IBM-0105.
 
@@ -320,14 +320,16 @@ Add POST /api/management/applications/{applicationId}/tenants and PATCH /tenants
 
 Proposed paths: IBeam.Management.Api/Controllers/ManagementTenantsController.cs, IBeam.Management.Api/Controllers/ManagementIdentityOperationsController.cs, IBeam.Management.Services/CustomerIdentity/, IBeam.Tests.Management.CustomerIdentity/, docs/management/customer-identity-api.md. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Create and rename each require their own live human grant and target machine capability; tenants.read or support administration alone cannot mutate.
-- [ ] Portal preserves one idempotency identity across target retries and issues a fresh signed assertion per attempt; non-idempotent writes are never retried blindly by generic HTTP resilience policies.
-- [ ] Lost/timeout responses return a safe pending/unknown operation reference with a documented reconciliation path; the UI is never told a tenant definitely failed when the target may have committed.
-- [ ] Version/If-Match is preserved without weakening provider compare-and-swap; stale or missing versions use the documented conflict/precondition responses.
-- [ ] Thin controllers delegate to service operations and audit captures actor, app, tenant ID, outcome and correlation without raw request content.
-- [ ] HTTP tests prove two-app isolation, duplicate submissions, concurrent rename, target timeout after commit and revocation before retry.
+- [x] Create and rename each require their own live human grant and target machine capability; tenants.read or support administration alone cannot mutate.
+- [x] Portal preserves one idempotency identity across target retries and issues a fresh signed assertion per attempt; non-idempotent writes are never retried blindly by generic HTTP resilience policies.
+- [x] Lost/timeout responses return a safe pending/unknown operation reference with a documented reconciliation path; the UI is never told a tenant definitely failed when the target may have committed.
+- [x] Version/If-Match is preserved without weakening provider compare-and-swap; stale or missing versions use the documented conflict/precondition responses.
+- [x] Thin controllers delegate to service operations and audit captures actor, app, tenant ID, outcome and correlation without raw request content.
+- [x] HTTP tests prove two-app isolation, duplicate submissions, concurrent rename, target timeout after commit and revocation before retry.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 638 Management tests passed, zero failures/skips; five packages packed and inspected. Two-app mutations, after-commit uncertainty, strict versions, stateless scoped tracking and read-only signed lookup verified. See Hubbsly IBM-0106.
 
 ## TCM-F04: Enterprise onboarding and first administrator invitation
 

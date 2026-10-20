@@ -39,6 +39,8 @@ public static class ManagementDelegationBinding
     public static bool IsReceiptRead(ManagementDelegationRequest request) => request.Method == "GET" &&
         request.PathAndQuery.StartsWith("/api/management-identity/operations/", StringComparison.Ordinal) &&
         Guid.TryParseExact(request.PathAndQuery["/api/management-identity/operations/".Length..], "D", out var id) && id != Guid.Empty;
+    public static bool IsReceiptRequest(ManagementDelegationRequest request) => IsReceiptRead(request) ||
+        request.Method == "POST" && request.PathAndQuery == "/api/management-identity/operations/resolve";
     public static bool ValidName(string? name) => !string.IsNullOrWhiteSpace(name) && name.Length <= 200 && !name.Any(char.IsControl);
     public static bool ValidKey(SecurityKey key) => key is RsaSecurityKey && key.KeySize >= 2048 &&
         key.KeyId is { Length: > 0 and <= 100 } && key.KeyId.All(x => char.IsAsciiLetterOrDigit(x) || x is '-' or '_');

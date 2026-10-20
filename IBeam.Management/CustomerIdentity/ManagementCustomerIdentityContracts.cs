@@ -23,7 +23,12 @@ public static class ManagementCustomerIdentityOperations
 }
 
 public sealed record ManagementCustomerIdentityInfo(string ApplicationKey, string Environment,
-    Guid IdentityRealmId, string RealmScope, int ProtocolVersion, IReadOnlyList<string> Capabilities);
+    Guid IdentityRealmId, string RealmScope, int ProtocolVersion, IReadOnlyList<string> Capabilities)
+{
+    /// <summary>Optional read-only reconciliation protocol, independent of operation grants. Zero means unavailable.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int OperationReceiptProtocolVersion { get; init; }
+}
 
 public static class ManagementCustomerIdentityStatuses
 {

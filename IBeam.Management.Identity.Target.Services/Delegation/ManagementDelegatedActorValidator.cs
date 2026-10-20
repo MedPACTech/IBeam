@@ -34,7 +34,7 @@ internal sealed class ManagementDelegatedActorValidator(ManagementCustomerIdenti
             try
             {
                 var receipt = operation is null;
-                if (assertion is not { Length: > 0 and <= 8192 } || receipt && !ManagementDelegationBinding.IsReceiptRead(request) ||
+                if (assertion is not { Length: > 0 and <= 8192 } || receipt && !ManagementDelegationBinding.IsReceiptRequest(request) ||
                     !receipt && ManagementDelegationBinding.Mutating(operation!) && request.Method == "GET")
                     throw new ManagementAccessDeniedException();
                 ValidateShape(assertion);

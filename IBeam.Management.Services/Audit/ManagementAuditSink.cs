@@ -58,8 +58,12 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
         var entry = new ManagementAuditEntity { AuditId = Guid.NewGuid(), OccurredUtc = now, ExpiresUtc = now.AddDays(options.Value.RetentionDays),
             OrganizationId = org, ActorUserId = actor, CredentialId = credential, SubjectType = subject,
             ApplicationId = delegated?.ApplicationId ?? (isApp ? transaction.EntityId : null),
-            SubjectId = transaction.Action == "management.support-users.disable" || delegated is not null && transaction.Action.StartsWith("management.identity.", StringComparison.Ordinal)
-                ? transaction.EntityId : null,
+            SubjectId = transaction.Action.StartsWith("management.portal.customer-identity.tenants.create.", StringComparison.Ordinal) ||
+                transaction.Action.StartsWith("management.portal.customer-identity.tenants.update.", StringComparison.Ordinal) ||
+                transaction.Action.StartsWith("management.portal.customer-identity.operations.reconcile.", StringComparison.Ordinal)
+                ? !transaction.Action.EndsWith(".unknown", StringComparison.Ordinal) && transaction.TenantId is { } target && target != Guid.Empty ? target : null :
+                transaction.Action == "management.support-users.disable" || delegated is not null && transaction.Action.StartsWith("management.identity.", StringComparison.Ordinal)
+                    ? transaction.EntityId : null,
             ApplicationKey = subject == ManagementSubjectTypes.Credential ? deployment.Value.ApplicationKey : null,
             Environment = subject == ManagementSubjectTypes.Credential ? deployment.Value.Environment : null,
             Operation = transaction.Action, Succeeded = transaction.Succeeded, CorrelationId = context.CorrelationId };

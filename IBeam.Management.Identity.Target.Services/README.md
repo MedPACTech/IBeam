@@ -1,5 +1,7 @@
 # IBeam.Management.Identity.Target.Services
 
+IBM-0106 adds scoped receipt lookup by the original idempotency identity without customer payloads or writes. It reconstructs the existing operation ID under live authority and never executes mutation handlers. See docs/management/customer-tenant-portal-writes.md.
+
 IBM-0105 adds ManagementTenantAdministrationService over existing Identity lifecycle services, durable operation receipts and separate source/reference/phase metadata. Stable IDs and conditional writes recover incomplete consumer extensions. No customer membership/default tenant/role/token is assigned. See docs/management/customer-tenant-administration.md.
 
 IBM-0104 adds durable operation reservation, canonical keyed fingerprints, ETag claims, stable resource IDs, reconciliation and repeatable metadata audit delivery. Business handlers must use conditional downstream writes; leases alone cannot provide exactly-once behavior. See docs/management/customer-identity-operations.md.

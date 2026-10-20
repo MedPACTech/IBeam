@@ -1,5 +1,7 @@
 # IBeam.Management.Api
 
+IBM-0106 adds AddIBeamManagementPortalTenantAdministrationApi: selected-app tenant POST/PATCH with independent live grants, exact signed versions and one idempotent intent across caller retries. Unknown replies return encrypted tracking references with read-only reconciliation. See docs/management/customer-tenant-portal-writes.md.
+
 IBM-0104 adds AddIBeamManagementPortalIdentityOperationsApi for selected-app operation receipts with original operation authority, live assignment/connection checks and bounded signed HTTPS. See docs/management/customer-identity-operations.md.
 
 Optional customer-management discovery: after the normal support authentication and storage registrations, call AddIBeamManagementCustomerIdentityApi(configuration). This adds GET /api/management/applications/{applicationId}/customer-management and independent target module negotiation. It reports the last verified connection metadata and still requires a live app assignment. It does not register customer Identity or expose tenant/user data. See docs/management/customer-identity-discovery.md.

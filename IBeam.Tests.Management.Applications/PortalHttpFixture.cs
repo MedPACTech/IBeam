@@ -25,7 +25,7 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
     public Guid OtherOrg { get; } = Guid.NewGuid();
     public Guid ForeignUser { get; } = Guid.NewGuid();
     public CustomerDirectoryBackend Directories { get; } = new();
-    public static async Task<PortalHttpFixture> CreateAsync(bool install = true, bool selector = false, bool audit = false, bool customerIdentity = false, bool customerDirectories = false, bool customerOperations = false)
+    public static async Task<PortalHttpFixture> CreateAsync(bool install = true, bool selector = false, bool audit = false, bool customerIdentity = false, bool customerDirectories = false, bool customerOperations = false, bool customerMutations = false)
     {
         var f = new PortalHttpFixture();
         f.Data.Access.Users[(f.Data.Access.Org, f.OtherUser)] = new(f.Data.Access.Org, f.OtherUser, true, false);
@@ -39,6 +39,9 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
             ["IBeam:Management:PortalDiagnostics:TimeoutSeconds"] = "1",
             ["IBeam:Management:PortalCustomerIdentity:ProtectionKey"] = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)),
             ["IBeam:Management:PortalCustomerIdentity:TimeoutSeconds"] = "1" });
+        b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
+            ["IBeam:Management:PortalCustomerIdentity:Mutations:AttemptTimeoutSeconds"] = "1",
+            ["IBeam:Management:PortalCustomerIdentity:Mutations:AuthorizationTimeoutSeconds"] = "1" });
         b.Services.AddSingleton(f);
         b.Services.AddAuthentication("Customer").AddScheme<AuthenticationSchemeOptions, PortalAuthentication>("Customer", _ => {})
             .AddScheme<AuthenticationSchemeOptions, PortalAuthentication>("Support", _ => {});
@@ -54,7 +57,7 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
         if (install) b.Services.AddIBeamManagementPortalDiagnosticsApi(b.Configuration);
         if (selector) b.Services.AddIBeamManagementApplicationSelectorApi(b.Configuration);
         if (customerIdentity) b.Services.AddIBeamManagementCustomerIdentityApi(b.Configuration);
-        if (customerDirectories || customerOperations) {
+        if (customerDirectories || customerOperations || customerMutations) {
             b.Services.AddSingleton<IBeam.Management.CustomerIdentity.IManagementDelegatedActorProvider>(f.Directories);
             b.Services.AddSingleton<IBeam.Management.CustomerIdentity.IManagementCustomerIdentityClient>(provider =>
                 new IBeam.Management.Services.CustomerIdentity.ManagementCustomerIdentityClient(f.Data.Network,
@@ -62,6 +65,7 @@ internal sealed class PortalHttpFixture : IAsyncDisposable
                     { TestTransportFactory = () => new CustomerDirectoryBackend.Handler(f.Directories) });
             if (customerDirectories) b.Services.AddIBeamManagementPortalCustomerDirectoriesApi(b.Configuration);
             if (customerOperations) b.Services.AddIBeamManagementPortalIdentityOperationsApi(b.Configuration);
+            if (customerMutations) { f.Directories.EnableMutations = true; b.Services.AddIBeamManagementPortalTenantAdministrationApi(b.Configuration); }
         }
         if (audit) { b.Services.AddSingleton<IManagementAuditRepository>(f.Audit); b.Services.AddIBeamManagementAudit(b.Configuration); }
         f.App = b.Build(); f.App.UseAuthentication(); f.App.UseAuthorization(); f.App.MapControllers();

@@ -11,8 +11,9 @@ namespace IBeam.Management.Identity.Target.Services.Operations;
 /// <summary>Durable orchestration only. Each business adapter must reconcile and use stable-ID/ETag downstream writes.</summary>
 public sealed class ManagementIdentityOperationService(IManagementIdentityOperationRepository repository,
     IManagementIdentityOperationAuditRepository audit, IManagementCustomerIdentityTargetAccessService access,
-    IOptions<ManagementIdentityOperationOptions> options, TimeProvider clock, IServiceOperationExecutor operations) : IManagementIdentityOperationService
+    IOptions<ManagementIdentityOperationOptions> options, TimeProvider clock, IServiceOperationExecutor operations) : IManagementIdentityOperationService, IManagementIdentityOperationLookupService
 {
+    public bool SupportsLookup => true;
     public Task<ManagementIdentityOperationDto> ExecuteAsync(ManagementIdentityMutationRequest request, IManagementIdentityMutationHandler handler, CancellationToken ct = default)
         => Run("execute", async token =>
         {
@@ -93,6 +94,22 @@ public sealed class ManagementIdentityOperationService(IManagementIdentityOperat
         => Run("read", async token => {
             var actor = await access.RequireAsync(authority, token);
             var row = await Require(operationId, actor, authority, token);
+            await access.RequireAsync(authority, token);
+            return Project(row);
+        }, ct);
+    public Task<ManagementIdentityOperationDto> ResolveAsync(ManagementIdentityOperationLookup request, string idempotencyKey, string authority, CancellationToken ct = default)
+        => Run("resolve", async token => {
+            var actor = await access.RequireAsync(authority, token);
+            if (request is null || !ManagementDelegationBinding.ValidIdempotencyKey(idempotencyKey) || !ManagementDelegationBinding.Mutating(request.Operation) ||
+                request.ExistingResourceId == Guid.Empty) throw new ManagementCustomerIdentityInvalidRequestException();
+            if (request.Operation != authority && !(authority == ManagementCustomerIdentityOperations.OnboardingRead &&
+                request.Operation is ManagementCustomerIdentityOperations.OnboardingCreate or ManagementCustomerIdentityOperations.OnboardingRetry))
+                throw new ManagementAccessDeniedException();
+            var binding = JsonSerializer.Serialize(new { scope = Scope(actor), actor.ApplicationKey, actor.Environment,
+                request.Operation, request.ResourceScope, request.ExistingResourceId });
+            var key = Convert.FromBase64String(options.Value.FingerprintKey);
+            var id = new Guid(HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(binding + "\n" + idempotencyKey)).AsSpan(0, 16));
+            var row = await Require(id, actor, authority, token);
             await access.RequireAsync(authority, token);
             return Project(row);
         }, ct);

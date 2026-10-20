@@ -8,6 +8,7 @@ using IBeam.Management.Identity.Target.Services.Operations;
 using IBeam.Management.Repositories.AzureTable;
 using IBeam.Services.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 namespace IBeam.Tests.Management.CustomerIdentity;
 
 [TestClass]
@@ -29,6 +30,7 @@ public sealed class OperationStorageHttpTests
             var unit = new OperationFixture { Actor = new(f.Organization, f.User, f.Application, DiscoveryProtocolTests.Info.IdentityRealmId,
                 f.Credentials.Row.CredentialId, "atlas", "Testing", ManagementCustomerIdentityOperations.TenantsCreate,
                 Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(1), new string('a',32)) };
+            unit.Options.FingerprintKey = f.App.Services.GetRequiredService<IOptions<ManagementIdentityOperationOptions>>().Value.FingerprintKey;
             IManagementIdentityOperationService Restart() => new ManagementIdentityOperationService(repository, audit, unit,
                 Options.Create(unit.Options), unit.Clock, new ServiceOperationExecutor());
             var handler = new TableHandler(customerTable) { FailAfterWrite = true };
@@ -52,6 +54,14 @@ public sealed class OperationStorageHttpTests
                 Assert.AreEqual("no-store", response.Headers.CacheControl!.ToString());
             }
             Assert.HasCount(0, f.Replay.Claims);
+            var lookupBody = JsonSerializer.SerializeToUtf8Bytes(new ManagementIdentityOperationLookup(ManagementCustomerIdentityOperations.TenantsCreate, Guid.Empty, null),
+                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            const string lookupPath = "/api/management-identity/operations/resolve";
+            var operationVersion = (await repository.GetAsync(scope, done.OperationId))!.Version;
+            using var resolved = await f.Send(await f.Issue(ManagementCustomerIdentityOperations.TenantsCreate, "POST", lookupPath, lookupBody, "request-12345678"),
+                "POST", lookupPath, lookupBody, "request-12345678");
+            Assert.AreEqual(HttpStatusCode.OK, resolved.StatusCode, await resolved.Content.ReadAsStringAsync());
+            Assert.AreEqual(operationVersion, (await repository.GetAsync(scope, done.OperationId))!.Version); Assert.AreEqual(1, handler.Writes);
             using var wrong = await f.Send(await f.Issue(ManagementCustomerIdentityOperations.TenantsRead, path: path), path: path);
             Assert.AreEqual(HttpStatusCode.Unauthorized, wrong.StatusCode);
             using var unrelated = await f.Send(await f.Issue(ManagementCustomerIdentityOperations.OnboardingRead, path: path), path: path);

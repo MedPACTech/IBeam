@@ -32,6 +32,7 @@ internal sealed class ManagementApplicationApiFilter : IResourceFilter, IActionF
             IBeam.Management.CustomerIdentity.ManagementCustomerIdentityResponseException => 502,
             IBeam.Management.CustomerIdentity.ManagementCustomerIdentityRateLimitException => 429,
             IBeam.Management.CustomerIdentity.ManagementIdentityOperationConflictException => 409,
+            IBeam.Management.CustomerIdentity.ManagementCustomerIdentityPreconditionException => 412,
             IBeam.Management.Models.DiagnosticQueryException or IBeam.Management.Models.DiagnosticTokenException => 400,
             IBeam.Management.Models.ManagementDiagnosticNotFoundException => 404,
             IBeam.Management.Models.ManagementDiagnosticUnavailableException => 503,

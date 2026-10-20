@@ -47,7 +47,9 @@ public sealed class ManagementCustomerIdentityInfoService(IManagementPrincipalPr
                 ManagementCustomerIdentityPermissionPolicy.RequiredFor(x).All(required => capabilities.Contains(required, StringComparer.Ordinal))).ToList();
             var result = new ManagementCustomerIdentityInfo(configured.ApplicationKey, configured.Environment,
                 realm.IdentityRealmId, ManagementCustomerIdentityProtocol.DedicatedRealm, ManagementCustomerIdentityProtocol.Version,
-                Array.AsReadOnly(capabilities.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()));
+                Array.AsReadOnly(capabilities.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray())) {
+                    OperationReceiptProtocolVersion = provider.GetService<IManagementIdentityReceiptProtocol>()?.Version == 1 &&
+                        provider.GetService<IManagementIdentityOperationLookupService>()?.SupportsLookup == true ? 1 : 0 };
             ManagementCustomerIdentityProtocol.Validate(result);
             return result;
         }, new ServiceOperationExecutionOptions { OperationName = ManagementCustomerIdentityOperations.Info,

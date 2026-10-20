@@ -15,6 +15,14 @@ public static class ManagementIdentityOperationServiceExtensions
             .Validate(x => x.IsValid(), "A stable 32-byte operation fingerprint key and bounded retention/lease/timeout/attempt settings are required.").ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddScoped<IManagementIdentityOperationService, ManagementIdentityOperationService>();
+        services.TryAddScoped<IManagementIdentityOperationLookupService>(p => p.GetRequiredService<IManagementIdentityOperationService>()
+            as IManagementIdentityOperationLookupService ?? new UnavailableLookup());
         return services;
+    }
+    private sealed class UnavailableLookup : IManagementIdentityOperationLookupService
+    {
+        public bool SupportsLookup => false;
+        public Task<ManagementIdentityOperationDto> ResolveAsync(ManagementIdentityOperationLookup request, string key, string authority, CancellationToken ct = default)
+            => Task.FromException<ManagementIdentityOperationDto>(new ManagementCustomerIdentityUnavailableException());
     }
 }

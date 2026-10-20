@@ -46,4 +46,14 @@ public interface IManagementPortalIdentityOperationService
 {
     Task<ManagementIdentityOperationDto> GetAsync(Guid applicationId, Guid operationId, string authority, CancellationToken ct = default);
 }
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ManagementIdentityOperationLookup(string Operation, Guid ResourceScope, Guid? ExistingResourceId)
+{ public override string ToString() => "Operation lookup (scope redacted)"; }
+public interface IManagementIdentityOperationLookupService
+{
+    bool SupportsLookup { get; }
+    Task<ManagementIdentityOperationDto> ResolveAsync(ManagementIdentityOperationLookup request, string idempotencyKey, string authority, CancellationToken ct = default);
+}
+/// <summary>Registered by an installed target receipt endpoint module, not by storage/services alone.</summary>
+public interface IManagementIdentityReceiptProtocol { int Version { get; } }
 public sealed class ManagementIdentityOperationConflictException() : Exception("The management operation conflicts with an existing request.");
