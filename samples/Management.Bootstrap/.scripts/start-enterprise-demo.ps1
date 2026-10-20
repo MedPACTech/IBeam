@@ -1,4 +1,4 @@
-param([string]$HostRoot,[Parameter(Mandatory=$true)][string]$PackageFeed,[string]$Instance='management-enterprise',[int]$ApiPort=5155,[int]$TablePort=15122,[int]$FirstTargetPort=5255)
+param([string]$HostRoot,[string]$PackageFeed,[string]$Instance='management-enterprise',[int]$ApiPort=5155,[int]$TablePort=15122,[int]$FirstTargetPort=5255)
 $ErrorActionPreference='Stop'
 . "$PSScriptRoot/common.ps1"
 & "$PSScriptRoot/start-all.ps1" -HostRoot $RepoRoot -PackageFeed $PackageFeed -Instance $Instance -ApiPort $ApiPort -TablePort $TablePort -Demo

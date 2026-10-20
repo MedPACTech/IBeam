@@ -2,12 +2,12 @@
 
 This versioned sample runs a support API from IBeam NuGets and, optionally, three separate synthetic customer Identity API processes. The frontend requires only the running support API URL and a normal support login. No framework ProjectReferences or customer-specific backend are used.
 
-The tested build is `2.16.0-dev.tcm.117.1`. Generate its local package feed using `scripts/Test-ManagementCustomerIdentityPackages.ps1` in the framework root, or use the matching packages supplied by the operator. These scripts restore from the supplied local feed plus nuget.org. They do not publish packages or deploy services. Requirements: PowerShell 7, .NET 10, Node.js and Azurite Table (`npm install -g azurite@3.35.0`).
+The bootstrap consumes stable `2.16.0` packages from NuGet.org. For local validation, generate a matching feed using `scripts/Test-ManagementCustomerIdentityPackages.ps1` and supply `-PackageFeed <absolute-feed-path>`. With no feed supplied, startup restores published packages from NuGet.org. They do not publish packages or deploy services. Requirements: PowerShell 7, .NET 10, Node.js and Azurite Table (`npm install -g azurite@3.35.0`).
 
 From this sample directory:
 
 ```powershell
-./.scripts/start-enterprise-demo.ps1 -PackageFeed ../../_tmp_pkg_smoke/tcm-117-final/feed
+./.scripts/start-enterprise-demo.ps1
 ./.scripts/test-enterprise-demo.ps1
 ./.scripts/stop-all.ps1 -Instance management-enterprise
 ```
