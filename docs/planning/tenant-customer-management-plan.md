@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Status: implementation in progress; complete and merge cards in order.
 
-Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0111 are complete (73 points); 6 cards remain in Triage. The epic is visible in active Work Epics.
+Hubbsly: iBeam project / Tenant and Customer User Management / 42983501-610a-498d-a61e-b89469759f09. Epic stage: in_flight. IBM-0098 through IBM-0112 are complete (78 points); 5 cards remain in Triage. The epic is visible in active Work Epics.
 
 Estimate: **104 points across 8 features and 20 cards**. Card estimates use Fibonacci points; feature estimates are their sums and are included in Hubbsly feature outcomes.
 
@@ -481,22 +481,24 @@ Feature acceptance:
 
 ### IBM-0112 / TCM-015: Manage tenant membership status and approved roles without global account changes
 
-Estimate: **5 points**. Lane: Triage. Delivery order: 150. Hubbsly ID: ef522ad3-49a9-43cd-8cc6-680c64bfa566.
+Estimate: **5 points**. Lane: Done. Delivery order: 150. Hubbsly ID: ef522ad3-49a9-43cd-8cc6-680c64bfa566.
 
 Dependencies: IBM-0109, IBM-0111, IBM-0104.
 
-Add PATCH /tenants/{tenantId}/users/{userId}/membership for isEnabled and PUT /tenants/{tenantId}/users/{userId}/roles for approved role IDs, target and portal mirrors. IManagementCustomerMembershipService calls existing role/membership services through additive versioned ports where needed. Preserve global account state and default-tenant semantics; no password reset, MFA reset, delete or impersonation endpoints.
+Implemented independent versioned membership status and approved-role replacement at target and portal, atomic tenant-partition final-administrator protection, native writer participation and safe projection recovery. Required standard JWT/live refresh enforcement and explicit custom-host integration are documented in docs/management/customer-membership-lifecycle.md.
 
 Proposed paths: IBeam.Management.Identity.Target.Services/Users/, IBeam.Management.Identity.Target.Api/Controllers/ManagementCustomerUsersController.cs, IBeam.Management.Api/Controllers/ManagementCustomerUsersController.cs, IBeam.Identity/Interfaces/, IBeam.Identity.Services/Tenants/, IBeam.Identity.Repositories.AzureTable/Stores/. Paths beginning IBeam.ADMIN.API refer to the separate temporary consumer host, not a new framework directory.
 
-- [ ] Membership enable/disable requires memberships.manage; role changes require roles.assign and the approved target-local role catalog.
-- [ ] Both operations require expected versions and idempotency, are serialized/guarded per tenant where needed, and cannot disable/demote the final eligible administrator under concurrent requests.
-- [ ] Disabling a membership preserves the customer's global account and other memberships; re-enable never restores privileges that were separately removed.
-- [ ] Effective access is rejected at customer tenant authorization/refresh boundaries with documented bounded revocation semantics; a test covers an already-issued customer token.
-- [ ] Rejected or partially completed changes leave a reconcilable operation/audit result and never silently report success; reasons use bounded safe codes without arbitrary sensitive free text.
-- [ ] Cross-app/tenant IDs, privilege escalation, stale versions, multi-tenant accounts and concurrent last-administrator changes are covered by service and provider tests.
+- [x] Membership enable/disable requires memberships.manage; role changes require roles.assign and the approved target-local role catalog.
+- [x] Both operations require expected versions and idempotency, are serialized/guarded per tenant where needed, and cannot disable/demote the final eligible administrator under concurrent requests.
+- [x] Disabling a membership preserves the customer's global account and other memberships; re-enable never restores privileges that were separately removed.
+- [x] Effective access is rejected at customer tenant authorization/refresh boundaries with documented bounded revocation semantics; a test covers an already-issued customer token.
+- [x] Rejected or partially completed changes leave a reconcilable operation/audit result and never silently report success; reasons use bounded safe codes without arbitrary sensitive free text.
+- [x] Cross-app/tenant IDs, privilege escalation, stale versions, multi-tenant accounts and concurrent last-administrator changes are covered by service and provider tests.
 
 Verification: Focused service/HTTP tests and isolated provider fixtures demonstrate the checklist; build/pack changed packages, preserve existing customer and diagnostics behavior, and document public contracts. One card must leave the repository buildable.
+
+Verification evidence: 1032 tests passed with zero failures/skips, including forced Azure Table last-admin races and real issued-token/refresh revocation; nine changed packages packed and inspected locally at 2.16.0-dev.tcm.112.
 
 ### IBM-0113 / TCM-016: Expose scoped tenant disable/reactivate and enforce customer access status
 

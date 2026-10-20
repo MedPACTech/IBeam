@@ -14,7 +14,8 @@ public sealed class ManagementAssignableRoleCatalogService(IManagementAssignable
     public Task<IReadOnlyList<ManagementAssignableRoleDto>> RequireAsync(Guid tenantId, string policyKey, IReadOnlyList<Guid> roleIds, string authority, CancellationToken ct = default)
         => Run(tenantId, authority, async token => {
             if (authority is not (ManagementCustomerIdentityOperations.UsersProvision or ManagementCustomerIdentityOperations.RolesAssign)) throw new ManagementAccessDeniedException();
-            if (policyKey is null || !options.Value.Policies.ContainsKey(policyKey) || roleIds is not { Count: > 0 and <= 8 } ||
+            if (policyKey is null || !options.Value.Policies.ContainsKey(policyKey) || roleIds is null || roleIds.Count > 8 ||
+                authority == ManagementCustomerIdentityOperations.UsersProvision && roleIds.Count == 0 ||
                 roleIds.Any(x => x == Guid.Empty) || roleIds.Distinct().Count() != roleIds.Count) throw new ManagementCustomerIdentityInvalidRequestException();
             var tenant = await tenants.FindByIdAsync(tenantId, token) ?? throw new ManagementCustomerIdentityNotFoundException();
             if (!tenant.IsActive) throw new ManagementIdentityOperationConflictException();

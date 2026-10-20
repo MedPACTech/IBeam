@@ -1756,3 +1756,5 @@ public sealed class PatientController : ControllerBase
 - Consuming API migration prompt: [`../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md`](../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
 
 Agents should keep controllers thin. Identity API controllers should expose service behavior, not duplicate service-layer auth, tenant, role, grant, or audit rules.
+
+IBM-0112 versioned tenant membership/role administration, concurrent final-administrator protection and required customer access enforcement: [lifecycle contract](../docs/management/customer-membership-lifecycle.md).

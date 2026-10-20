@@ -12,6 +12,11 @@ public sealed class TenantRoleService : ITenantRoleService
     private readonly ITenantExtensionCoordinator _tenantExtensions;
     private readonly IIdentityUserStore? _users;
     private readonly IServiceOperationExecutor _operations;
+    private IIdentityTenantMembershipAdministrationService? _membershipAdministration;
+
+    public TenantRoleService(IIdentityTenantMembershipAdministrationService administration, ITenantRoleStore roles,
+        ITenantExtensionCoordinator tenantExtensions, IIdentityUserStore? users = null, IServiceOperationExecutor? operations = null)
+        : this(roles, tenantExtensions, users, operations) => _membershipAdministration = administration;
 
     public TenantRoleService(ITenantRoleStore roles)
         : this(roles, new NoOpTenantExtensionCoordinator())
@@ -216,12 +221,13 @@ public sealed class TenantRoleService : ITenantRoleService
             new ServiceOperationExecutionOptions { TenantId = tenantId, EntityId = userId },
             ct);
 
-    private Task<UserTenantRoleAssignment> RevokeRolesCoreAsync(Guid tenantId, Guid userId, IReadOnlyList<Guid> roleIds, CancellationToken ct)
+    private async Task<UserTenantRoleAssignment> RevokeRolesCoreAsync(Guid tenantId, Guid userId, IReadOnlyList<Guid> roleIds, CancellationToken ct)
     {
         ValidateTenantId(tenantId);
         ValidateUserId(userId);
         ValidateRoleIds(roleIds);
-        return _roles.RevokeRolesAsync(tenantId, userId, roleIds, ct);
+        if (_membershipAdministration is not null && await _membershipAdministration.RevokeProtectedRolesAsync(tenantId, userId, roleIds, ct) is { } guarded) return guarded;
+        return await _roles.RevokeRolesAsync(tenantId, userId, roleIds, ct);
     }
 
     [IBeamOperation("identity.tenantroles.user.list")]

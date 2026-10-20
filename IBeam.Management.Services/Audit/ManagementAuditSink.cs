@@ -64,6 +64,8 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
                 transaction.Action.StartsWith("management.portal.customer-identity.users.provision.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.invites.resend.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.invites.revoke.", StringComparison.Ordinal) ||
+                transaction.Action.StartsWith("management.portal.customer-identity.memberships.manage.", StringComparison.Ordinal) ||
+                transaction.Action.StartsWith("management.portal.customer-identity.roles.assign.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.operations.reconcile.", StringComparison.Ordinal)
                 ? !transaction.Action.EndsWith(".unknown", StringComparison.Ordinal) && transaction.TenantId is { } target && target != Guid.Empty ? target : null :
                 transaction.Action == "management.support-users.disable" || delegated is not null && transaction.Action.StartsWith("management.identity.", StringComparison.Ordinal)

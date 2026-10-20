@@ -235,13 +235,14 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         try
         {
             ct.ThrowIfCancellationRequested();
+            await TenantMembershipPartition.RequireLegacyDestructiveWrite(TenantUsersTable(), _opts.TenantUsersPk(tenantId), ct).ConfigureAwait(false);
             var roleIdsSet = roleIds.ToHashSet();
             var roles = await GetRoleMapAsync(tenantId, ct).ConfigureAwait(false);
             var result = await UpdateMembershipRolesAsync(tenantId, userId, current =>
             {
                 current.ExceptWith(roleIdsSet);
                 return current;
-            }, roles.Values.ToList(), ct).ConfigureAwait(false);
+            }, roles.Values.ToList(), ct, true).ConfigureAwait(false);
             return result;
         }
         catch (Exception ex)
@@ -306,13 +307,13 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         Guid userId,
         Func<HashSet<Guid>, HashSet<Guid>> roleIdMutation,
         IReadOnlyList<TenantRole> activeRoles,
-        CancellationToken ct)
+        CancellationToken ct, bool destructive = false)
     {
         for (var attempt = 0; attempt < 5; attempt++)
         {
             try
             {
-                return await UpdateMembershipRolesOnceAsync(tenantId, userId, roleIdMutation, activeRoles, ct)
+                return await UpdateMembershipRolesOnceAsync(tenantId, userId, roleIdMutation, activeRoles, ct, destructive)
                     .ConfigureAwait(false);
             }
             catch (RequestFailedException ex) when (ex.Status == 412 && attempt < 4)
@@ -328,7 +329,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         Guid userId,
         Func<HashSet<Guid>, HashSet<Guid>> roleIdMutation,
         IReadOnlyList<TenantRole> activeRoles,
-        CancellationToken ct)
+        CancellationToken ct, bool destructive = false)
     {
         var userIdStr = userId.ToString("D");
         var tenantUserResp = await TenantUsersTable()
@@ -362,7 +363,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         userTenant.RoleIdsCsv = roleIdsCsv;
         userTenant.RolesCsv = rolesCsv;
 
-        await TenantUsersTable().UpdateEntityAsync(tenantUser, tenantUser.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+        await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, destructive).ConfigureAwait(false);
         await UserTenantsTable().UpdateEntityAsync(userTenant, userTenant.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
 
         return new UserTenantRoleAssignment(tenantId, userId, effectiveRoles);
@@ -441,6 +442,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         if (tenantUserResp.HasValue)
         {
             var tenantUser = tenantUserResp.Value;
+            if (!IsActive(tenantUser.Status)) throw new IdentityValidationException("Disabled membership requires explicit administration.");
             tenantUser.Status = "Active";
             tenantUser.DisabledAt = null;
             tenantUser.DisabledReason = null;
@@ -448,13 +450,13 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                 tenantUser.Email = userEmail;
             if (!string.IsNullOrWhiteSpace(userPhoneNumber))
                 tenantUser.PhoneNumber = userPhoneNumber;
-            await tenantUsers.UpdateEntityAsync(tenantUser, tenantUser.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+            await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct).ConfigureAwait(false);
         }
         else
         {
             try
             {
-                await tenantUsers.AddEntityAsync(new TenantUserEntity
+                await TenantMembershipPartition.Write(tenantUsers, new TenantUserEntity
                 {
                     PartitionKey = tenantUserPk,
                     RowKey = tenantUserRk,
@@ -464,7 +466,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                     Email = userEmail,
                     PhoneNumber = userPhoneNumber,
                     CreatedAt = now
-                }, ct).ConfigureAwait(false);
+                }, true, ct).ConfigureAwait(false);
             }
             catch (RequestFailedException ex) when (ex.Status == 409)
             {
@@ -476,6 +478,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                     throw;
 
                 var tenantUser = existing.Value;
+                if (!IsActive(tenantUser.Status)) throw new IdentityValidationException("Disabled membership requires explicit administration.");
                 tenantUser.Status = "Active";
                 tenantUser.DisabledAt = null;
                 tenantUser.DisabledReason = null;
@@ -483,7 +486,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                     tenantUser.Email = userEmail;
                 if (!string.IsNullOrWhiteSpace(userPhoneNumber))
                     tenantUser.PhoneNumber = userPhoneNumber;
-                await tenantUsers.UpdateEntityAsync(tenantUser, tenantUser.ETag, TableUpdateMode.Replace, ct)
+                await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct)
                     .ConfigureAwait(false);
             }
         }
@@ -700,7 +703,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
 
         foreach (var tenantUser in affectedTenantUsers)
         {
-            await TenantUsersTable().UpdateEntityAsync(tenantUser, tenantUser.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+            await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct).ConfigureAwait(false);
 
             var userId = tenantUser.UserId;
             var userTenantResp = await UserTenantsTable()
@@ -739,7 +742,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
 
         foreach (var tenantUser in affectedTenantUsers)
         {
-            await TenantUsersTable().UpdateEntityAsync(tenantUser, tenantUser.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+            await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct).ConfigureAwait(false);
 
             var userId = tenantUser.UserId;
             var userTenantResp = await UserTenantsTable()

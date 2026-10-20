@@ -75,9 +75,11 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         IManagementCustomerUserReadRepository? users = null, IManagementCustomerInvitationReadRepository? invites = null,
         IManagementIdentityOperationRepository? operations = null, IManagementIdentityOperationAuditRepository? operationAudit = null,
         IIdentityTenantStore? tenantStore = null, IManagementTenantAdministrationRepository? tenantMetadata = null, bool compositeOnboarding = false,
-        OnboardingFixture? onboarding = null, ProvisioningFixture? provisioning = null, InvitationLifecycleFixture? invitations = null)
+        OnboardingFixture? onboarding = null, ProvisioningFixture? provisioning = null, InvitationLifecycleFixture? invitations = null,
+        MembershipStorageFixture? memberships = null, IIdentityTenantMembershipConditionalStore? membershipWrites = null)
     {
         var f = new DelegationFixture();
+        if (memberships is not null) { operations ??= new OperationStore(); tenantStore ??= memberships.Tenants; }
         if (invitations is not null) {
             operations ??= new OperationStore(); tenantStore ??= invitations.Data.Data.Tenants.Store;
             var rows = new TenantRows(); rows.Rows.Clear(); rows.Rows.Add(new(invitations.Tenant.ToString("D"), "Private", "PRIVATE", "Active", null, null, "v1"));
@@ -97,6 +99,8 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         if (provisioning is not null) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Concat(
             ManagementCustomerIdentityPermissionPolicy.RequiredFor(ManagementCustomerIdentityOperations.UsersProvision)).Append(ManagementCustomerIdentityOperations.RolesRead).Distinct().ToArray() };
         if (invitations is not null) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Append(ManagementCustomerIdentityOperations.InvitesManage).ToArray() };
+        if (memberships is not null) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Concat(new[] {
+            ManagementCustomerIdentityOperations.MembershipsManage, ManagementCustomerIdentityOperations.RolesAssign }).Distinct().ToArray() };
         b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
             ["IBeam:Management:Diagnostics:ApplicationKey"] = "atlas", ["IBeam:Management:Diagnostics:Environment"] = "Testing",
             ["IBeam:Management:CustomerIdentity:IdentityRealmId"] = DiscoveryProtocolTests.Info.IdentityRealmId.ToString(),
@@ -116,7 +120,7 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             ["IBeam:Management:CustomerIdentity:Operations:FingerprintKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) });
         if (tenantMetadata is not null) b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
             ["IBeam:Management:CustomerIdentity:EnabledOperations:5"] = ManagementCustomerIdentityOperations.TenantsUpdate });
-        if (compositeOnboarding || provisioning is not null || invitations is not null) b.Configuration.AddInMemoryCollection(ManagementCustomerIdentityOperations.All.Where(ManagementCustomerIdentityPermissionPolicy.IsAssignable)
+        if (compositeOnboarding || provisioning is not null || invitations is not null || memberships is not null) b.Configuration.AddInMemoryCollection(ManagementCustomerIdentityOperations.All.Where(ManagementCustomerIdentityPermissionPolicy.IsAssignable)
             .Select((operation, index) => new KeyValuePair<string, string?>("IBeam:Management:CustomerIdentity:EnabledOperations:" + index, operation)));
         b.Services.AddSingleton(f);
         b.Services.AddSingleton<IManagementApiCredentialRepository>(f.Credentials);
@@ -172,6 +176,19 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             b.Services.AddSingleton<IManagementCustomerInvitationTransitionRepository>(invitations.Journal);
             b.Services.AddSingleton<IManagementCustomerInvitationReadRepository>(invitations);
             b.Services.AddIBeamManagementCustomerInvitationsApi(b.Configuration);
+        }
+        if (memberships is not null) {
+            b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
+                ["IBeam:Management:CustomerIdentity:Provisioning:Policies:default:0"] = "Member",
+                ["IBeam:Management:CustomerIdentity:Provisioning:Policies:administrator:0"] = "Owner",
+                ["IBeam:Management:CustomerIdentity:Memberships:AdministratorRoleNames:0"] = "Owner" });
+            b.Services.PostConfigure<IBeam.Management.Identity.Target.Services.Memberships.ManagementCustomerMembershipOptions>(x => x.AdministratorRoleNames = ["Owner"]);
+            b.Services.AddSingleton<IIdentityTenantStore>(memberships.Tenants); b.Services.AddSingleton<ITenantMembershipStore>(memberships.Members);
+            b.Services.AddSingleton<IIdentityTenantMembershipConditionalStore>(membershipWrites ?? memberships.Members);
+            b.Services.AddSingleton<ITenantRoleStore>(memberships.Roles);
+            b.Services.AddSingleton<IManagementAssignableRoleReadRepository>(new IBeam.Management.Repositories.AzureTable.AzureTableManagementAssignableRoleReadRepository(memberships.RoleTable));
+            b.Services.AddSingleton<IIdentityTenantAccessEnforcement, TestMembershipEnforcement>();
+            b.Services.AddIBeamManagementCustomerMembershipApi(b.Configuration);
         }
         if (tenants is not null)
         {
@@ -242,6 +259,8 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         public void PopulateFeature(IEnumerable<ApplicationPart> parts, ControllerFeature feature) => feature.Controllers.Add(typeof(DelegationProbeController).GetTypeInfo());
     }
     private interface IProbeAdapter;
+    private sealed class TestMembershipEnforcement : IIdentityTenantAccessEnforcement
+    { public int ProtocolVersion => 1; public string Mode => "fixture-custom-auth-integration"; }
     private sealed class ProbeAdapter : IProbeAdapter;
 }
 internal sealed class ReplayStore : IManagementDelegationReplayStore

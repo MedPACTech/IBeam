@@ -8,6 +8,6 @@ public sealed class ManagementCustomerProvisioningOptions
         x.Value.Distinct(StringComparer.Ordinal).Count() == x.Value.Length && x.Value.All(ValidRoleName)) &&
         Policies.Values.SelectMany(x => x).Distinct(StringComparer.Ordinal).Count() <= 32;
     public static bool ValidRoleName(string name) => !string.IsNullOrWhiteSpace(name) && name == name.Trim() && name.Length <= 100 &&
-        !name.Any(char.IsControl) && !name.Contains('*') && !name.Contains('?') &&
+        !name.Any(char.IsControl) && !name.Contains('*') && !name.Contains('?') && !name.Contains(',') &&
         !name.StartsWith("support", StringComparison.OrdinalIgnoreCase) && !name.StartsWith("management.", StringComparison.OrdinalIgnoreCase);
 }

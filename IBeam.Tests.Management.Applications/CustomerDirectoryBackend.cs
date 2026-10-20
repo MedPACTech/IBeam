@@ -33,7 +33,7 @@ internal sealed partial class CustomerDirectoryBackend : IManagementDelegatedAct
     public bool Empty { get; set; }
     public string? Failure { get; set; }
     public Func<CancellationToken, Task>? DuringData { get; set; }
-    public async Task<Guid> AddApp(PortalHttpFixture f, string key = "qurvia", string[]? human = null, bool includeOperations = false, bool includeMutations = false, bool includeOnboarding = false, bool includeProvisioning = false)
+    public async Task<Guid> AddApp(PortalHttpFixture f, string key = "qurvia", string[]? human = null, bool includeOperations = false, bool includeMutations = false, bool includeOnboarding = false, bool includeProvisioning = false, bool includeMemberships = false)
     {
         var id = await f.Data.AddApp(key);
         var grants = human ?? ReadOperations;
@@ -49,7 +49,8 @@ internal sealed partial class CustomerDirectoryBackend : IManagementDelegatedAct
                 .Concat(includeMutations ? new[] { ManagementCustomerIdentityOperations.TenantsUpdate } : [])
                 .Concat(includeOnboarding ? ManagementCustomerIdentityPermissionPolicy.RequiredFor(ManagementCustomerIdentityOperations.OnboardingRetry).Concat(new[] { ManagementCustomerIdentityOperations.OnboardingRead }) : [])
                 .Concat(includeProvisioning ? ManagementCustomerIdentityPermissionPolicy.RequiredFor(ManagementCustomerIdentityOperations.UsersProvision).Append(ManagementCustomerIdentityOperations.RolesRead) : []).Distinct().ToArray()) {
-                    OperationReceiptProtocolVersion = includeMutations || includeOnboarding || includeProvisioning ? 1 : 0 };
+                    OperationReceiptProtocolVersion = includeMutations || includeOnboarding || includeProvisioning || includeMemberships ? 1 : 0 };
+        if (includeMemberships) info = info with { Capabilities = info.Capabilities.Concat(new[] { ManagementCustomerIdentityOperations.MembershipsManage, ManagementCustomerIdentityOperations.RolesAssign }).Distinct().ToArray() };
         f.Data.Credentials.Rows[f.Data.Credentials.Rows.IndexOf(row)] = row with { Capabilities = info.Capabilities, CustomerIdentity = new("available", info) };
         Targets[new Uri(row.BaseUrl).Host] = (id, info, ConnectionFixture.Key + "-" + key);
         return id;
@@ -81,6 +82,8 @@ internal sealed partial class CustomerDirectoryBackend : IManagementDelegatedAct
         CollectionAssert.AreEqual(proof.Body, request.Content is null ? Array.Empty<byte>() : await request.Content.ReadAsByteArrayAsync(ct));
         Assert.AreEqual(proof.Key, request.Headers.TryGetValues("Idempotency-Key", out var keys) ? keys.Single() : null);
         Assert.AreEqual(proof.Version, request.Headers.TryGetValues("If-Match", out var versions) ? versions.Single() : null);
+        if (EnableMemberships && (uri.AbsolutePath.EndsWith("/membership", StringComparison.Ordinal) || uri.AbsolutePath.EndsWith("/roles", StringComparison.Ordinal) ||
+            uri.AbsolutePath.Contains("/operations/", StringComparison.Ordinal))) return await CustomerMembership(request, proof.Operation, ct);
         if (EnableProvisioning && (uri.AbsolutePath.Contains("/assignable-roles", StringComparison.Ordinal) || uri.AbsolutePath.Contains("/users/provision", StringComparison.Ordinal) ||
             uri.AbsolutePath.Contains("/invites", StringComparison.Ordinal) || uri.AbsolutePath.Contains("/operations/", StringComparison.Ordinal)))
             return await CustomerProvisioning(request, proof.Operation, ct);
