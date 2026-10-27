@@ -38,11 +38,19 @@ public sealed partial class AzureTableTenantMembershipStore : IIdentityTenantOwn
         try { await table.UpdateEntityAsync(guard, guard.ETag, TableUpdateMode.Merge, ct); }
         catch (RequestFailedException ex) when (ex.Status is 409 or 412) { throw new IdentityConcurrencyException(); }
     }
-    public async Task<IdentityTenantMembershipSnapshot> ReadSnapshotAsync(Guid tenant, int maximumMembers, CancellationToken ct = default)
+    public Task<IdentityTenantMembershipSnapshot> ReadSnapshotAsync(Guid tenant, int maximumMembers, CancellationToken ct = default)
+        => ReadSnapshotCoreAsync(tenant, maximumMembers, false, ct);
+    private async Task<IdentityTenantMembershipSnapshot> ReadSnapshotCoreAsync(Guid tenant, int maximumMembers, bool existingGuardOnly, CancellationToken ct)
     {
         if (tenant == Guid.Empty || maximumMembers is < 1 or > 5000) throw new IdentityValidationException("Membership snapshot is invalid.");
         var table = GetTenantUsersTable(); var pk = _opts.TenantUsersPk(tenant);
-        var guard = await TenantMembershipPartition.Read(table, pk, ct); var rows = new List<IdentityTenantMembershipState>();
+        TableEntity guard;
+        if (existingGuardOnly) {
+            var existing = await table.GetEntityIfExistsAsync<TableEntity>(pk, TenantMembershipPartition.GuardKey, cancellationToken: ct);
+            if (!existing.HasValue) throw new IdentityValidationException("Configure native ownership protection before ownership administration.");
+            guard = existing.Value;
+        } else guard = await TenantMembershipPartition.Read(table, pk, ct);
+        var rows = new List<IdentityTenantMembershipState>();
         var prefix = _opts.TenantUsersRk("");
         var filter = TableClient.CreateQueryFilter($"PartitionKey eq {pk} and RowKey ge {prefix} and RowKey lt {prefix + '\uffff'}");
         var columns = new[] { "PartitionKey", "RowKey", "TenantId", "UserId", "Status", "RoleIdsCsv", "RolesCsv", "IBeamLastMembershipOperationId" };
