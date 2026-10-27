@@ -54,7 +54,8 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
         // TenantId is assigned by trusted management identity services for invitation/bootstrap calls without a session.
         if (!org.HasValue && transaction.Action is "management.support-invitations.accept" or "management.support-invitations.create" or "management.support-users.disable" or "management.identity.bootstrap")
             org = transaction.TenantId is { } tenant && tenant != Guid.Empty ? tenant : null;
-        var isApp = transaction.Action.StartsWith("management.applications.", StringComparison.Ordinal) ||
+        var registered = _registry.AllowsAudit(transaction.Action) || transaction.Action == "management.operations.lookup";
+        var isApp = registered && subject == ManagementSubjectTypes.Human || transaction.Action.StartsWith("management.applications.", StringComparison.Ordinal) ||
             transaction.Action.StartsWith("management.application-access.", StringComparison.Ordinal) ||
             transaction.Action.StartsWith("management.portal.errors.", StringComparison.Ordinal) || transaction.Action.StartsWith("management.portal.logs.", StringComparison.Ordinal) ||
             transaction.Action.StartsWith("management.portal.customer-identity.", StringComparison.Ordinal);
@@ -68,7 +69,8 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
         var entry = new ManagementAuditEntity { AuditId = Guid.NewGuid(), OccurredUtc = now, ExpiresUtc = now.AddDays(options.Value.RetentionDays),
             OrganizationId = org, ActorUserId = actor, CredentialId = credential, SubjectType = subject,
             ApplicationId = delegated?.ApplicationId ?? (isApp ? transaction.EntityId : null),
-            SubjectId = transaction.Action.StartsWith("management.portal.customer-identity.tenants.create.", StringComparison.Ordinal) ||
+            SubjectId = registered ? subject == ManagementSubjectTypes.Human ? transaction.TenantId : delegated is not null ? transaction.EntityId : null :
+                transaction.Action.StartsWith("management.portal.customer-identity.tenants.create.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.onboarding.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.tenants.update.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.tenants.status.", StringComparison.Ordinal) ||

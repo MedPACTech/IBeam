@@ -61,3 +61,5 @@ Provider or infrastructure integration tests should be opt-in when they require 
 ## Packaging
 
 The `.agent/prompt.md` file is included in the NuGet package by the repository-level packaging rules. Keep it useful for agents consuming the package from source or from the package artifact.
+
+IBM-0127: optional licence status administration requires exact native versions, all-writer fencing and atomic immutable receipts. Keep restore bounded to the original runtime-eligible status plus target-owned policy. Volatile native providers are explicit Development/Testing fixtures only. Typed Management licence adapters and endpoints are opt-in; their signed dispatcher/client is separate. Unknown replies never retry mutations, and polls only read receipts. Preserve metadata-only audit and independent licence grants. See docs/management/license-status-management.md.

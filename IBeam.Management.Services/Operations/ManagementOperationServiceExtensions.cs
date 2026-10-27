@@ -20,12 +20,20 @@ public static class ManagementOperationServiceExtensions
     public static IServiceCollection AddIBeamManagementOperation<TRequest, TResult, THandler>(this IServiceCollection services,
         ManagementOperationDescriptor descriptor) where THandler : class, IManagementOperationHandler<TRequest, TResult>
     {
+        services.AddIBeamManagementOperationContract<TRequest, TResult>(descriptor);
+        services.TryAddScoped<IManagementOperationHandler<TRequest, TResult>, THandler>();
+        return services;
+    }
+
+    /// <summary>Portal-side contract registration. No handler is installed and target discovery cannot advertise it.</summary>
+    public static IServiceCollection AddIBeamManagementOperationContract<TRequest, TResult>(this IServiceCollection services,
+        ManagementOperationDescriptor descriptor)
+    {
         ArgumentNullException.ThrowIfNull(descriptor);
         if (descriptor.HandlerServiceType != typeof(IManagementOperationHandler<TRequest, TResult>))
             throw new ArgumentException("The descriptor must bind the registered typed handler.", nameof(descriptor));
         services.AddIBeamManagementOperationRegistry();
         services.AddSingleton(new Registration(descriptor with { RequiredGrants = Array.AsReadOnly(descriptor.RequiredGrants.ToArray()) }));
-        services.TryAddScoped<IManagementOperationHandler<TRequest, TResult>, THandler>();
         return services;
     }
 

@@ -1,5 +1,7 @@
 # IBeam.Management.Api
 
+IBM-0127 adds explicit `AddIBeamManagementPortalLicenseApi` opt-in for typed read/suspend/restore and receipt lookup routes. Install the optional Licensing portal adapter and a compatible registered-operation client separately; base API registration exposes no licence controller and has no native Licensing dependency. See [licence status management](https://github.com/MedPACTech/IBeam/blob/development/docs/management/license-status-management.md).
+
 IBM-0106 adds AddIBeamManagementPortalTenantAdministrationApi: selected-app tenant POST/PATCH with independent live grants, exact signed versions and one idempotent intent across caller retries. Unknown replies return encrypted tracking references with read-only reconciliation. See docs/management/customer-tenant-portal-writes.md.
 
 IBM-0104 adds AddIBeamManagementPortalIdentityOperationsApi for selected-app operation receipts with original operation authority, live assignment/connection checks and bounded signed HTTPS. See docs/management/customer-identity-operations.md.

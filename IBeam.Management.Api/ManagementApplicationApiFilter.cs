@@ -20,6 +20,10 @@ internal sealed class ManagementApplicationApiFilter : IResourceFilter, IActionF
         {
             ManagementAuditUnavailableException => 503,
             ManagementAccessDeniedException => 403,
+            IBeam.Management.Operations.ManagementOperationInvalidException => 400,
+            IBeam.Management.Operations.ManagementOperationPreconditionException => 412,
+            IBeam.Management.Operations.ManagementOperationConflictException => 409,
+            IBeam.Management.Operations.ManagementOperationUnavailableException => 503,
             ManagementApplicationInvalidException => 400,
             ManagementApplicationNotFoundException => 404,
             ManagementApplicationConflictException => 409,

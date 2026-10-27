@@ -8,6 +8,18 @@ public sealed class TenantLicenseService : ITenantLicenseService
     private readonly ILicensingStore _store;
     private readonly ILicensePlanCatalogProvider _plans;
     private readonly IServiceOperationExecutor _operations;
+    private readonly ITenantLicenseStatusAdministrationService? _status;
+    public int StatusAdministrationProtocolVersion => _status is null ? 0 : 1;
+
+    public TenantLicenseService(ILicensingStore store, ILicensePlanCatalogProvider plans, IServiceOperationExecutor operations,
+        ITenantLicenseStatusAdministrationService status) : this(store, plans, operations) => _status = status;
+    public Task<LicenseStatusSnapshot> ReadStatusAsync(Guid tenantId, Guid licenseId, CancellationToken ct = default)
+        => (_status ?? throw new LicenseStatusUnavailableException()).ReadAsync(tenantId, licenseId, ct);
+    public Task<LicenseStatusReceipt> ChangeStatusAsync(LicenseStatusCommand command, CancellationToken ct = default)
+        => (_status ?? throw new LicenseStatusUnavailableException()).ChangeAsync(command, ct);
+    public Task<LicenseStatusReceipt?> FindStatusOperationAsync(Guid tenantId, Guid licenseId, Guid operationId,
+        string authorityScope, string transition, CancellationToken ct = default)
+        => (_status ?? throw new LicenseStatusUnavailableException()).FindAsync(tenantId, licenseId, operationId, authorityScope, transition, ct);
 
     public TenantLicenseService(
         ILicensingStore store,

@@ -14,6 +14,14 @@ public interface ILicenseProductCatalogProvider
 
 public interface ITenantLicenseService
 {
+    int StatusAdministrationProtocolVersion => 0;
+    /// <summary>Optional trusted administration protocol; unsupported providers fail closed.</summary>
+    Task<LicenseStatusSnapshot> ReadStatusAsync(Guid tenantId, Guid licenseId, CancellationToken ct = default)
+        => throw new LicenseStatusUnavailableException();
+    Task<LicenseStatusReceipt> ChangeStatusAsync(LicenseStatusCommand command, CancellationToken ct = default)
+        => throw new LicenseStatusUnavailableException();
+    Task<LicenseStatusReceipt?> FindStatusOperationAsync(Guid tenantId, Guid licenseId, Guid operationId,
+        string authorityScope, string transition, CancellationToken ct = default) => throw new LicenseStatusUnavailableException();
     Task<IReadOnlyList<TenantLicenseInfo>> ListTenantLicensesAsync(Guid tenantId, CancellationToken ct = default);
     async Task<TenantLicenseInfo?> GetLicenseByKeyAsync(Guid tenantId, Guid licenseKey, CancellationToken ct = default)
     {
