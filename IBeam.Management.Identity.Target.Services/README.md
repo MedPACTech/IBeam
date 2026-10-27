@@ -1,7 +1,5 @@
 # IBeam.Management.Identity.Target.Services
 
-Management invitations created by provisioning, enterprise onboarding and resend use unpadded base64url tokens so their path segments work behind Windows IIS. Tokens retain 256 bits of entropy and raw-token SHA-256 hashing. Existing stored invitations remain valid; consumer hosts may need encoded-plus path compatibility for older links, while encoded-slash links require resend. See [the 2.16.1 patch notes](../docs/releases/2.16.1.md).
-
 IBM-0106 adds scoped receipt lookup by the original idempotency identity without customer payloads or writes. It reconstructs the existing operation ID under live authority and never executes mutation handlers. See docs/management/customer-tenant-portal-writes.md.
 
 IBM-0105 adds ManagementTenantAdministrationService over existing Identity lifecycle services, durable operation receipts and separate source/reference/phase metadata. Stable IDs and conditional writes recover incomplete consumer extensions. No customer membership/default tenant/role/token is assigned. See docs/management/customer-tenant-administration.md.
@@ -23,6 +21,8 @@ IBM-0098 supplies authenticated versioned discovery only. It does not expose cus
 Issue an independent management.identity.info machine credential through trusted existing provisioning tooling. The dedicated named scheme accepts X-IBeam-Management-Key only under /api/management-identity; it leaves customer authentication defaults unchanged. GET /api/management-identity/info returns installed capabilities after live credential checks. No target routes are discovered automatically by merely referencing this package. Missing query adapters cannot advertise customer read capabilities. No schema or customer Identity registration is performed by the discovery module.
 
 The portal separately opts into AddIBeamManagementCustomerIdentityApi(configuration), preserving its support login and customer-store isolation. Existing diagnostics-only connection registration and public constructors remain available. Never send machine keys or target storage credentials to a browser.
+
+Management invitations created by provisioning, enterprise onboarding and resend use unpadded base64url tokens so their path segments work behind Windows IIS. Tokens retain 256 bits of entropy and raw-token SHA-256 hashing. Existing stored invitations remain valid; consumer hosts may need encoded-plus path compatibility for older links, while encoded-slash links require resend. See [the 2.16.1 patch notes](../docs/releases/2.16.1.md).
 
 Enterprise onboarding services and durable invitation recovery are documented in [enterprise onboarding](../docs/management/enterprise-onboarding.md). Target services are opt-in; portal/HTTP integration follows in IBM-0108.
 
