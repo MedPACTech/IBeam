@@ -4,7 +4,7 @@ Created 2026-10-27. Baseline: IBeam 2.16.0. The preceding Management API epics r
 
 Hubbsly epic: `6b9422fc-0205-4c3b-88cb-63ff7f114cd1`. Stage: `in_flight`. Six features, 25 cards, **152 points**.
 
-Completed: **1/25 cards, 5/152 points**.
+Completed: **2/25 cards, 13/152 points**.
 
 Feature points are sums of their cards. Implement in the order below; each card depends on its stated predecessors and must merge into development before the next starts. Future scope stays in triage until selected.
 
@@ -67,7 +67,7 @@ Dependency keys: None.
 
 ### IBM-0122 / MLO-002: Enforce an independent last-owner invariant across native membership writers
 
-**8 points.** Lane: `in_progress`. Order: 20. Dependencies: IBM-0121.
+**8 points.** Lane: `done`. Order: 20. Dependencies: IBM-0121.
 
 Add explicit target/native ownership policy and optional conditional ownership store contracts. Extend the tenant-partition guard to track owner protection separately from administrator protection. All supported role, membership disable/revoke and destructive native writers participate; do not hardcode Owner names or use the legacy tenant owner column. Define global account-disable and unsupported-writer behavior explicitly and fail closed when owner safety cannot be established.
 
@@ -75,12 +75,14 @@ Paths/surfaces: `IBeam.Identity/Interfaces/`; `IBeam.Identity.Services/Tenants/`
 
 Acceptance criteria:
 
-- [ ] Host-owned policy resolves active immutable owner role IDs within the tenant; invalid, ambiguous or missing policy cannot advertise owner-safe capabilities.
-- [ ] A remaining Admin without an Owner does not satisfy owner protection; role removal, membership disable and revocation cannot remove the last eligible owner.
-- [ ] Two same-snapshot writes against different owners have at most one winner using a shared persistence revision; no process-local lock is treated as the authority.
-- [ ] Native role services, invitations/bootstrap and supported membership writers respect the guard; legacy direct destructive paths and global-disable paths have a documented fail-closed boundary.
-- [ ] Providers lacking the new conditional protocol retain existing unrelated behavior and do not advertise ownership transfer; default configurations are not silently granted ownership authority.
-- [ ] Race, retry, unavailable-provider and legacy-role tests preserve other tenants, global identity records and existing last-administrator protection.
+- [x] Host-owned policy resolves active immutable owner role IDs within the tenant; invalid, ambiguous or missing policy cannot advertise owner-safe capabilities.
+- [x] A remaining Admin without an Owner does not satisfy owner protection; role removal, membership disable and revocation cannot remove the last eligible owner.
+- [x] Two same-snapshot writes against different owners have at most one winner using a shared persistence revision; no process-local lock is treated as the authority.
+- [x] Native role services, invitations/bootstrap and supported membership writers respect the guard; legacy direct destructive paths and global-disable paths have a documented fail-closed boundary.
+- [x] Providers lacking the new conditional protocol retain existing unrelated behavior and do not advertise ownership transfer; default configurations are not silently granted ownership authority.
+- [x] Race, retry, unavailable-provider and legacy-role tests preserve other tenants, global identity records and existing last-administrator protection.
+
+Merged implementation: `b423c6450c08215b5e043c89afb60c24cbde0fa2`.
 
 82 focused provider/signed-HTTP/discovery checks and 1,119 fresh NuGet-only regressions passed, zero failures/skips. Built/packed 31 production dependencies at private validation version 2.17.0-dev.mlo.122.3; inspected 16 management package roots; package-only portal/two-target smoke passed. Coverage includes independent owner/admin sets, same-snapshot owner removal races, native role revocation, bootstrap/invitation and legacy-writer fences, immutable role identity, sticky policy, provider outages, exact retry/projection repair, default-off and invalid/incompatible opt-in, and discovery metadata round trips. No stable package release or running app upgrade was performed.
 
@@ -88,7 +90,7 @@ Dependency keys: MLO-001.
 
 ### IBM-0123 / MLO-003: Implement authoritative owner lookup and atomic native ownership transfer
 
-**8 points.** Lane: `triage`. Order: 30. Dependencies: IBM-0122.
+**8 points.** Lane: `ready`. Order: 30. Dependencies: IBM-0122.
 
 Add an optional native ownership service and provider operation that changes the source and destination memberships plus guard in one tenant-partition transaction. Expose current owner IDs and versions from the same authoritative membership model; do not create another unsynchronized OwnerUserId field.
 

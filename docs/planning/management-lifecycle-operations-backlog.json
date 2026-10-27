@@ -95,7 +95,7 @@
             "Race, retry, unavailable-provider and legacy-role tests preserve other tenants, global identity records and existing last-administrator protection."
           ],
           "boardKey": "hub",
-          "laneKey": "in_progress",
+          "laneKey": "done",
           "sourceSystem": "codex",
           "sourceKey": "IBM-0122",
           "sourceUrl": "https://github.com/MedPACTech/IBeam",
@@ -105,8 +105,50 @@
           "dependencySourceKeys": [
             "IBM-0121"
           ],
-          "implementationStatus": "review",
-          "validation": "82 focused provider/signed-HTTP/discovery checks and 1,119 fresh NuGet-only regressions passed, zero failures/skips. Built/packed 31 production dependencies at private validation version 2.17.0-dev.mlo.122.3; inspected 16 management package roots; package-only portal/two-target smoke passed. Coverage includes independent owner/admin sets, same-snapshot owner removal races, native role revocation, bootstrap/invitation and legacy-writer fences, immutable role identity, sticky policy, provider outages, exact retry/projection repair, default-off and invalid/incompatible opt-in, and discovery metadata round trips. No stable package release or running app upgrade was performed."
+          "implementationStatus": "done",
+          "validation": "82 focused provider/signed-HTTP/discovery checks and 1,119 fresh NuGet-only regressions passed, zero failures/skips. Built/packed 31 production dependencies at private validation version 2.17.0-dev.mlo.122.3; inspected 16 management package roots; package-only portal/two-target smoke passed. Coverage includes independent owner/admin sets, same-snapshot owner removal races, native role revocation, bootstrap/invitation and legacy-writer fences, immutable role identity, sticky policy, provider outages, exact retry/projection repair, default-off and invalid/incompatible opt-in, and discovery metadata round trips. No stable package release or running app upgrade was performed.",
+          "builtAgainst": "b423c6450c08215b5e043c89afb60c24cbde0fa2",
+          "actualPaths": [
+            "IBeam.Identity.Repositories.AzureTable/.agent/prompt.md",
+            "IBeam.Identity.Repositories.AzureTable/Extensions/ServiceCollectionExtensions.cs",
+            "IBeam.Identity.Repositories.AzureTable/Options/AzureTableIdentityOptions.cs",
+            "IBeam.Identity.Repositories.AzureTable/README.md",
+            "IBeam.Identity.Repositories.AzureTable/Stores/AzureTableTenantMembershipStore.Conditional.cs",
+            "IBeam.Identity.Repositories.AzureTable/Stores/AzureTableTenantMembershipStore.cs",
+            "IBeam.Identity.Repositories.AzureTable/Stores/AzureTableTenantRoleStore.Ownership.cs",
+            "IBeam.Identity.Repositories.AzureTable/Stores/AzureTableTenantRoleStore.cs",
+            "IBeam.Identity.Repositories.AzureTable/Stores/TenantMembershipPartition.cs",
+            "IBeam.Identity.Services/.agent/prompt.md",
+            "IBeam.Identity.Services/README.md",
+            "IBeam.Identity.Services/ServiceCollectionExtensions.cs",
+            "IBeam.Identity.Services/Tenants/IdentityTenantMembershipAdministrationService.cs",
+            "IBeam.Identity.Services/Tenants/IdentityTenantOwnershipExtensions.cs",
+            "IBeam.Identity.Services/Tenants/IdentityTenantOwnershipProtection.cs",
+            "IBeam.Identity/.agent/prompt.md",
+            "IBeam.Identity/Interfaces/IIdentityTenantMembershipConditionalStore.cs",
+            "IBeam.Identity/Interfaces/IIdentityTenantOwnershipProtection.cs",
+            "IBeam.Identity/Options/IdentityTenantOwnershipOptions.cs",
+            "IBeam.Identity/README.md",
+            "IBeam.Management.Identity.Target.Services/.agent/prompt.md",
+            "IBeam.Management.Identity.Target.Services/ManagementCustomerIdentityInfoService.cs",
+            "IBeam.Management.Identity.Target.Services/Memberships/ServiceCollectionExtensions.cs",
+            "IBeam.Management.Identity.Target.Services/README.md",
+            "IBeam.Management.Services/.agent/prompt.md",
+            "IBeam.Management.Services/CustomerIdentity/ManagementCustomerIdentityProtocol.cs",
+            "IBeam.Management.Services/CustomerIdentity/ManagementTargetProfileProbe.cs",
+            "IBeam.Management.Services/README.md",
+            "IBeam.Management/.agent/prompt.md",
+            "IBeam.Management/CustomerIdentity/ManagementCustomerIdentityContracts.cs",
+            "IBeam.Management/README.md",
+            "IBeam.Tests.Management.CustomerIdentity/CustomerMembershipStorageTests.cs",
+            "IBeam.Tests.Management.CustomerIdentity/CustomerOwnershipProtectionTests.cs",
+            "IBeam.Tests.Management.CustomerIdentity/DelegationFixture.cs",
+            "IBeam.Tests.Management.CustomerIdentity/DiscoveryProtocolTests.cs",
+            "docs/management/customer-membership-lifecycle.md",
+            "docs/management/tenant-ownership-protection.md",
+            "docs/planning/management-lifecycle-operations-backlog.json",
+            "docs/planning/management-lifecycle-operations-plan.md"
+          ]
         },
         {
           "key": "MLO-003",
@@ -131,7 +173,7 @@
             "Provider races, rollback of unapplied transactions, projection repair and unsupported-adapter behavior are tested."
           ],
           "boardKey": "hub",
-          "laneKey": "triage",
+          "laneKey": "ready",
           "sourceSystem": "codex",
           "sourceKey": "IBM-0123",
           "sourceUrl": "https://github.com/MedPACTech/IBeam",
@@ -964,6 +1006,6 @@
     }
   ],
   "epicId": "6b9422fc-0205-4c3b-88cb-63ff7f114cd1",
-  "completedCardCount": 1,
-  "completedPoints": 5
+  "completedCardCount": 2,
+  "completedPoints": 13
 }
