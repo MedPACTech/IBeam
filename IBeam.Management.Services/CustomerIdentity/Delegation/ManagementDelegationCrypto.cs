@@ -30,6 +30,14 @@ public static class ManagementDelegationBinding
         registry.RequireBinding(operation, request.Method, request.PathAndQuery, request.Body.Length);
         return HashCore(request, true);
     }
+    public static string HashRegisteredReceipt(ManagementDelegationRequest request)
+    {
+        const string prefix = "/api/management-operations/receipts/";
+        if (request is null || request.Method != "GET" || !request.PathAndQuery.StartsWith(prefix, StringComparison.Ordinal) ||
+            !Guid.TryParseExact(request.PathAndQuery[prefix.Length..], "D", out var id) || id == Guid.Empty)
+            throw new ManagementAccessDeniedException();
+        return HashCore(request, true);
+    }
     private static string HashCore(ManagementDelegationRequest request, bool registered)
     {
         if (request is null || request.Method is not ("GET" or "POST" or "PATCH" or "PUT" or "DELETE") ||

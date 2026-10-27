@@ -29,8 +29,10 @@ public sealed class RegisteredOperationTests
     public sealed record DictionaryRequest(Dictionary<string, string> Payload);
     public sealed record JsonRequest(JsonElement Payload);
     public sealed record BytesRequest(byte[] Payload);
-    public sealed class Handler : IManagementOperationHandler<Request, Result>
+    public sealed class Handler : IManagementOperationHandler<Request, Result>, IManagementOperationReceiptHandler<Result>
     {
+        public Task<Result> ReadReceiptAsync(ManagementOperationContext context, CancellationToken ct = default)
+            => throw new AssertFailedException("Discovery must never invoke receipt lookup.");
         public Task<Result> ExecuteAsync(ManagementOperationContext context, Request request, CancellationToken ct = default)
             => throw new AssertFailedException("Discovery must never execute an app handler.");
     }
@@ -44,7 +46,7 @@ public sealed class RegisteredOperationTests
     {
         var registry = ManagementOperationRegistry.BuiltIn;
         CollectionAssert.AreEquivalent(ManagementCustomerIdentityOperations.All.Concat(new[] {
-            ManagementOperations.DiagnosticsInfo, ManagementOperations.ErrorsRead, ManagementOperations.LogsRead }).ToArray(), registry.Operations.ToArray());
+            ManagementOperations.DiagnosticsInfo, ManagementOperations.ErrorsRead, ManagementOperations.LogsRead, ManagementRegisteredOperations.Info }).ToArray(), registry.Operations.ToArray());
         foreach (var op in ManagementCustomerIdentityOperations.All.Where(ManagementCustomerIdentityPermissionPolicy.IsAssignable))
         {
             CollectionAssert.AreEquivalent(ManagementCustomerIdentityPermissionPolicy.RequiredFor(op).ToArray(), registry.RequiredFor(op).ToArray());

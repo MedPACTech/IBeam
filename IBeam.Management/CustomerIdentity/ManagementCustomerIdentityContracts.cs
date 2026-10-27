@@ -51,8 +51,12 @@ public sealed record ManagementCustomerIdentityDiscovery(string Status, Manageme
 
 public sealed record ManagementTargetProfile(ManagementDiagnosticsInfo? Diagnostics, ManagementCustomerIdentityDiscovery CustomerIdentity)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Operations.ManagementRegisteredOperationDiscovery? Operations { get; init; }
     public IReadOnlyList<string> Capabilities => Array.AsReadOnly((Diagnostics?.Capabilities ?? [])
-        .Concat(CustomerIdentity.Info?.Capabilities ?? []).Distinct(StringComparer.Ordinal).ToArray());
+        .Concat(CustomerIdentity.Info?.Capabilities ?? []).Concat(Operations?.Info is { } registered
+            ? new[] { global::IBeam.Management.Operations.ManagementRegisteredOperations.Info }.Concat(registered.Capabilities.Select(x => x.Operation)) : [])
+        .Distinct(StringComparer.Ordinal).ToArray());
 }
 
 public interface IManagementTargetProfileProbe

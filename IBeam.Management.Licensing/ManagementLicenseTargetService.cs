@@ -103,13 +103,17 @@ public sealed class ManagementLicenseReadHandler(ManagementLicenseTargetService 
     public Task<ManagementLicenseStatus> ExecuteAsync(ManagementOperationContext context, ManagementLicenseReadRequest request, CancellationToken ct = default)
         => service.ReadAsync(context, ct);
 }
-public sealed class ManagementLicenseSuspendHandler(ManagementLicenseTargetService service) : IManagementOperationHandler<ManagementLicenseSuspendRequest, ManagementLicenseTransitionResult>
+public sealed class ManagementLicenseSuspendHandler(ManagementLicenseTargetService service) : IManagementOperationHandler<ManagementLicenseSuspendRequest, ManagementLicenseTransitionResult>, IManagementOperationReceiptHandler<ManagementLicenseTransitionResult>
 {
+    public Task<ManagementLicenseTransitionResult> ReadReceiptAsync(ManagementOperationContext context, CancellationToken ct = default)
+        => service.FindAsync(ManagementLicenseOperations.Suspend, context, ct);
     public Task<ManagementLicenseTransitionResult> ExecuteAsync(ManagementOperationContext context, ManagementLicenseSuspendRequest request, CancellationToken ct = default)
         => service.ChangeAsync(ManagementLicenseOperations.Suspend, context, request?.LicenseId ?? Guid.Empty, request?.ExpectedVersion ?? "", ct);
 }
-public sealed class ManagementLicenseRestoreHandler(ManagementLicenseTargetService service) : IManagementOperationHandler<ManagementLicenseRestoreRequest, ManagementLicenseTransitionResult>
+public sealed class ManagementLicenseRestoreHandler(ManagementLicenseTargetService service) : IManagementOperationHandler<ManagementLicenseRestoreRequest, ManagementLicenseTransitionResult>, IManagementOperationReceiptHandler<ManagementLicenseTransitionResult>
 {
+    public Task<ManagementLicenseTransitionResult> ReadReceiptAsync(ManagementOperationContext context, CancellationToken ct = default)
+        => service.FindAsync(ManagementLicenseOperations.Restore, context, ct);
     public Task<ManagementLicenseTransitionResult> ExecuteAsync(ManagementOperationContext context, ManagementLicenseRestoreRequest request, CancellationToken ct = default)
         => service.ChangeAsync(ManagementLicenseOperations.Restore, context, request?.LicenseId ?? Guid.Empty, request?.ExpectedVersion ?? "", ct);
 }

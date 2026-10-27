@@ -90,13 +90,17 @@ public sealed class ManagementSeatReadHandler(ManagementSeatTargetService servic
 {
     public Task<ManagementSeatStatus> ExecuteAsync(ManagementOperationContext context, ManagementSeatReadRequest request, CancellationToken ct = default) => service.ReadAsync(context, ct);
 }
-public sealed class ManagementSeatAssignHandler(ManagementSeatTargetService service) : IManagementOperationHandler<ManagementSeatAssignRequest, ManagementSeatTransitionResult>
+public sealed class ManagementSeatAssignHandler(ManagementSeatTargetService service) : IManagementOperationHandler<ManagementSeatAssignRequest, ManagementSeatTransitionResult>, IManagementOperationReceiptHandler<ManagementSeatTransitionResult>
 {
+    public Task<ManagementSeatTransitionResult> ReadReceiptAsync(ManagementOperationContext context, CancellationToken ct = default)
+        => service.FindAsync(ManagementSeatOperations.Assign, context, ct);
     public Task<ManagementSeatTransitionResult> ExecuteAsync(ManagementOperationContext context, ManagementSeatAssignRequest request, CancellationToken ct = default)
         => service.ChangeAsync(ManagementSeatOperations.Assign, context, request?.LicenseId ?? Guid.Empty, request?.UserId ?? Guid.Empty, null, request?.ExpectedVersion ?? "", ct);
 }
-public sealed class ManagementSeatUnassignHandler(ManagementSeatTargetService service) : IManagementOperationHandler<ManagementSeatUnassignRequest, ManagementSeatTransitionResult>
+public sealed class ManagementSeatUnassignHandler(ManagementSeatTargetService service) : IManagementOperationHandler<ManagementSeatUnassignRequest, ManagementSeatTransitionResult>, IManagementOperationReceiptHandler<ManagementSeatTransitionResult>
 {
+    public Task<ManagementSeatTransitionResult> ReadReceiptAsync(ManagementOperationContext context, CancellationToken ct = default)
+        => service.FindAsync(ManagementSeatOperations.Unassign, context, ct);
     public Task<ManagementSeatTransitionResult> ExecuteAsync(ManagementOperationContext context, ManagementSeatUnassignRequest request, CancellationToken ct = default)
         => service.ChangeAsync(ManagementSeatOperations.Unassign, context, request?.LicenseId ?? Guid.Empty, request?.UserId ?? Guid.Empty, request?.AssignmentId, request?.ExpectedVersion ?? "", ct);
 }

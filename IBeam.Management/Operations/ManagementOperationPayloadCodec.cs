@@ -18,6 +18,24 @@ public sealed class ManagementOperationPayloadCodec(ManagementOperationRegistry 
             descriptor.Method == "GET" && !bytes.IsEmpty) throw new ManagementAccessDeniedException();
         return Read<TRequest>(bytes.IsEmpty && descriptor.Method == "GET" ? "{}"u8.ToArray() : bytes);
     }
+    public byte[] WriteRequest<TRequest>(string operation, TRequest request)
+    {
+        var descriptor = registry.Find(operation) ?? throw new ManagementAccessDeniedException();
+        if (descriptor.Request.ContractType != typeof(TRequest) || request is null) throw new ManagementAccessDeniedException();
+        using var stream = new BoundedStream(descriptor.MaximumRequestBytes);
+        try
+        {
+            using (var writer = new Utf8JsonWriter(stream)) JsonSerializer.Serialize(writer, request, Options);
+            var bytes = stream.ToArray();
+            if (descriptor.Method == "GET")
+            {
+                if (!bytes.AsSpan().SequenceEqual("{}"u8)) throw new ManagementAccessDeniedException();
+                return [];
+            }
+            _ = Read<TRequest>(bytes); return bytes;
+        }
+        catch (JsonException) { throw new ManagementAccessDeniedException(); }
+    }
     public byte[] WriteResult<TResult>(string operation, TResult result)
     {
         var descriptor = registry.Find(operation) ?? throw new ManagementAccessDeniedException();

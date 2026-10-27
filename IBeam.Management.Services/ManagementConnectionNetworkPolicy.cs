@@ -8,6 +8,8 @@ public sealed class ManagementConnectionOptions
     public const string SectionName = "IBeam:Management:Connections";
     public string[] ApprovedOrigins { get; set; } = [];
     public int TimeoutSeconds { get; set; } = 10;
+    /// <summary>Host-owned opt-in; old diagnostic/Identity probes keep their two-request behavior.</summary>
+    public bool EnableRegisteredOperationsDiscovery { get; set; }
 }
 public interface IManagementTargetDnsResolver
 {

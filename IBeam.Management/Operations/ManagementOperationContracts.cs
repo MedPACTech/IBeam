@@ -62,4 +62,7 @@ public sealed class ManagementOperationUncertainException(Guid applicationId, Gu
 
 /// <summary>Safe contract metadata only. Discovery is evidence of installation, never an authorization grant.</summary>
 public sealed record ManagementOperationCapability(string Operation, int ProtocolVersion, string RequestSchema,
-    int RequestSchemaVersion, string ResultSchema, int ResultSchemaVersion, int ReceiptProtocolVersion);
+    int RequestSchemaVersion, string ResultSchema, int ResultSchemaVersion, int ReceiptProtocolVersion)
+{
+    public string DescriptorFingerprint { get; init; } = "";
+}

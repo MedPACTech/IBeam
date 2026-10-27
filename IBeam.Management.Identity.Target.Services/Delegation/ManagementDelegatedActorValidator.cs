@@ -9,15 +9,10 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 namespace IBeam.Management.Identity.Target.Services.Delegation;
 
-internal sealed class ManagementDelegatedActorContext : IManagementDelegatedActorContext
-{
-    public ManagementDelegatedActor? Current { get; private set; }
-    internal void Set(ManagementDelegatedActor? actor) => Current = actor;
-}
 internal sealed class ManagementDelegatedActorValidator(ManagementCustomerIdentityCredentialGuard credentials,
     IOptions<ManagementActorTrustOptions> trust, IOptions<ManagementCustomerIdentityTargetOptions> realm,
     IOptions<ManagementDiagnosticsOptions> deployment, IManagementActorValidationKeyProvider keys,
-    IManagementDelegationReplayStore replay, ManagementDelegatedActorContext context, IManagementAuditContext audit,
+    IManagementDelegationReplayStore replay, ManagementDelegatedActorState context, IManagementAuditContext audit,
     TimeProvider clock, IServiceOperationExecutor operations) : IManagementDelegatedActorValidator
 {
     public Task<ManagementDelegatedActor> ValidateAsync(string assertion, string operation, ManagementDelegationRequest request,
