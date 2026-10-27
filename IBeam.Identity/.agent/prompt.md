@@ -74,3 +74,5 @@ IBM-0112: membership and roles use caller ETags plus an atomic tenant-partition 
 IBM-0113: tenant status is an independent exact-version, idempotent command with required lifecycle hooks and explicit customer request/refresh enforcement. Preserve global users, memberships, defaults and business/billing data. No bootstrap reactivation. Recover only owned status transitions; release only known unapplied metadata reservations after concurrent writes. See docs/management/customer-tenant-status.md.
 
 IBM-0122: ownership is an explicit optional native policy, independent of administrator protection. Keep new ownership contracts provider/HTTP independent, preserve existing public constructors, and never infer ownership from OwnerUserId or support claims.
+
+IBM-0123: ownership transfer is an optional trusted native adapter. Preserve atomic source/destination/shared-fence/receipt persistence, exact versions and same-intent recovery; never infer owner from the legacy tenant column or expose an arbitrary role grant. Read lookup must not initialize metadata. Permission and metadata audit belong to the caller. See docs/management/tenant-ownership-transfer.md.
