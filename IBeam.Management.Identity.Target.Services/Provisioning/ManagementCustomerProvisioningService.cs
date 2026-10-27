@@ -46,7 +46,7 @@ public sealed class ManagementCustomerProvisioningService(IManagementCustomerPro
                         row = new() { Scope = scope, TenantId = tenantId, InviteId = id, OriginalOperationId = context.OperationId,
                             OrganizationId = actor.OrganizationId, ApplicationId = actor.ApplicationId, CreatedByUserId = actor.UserId,
                             CreatedUtc = now, ExpiresUtc = now.AddDays(7), Fingerprint = fingerprint };
-                        row = row with { EncryptedInput = Protect(row, input with { Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) }) };
+                        row = row with { EncryptedInput = Protect(row, input with { Token = ManagementInviteToken.Create() }) };
                         await repository.TryCreateAsync(row, cancellation);
                         row = await Read(scope, tenantId, id, cancellation) ?? throw new ManagementCustomerIdentityUnavailableException();
                     }
@@ -137,7 +137,7 @@ public sealed class ManagementCustomerProvisioningService(IManagementCustomerPro
         var bytes = Convert.FromBase64String(row.EncryptedInput); if (bytes.Length is < 29 or > 8192) throw new ManagementCustomerIdentityUnavailableException();
         var plain = new byte[bytes.Length - 28]; using var aes = new AesGcm(Key("recovery"), 16); aes.Decrypt(bytes.AsSpan(0, 12), bytes.AsSpan(28), bytes.AsSpan(12, 16), plain, Binding(row));
         var value = JsonSerializer.Deserialize<Intent>(plain) ?? throw new ManagementCustomerIdentityUnavailableException();
-        if (value.Token.Length != 44 || value.RoleIds.Length is < 1 or > 8 || value.RoleNames.Any(x => !ManagementCustomerProvisioningOptions.ValidRoleName(x))) throw new ManagementCustomerIdentityUnavailableException();
+        if (!ManagementInviteToken.IsRecoveryToken(value.Token) || value.RoleIds.Length is < 1 or > 8 || value.RoleNames.Any(x => !ManagementCustomerProvisioningOptions.ValidRoleName(x))) throw new ManagementCustomerIdentityUnavailableException();
         return value;
     }
     private sealed record Intent(string Email, string PolicyKey, Guid[] RoleIds, string[] RoleNames, string Token)
