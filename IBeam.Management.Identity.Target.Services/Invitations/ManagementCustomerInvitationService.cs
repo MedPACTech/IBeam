@@ -58,7 +58,7 @@ public sealed class ManagementCustomerInvitationService(IManagementCustomerInvit
                             row = new() { Scope = scope, TenantId = tenant, InviteId = id, OperationId = context.OperationId,
                                 OrganizationId = actor.OrganizationId, ApplicationId = actor.ApplicationId, UserId = actor.UserId, Kind = kind,
                                 CreatedUtc = now, ExpiresUtc = now.AddDays(7) };
-                            row = row with { EncryptedInput = Protect(row, new(version, kind == "resend" ? Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) : "", window, count)) };
+                            row = row with { EncryptedInput = Protect(row, new(version, kind == "resend" ? ManagementInviteToken.Create() : "", window, count)) };
                             await repository.TryCreateAsync(row, cancel);
                             row = await Read(scope, tenant, context.OperationId, id, kind, cancel) ?? throw new ManagementCustomerIdentityUnavailableException();
                         }
