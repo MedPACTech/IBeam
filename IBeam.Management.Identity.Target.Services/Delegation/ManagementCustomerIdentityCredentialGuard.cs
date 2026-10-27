@@ -25,7 +25,7 @@ internal sealed class ManagementCustomerIdentityCredentialGuard(IManagementApiCr
         if (row is null || row.CredentialId != id || row.ApplicationKey != configured.ApplicationKey || row.Environment != configured.Environment ||
             row.Status != "Active" || row.RevokedUtc.HasValue || row.ExpiresUtc <= DateTimeOffset.UtcNow ||
             row.Version != ManagementPrincipalGuard.RequireSingle(identity, ManagementClaimTypes.CredentialVersion) ||
-            !ManagementCredentialPolicy.ValidCapabilities(row.Capabilities)) throw new ManagementAccessDeniedException();
+            !(provider.GetService<global::IBeam.Management.Operations.ManagementOperationRegistry>() ?? global::IBeam.Management.Operations.ManagementOperationRegistry.BuiltIn).ValidCapabilities(row.Capabilities)) throw new ManagementAccessDeniedException();
         foreach (var permission in required)
             if (!row.Capabilities.Contains(permission, StringComparer.Ordinal) || !realm.EnabledOperations.Contains(permission, StringComparer.Ordinal) ||
                 !modules.Any(m => m.Operation == permission && m.RequiredServiceType.IsInterface && provider.GetService(m.RequiredServiceType) is not null))

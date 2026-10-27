@@ -10,8 +10,5 @@ public sealed class ManagementCredentialProvisioningOptions
 internal static class ManagementCredentialPolicy
 {
     public static bool ValidCapabilities(IReadOnlyList<string>? capabilities)
-        => capabilities is { Count: > 0 } && capabilities.Count <= global::IBeam.Management.CustomerIdentity.ManagementCustomerIdentityOperations.All.Count + 3 &&
-           capabilities.Distinct(StringComparer.Ordinal).Count() == capabilities.Count &&
-           capabilities.All(c => c is ManagementOperations.DiagnosticsInfo or ManagementOperations.ErrorsRead or ManagementOperations.LogsRead ||
-               global::IBeam.Management.CustomerIdentity.ManagementCustomerIdentityOperations.All.Contains(c, StringComparer.Ordinal));
+        => global::IBeam.Management.Operations.ManagementOperationRegistry.BuiltIn.ValidCapabilities(capabilities);
 }

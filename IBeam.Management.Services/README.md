@@ -1,5 +1,7 @@
 # IBeam.Management.Services
 
+IBM-0126 shares the per-host registered operation catalog across credential validation, live app assignments, support delegation and audit allowlists. Optional registered-operation capability discovery checks installed handlers and explicit live machine grants; it installs no dispatch endpoint or implicit human permission. See [registered operations](https://github.com/MedPACTech/IBeam/blob/development/docs/management/registered-operations.md).
+
 Customer target discovery preserves validated optional native membership ownership-protection and operation-receipt protocol metadata without granting additional operations. See [owner protection and compatibility](../docs/management/tenant-ownership-protection.md).
 
 IBM-0106 adds bounded signed tenant mutations and stateless encrypted operation references. A fresh authorization budget follows target timeouts; no generic write retry or tenant payload persistence is introduced. Lookup is a scoped read-only target request. See docs/management/customer-tenant-portal-writes.md.
