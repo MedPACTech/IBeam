@@ -25,6 +25,8 @@ public sealed record TenantLicenseRecord(
     DateTimeOffset? GraceEndsUtc = null)
 {
     public Guid LicenseKey => LicenseId;
+    /// <summary>Optional provider revision. Trusted conditional writers must preserve the exact revision read.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public string Version { get; init; } = "";
 
     public bool IsActive(DateTimeOffset now)
         => EvaluateRuntimeEligibility(now).IsEligible;

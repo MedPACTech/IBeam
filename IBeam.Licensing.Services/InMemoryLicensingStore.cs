@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace IBeam.Licensing.Services;
 
-public sealed class InMemoryLicensingStore : ILicensingStore
+public sealed partial class InMemoryLicensingStore : ILicensingStore, ILicenseStatusConditionalStore
 {
     private readonly ConcurrentDictionary<(Guid TenantId, Guid LicenseId), TenantLicenseRecord> _licenses = [];
     private readonly ConcurrentDictionary<(Guid TenantId, Guid LicenseId, Guid AssignmentId), LicenseSeatAssignmentInfo> _assignments = [];
@@ -22,18 +22,29 @@ public sealed class InMemoryLicensingStore : ILicensingStore
 
     public Task<TenantLicenseRecord> UpsertLicenseAsync(TenantLicenseRecord license, CancellationToken ct = default)
     {
-        _licenses[(license.TenantId, license.LicenseId)] = license;
-        return Task.FromResult(license);
+        ct.ThrowIfCancellationRequested();
+        lock (_statusGate)
+        {
+            var key = (license.TenantId, license.LicenseId);
+            if (_protectedLicenses.Contains(key) && (!_licenses.TryGetValue(key, out var existing) || existing.Version != license.Version))
+                throw new LicenseStatusPreconditionException();
+            var saved = Freeze(license with { Version = Guid.NewGuid().ToString("N") });
+            _licenses[key] = saved;
+            return Task.FromResult(saved);
+        }
     }
 
     public Task DeleteLicenseAsync(Guid tenantId, Guid licenseId, CancellationToken ct = default)
     {
-        _licenses.TryRemove((tenantId, licenseId), out _);
-
-        foreach (var key in _assignments.Keys.Where(x => x.TenantId == tenantId && x.LicenseId == licenseId).ToList())
-            _assignments.TryRemove(key, out _);
-
-        return Task.CompletedTask;
+        ct.ThrowIfCancellationRequested();
+        lock (_statusGate)
+        {
+            if (_protectedLicenses.Contains((tenantId, licenseId))) throw new LicenseStatusConflictException();
+            _licenses.TryRemove((tenantId, licenseId), out _);
+            foreach (var key in _assignments.Keys.Where(x => x.TenantId == tenantId && x.LicenseId == licenseId).ToList())
+                _assignments.TryRemove(key, out _);
+            return Task.CompletedTask;
+        }
     }
 
     public Task<IReadOnlyList<LicenseSeatAssignmentInfo>> ListAssignmentsAsync(Guid tenantId, Guid licenseId, CancellationToken ct = default)

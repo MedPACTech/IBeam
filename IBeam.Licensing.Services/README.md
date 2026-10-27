@@ -1,5 +1,7 @@
 # IBeam.Licensing.Services
 
+IBM-0127 adds trusted conditional licence-status administration. The optional Management adapter authorizes/audits callers; native services enforce exact revisions, original-status restore eligibility and atomic same-intent receipts. The in-memory provider is explicitly volatile and is rejected by Management production registration. Existing unprotected licence flows remain usable. See [licence status management](https://github.com/MedPACTech/IBeam/blob/development/docs/management/license-status-management.md).
+
 `IBeam.Licensing.Services` provides the service-layer implementation for IBeam tenant licensing: plan lookup, tenant license grants, license updates/revocation, seat assignment, and entitlement authorization.
 
 ```powershell
