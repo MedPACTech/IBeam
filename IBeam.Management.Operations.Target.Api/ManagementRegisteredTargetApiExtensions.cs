@@ -45,6 +45,9 @@ public static class ManagementRegisteredTargetApiExtensions
         }
         endpoints.MapGet("/api/management-operations/receipts/{operationId:guid}", (HttpContext context, IManagementRegisteredOperationDispatcher dispatcher) =>
             Execute(context, dispatcher, "", true, 0)).RequireAuthorization(ManagementRegisteredAuthentication.Policy).WithMetadata(new HttpLoggingAttribute(HttpLoggingFields.None));
+        if (registry.Find(ManagementTenantDataOperations.Export) is not null)
+            endpoints.MapGet(TenantData.ManagementTenantExportRoutes.Status, (HttpContext context, IManagementRegisteredOperationDispatcher dispatcher) =>
+                Execute(context, dispatcher, "", true, 0)).RequireAuthorization(ManagementRegisteredAuthentication.Policy).WithMetadata(new HttpLoggingAttribute(HttpLoggingFields.None));
         return endpoints;
     }
     private static async Task<IResult> Execute(HttpContext context, IManagementRegisteredOperationDispatcher dispatcher, string operation, bool receipt, int limit)

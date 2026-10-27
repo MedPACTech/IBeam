@@ -84,7 +84,9 @@ internal sealed class ManagementRegisteredTargetAuthority(ManagementOperationReg
                 Single(claims, "iss") != binding.Issuer || Single(claims, "aud") != binding.Audience) throw new ManagementAccessDeniedException();
             if (request.ReceiptLookup)
             {
-                if (request.Path != "/api/management-operations/receipts/" + scope.OperationId.ToString("D")) throw new ManagementAccessDeniedException();
+                var expected = operation == ManagementTenantDataOperations.Export ? TenantData.ManagementTenantExportRoutes.StatusPath(scope.TenantId, scope.OperationId) :
+                    "/api/management-operations/receipts/" + scope.OperationId.ToString("D");
+                if (request.Path != expected) throw new ManagementAccessDeniedException();
             }
             else if (ManagementRegisteredRoute.Path(descriptor, scope.TenantId, scope.ResourceId) != request.Path) throw new ManagementAccessDeniedException();
             var correlation = Single(claims, "correlation");

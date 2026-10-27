@@ -134,7 +134,8 @@ public sealed class ManagementOperationRegistry
             d.Operation.StartsWith("management.identity.", StringComparison.Ordinal) || d.Operation.StartsWith("management.diagnostics.", StringComparison.Ordinal) ||
             d.Method is not ("GET" or "POST" or "PUT" or "PATCH" or "DELETE") ||
             d.RouteTemplate is not { Length: > 0 and <= 256 } ||
-            !d.RouteTemplate.StartsWith("/api/management-operations/", StringComparison.Ordinal) ||
+            !(d.RouteTemplate.StartsWith("/api/management-operations/", StringComparison.Ordinal) || NativeExport(d)) ||
+            d.Operation == ManagementTenantDataOperations.Export && !NativeExport(d) ||
             d.RouteTemplate == "/api/management-operations/info" || d.RouteTemplate.StartsWith("/api/management-operations/receipts/", StringComparison.Ordinal) ||
             d.RouteTemplate.Split('/').Skip(1).Any(x => !Regex.IsMatch(x, "^[a-z][a-z0-9-]{0,63}$|^\\{[a-z][a-zA-Z0-9]{0,31}:guid\\}$", RegexOptions.CultureInvariant)) ||
             d.RouteTemplate.Split('/').Where(Slot).Distinct(StringComparer.Ordinal).Count() != d.RouteTemplate.Split('/').Count(Slot) ||
@@ -149,6 +150,9 @@ public sealed class ManagementOperationRegistry
     }
     private static bool Name(string? name) => name is { Length: <= 128 } && Regex.IsMatch(name,
         "^management\\.[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9-]*){1,5}$", RegexOptions.CultureInvariant);
+    private static bool NativeExport(ManagementOperationDescriptor d) => d.Operation == ManagementTenantDataOperations.Export && d.Method == "POST" &&
+        d.RouteTemplate == TenantData.ManagementTenantExportRoutes.Submit && d.Request?.ContractType == typeof(TenantData.ManagementTenantExportRequest) &&
+        d.Result?.ContractType == typeof(TenantData.ManagementTenantExportResult) && d.RequiredGrants is { Count: 1 } && d.RequiredGrants[0] == ManagementTenantDataOperations.Export;
     private static void Schema(ManagementOperationSchema schema)
     {
         if (schema.Version != 1 || schema.Id is not { Length: > 0 and <= 100 } ||

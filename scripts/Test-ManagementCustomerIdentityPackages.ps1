@@ -11,7 +11,7 @@ foreach($name in @('IBEAM_MANAGEMENT_TEST_STORAGE','IBEAM_MANAGEMENT_TEST_SEPARA
  $uri=[Uri]$match.Groups[1].Value
  if(-not $uri.IsLoopback -or $uri.Scheme -ne 'http' -or $connection -notmatch '(?:^|;)AccountName=devstoreaccount1(?:;|$)'){throw 'This validation accepts only private loopback Azurite.'}
 }
-$suites=@('Management.CustomerIdentity','Management.Applications','Management.Identity','Management.Credentials','Management.Diagnostics','Management','Identity.Services','Identity','Identity.Api','Management.Licensing','Management.Operations','Licensing')
+$suites=@('Management.CustomerIdentity','Management.Applications','Management.Identity','Management.Credentials','Management.Diagnostics','Management','Identity.Services','Identity','Identity.Api','Management.Licensing','Management.Operations','Management.TenantData','Licensing')
 $roots=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 foreach($suite in $suites){
  [xml]$xml=Get-Content (Join-Path $repo "IBeam.Tests.$suite/IBeam.Tests.$suite.csproj") -Raw

@@ -17,7 +17,7 @@ internal sealed class ManagementRegisteredCredentialAuthentication(IOptionsMonit
 {
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        if (!Request.Path.StartsWithSegments("/api/management-operations")) return AuthenticateResult.NoResult();
+        if (!Request.Path.StartsWithSegments("/api/management-operations") && !Request.Path.StartsWithSegments("/api/management-tenant-data")) return AuthenticateResult.NoResult();
         if (!Request.Headers.TryGetValue("X-IBeam-Management-Key", out var values)) return AuthenticateResult.NoResult();
         if (values.Count != 1 || string.IsNullOrEmpty(values[0]) || Request.Headers.ContainsKey("Authorization")) return AuthenticateResult.Fail("Management authentication was not completed.");
         try

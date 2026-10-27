@@ -45,3 +45,5 @@ Audit persists the existing bounded metadata projection only. A registered opera
 ## Validation
 
 `RegisteredOperationTests` exercises malformed/duplicate registrations, route and schema/version substitution, immutable grant closure, missing adapters, live credential and human revocation, explicit ceilings, strict payloads and audit canaries. `RegisteredOperationDelegationTests` checks the optional support Identity adapter. Existing discovery tests preserve the three legacy target combinations. Run the package-only Management regression to verify that these contracts work without source project references.
+
+IBM-0130 adds one compiled framework exception to the extension prefix: management.tenants.export must use its exact Core DTOs and POST /api/management-tenant-data/tenants/{tenantId:guid}/exports descriptor. Its read-only status alias is also fixed and signed. Other native-prefix routes remain invalid. See tenant-export.md.
