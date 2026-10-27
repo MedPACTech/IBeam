@@ -79,5 +79,5 @@ public static class ManagementAuditOperations
     return actions;
     }
     public static bool IsManagementService(object service) => service.GetType().Assembly.GetName().Name is
-        "IBeam.Management.Services" or "IBeam.Management.Identity.Services" or "IBeam.Management.Identity.Target.Services" or "IBeam.Management.Licensing";
+        "IBeam.Management.Services" or "IBeam.Management.Identity.Services" or "IBeam.Management.Identity.Target.Services" or "IBeam.Management.Licensing" or "IBeam.Management.TenantData.Target.Services";
 }

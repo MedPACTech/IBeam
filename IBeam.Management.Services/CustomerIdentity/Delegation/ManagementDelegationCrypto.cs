@@ -33,8 +33,8 @@ public static class ManagementDelegationBinding
     public static string HashRegisteredReceipt(ManagementDelegationRequest request)
     {
         const string prefix = "/api/management-operations/receipts/";
-        if (request is null || request.Method != "GET" || !request.PathAndQuery.StartsWith(prefix, StringComparison.Ordinal) ||
-            !Guid.TryParseExact(request.PathAndQuery[prefix.Length..], "D", out var id) || id == Guid.Empty)
+        if (request is null || request.Method != "GET" || !(request.PathAndQuery.StartsWith(prefix, StringComparison.Ordinal) &&
+            Guid.TryParseExact(request.PathAndQuery[prefix.Length..], "D", out var id) && id != Guid.Empty || TenantData.ManagementTenantExportRoutes.IsStatusPath(request.PathAndQuery)))
             throw new ManagementAccessDeniedException();
         return HashCore(request, true);
     }

@@ -76,7 +76,8 @@ public sealed class ManagementRegisteredOperationClient(ManagementOperationRegis
             var scope = new ManagementOperationContext(org, appId, info.RealmId, tenant, human, lookup ? receiptId : descriptor.Method == "GET" ? Guid.Empty :
                 Intent(configured.OperationIdKey, org, appId, info.RealmId, human, tenant, resource, operation, key)) { ResourceId = resource, ResourceVersion = version };
             var method = lookup ? "GET" : descriptor.Method;
-            var path = lookup ? "/api/management-operations/receipts/" + receiptId.ToString("D") : ManagementRegisteredRoute.Path(descriptor, tenant, resource);
+            var path = lookup ? operation == ManagementTenantDataOperations.Export ? TenantData.ManagementTenantExportRoutes.StatusPath(tenant, receiptId) :
+                "/api/management-operations/receipts/" + receiptId.ToString("D") : ManagementRegisteredRoute.Path(descriptor, tenant, resource);
             var sent = false;
             try
             {
