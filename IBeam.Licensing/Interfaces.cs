@@ -38,6 +38,11 @@ public interface ITenantLicenseService
 
 public interface ILicenseSeatAssignmentService
 {
+    int SeatAdministrationProtocolVersion => 0;
+    Task<LicenseSeatSnapshot> ReadManagementSeatsAsync(Guid tenantId, Guid licenseId, CancellationToken ct = default) => throw new LicenseSeatUnavailableException();
+    Task<LicenseSeatReceipt> ChangeManagementSeatAsync(LicenseSeatCommand command, CancellationToken ct = default) => throw new LicenseSeatUnavailableException();
+    Task<LicenseSeatReceipt?> FindManagementSeatOperationAsync(Guid tenantId, Guid licenseId, Guid operationId, string scope, string transition, CancellationToken ct = default)
+        => throw new LicenseSeatUnavailableException();
     Task<IReadOnlyList<LicenseSeatAssignmentInfo>> ListAssignmentsAsync(Guid tenantId, Guid licenseId, CancellationToken ct = default);
     Task<LicenseSeatAssignmentInfo> AssignSeatAsync(Guid tenantId, Guid licenseId, AssignLicenseSeatRequest request, Guid? createdByUserId = null, CancellationToken ct = default);
     Task RevokeSeatAsync(Guid tenantId, Guid licenseId, Guid assignmentId, CancellationToken ct = default);

@@ -1,5 +1,7 @@
 # IBeam.Licensing
 
+IBM-0128 adds optional trusted native seat administration, subject policy and a bounded conditional aggregate/receipt protocol. Legacy interface implementations retain default unavailable administration behavior. The separate Management integration is opt-in; see [seat management](https://github.com/MedPACTech/IBeam/blob/development/docs/management/seat-management.md).
+
 IBM-0127 adds optional trusted native licence-status administration contracts and a conditional provider/receipt protocol. Existing `ITenantLicenseService` implementations retain default unavailable behavior for these new members. Management integration remains in the separate optional `IBeam.Management.Licensing` package; see [licence status management](https://github.com/MedPACTech/IBeam/blob/development/docs/management/license-status-management.md).
 
 `IBeam.Licensing` contains the core licensing contracts, request/response models, plan models, subject model, and option objects used by IBeam-backed applications.
