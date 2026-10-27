@@ -36,7 +36,7 @@ public sealed class ManagementEnterpriseOnboardingService(IManagementEnterpriseO
                             row = new() { Scope = Scope(actor), ApplicationKey = actor.ApplicationKey, Environment = actor.Environment,
                                 OperationId = context.OperationId, OnboardingId = context.ResourceId, InviteId = StableInvite(context.OperationId), CreatedByUserId = actor.UserId,
                                 CreatedUtc = now, ExpiresUtc = now.AddDays(7) };
-                            row = row with { EncryptedInput = Protect(row, input with { Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) }) };
+                            row = row with { EncryptedInput = Protect(row, input with { Token = ManagementInviteToken.Create() }) };
                             await repository.TryCreateAsync(row, cancellation);
                             row = await Read(actor, context.ResourceId, cancellation) ?? throw new ManagementCustomerIdentityUnavailableException();
                         }
@@ -214,7 +214,7 @@ public sealed class ManagementEnterpriseOnboardingService(IManagementEnterpriseO
         var plain = new byte[bytes.Length - 28]; using var aes = new AesGcm(Key(), 16);
         aes.Decrypt(bytes.AsSpan(0, 12), bytes.AsSpan(28), bytes.AsSpan(12, 16), plain, Binding(row));
         var input = JsonSerializer.Deserialize<RecoveryInput>(plain) ?? throw new ManagementCustomerIdentityUnavailableException();
-        if (input.Token.Length != 44 || !Provisioning.ManagementCustomerProvisioningOptions.ValidRoleName(input.RoleName)) throw new ManagementAccessDeniedException();
+        if (!ManagementInviteToken.IsRecoveryToken(input.Token) || !Provisioning.ManagementCustomerProvisioningOptions.ValidRoleName(input.RoleName)) throw new ManagementAccessDeniedException();
         if (requireCurrentPolicy) {
             var approved = await Validate(new() { TenantName = input.TenantName, InitialAdminEmail = input.InitialAdminEmail, ExternalReference = input.ExternalReference, PolicyKey = input.PolicyKey }, ct);
             if (approved.RoleName != input.RoleName || approved.InitializerKey != input.InitializerKey) throw new ManagementAccessDeniedException();

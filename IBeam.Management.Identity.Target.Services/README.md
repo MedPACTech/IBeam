@@ -24,6 +24,8 @@ Issue an independent management.identity.info machine credential through trusted
 
 The portal separately opts into AddIBeamManagementCustomerIdentityApi(configuration), preserving its support login and customer-store isolation. Existing diagnostics-only connection registration and public constructors remain available. Never send machine keys or target storage credentials to a browser.
 
+Management invitations created by provisioning, enterprise onboarding and resend use unpadded base64url tokens so their path segments work behind Windows IIS. Tokens retain 256 bits of entropy and raw-token SHA-256 hashing. Existing stored invitations remain valid; consumer hosts may need encoded-plus path compatibility for older links, while encoded-slash links require resend. See [the 2.16.1 patch notes](../docs/releases/2.16.1.md).
+
 Enterprise onboarding services and durable invitation recovery are documented in [enterprise onboarding](../docs/management/enterprise-onboarding.md). Target services are opt-in; portal/HTTP integration follows in IBM-0108.
 
 Enterprise onboarding HTTP and portal registration, safe business status, scoped operation polling and explicit retry: [API contract](../docs/management/enterprise-onboarding-api.md).
