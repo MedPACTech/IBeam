@@ -75,3 +75,8 @@ jobs:
           name: ${{ inputs.artifact-name }}
           path: artifacts/packages/*.nupkg
           if-no-files-found: error
+
+      - name: Validate portable Management bootstrap consumer
+        if: ${{ inputs.pack && inputs.solution == 'IBeam.sln' }}
+        shell: pwsh
+        run: ./scripts/Test-ManagementBootstrapPackages.ps1 -PackageFeed ./artifacts/packages -OutputDirectory "$env:RUNNER_TEMP/management-bootstrap-consumer"

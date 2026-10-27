@@ -68,6 +68,7 @@ public static class CustomerDemoInstallation
         services.AddIBeamManagementPortalCustomerProvisioningApi(config);
         services.AddIBeamManagementPortalCustomerMembershipApi(config);
         services.AddIBeamManagementPortalTenantStatusApi(config);
+        if(config.GetValue<bool>("ManagementHost:CustomerDemo:OwnershipEnabled")) services.AddIBeamManagementPortalCustomerOwnershipApi(config);
     }
     private sealed class CustomerProbe(DevelopmentDemoDiagnostics diagnostics,IConfiguration config):IManagementTargetProfileProbe
     {

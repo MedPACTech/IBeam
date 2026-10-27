@@ -6,7 +6,7 @@
     <IsPackable>false</IsPackable>
     <PackageId>IBeam.Management.Host</PackageId>
     <AssemblyName>IBeam.Management.Host</AssemblyName>
-    <IBeamVersion>2.16.0</IBeamVersion>
+    <IBeamVersion Condition="'$(IBeamVersion)' == ''">2.17.0</IBeamVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="IBeam.Management.Api" Version="$(IBeamVersion)" />

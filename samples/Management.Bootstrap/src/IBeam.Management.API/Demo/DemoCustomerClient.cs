@@ -55,6 +55,8 @@ public sealed class DemoCustomerClient(IConfiguration config,IHostEnvironment en
     public Task<ManagementCustomerInvitationResult> ChangeInvitationAsync(ManagementCustomerIdentityConnection c,Guid tenant,Guid invite,bool revoke,string key,string version,CancellationToken ct=default)=>Data<ManagementCustomerInvitationResult>(c,ManagementCustomerIdentityOperations.InvitesManage,"POST",$"/api/management-identity/tenants/{tenant:D}/invites/{invite:D}/"+(revoke?"revoke":"resend"),new{},key,version,ct);
     public Task<ManagementCustomerMembershipResult> SetMembershipAsync(ManagementCustomerIdentityConnection c,Guid tenant,Guid user,ChangeManagementCustomerMembership body,string version,string key,CancellationToken ct=default)=>Data<ManagementCustomerMembershipResult>(c,ManagementCustomerIdentityOperations.MembershipsManage,"PATCH",$"/api/management-identity/tenants/{tenant:D}/users/{user:D}/membership",body,key,version,ct);
     public Task<ManagementCustomerMembershipResult> SetCustomerRolesAsync(ManagementCustomerIdentityConnection c,Guid tenant,Guid user,ChangeManagementCustomerRoles body,string version,string key,CancellationToken ct=default)=>Data<ManagementCustomerMembershipResult>(c,ManagementCustomerIdentityOperations.RolesAssign,"PUT",$"/api/management-identity/tenants/{tenant:D}/users/{user:D}/roles",body,key,version,ct);
+    public Task<ManagementCustomerOwnershipDto> ReadOwnershipAsync(ManagementCustomerIdentityConnection c,Guid tenant,CancellationToken ct=default)=>Data<ManagementCustomerOwnershipDto>(c,ManagementCustomerIdentityOperations.OwnersRead,"GET",$"/api/management-identity/tenants/{tenant:D}/ownership",null,null,null,ct);
+    public Task<ManagementCustomerOwnershipResult> TransferOwnershipAsync(ManagementCustomerIdentityConnection c,Guid tenant,TransferManagementCustomerOwnership body,string version,string key,CancellationToken ct=default)=>Data<ManagementCustomerOwnershipResult>(c,ManagementCustomerIdentityOperations.OwnersTransfer,"POST",$"/api/management-identity/tenants/{tenant:D}/ownership/transfers",body,key,version,ct);
     public Task<ManagementIdentityOperationDto> GetOperationAsync(ManagementCustomerIdentityConnection c,Guid id,string authority,CancellationToken ct=default)=>Data<ManagementIdentityOperationDto>(c,authority,"GET",$"/api/management-identity/operations/{id:D}",null,null,null,ct);
     public async Task<ManagementIdentityOperationDto?> ResolveOperationAsync(ManagementCustomerIdentityConnection c,ManagementIdentityOperationLookup body,string key,string authority,CancellationToken ct=default)
     {try{return await Data<ManagementIdentityOperationDto>(c,authority,"POST","/api/management-identity/operations/resolve",body,key,null,ct);}catch(ManagementCustomerIdentityNotFoundException){return null;}}
@@ -64,6 +66,7 @@ public sealed class DemoCustomerClient(IConfiguration config,IHostEnvironment en
     {
         var target=Require(c);var info=await Info(target,ct);
         if(info.ApplicationKey!=c.ApplicationKey||info.Environment!=c.Environment||info.IdentityRealmId!=c.IdentityRealmId||info.ProtocolVersion!=1||!info.Capabilities.Contains(operation))throw new ManagementAccessDeniedException();
+        if(operation is ManagementCustomerIdentityOperations.OwnersRead or ManagementCustomerIdentityOperations.OwnersTransfer && info.OwnershipTransferProtocolVersion!=1)throw new ManagementAccessDeniedException();
         var bytes=body is null?Array.Empty<byte>():JsonSerializer.SerializeToUtf8Bytes(body,Json);
         var assertion=await actors.IssueAsync(c.ApplicationId,operation,new(){Method=method,PathAndQuery=path,Body=bytes,IdempotencyKey=key,IfMatch=version},ct);
         return await Raw(target,method,path,bytes,key,version,assertion.Value,ct);
@@ -80,6 +83,8 @@ public sealed class DemoCustomerClient(IConfiguration config,IHostEnvironment en
         using var response=await client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,ct);
         if(response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)throw new ManagementAccessDeniedException();
         if(response.StatusCode==HttpStatusCode.NotFound)throw new ManagementCustomerIdentityNotFoundException();if(response.StatusCode==HttpStatusCode.Conflict)throw new ManagementIdentityOperationConflictException();
+        if(response.StatusCode==HttpStatusCode.PreconditionFailed)throw new ManagementCustomerIdentityPreconditionException();
+        if(response.StatusCode==HttpStatusCode.BadRequest)throw new ManagementCustomerIdentityInvalidRequestException();
         if(response.StatusCode==HttpStatusCode.PreconditionFailed)throw new ManagementCustomerIdentityPreconditionException();if(response.StatusCode==HttpStatusCode.BadRequest)throw new ManagementCustomerIdentityInvalidRequestException();
         if(response.StatusCode==HttpStatusCode.TooManyRequests)throw new ManagementCustomerIdentityRateLimitException();
         if(!response.IsSuccessStatusCode)throw new ManagementCustomerIdentityUnavailableException();
