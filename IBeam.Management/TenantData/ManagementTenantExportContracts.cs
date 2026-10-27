@@ -48,7 +48,17 @@ public sealed record ManagementTenantExportDataset(string Key, string Kind);
 public sealed record ManagementTenantExportDefinition(int ContractVersion, string HandlerKey, int InventoryVersion,
     string Consistency, IReadOnlyList<ManagementTenantExportDataset> Datasets);
 public sealed record ManagementTenantExportExecution(ManagementOperationContext Authority, string ApplicationKey, string Environment,
-    Guid JobId, string PolicyKey, int InventoryVersion);
+    Guid JobId, string PolicyKey, int InventoryVersion)
+{
+    [JsonIgnore] public IManagementTenantExportLeaseFence? LeaseFence { get; init; }
+    [JsonIgnore] public DateTimeOffset? ArtifactExpiresUtc { get; init; }
+}
+/// <summary>Consumer providers must check the current lease before publishing output or committing delivery, and reconcile by stable job ID.</summary>
+public interface IManagementTenantExportLeaseFence
+{
+    DateTimeOffset ExpiresUtc { get; }
+    Task RequireAsync(CancellationToken ct = default);
+}
 
 /// <summary>Private server-side reference. It must not be returned through Management HTTP or audit.</summary>
 public sealed class ManagementTenantExportArtifact
@@ -83,9 +93,31 @@ public interface IManagementTenantExportHandler
 public interface IManagementTenantExportDelivery
 {
     int ProtocolVersion { get; }
+    Task RequireArtifactAsync(ManagementTenantExportExecution execution, ManagementTenantExportArtifact artifact, CancellationToken ct = default);
     Task DeliverOrReconcileAsync(ManagementTenantExportExecution execution, ManagementTenantExportArtifact artifact, CancellationToken ct = default);
     Task RevokeAndDeleteAsync(ManagementTenantExportExecution execution, ManagementTenantExportArtifact artifact, CancellationToken ct = default);
 }
+
+/// <summary>Trusted target scheduler/administration port, never mapped to a support HTTP route.</summary>
+public interface IManagementTenantExportWorker
+{
+    Task RunAsync(ManagementTenantExportExecution execution, bool reconcileUncertain = false, CancellationToken ct = default);
+    Task CancelAsync(ManagementTenantExportExecution execution, CancellationToken ct = default);
+    Task CleanupAsync(ManagementTenantExportExecution execution, CancellationToken ct = default);
+}
+/// <summary>Server-only app customer retrieval gate. The support API never exposes this port or an artifact download.</summary>
+public interface IManagementTenantExportCustomerArtifacts
+{
+    Task<ManagementTenantExportArtifact> RequireAsync(ManagementTenantExportExecution execution, ClaimsPrincipal authenticatedCustomer, CancellationToken ct = default);
+}
+public sealed class ManagementTenantExportPermanentFailureException : Exception
+{
+    public string Code { get; }
+    public ManagementTenantExportPermanentFailureException(string code) : base("The consumer export could not complete.")
+        => Code = code is "handler-failed" or "delivery-denied" ? code : "handler-failed";
+}
+/// <summary>Provider positively knows the same durable consumer job/delivery is still running. Reconciliation may resume by that job ID.</summary>
+public sealed class ManagementTenantExportPendingException() : Exception("The consumer export is still running.");
 /// <summary>Required app-owned authorization for the separate customer retrieval surface. Support grants are not customer authority.</summary>
 public interface IManagementTenantExportCustomerAuthorization
 {

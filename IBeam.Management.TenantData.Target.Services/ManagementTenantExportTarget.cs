@@ -28,7 +28,9 @@ public sealed class ManagementTenantExportTarget(IManagementOperationAccessServi
                 throw new ManagementOperationInvalidException();
             var definition = ManagementTenantExportProtocol.Definition(handler.Describe());
             var execution = new ManagementTenantExportExecution(context, deployment.Value.ApplicationKey, deployment.Value.Environment, context.OperationId, request.PolicyKey, definition.InventoryVersion);
-            await policy.RequireAsync(execution, request.ExpectedVersion, token);
+            // The standard durable service checks immutable prior intent before a fresh
+            // native version precondition; replay must not reapply or fail an old command.
+            if (jobs is not ManagementTenantExportJobService) await policy.RequireAsync(execution, request.ExpectedVersion, token);
             await access.RequireAsync(ManagementTenantDataOperations.Export, context, token);
             return await jobs.SubmitAsync(execution, request, token);
         }, ct);
@@ -46,7 +48,7 @@ public sealed class ManagementTenantExportTarget(IManagementOperationAccessServi
             await access.RequireAsync(ManagementTenantDataOperations.Export, scope, token);
             var result = await action(token);
             await access.RequireAsync(ManagementTenantDataOperations.Export, scope, token);
-            var safe = ManagementTenantExportProtocol.Result(result, scope.TenantId, scope.OperationId, handler.Describe());
+            var safe = jobs is ManagementTenantExportJobService ? result : ManagementTenantExportProtocol.Result(result, scope.TenantId, scope.OperationId, handler.Describe());
             if (safe.Outcome == "unknown") throw new UnknownResult(safe);
             return safe;
           }
