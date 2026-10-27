@@ -46,5 +46,5 @@ public static class ManagementDelegationBinding
         key.KeyId is { Length: > 0 and <= 100 } && key.KeyId.All(x => char.IsAsciiLetterOrDigit(x) || x is '-' or '_');
     public static bool Mutating(string operation) => ManagementCustomerIdentityPermissionPolicy.IsAssignable(operation) &&
         operation is not (ManagementCustomerIdentityOperations.TenantsRead or ManagementCustomerIdentityOperations.UsersRead or
-            ManagementCustomerIdentityOperations.InvitesRead or ManagementCustomerIdentityOperations.RolesRead or ManagementCustomerIdentityOperations.OnboardingRead);
+            ManagementCustomerIdentityOperations.InvitesRead or ManagementCustomerIdentityOperations.RolesRead or ManagementCustomerIdentityOperations.OwnersRead or ManagementCustomerIdentityOperations.OnboardingRead);
 }

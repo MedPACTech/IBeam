@@ -76,7 +76,8 @@ public sealed partial class ManagementTargetConnectionProbe : IManagementTargetP
                 d.GetProperty("realmScope").GetString()!, d.GetProperty("protocolVersion").GetInt32(),
                 Array.AsReadOnly(d.GetProperty("capabilities").EnumerateArray().Select(x => x.GetString()!).ToArray())) {
                     OperationReceiptProtocolVersion = d.TryGetProperty("operationReceiptProtocolVersion", out var receipts) ? receipts.GetInt32() : 0,
-                    OwnershipProtectionProtocolVersion = d.TryGetProperty("ownershipProtectionProtocolVersion", out var ownership) ? ownership.GetInt32() : 0 };
+                    OwnershipProtectionProtocolVersion = d.TryGetProperty("ownershipProtectionProtocolVersion", out var ownership) ? ownership.GetInt32() : 0,
+                    OwnershipTransferProtocolVersion = d.TryGetProperty("ownershipTransferProtocolVersion", out var transfer) ? transfer.GetInt32() : 0 };
             ManagementCustomerIdentityProtocol.Validate(info);
             return new(ManagementCustomerIdentityStatuses.Available, info);
         }

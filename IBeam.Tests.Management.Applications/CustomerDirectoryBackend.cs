@@ -35,7 +35,7 @@ internal sealed partial class CustomerDirectoryBackend : IManagementDelegatedAct
     public bool Empty { get; set; }
     public string? Failure { get; set; }
     public Func<CancellationToken, Task>? DuringData { get; set; }
-    public async Task<Guid> AddApp(PortalHttpFixture f, string key = "qurvia", string[]? human = null, bool includeOperations = false, bool includeMutations = false, bool includeOnboarding = false, bool includeProvisioning = false, bool includeMemberships = false, bool includeTenantStatus = false)
+    public async Task<Guid> AddApp(PortalHttpFixture f, string key = "qurvia", string[]? human = null, bool includeOperations = false, bool includeMutations = false, bool includeOnboarding = false, bool includeProvisioning = false, bool includeMemberships = false, bool includeTenantStatus = false, bool includeOwnership = false)
     {
         var id = await f.Data.AddApp(key);
         var grants = human ?? ReadOperations;
@@ -54,6 +54,8 @@ internal sealed partial class CustomerDirectoryBackend : IManagementDelegatedAct
                     OperationReceiptProtocolVersion = includeMutations || includeOnboarding || includeProvisioning || includeMemberships || includeTenantStatus ? 1 : 0 };
         if (includeMemberships) info = info with { Capabilities = info.Capabilities.Concat(new[] { ManagementCustomerIdentityOperations.MembershipsManage, ManagementCustomerIdentityOperations.RolesAssign }).Distinct().ToArray() };
         if (includeTenantStatus) info = info with { Capabilities = info.Capabilities.Append(ManagementCustomerIdentityOperations.TenantsStatus).Distinct().ToArray() };
+        if (includeOwnership) info = info with { OperationReceiptProtocolVersion = 1, OwnershipProtectionProtocolVersion = 1, OwnershipTransferProtocolVersion = 1,
+            Capabilities = info.Capabilities.Concat(new[] { ManagementCustomerIdentityOperations.OwnersRead, ManagementCustomerIdentityOperations.OwnersTransfer }).Distinct().ToArray() };
         f.Data.Credentials.Rows[f.Data.Credentials.Rows.IndexOf(row)] = row with { Capabilities = info.Capabilities, CustomerIdentity = new("available", info) };
         Targets[new Uri(row.BaseUrl).Host] = (id, info, ConnectionFixture.Key + "-" + key);
         return id;
@@ -86,6 +88,8 @@ internal sealed partial class CustomerDirectoryBackend : IManagementDelegatedAct
         Assert.AreEqual(proof.Key, request.Headers.TryGetValues("Idempotency-Key", out var keys) ? keys.Single() : null);
         Assert.AreEqual(proof.Version, request.Headers.TryGetValues("If-Match", out var versions) ? versions.Single() : null);
         if (Forward is not null) return await Forward(request, proof.Operation, ct);
+        if (EnableOwnership && (proof.Operation is ManagementCustomerIdentityOperations.OwnersRead or ManagementCustomerIdentityOperations.OwnersTransfer))
+            return await Ownership(request, proof.Operation, ct);
         if (EnableTenantStatus && (uri.AbsolutePath.EndsWith("/activate", StringComparison.Ordinal) || uri.AbsolutePath.EndsWith("/deactivate", StringComparison.Ordinal) ||
             uri.AbsolutePath.Contains("/operations/", StringComparison.Ordinal))) return await TenantStatus(request, proof.Operation, ct);
         if (EnableMemberships && (uri.AbsolutePath.EndsWith("/membership", StringComparison.Ordinal) || uri.AbsolutePath.EndsWith("/roles", StringComparison.Ordinal) ||

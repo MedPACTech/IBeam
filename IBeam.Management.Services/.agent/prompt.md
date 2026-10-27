@@ -37,3 +37,5 @@ IBM-0115: provenance is evidence-based optional target metadata: support-provisi
 IBM-0117: an app assignment can contain both diagnostic permissions and every explicitly assignable customer operation (16 total currently). Bound the size from the known catalog; keep distinct known values, live assignment checks and independent delegation ceilings. Unknown/wildcard authority stays rejected.
 
 IBM-0122: validate optional ownership-protection discovery metadata without treating it as an operation grant or global-account lifecycle guarantee.
+
+IBM-0124: owners.read and owners.transfer are independent opt-in capabilities; roles.assign never grants transfer. Preserve atomic native adapters, live enforcement, signed source/destination/snapshot versions and same-intent receipt recovery. Polling is read-only. Audit only scoped IDs and outcome. Existing grants remain unchanged; see docs/management/customer-ownership-api.md.
