@@ -48,7 +48,7 @@ public sealed class ManagementCustomerOwnershipService : IManagementCustomerOwne
                 catch (IdentityValidationException) { throw new ManagementIdentityOperationConflictException(); }
             }
             var receipt = await receipts.ExecuteAsync(new() { Operation = ManagementCustomerIdentityOperations.OwnersTransfer,
-                ResourceScope = tenant, ExistingResourceId = request.SourceUserId, IdempotencyKey = key, CanonicalPayload = payload },
+                ResourceScope = tenant, ExistingResourceId = tenant, IdempotencyKey = key, CanonicalPayload = payload },
                 new Handler(async (context, inner) => {
                     var existing = await store.FindOwnershipTransferAsync(tenant, context.OperationId, inner);
                     if (existing is null) return ManagementIdentityReconciliation.Absent;

@@ -21,7 +21,7 @@ public sealed class ManagementPortalCustomerOwnershipService(PortalMutationRunti
             if (tenant == Guid.Empty || request is null || !request.IsValid() || !TransferManagementCustomerOwnership.Exact(version) || !ManagementDelegationBinding.ValidIdempotencyKey(key))
                 throw new ManagementCustomerIdentityInvalidRequestException();
             var connection = await runtime.Resolve(app, ManagementCustomerIdentityOperations.OwnersTransfer, token);
-            var state = references.Create(new(ManagementCustomerIdentityOperations.OwnersTransfer, tenant, request.SourceUserId), key);
+            var state = references.Create(new(ManagementCustomerIdentityOperations.OwnersTransfer, tenant, tenant), key);
             ManagementCustomerOwnershipResult? result = null;
             using (var attempt = runtime.Attempt(token)) {
                 try { result = await client.TransferOwnershipAsync(connection, tenant, request, version, key, attempt.Token); }

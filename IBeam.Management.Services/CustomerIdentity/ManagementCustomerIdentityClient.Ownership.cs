@@ -26,7 +26,7 @@ public sealed partial class ManagementCustomerIdentityClient
         using var document = response.Document;
         var result = Data<ManagementCustomerOwnershipResult>(document.RootElement) ?? throw new ManagementCustomerIdentityResponseException();
         var receipt = SafeOperation(result.Operation, ManagementCustomerIdentityOperations.OwnersTransfer, null);
-        if (receipt.ResourceId != request.SourceUserId || (receipt.Status == "succeeded") != (response.Status == System.Net.HttpStatusCode.OK))
+        if (receipt.ResourceId != tenant || (receipt.Status == "succeeded") != (response.Status == System.Net.HttpStatusCode.OK))
             throw new ManagementCustomerIdentityResponseException();
         return new(receipt);
     }

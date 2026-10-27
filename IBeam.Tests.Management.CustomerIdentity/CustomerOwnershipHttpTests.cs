@@ -96,6 +96,20 @@ public sealed class CustomerOwnershipHttpTests
         Assert.IsTrue(response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden); Assert.HasCount(0,receipts.Rows);
     }
     [TestMethod, TestCategory("StorageIntegration")]
+    public async Task ChangingTheSourceUnderTheSameTenantOwnershipKeyCannotCreateASecondTransfer()
+    {
+        await using var data=await MembershipStorageFixture.Create(ownershipProtection:true); await Configure(data);
+        var receipts=new OperationStore(); await using var target=await DelegationFixture.Start(memberships:data,operations:receipts,ownershipTransfer:true);
+        var (first,version)=await Command(data);
+        using var completed=await Write(target,data,first,version); Assert.AreEqual(HttpStatusCode.OK,completed.StatusCode);
+        var after=await data.Members.ReadOwnershipSnapshotAsync(data.Tenant,5000);
+        var changed=new TransferManagementCustomerOwnership { SourceUserId=data.AdminB,DestinationUserId=data.AdminA,
+            SourceVersion=after.Members.Single(x=>x.UserId==data.AdminB).Version,DestinationVersion=after.Members.Single(x=>x.UserId==data.AdminA).Version };
+        using var conflict=await Write(target,data,changed,after.Version);
+        Assert.AreEqual(HttpStatusCode.Conflict,conflict.StatusCode); Assert.HasCount(1,receipts.Rows);
+        Assert.AreEqual(after.Version,(await data.Members.ReadOwnershipSnapshotAsync(data.Tenant,5000)).Version);
+    }
+    [TestMethod, TestCategory("StorageIntegration")]
     public async Task LostJournalReplyKeepsPollingReadOnlyAndExplicitSameIntentRetryReconcilesTheNativeReceipt()
     {
         await using var data=await MembershipStorageFixture.Create(ownershipProtection:true); await Configure(data);

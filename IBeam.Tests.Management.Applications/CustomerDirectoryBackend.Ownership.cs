@@ -25,7 +25,7 @@ internal sealed partial class CustomerDirectoryBackend
         var bytes = await request.Content!.ReadAsByteArrayAsync(ct); var key = request.Headers.GetValues("Idempotency-Key").Single();
         if (uri.AbsolutePath.EndsWith("/operations/resolve", StringComparison.Ordinal)) {
             LookupCalls++; var lookup = JsonSerializer.Deserialize<ManagementIdentityOperationLookup>(bytes, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
-            return lookup.ResourceScope == Tenant && lookup.ExistingResourceId == User && lookup.Operation == authority && _ownership.TryGetValue((uri.Host, key), out var found)
+            return lookup.ResourceScope == Tenant && lookup.ExistingResourceId == Tenant && lookup.Operation == authority && _ownership.TryGetValue((uri.Host, key), out var found)
                 ? Response(found.Receipt) : new(HttpStatusCode.NotFound);
         }
         var version = request.Headers.GetValues("If-Match").Single();
@@ -38,7 +38,7 @@ internal sealed partial class CustomerDirectoryBackend
             var command = JsonSerializer.Deserialize<TransferManagementCustomerOwnership>(bytes, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
             if (!command.IsValid() || command.SourceUserId != User || command.DestinationUserId != DestinationOwner || command.SourceVersion != "source-v1" || command.DestinationVersion != "destination-v1") return new(HttpStatusCode.Conflict);
             Assert.AreEqual(ManagementCustomerIdentityOperations.OwnersTransfer, authority); OwnershipWrites++;
-            var now = DateTimeOffset.UtcNow; receipt = new(Guid.NewGuid(), authority, "succeeded", 1, User, now, now, now.AddDays(1));
+            var now = DateTimeOffset.UtcNow; receipt = new(Guid.NewGuid(), authority, "succeeded", 1, Tenant, now, now, now.AddDays(1));
             _ownership[(uri.Host,key)] = (fingerprint,receipt);
         }
         if (DuringMutation is not null) await DuringMutation(ct);

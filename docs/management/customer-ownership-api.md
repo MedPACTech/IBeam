@@ -50,6 +50,8 @@ Discovery advertises the installed operations only with their usable adapter, pe
 
 The signed actor proof binds the operation, method, full scoped path, serialized body, idempotency key and If-Match. Every required version is therefore covered. Proofs are single-use; an explicitly retried same intent gets a new short-lived proof. Extra fields, role names/IDs, status overrides and wildcard versions are rejected. Source/destination must be distinct memberships in the same active tenant. The target-owned SingleOwner/MultipleOwners policy determines allowed transfer semantics; a request cannot choose it or reactivate the destination.
 
+Receipts and key lookup are scoped to the tenant ownership resource, not a body-selected source user. Changing the source or destination under the same key therefore conflicts rather than reserving a second transfer. The safe receipt ResourceId is the tenant ID.
+
 An authentic stale version returns 412, invalid ownership state/policy returns safe 409, missing membership returns safe 404, and authorization failures return 401/403. Use fresh reads and a new intent/key after correcting a stale or conflicting request. Never substitute new preconditions under an existing idempotency key. Responses exclude profiles, role data, credentials and provider errors; an invalid target response becomes a safe portal 502.
 
 ## Unknown outcomes and polling
