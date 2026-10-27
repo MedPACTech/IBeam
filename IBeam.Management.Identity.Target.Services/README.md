@@ -1,5 +1,7 @@
 # IBeam.Management.Identity.Target.Services
 
+Management invitations created by provisioning, enterprise onboarding and resend use unpadded base64url tokens so their path segments work behind Windows IIS. Tokens retain 256 bits of entropy and raw-token SHA-256 hashing. Existing stored invitations remain valid; consumer hosts may need encoded-plus path compatibility for older links, while encoded-slash links require resend. See [the 2.16.1 patch notes](../docs/releases/2.16.1.md).
+
 IBM-0106 adds scoped receipt lookup by the original idempotency identity without customer payloads or writes. It reconstructs the existing operation ID under live authority and never executes mutation handlers. See docs/management/customer-tenant-portal-writes.md.
 
 IBM-0105 adds ManagementTenantAdministrationService over existing Identity lifecycle services, durable operation receipts and separate source/reference/phase metadata. Stable IDs and conditional writes recover incomplete consumer extensions. No customer membership/default tenant/role/token is assigned. See docs/management/customer-tenant-administration.md.
