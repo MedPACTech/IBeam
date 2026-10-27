@@ -30,6 +30,7 @@ public static class DemoCustomerTarget
     {
         DevelopmentDemoDiagnostics.Validate(parent, environment);
         var definition = Definitions(parent).Single(x => x.ApplicationKey == applicationKey);
+        var ownership = parent.GetValue<bool>("ManagementHost:CustomerDemo:OwnershipEnabled");
         var endpoint = new Uri(definition.Url);
         if (!endpoint.IsLoopback || endpoint.Scheme != "http" || definition.RealmId == Guid.Empty || definition.ApplicationId == Guid.Empty ||
             !definition.TablePrefix.StartsWith("DemoCustomer", StringComparison.Ordinal)) throw new InvalidOperationException("Invalid isolated customer fixture.");
@@ -68,7 +69,14 @@ public static class DemoCustomerTarget
             ["IBeam:Management:CustomerIdentity:Invitations:ApprovedRoleNames:1"] = "Owner",
             ["IBeam:Management:CustomerIdentity:Memberships:AdministratorRoleNames:0"] = "Owner"
         };
-        var enabled=ManagementCustomerIdentityOperations.All.Where(ManagementCustomerIdentityPermissionPolicy.IsAssignable).ToArray();
+        if(ownership){
+            values["IBeam:Identity:TenantOwnership:Enabled"]="true";
+            values["IBeam:Identity:TenantOwnership:OwnerRoleNames:0"]="Owner";
+            values["IBeam:Identity:TenantOwnershipTransfer:Enabled"]="true";
+            values["IBeam:Identity:TenantOwnershipTransfer:Mode"]="SingleOwner";
+        }
+        var enabled=ManagementCustomerIdentityOperations.All.Where(ManagementCustomerIdentityPermissionPolicy.IsAssignable)
+            .Where(x=>ownership || x is not (ManagementCustomerIdentityOperations.OwnersRead or ManagementCustomerIdentityOperations.OwnersTransfer)).ToArray();
         for(var index=0;index<enabled.Length;index++) values["IBeam:Management:CustomerIdentity:EnabledOperations:"+index] = enabled[index];
         b.Configuration.AddInMemoryCollection(values);
         b.Services.AddSingleton<IIdentityCommunicationSender>(new CustomerOutbox(Path.Combine(HostRegistration.DataDirectory(parent), applicationKey, "outbox")));
@@ -108,6 +116,7 @@ public static class DemoCustomerTarget
         b.Services.AddIBeamManagementCustomerInvitationsApi(b.Configuration);
         b.Services.AddIBeamManagementCustomerMembershipApi(b.Configuration);
         b.Services.AddIBeamManagementTenantStatusApi(b.Configuration);
+        if(ownership) b.Services.AddIBeamManagementCustomerOwnershipApi(b.Configuration);
         b.Services.AddControllers().ConfigureApplicationPartManager(parts=>parts.FeatureProviders.Add(new CustomerControllerBoundary()));
         await using var app = b.Build();
         if(setup) {
@@ -120,7 +129,7 @@ public static class DemoCustomerTarget
             var keys = services.GetRequiredService<IManagementApiCredentialRepository>();
             if(await keys.GetAsync(applicationKey,"Testing",definition.CredentialId) is null) await keys.CreateAsync(new ManagementApiCredentialEntity {
                 CredentialId=definition.CredentialId,ApplicationKey=applicationKey,Environment="Testing",SecretHash=new ManagementCredentialSecretCodec().Hash(definition.MachineKey),
-                CreatedUtc=DateTimeOffset.UtcNow,ExpiresUtc=DateTimeOffset.UtcNow.AddDays(90),Capabilities=ManagementCustomerIdentityOperations.All });
+                CreatedUtc=DateTimeOffset.UtcNow,ExpiresUtc=DateTimeOffset.UtcNow.AddDays(90),Capabilities=enabled.Prepend(ManagementCustomerIdentityOperations.Info).ToArray() });
             var users=services.GetRequiredService<IIdentityUserStore>();
             var email="customer@"+applicationKey+".example.test";
             var user=await users.FindByEmailAsync(email);
@@ -139,7 +148,19 @@ public static class DemoCustomerTarget
             var memberships=services.GetRequiredService<ITenantMembershipStore>();
             if(await memberships.GetTenantForUserAsync(disabled.UserId,definition.TenantId) is null){
                 await roles.EnsureTenantMembershipAndGrantRolesAsync(new(definition.TenantId,disabled.UserId,RoleIds:[memberRole.RoleId],UserEmail:disabledEmail));
-                await memberships.DisableTenantMembershipAsync(definition.TenantId,disabled.UserId,"Synthetic fixture");
+                if(ownership){
+                    var conditional=services.GetRequiredService<IIdentityTenantMembershipConditionalStore>();
+                    var state=await conditional.FindStateAsync(definition.TenantId,disabled.UserId) ?? throw new InvalidOperationException("Synthetic membership missing.");
+                    var owner=(await roles.GetRolesAsync(definition.TenantId)).Single(x=>x.Name=="Owner");
+                    await services.GetRequiredService<IIdentityTenantMembershipAdministrationService>().SetEnabledAsync(definition.TenantId,disabled.UserId,false,state.Version,Guid.NewGuid(),[owner.RoleId]);
+                }else await memberships.DisableTenantMembershipAsync(definition.TenantId,disabled.UserId,"Synthetic fixture");
+            }
+            if(ownership){
+                var emailMember="member@"+applicationKey+".example.test"; var member=await users.FindByEmailAsync(emailMember);
+                if(member is null){member=(await users.CreateAsync(new(emailMember,null,parent["ManagementHost:CustomerDemo:CustomerPassword"]!))).User ?? throw new InvalidOperationException("Synthetic user creation failed.");await users.SetEmailConfirmedAsync(member.UserId,true);await users.SetTwoFactorAsync(member.UserId,true,"email");}
+                if(await memberships.GetTenantForUserAsync(member.UserId,definition.TenantId) is null)
+                    await roles.EnsureTenantMembershipAndGrantRolesAsync(new(definition.TenantId,member.UserId,RoleIds:[memberRole.RoleId],SetAsDefault:true,UserEmail:emailMember));
+                await services.GetRequiredService<IIdentityTenantOwnershipProtection>().EnsureAsync(definition.TenantId);
             }
             var pendingId=new Guid(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("synthetic-pending:"+definition.RealmId)).AsSpan(0,16));
             if(await services.GetRequiredService<ITenantInviteStore>().GetAsync(definition.TenantId,pendingId) is null){
