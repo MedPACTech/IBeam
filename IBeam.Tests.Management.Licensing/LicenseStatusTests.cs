@@ -218,7 +218,7 @@ public sealed class LicenseStatusTests
             return Task.CompletedTask;
         }
     }
-    internal sealed class FaultStore : ILicensingStore, ILicenseStatusConditionalStore
+    internal sealed class FaultStore : ILicensingStore, ILicenseStatusConditionalStore, ILicenseSeatConditionalStore
     {
         private readonly InMemoryLicensingStore inner = new();
         public bool LoseReply { get; set; }
@@ -228,6 +228,22 @@ public sealed class LicenseStatusTests
         public int StatusProtocolVersion => 1;
         public bool NativeWritersParticipate => true;
         public bool DurableStatusReceipts => false;
+        public int SeatProtocolVersion => 1;
+        public bool NativeSeatWritersParticipate => true;
+        public bool DurableSeatReceipts => false;
+        public Task<bool> RequiresSeatProtectionAsync(Guid tenant, Guid license, CancellationToken ct = default) => inner.RequiresSeatProtectionAsync(tenant, license, ct);
+        public Task<LicenseSeatSnapshot?> ReadSeatsAsync(Guid tenant, Guid license, int maximum, CancellationToken ct = default) => inner.ReadSeatsAsync(tenant, license, maximum, ct);
+        public Task<LicenseSeatReceipt?> FindSeatReceiptAsync(Guid tenant, Guid license, Guid id, string scope, string transition, CancellationToken ct = default)
+            => inner.FindSeatReceiptAsync(tenant, license, id, scope, transition, ct);
+        public Task ApplyNativeSeatAsync(Guid tenant, Guid license, string version, LicenseSeatAssignmentInfo? assignment, Guid? remove, CancellationToken ct = default)
+            => inner.ApplyNativeSeatAsync(tenant, license, version, assignment, remove, ct);
+        public async Task<LicenseSeatReceipt> CommitSeatAsync(LicenseSeatCommit commit, CancellationToken ct = default)
+        {
+            Interlocked.Increment(ref commits); if (Barrier is not null) await Barrier.Arrive(ct);
+            var value = await inner.CommitSeatAsync(commit, ct);
+            if (LoseReply) { LoseReply = false; throw new IOException("PROVIDER-PRIVATE-CANARY"); }
+            return value;
+        }
         public Task<IReadOnlyList<TenantLicenseRecord>> ListLicensesAsync(Guid tenant, CancellationToken ct = default) => inner.ListLicensesAsync(tenant, ct);
         public Task<TenantLicenseRecord?> GetLicenseAsync(Guid tenant, Guid license, CancellationToken ct = default) => inner.GetLicenseAsync(tenant, license, ct);
         public Task<TenantLicenseRecord> UpsertLicenseAsync(TenantLicenseRecord row, CancellationToken ct = default) => inner.UpsertLicenseAsync(row, ct);
