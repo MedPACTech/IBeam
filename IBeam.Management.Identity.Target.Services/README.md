@@ -1,5 +1,7 @@
 # IBeam.Management.Identity.Target.Services
 
+Optional [independent native owner protection](../docs/management/tenant-ownership-protection.md) (IBM-0122) is configured separately from administrator recovery roles. Target info reports the installed native membership protocol only when explicitly enabled with compatible providers. This adds no ownership-transfer endpoint or grant.
+
 IBM-0106 adds scoped receipt lookup by the original idempotency identity without customer payloads or writes. It reconstructs the existing operation ID under live authority and never executes mutation handlers. See docs/management/customer-tenant-portal-writes.md.
 
 IBM-0105 adds ManagementTenantAdministrationService over existing Identity lifecycle services, durable operation receipts and separate source/reference/phase metadata. Stable IDs and conditional writes recover incomplete consumer extensions. No customer membership/default tenant/role/token is assigned. See docs/management/customer-tenant-administration.md.

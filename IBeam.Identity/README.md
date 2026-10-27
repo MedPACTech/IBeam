@@ -1,5 +1,7 @@
 # IBeam.Identity
 
+Optional independent tenant owner protection (IBM-0122) adds explicit host policy and versioned native writer contracts without inferring an owner from a legacy tenant column. See [configuration, provider and global-account boundaries](../docs/management/tenant-ownership-protection.md).
+
 IBM-0105 adds optional IIdentityTenantConditionalStore / IIdentityTenantAdministrationService and VersionedIdentityTenant contracts without changing existing tenant store/service interfaces. External lifecycle contexts can redact failure details; the flag grants no authority. See docs/management/customer-tenant-administration.md.
 
 `IBeam.Identity` is the contract package for the IBeam identity domain.

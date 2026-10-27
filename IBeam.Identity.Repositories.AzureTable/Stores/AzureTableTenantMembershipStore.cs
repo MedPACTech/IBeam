@@ -276,7 +276,7 @@ public sealed partial class AzureTableTenantMembershipStore : ITenantMembershipS
             var tenantUsers = GetTenantUsersTable();
             var userTenants = GetUserTenantsTable();
 
-            await TenantMembershipPartition.RequireLegacyDestructiveWrite(tenantUsers, _opts.TenantUsersPk(tenantId), ct).ConfigureAwait(false);
+            await TenantMembershipPartition.RequireLegacyDestructiveWrite(tenantUsers, _opts.TenantUsersPk(tenantId), ct, _opts.RequireOwnershipProtection).ConfigureAwait(false);
 
             var tenantUserResp = await tenantUsers
                 .GetEntityIfExistsAsync<TenantUserEntity>(
@@ -301,7 +301,7 @@ public sealed partial class AzureTableTenantMembershipStore : ITenantMembershipS
                 tenantUser.Status = "Disabled";
                 tenantUser.DisabledAt = now;
                 tenantUser.DisabledReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
-                await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, true)
+                await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, true, _opts.RequireOwnershipProtection)
                     .ConfigureAwait(false);
             }
 

@@ -67,7 +67,7 @@ Dependency keys: None.
 
 ### IBM-0122 / MLO-002: Enforce an independent last-owner invariant across native membership writers
 
-**8 points.** Lane: `ready`. Order: 20. Dependencies: IBM-0121.
+**8 points.** Lane: `in_progress`. Order: 20. Dependencies: IBM-0121.
 
 Add explicit target/native ownership policy and optional conditional ownership store contracts. Extend the tenant-partition guard to track owner protection separately from administrator protection. All supported role, membership disable/revoke and destructive native writers participate; do not hardcode Owner names or use the legacy tenant owner column. Define global account-disable and unsupported-writer behavior explicitly and fail closed when owner safety cannot be established.
 
@@ -81,6 +81,8 @@ Acceptance criteria:
 - [ ] Native role services, invitations/bootstrap and supported membership writers respect the guard; legacy direct destructive paths and global-disable paths have a documented fail-closed boundary.
 - [ ] Providers lacking the new conditional protocol retain existing unrelated behavior and do not advertise ownership transfer; default configurations are not silently granted ownership authority.
 - [ ] Race, retry, unavailable-provider and legacy-role tests preserve other tenants, global identity records and existing last-administrator protection.
+
+82 focused provider/signed-HTTP/discovery checks and 1,119 fresh NuGet-only regressions passed, zero failures/skips. Built/packed 31 production dependencies at private validation version 2.17.0-dev.mlo.122.3; inspected 16 management package roots; package-only portal/two-target smoke passed. Coverage includes independent owner/admin sets, same-snapshot owner removal races, native role revocation, bootstrap/invitation and legacy-writer fences, immutable role identity, sticky policy, provider outages, exact retry/projection repair, default-off and invalid/incompatible opt-in, and discovery metadata round trips. No stable package release or running app upgrade was performed.
 
 Dependency keys: MLO-001.
 

@@ -29,6 +29,9 @@ public sealed record ManagementCustomerIdentityInfo(string ApplicationKey, strin
     /// <summary>Optional read-only reconciliation protocol, independent of operation grants. Zero means unavailable.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public int OperationReceiptProtocolVersion { get; init; }
+    /// <summary>Native membership owner-protection protocol; zero means unavailable. Does not grant transfer authority.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int OwnershipProtectionProtocolVersion { get; init; }
 }
 
 public static class ManagementCustomerIdentityStatuses

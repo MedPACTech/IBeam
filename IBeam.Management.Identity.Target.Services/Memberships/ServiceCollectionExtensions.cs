@@ -15,6 +15,7 @@ public static class ManagementCustomerMembershipExtensions
         services.AddSingleton<Registration>();
         services.AddIBeamManagementIdentityOperations(configuration); services.AddIBeamManagementAssignableRoleCatalog(configuration);
         services.AddIBeamIdentityTenantMembershipAdministration();
+        services.AddIBeamIdentityTenantOwnershipProtection(configuration);
         services.AddOptions<ManagementCustomerMembershipOptions>().Bind(configuration.GetSection(ManagementCustomerMembershipOptions.SectionName))
             .Validate(x => x.IsValid(), "Immutable target-owned administrator roles are required.").ValidateOnStart();
         services.TryAddScoped<IManagementCustomerMembershipService, ManagementCustomerMembershipService>(); return services;

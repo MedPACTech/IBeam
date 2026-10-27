@@ -1,4 +1,4 @@
-﻿using Azure;
+using Azure;
 using Azure.Data.Tables;
 using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace IBeam.Identity.Repositories.AzureTable.Stores;
 
-public sealed class AzureTableTenantRoleStore : ITenantRoleStore
+public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
 {
     public const string OwnerRoleName = "Owner";
     public const string AdminRoleName = "Administrator";
@@ -149,6 +149,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         try
         {
             ct.ThrowIfCancellationRequested();
+            await TenantMembershipPartition.RequireOwnerAwareWrite(TenantUsersTable(), _opts.TenantUsersPk(tenantId), ct, _opts.RequireOwnershipProtection).ConfigureAwait(false);
             var existing = await GetRoleEntityAsync(tenantId, roleId, ct).ConfigureAwait(false)
                 ?? throw new IdentityNotFoundException($"Role '{roleId}' was not found.");
 
@@ -235,7 +236,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         try
         {
             ct.ThrowIfCancellationRequested();
-            await TenantMembershipPartition.RequireLegacyDestructiveWrite(TenantUsersTable(), _opts.TenantUsersPk(tenantId), ct).ConfigureAwait(false);
+            await TenantMembershipPartition.RequireLegacyDestructiveWrite(TenantUsersTable(), _opts.TenantUsersPk(tenantId), ct, _opts.RequireOwnershipProtection).ConfigureAwait(false);
             var roleIdsSet = roleIds.ToHashSet();
             var roles = await GetRoleMapAsync(tenantId, ct).ConfigureAwait(false);
             var result = await UpdateMembershipRolesAsync(tenantId, userId, current =>
@@ -363,7 +364,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
         userTenant.RoleIdsCsv = roleIdsCsv;
         userTenant.RolesCsv = rolesCsv;
 
-        await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, destructive).ConfigureAwait(false);
+        await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, destructive, _opts.RequireOwnershipProtection).ConfigureAwait(false);
         await UserTenantsTable().UpdateEntityAsync(userTenant, userTenant.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
 
         return new UserTenantRoleAssignment(tenantId, userId, effectiveRoles);
@@ -450,7 +451,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                 tenantUser.Email = userEmail;
             if (!string.IsNullOrWhiteSpace(userPhoneNumber))
                 tenantUser.PhoneNumber = userPhoneNumber;
-            await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct).ConfigureAwait(false);
+            await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection).ConfigureAwait(false);
         }
         else
         {
@@ -466,7 +467,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                     Email = userEmail,
                     PhoneNumber = userPhoneNumber,
                     CreatedAt = now
-                }, true, ct).ConfigureAwait(false);
+                }, true, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection).ConfigureAwait(false);
             }
             catch (RequestFailedException ex) when (ex.Status == 409)
             {
@@ -486,7 +487,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
                     tenantUser.Email = userEmail;
                 if (!string.IsNullOrWhiteSpace(userPhoneNumber))
                     tenantUser.PhoneNumber = userPhoneNumber;
-                await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct)
+                await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection)
                     .ConfigureAwait(false);
             }
         }
@@ -703,7 +704,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
 
         foreach (var tenantUser in affectedTenantUsers)
         {
-            await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct).ConfigureAwait(false);
+            await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection).ConfigureAwait(false);
 
             var userId = tenantUser.UserId;
             var userTenantResp = await UserTenantsTable()
@@ -742,7 +743,7 @@ public sealed class AzureTableTenantRoleStore : ITenantRoleStore
 
         foreach (var tenantUser in affectedTenantUsers)
         {
-            await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct).ConfigureAwait(false);
+            await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection).ConfigureAwait(false);
 
             var userId = tenantUser.UserId;
             var userTenantResp = await UserTenantsTable()

@@ -25,3 +25,5 @@ IBM-0113: tenant status is an independent exact-version, idempotent command with
 IBM-0114: onboarding policy keys, role templates and initializer selection are target-owned. Required initialization must reconcile durably by stable operation/tenant before invitations; Unknown never blindly initializes. Typed hook context excludes profiles and credentials. Identity-only remains independent of commercial modules. See docs/management/customer-onboarding-policy.md.
 
 IBM-0115: provenance is evidence-based optional target metadata: support-provisioned, self-service or unknown. Trusted self-service recorder has no HTTP endpoint and never infers origin or changes native signup. Reads enrich one bounded page without writes; missing evidence stays unknown. See docs/management/tenant-provenance.md.
+
+IBM-0122: install the optional native ownership policy for membership APIs. Discovery may report native ownership protocol 1 only with explicit compatible protection. This is not an ownership-transfer capability. Keep role-edit policy bounds and safe same-intent recovery; invalid/missing ownership adapters fail closed.

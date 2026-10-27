@@ -1,5 +1,7 @@
 # IBeam.Identity.Services
 
+Independent owner protection is opt-in under `IBeam:Identity:TenantOwnership`. Native membership administration enforces separate owner and administrator invariants using a shared conditional snapshot. See [tenant ownership protection](../docs/management/tenant-ownership-protection.md) for registration, sticky policy and the unsupported global-account lifecycle boundary.
+
 IBM-0105: AddIBeamIdentityTenantAdministration registers an optional external tenant adapter over existing Identity creation/hooks and conditional rename ports. Recovery resumes lifecycle work with no customer actor, membership, default tenant or token. See docs/management/customer-tenant-administration.md.
 
 Core identity orchestration package for OTP, password, OAuth, tokens, and tenant selection.

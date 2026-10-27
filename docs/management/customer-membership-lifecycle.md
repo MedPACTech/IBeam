@@ -1,5 +1,7 @@
 # Customer membership and role lifecycle (IBM-0112)
 
+IBM-0122 adds optional [independent tenant owner protection](tenant-ownership-protection.md). Configure native owner roles separately from `AdministratorRoleNames`: a remaining Administrator does not replace the last Owner. This uses the same persisted revision and supported native/management writer paths, without introducing ownership transfer or global account deletion.
+
 The target explicitly registers `AddIBeamManagementCustomerMembershipApi(configuration)`; the support host separately registers `AddIBeamManagementPortalCustomerMembershipApi(configuration)`. Both use existing named management authentication, delegated actors, live assignments/connections and private operation/audit/replay storage. These modules do not register customer Identity in the support host. Unsupported conditional membership providers or missing customer access enforcement fail target startup and cannot advertise a usable adapter.
 
 | Target route (prefix `/api/management-identity`) | Independent authority | Strict body |

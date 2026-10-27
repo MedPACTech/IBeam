@@ -35,3 +35,5 @@ IBM-0114: onboarding policy keys, role templates and initializer selection are t
 IBM-0115: provenance is evidence-based optional target metadata: support-provisioned, self-service or unknown. Trusted self-service recorder has no HTTP endpoint and never infers origin or changes native signup. Reads enrich one bounded page without writes; missing evidence stays unknown. See docs/management/tenant-provenance.md.
 
 IBM-0117: an app assignment can contain both diagnostic permissions and every explicitly assignable customer operation (16 total currently). Bound the size from the known catalog; keep distinct known values, live assignment checks and independent delegation ceilings. Unknown/wildcard authority stays rejected.
+
+IBM-0122: validate optional ownership-protection discovery metadata without treating it as an operation grant or global-account lifecycle guarantee.

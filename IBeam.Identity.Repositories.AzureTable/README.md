@@ -1,5 +1,7 @@
 # IBeam.Identity.Repositories.AzureTable
 
+IBM-0122 adds the optional ownership protocol: `OwnerRoleIds` and `OwnershipProtocolVersion` share the existing tenant membership revision; the provider's `RequireOwnershipProtection` fence is derived from the native ownership configuration. Uncoordinated destructive writers fail closed and ordinary grants cannot discard existing authority. See [ownership protocol and rollout](../docs/management/tenant-ownership-protection.md).
+
 IBM-0105: AzureTableIdentityTenantStore also implements IIdentityTenantConditionalStore. Exact ETags guard rename; a merge preserves consumer columns and adds LastOperationId only on managed writes. Legacy missing creation timestamps project as null and reads never rewrite rows. See docs/management/customer-tenant-administration.md.
 
 Azure Table Storage provider for IBeam identity store contracts.

@@ -78,7 +78,7 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         OnboardingFixture? onboarding = null, ProvisioningFixture? provisioning = null, InvitationLifecycleFixture? invitations = null,
         MembershipStorageFixture? memberships = null, IIdentityTenantMembershipConditionalStore? membershipWrites = null, bool tenantStatus = false, Guid? organization = null, Guid? supportUser = null, Guid? application = null,
         Guid? identityRealm = null, string applicationKey = "atlas", string environment = "Testing", Func<IBeam.Identity.Models.IdentityTenant, Task>? createdHook = null,
-        IReadOnlyDictionary<string, string[]>? membershipPolicies = null)
+        IReadOnlyDictionary<string, string[]>? membershipPolicies = null, string[]? ownershipRoleNames = null, string[]? membershipAdministratorRoleNames = null)
     {
         var f = new DelegationFixture();
         f.Organization = organization ?? f.Organization; f.User = supportUser ?? f.User; f.Application = application ?? f.Application;
@@ -188,13 +188,18 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             b.Services.AddIBeamManagementCustomerInvitationsApi(b.Configuration);
         }
         if (memberships is not null) {
+            if (ownershipRoleNames is not null) {
+                b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["IBeam:Identity:TenantOwnership:Enabled"] = "true" });
+                b.Configuration.AddInMemoryCollection(ownershipRoleNames.Select((name, index) =>
+                    new KeyValuePair<string, string?>($"IBeam:Identity:TenantOwnership:OwnerRoleNames:{index}", name)));
+            }
             if (membershipPolicies is not null) b.Configuration.AddInMemoryCollection(membershipPolicies.SelectMany(policy => policy.Value.Select((role, index) =>
                 new KeyValuePair<string, string?>($"IBeam:Management:CustomerIdentity:Provisioning:Policies:{policy.Key}:{index}", role))));
             b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
                 ["IBeam:Management:CustomerIdentity:Provisioning:Policies:default:0"] = "Member",
                 ["IBeam:Management:CustomerIdentity:Provisioning:Policies:administrator:0"] = "Owner",
                 ["IBeam:Management:CustomerIdentity:Memberships:AdministratorRoleNames:0"] = "Owner" });
-            b.Services.PostConfigure<IBeam.Management.Identity.Target.Services.Memberships.ManagementCustomerMembershipOptions>(x => x.AdministratorRoleNames = ["Owner"]);
+            b.Services.PostConfigure<IBeam.Management.Identity.Target.Services.Memberships.ManagementCustomerMembershipOptions>(x => x.AdministratorRoleNames = membershipAdministratorRoleNames ?? ["Owner"]);
             b.Services.AddSingleton<IIdentityTenantStore>(memberships.Tenants); b.Services.AddSingleton<ITenantMembershipStore>(memberships.Members);
             b.Services.AddSingleton<IIdentityTenantMembershipConditionalStore>(membershipWrites ?? memberships.Members);
             b.Services.AddSingleton<ITenantRoleStore>(memberships.Roles);

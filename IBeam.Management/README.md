@@ -1,5 +1,7 @@
 # IBeam.Management
 
+Customer Identity info optionally reports `OwnershipProtectionProtocolVersion`; zero means unavailable and is omitted in JSON. This is native membership protocol metadata, not ownership transfer authority. See [tenant ownership protection](../docs/management/tenant-ownership-protection.md).
+
 IBM-0106 adds safe portal mutation/tracking contracts, typed operation lookup and optional operationReceiptProtocolVersion discovery. These are independent of grants and keep core free of Identity/HTTP dependencies. See docs/management/customer-tenant-portal-writes.md.
 
 IBM-0105 adds typed tenant create/rename commands, safe operation/tenant results and separate provenance/external-reference metadata ports. No Identity or ASP.NET dependency is added to core. See docs/management/customer-tenant-administration.md.

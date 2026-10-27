@@ -189,7 +189,7 @@ internal sealed class MembershipStorageFixture : IAsyncDisposable
     public AzureTableIdentityTenantStore Tenants { get; private set; } = null!;
     public TenantRole Owner { get; private set; } = null!; public TenantRole MemberRole { get; private set; } = null!;
     public IdentityTenantMembershipAdministrationService Administration(IIdentityTenantMembershipConditionalStore? store = null) => new(store ?? Members, Roles, Tenants, new ServiceOperationExecutor());
-    public static async Task<MembershipStorageFixture> Create(string? connectionOverride = null)
+    public static async Task<MembershipStorageFixture> Create(string? connectionOverride = null, bool ownershipProtection = false, string ownerRoleName = "Owner")
     {
         var connection = connectionOverride ?? Environment.GetEnvironmentVariable("IBEAM_MANAGEMENT_TEST_STORAGE"); if (string.IsNullOrWhiteSpace(connection)) Assert.Inconclusive("Private Azurite required.");
         var f = new MembershipStorageFixture(); var suffix = Guid.NewGuid().ToString("N");
@@ -198,10 +198,11 @@ internal sealed class MembershipStorageFixture : IAsyncDisposable
         try {
             foreach (var table in new[] { f.Primary, f.Secondary, f.RoleTable, f.TenantTable }) await table.CreateIfNotExistsAsync();
             var options = Options.Create(new AzureTableIdentityOptions { TenantUsersTableName = f.Primary.Name, UserTenantsTableName = f.Secondary.Name,
-                TenantRolesTableName = f.RoleTable.Name, TenantsTableName = f.TenantTable.Name, CreateTablesIfNotExists = false }); var tables = new TableServiceClient(connection);
+                TenantRolesTableName = f.RoleTable.Name, TenantsTableName = f.TenantTable.Name, CreateTablesIfNotExists = false,
+                RequireOwnershipProtection = ownershipProtection }); var tables = new TableServiceClient(connection);
             f.Members = new(tables, options); f.Roles = new(tables, options); f.Tenants = new(tables, options);
             await f.Tenants.CreateAsync(new(f.Tenant, "Private enterprise")); await f.Tenants.CreateAsync(new(f.OtherTenant, "Other enterprise"));
-            f.Owner = await f.Roles.CreateRoleAsync(f.Tenant, "Owner", true); f.MemberRole = await f.Roles.CreateRoleAsync(f.Tenant, "Member");
+            f.Owner = await f.Roles.CreateRoleAsync(f.Tenant, ownerRoleName, true); f.MemberRole = await f.Roles.CreateRoleAsync(f.Tenant, "Member");
             foreach (var user in new[] { f.AdminA, f.AdminB, f.Member }) await f.Seed(f.Tenant, user, user == f.Member ? f.MemberRole : f.Owner, user == f.AdminA);
             var otherRole = await f.Roles.CreateRoleAsync(f.OtherTenant, "Owner", true); await f.Seed(f.OtherTenant, f.AdminA, otherRole, false);
             return f;
@@ -218,14 +219,23 @@ internal sealed class MembershipStorageFixture : IAsyncDisposable
     public async ValueTask DisposeAsync() { foreach (var table in new[] { Primary, Secondary, RoleTable, TenantTable }) if (table is not null) await table.DeleteAsync(); }
 }
 
-internal sealed class SnapshotBarrier(IIdentityTenantMembershipConditionalStore inner) : IIdentityTenantMembershipConditionalStore
+internal sealed class SnapshotBarrier(IIdentityTenantMembershipConditionalStore inner) : IIdentityTenantOwnershipConditionalStore
 {
+    public int OwnershipProtocolVersion => (inner as IIdentityTenantOwnershipWriter)?.OwnershipProtocolVersion ?? 0;
+    public bool RequiresOwnershipProtection => (inner as IIdentityTenantOwnershipWriter)?.RequiresOwnershipProtection ?? false;
+    public Task ConfigureOwnershipProtectionAsync(Guid tenant, IReadOnlyList<Guid> ids, CancellationToken ct = default)
+    { if (FailOwnershipOnce) { FailOwnershipOnce = false; throw new IdentityProviderException("PRIVATE-OWNERSHIP-PROVIDER-FAILURE"); }
+      return inner is IIdentityTenantOwnershipConditionalStore owned ? owned.ConfigureOwnershipProtectionAsync(tenant, ids, ct)
+        : throw new IdentityProviderException("Ownership protocol is unavailable."); }
     private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously); private int reads;
     public bool WaitForPair { get; set; } = true; public bool FailProjectionOnce { get; set; }
+    public bool FailOwnershipOnce { get; set; }
+    public bool DropOwnershipMetadata { get; set; }
     public Func<Guid, Guid, CancellationToken, Task>? BeforeFindState { get; set; }
     public Task ConfigureProtectionAsync(Guid tenant, IReadOnlyList<Guid> ids, CancellationToken ct = default) => inner.ConfigureProtectionAsync(tenant, ids, ct);
     public async Task<IdentityTenantMembershipSnapshot> ReadSnapshotAsync(Guid tenant, int limit, CancellationToken ct = default)
-    { var result = await inner.ReadSnapshotAsync(tenant, limit, ct); if (WaitForPair) { if (Interlocked.Increment(ref reads) == 2) ready.TrySetResult(); await ready.Task.WaitAsync(ct); } return result; }
+    { var result = await inner.ReadSnapshotAsync(tenant, limit, ct); if (WaitForPair) { if (Interlocked.Increment(ref reads) == 2) ready.TrySetResult(); await ready.Task.WaitAsync(ct); }
+      return DropOwnershipMetadata ? result with { ProtectedOwnerRoleIds = [], OwnershipProtocolVersion = 0 } : result; }
     public async Task<IdentityTenantMembershipState?> FindStateAsync(Guid tenant, Guid user, CancellationToken ct = default)
     { if (BeforeFindState is not null) await BeforeFindState(tenant, user, ct); return await inner.FindStateAsync(tenant, user, ct); }
     public Task<IdentityTenantMembershipState> ReplaceStateAsync(IdentityTenantMembershipState next, string memberVersion, string tenantVersion, Guid operation, CancellationToken ct = default)

@@ -36,6 +36,7 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
                 .PostConfigure(o =>
                 {
                     o.StorageConnectionString = ResolveConnectionString(configuration, o.StorageConnectionString);
+                    o.RequireOwnershipProtection |= configuration.GetValue<bool>(IBeam.Identity.Options.IdentityTenantOwnershipOptions.SectionName + ":Enabled");
                 })
                 .Validate(o =>
                 {
@@ -49,6 +50,7 @@ namespace IBeam.Identity.Repositories.AzureTable.Extensions
                 .GetSection(AzureTableIdentityOptions.SectionName)
                 .Get<AzureTableIdentityOptions>() ?? new AzureTableIdentityOptions();
             opts.StorageConnectionString = ResolveConnectionString(configuration, opts.StorageConnectionString);
+            opts.RequireOwnershipProtection |= configuration.GetValue<bool>(IBeam.Identity.Options.IdentityTenantOwnershipOptions.SectionName + ":Enabled");
             opts.Validate();
 
             var tableClient = new TableServiceClient(opts.StorageConnectionString);

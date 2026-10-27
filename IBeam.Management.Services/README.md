@@ -1,5 +1,7 @@
 # IBeam.Management.Services
 
+Customer target discovery preserves validated optional native membership ownership-protection and operation-receipt protocol metadata without granting additional operations. See [owner protection and compatibility](../docs/management/tenant-ownership-protection.md).
+
 IBM-0106 adds bounded signed tenant mutations and stateless encrypted operation references. A fresh authorization budget follows target timeouts; no generic write retry or tenant payload persistence is introduced. Lookup is a scoped read-only target request. See docs/management/customer-tenant-portal-writes.md.
 
 IBM-0105 extends delegated request binding to include an optional If-Match digest. Version changes cannot be substituted under a signed mutation proof. Target tenant creation/rename is documented in docs/management/customer-tenant-administration.md; portal write forwarding follows separately.

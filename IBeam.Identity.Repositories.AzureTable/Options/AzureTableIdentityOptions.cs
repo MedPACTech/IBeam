@@ -17,6 +17,8 @@ public sealed class AzureTableIdentityOptions
 
     // Schema/bootstrap behavior
     public bool CreateTablesIfNotExists { get; set; } = true;
+    /// <summary>Provider fence; automatically enabled by IBeam:Identity:TenantOwnership:Enabled.</summary>
+    public bool RequireOwnershipProtection { get; set; }
 
     // --- ElCamino identity tables (match IdentityConfiguration) ---
     public string IndexTableName { get; set; } = "AspNetIndex";

@@ -7,7 +7,8 @@ public static class ManagementCustomerIdentityProtocol
     public const string DedicatedRealm = "dedicated-app";
     public static void Validate(ManagementCustomerIdentityInfo info)
     {
-        if (info is null || info.ProtocolVersion != Version || info.OperationReceiptProtocolVersion is < 0 or > 100 || !ValidName(info.ApplicationKey) ||
+        if (info is null || info.ProtocolVersion != Version || info.OperationReceiptProtocolVersion is < 0 or > 100 ||
+            info.OwnershipProtectionProtocolVersion is < 0 or > 100 || !ValidName(info.ApplicationKey) ||
             !ValidName(info.Environment) || info.IdentityRealmId == Guid.Empty || info.RealmScope != DedicatedRealm ||
             info.Capabilities is null || info.Capabilities.Count < 1 || info.Capabilities.Count > ManagementCustomerIdentityOperations.All.Count ||
             info.Capabilities.Distinct(StringComparer.Ordinal).Count() != info.Capabilities.Count ||
