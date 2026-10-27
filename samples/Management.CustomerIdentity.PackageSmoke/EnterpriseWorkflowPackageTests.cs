@@ -50,7 +50,8 @@ public sealed class EnterpriseWorkflowPackageTests
                     onboarding: data, provisioning: provisioning, memberships: storage, tenantStatus: true,
                     organization: portal.Data.Access.Org, supportUser: portal.Data.Access.Reader, application: id,
                     identityRealm: profile.IdentityRealmId, applicationKey: key, environment: profile.Environment,
-                    createdHook: async tenant => { await storage.Roles.EnsureDefaultRolesAsync(tenant.TenantId); await storage.Roles.CreateRoleAsync(tenant.TenantId, "Member"); });
+                    createdHook: async tenant => { await storage.Roles.EnsureDefaultRolesAsync(tenant.TenantId); await storage.Roles.CreateRoleAsync(tenant.TenantId, "Member"); },
+                    membershipPolicies: new Dictionary<string, string[]> { ["member-administrator"] = ["Member", "Owner"] });
                 apps.Add(key, (id, target, data, storage));
             }
             var forwarded = "no forward call";
@@ -95,8 +96,11 @@ public sealed class EnterpriseWorkflowPackageTests
                 Assert.AreEqual(HttpStatusCode.Accepted, provision.Status); await Accept(entry.Data, entry.Storage, member);
                 var memberState = await Get(portal, root + $"/tenants/{tenant}/users/{member}");
                 Assert.IsTrue(memberState.GetProperty("roleIds").EnumerateArray().Select(x => x.GetGuid()).SequenceEqual([memberRole]));
+                Assert.AreEqual(HttpStatusCode.Forbidden, (await Write(portal, HttpMethod.Put, root + $"/tenants/{tenant}/users/{member}/roles",
+                    new ChangeManagementCustomerRoles { PolicyKey = "administrator", RoleIds = [ownerRole] }, "enterprise-promote-narrow-policy", memberState.GetProperty("version").GetString())).Status);
+                Assert.AreEqual(memberState.GetProperty("version").GetString(), (await Get(portal, root + $"/tenants/{tenant}/users/{member}")).GetProperty("version").GetString());
                 Assert.AreEqual(HttpStatusCode.OK, (await Write(portal, HttpMethod.Put, root + $"/tenants/{tenant}/users/{member}/roles",
-                    new ChangeManagementCustomerRoles { PolicyKey = "administrator", RoleIds = [ownerRole] }, "enterprise-promote-01", memberState.GetProperty("version").GetString())).Status);
+                    new ChangeManagementCustomerRoles { PolicyKey = "member-administrator", RoleIds = [ownerRole] }, "enterprise-promote-01", memberState.GetProperty("version").GetString())).Status);
                 user = await Get(portal, root + $"/tenants/{tenant}/users/{customer}");
                 Assert.AreEqual(HttpStatusCode.OK, (await Write(portal, HttpMethod.Patch, root + $"/tenants/{tenant}/users/{customer}/membership",
                     new ChangeManagementCustomerMembership { IsEnabled = false }, "enterprise-disable-01", user.GetProperty("version").GetString())).Status);

@@ -222,10 +222,12 @@ internal sealed class SnapshotBarrier(IIdentityTenantMembershipConditionalStore 
 {
     private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously); private int reads;
     public bool WaitForPair { get; set; } = true; public bool FailProjectionOnce { get; set; }
+    public Func<Guid, Guid, CancellationToken, Task>? BeforeFindState { get; set; }
     public Task ConfigureProtectionAsync(Guid tenant, IReadOnlyList<Guid> ids, CancellationToken ct = default) => inner.ConfigureProtectionAsync(tenant, ids, ct);
     public async Task<IdentityTenantMembershipSnapshot> ReadSnapshotAsync(Guid tenant, int limit, CancellationToken ct = default)
     { var result = await inner.ReadSnapshotAsync(tenant, limit, ct); if (WaitForPair) { if (Interlocked.Increment(ref reads) == 2) ready.TrySetResult(); await ready.Task.WaitAsync(ct); } return result; }
-    public Task<IdentityTenantMembershipState?> FindStateAsync(Guid tenant, Guid user, CancellationToken ct = default) => inner.FindStateAsync(tenant, user, ct);
+    public async Task<IdentityTenantMembershipState?> FindStateAsync(Guid tenant, Guid user, CancellationToken ct = default)
+    { if (BeforeFindState is not null) await BeforeFindState(tenant, user, ct); return await inner.FindStateAsync(tenant, user, ct); }
     public Task<IdentityTenantMembershipState> ReplaceStateAsync(IdentityTenantMembershipState next, string memberVersion, string tenantVersion, Guid operation, CancellationToken ct = default)
         => inner.ReplaceStateAsync(next, memberVersion, tenantVersion, operation, ct);
     public Task RepairProjectionAsync(Guid tenant, Guid user, CancellationToken ct = default)

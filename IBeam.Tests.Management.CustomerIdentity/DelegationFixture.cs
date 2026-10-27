@@ -77,7 +77,8 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         IIdentityTenantStore? tenantStore = null, IManagementTenantAdministrationRepository? tenantMetadata = null, bool compositeOnboarding = false,
         OnboardingFixture? onboarding = null, ProvisioningFixture? provisioning = null, InvitationLifecycleFixture? invitations = null,
         MembershipStorageFixture? memberships = null, IIdentityTenantMembershipConditionalStore? membershipWrites = null, bool tenantStatus = false, Guid? organization = null, Guid? supportUser = null, Guid? application = null,
-        Guid? identityRealm = null, string applicationKey = "atlas", string environment = "Testing", Func<IBeam.Identity.Models.IdentityTenant, Task>? createdHook = null)
+        Guid? identityRealm = null, string applicationKey = "atlas", string environment = "Testing", Func<IBeam.Identity.Models.IdentityTenant, Task>? createdHook = null,
+        IReadOnlyDictionary<string, string[]>? membershipPolicies = null)
     {
         var f = new DelegationFixture();
         f.Organization = organization ?? f.Organization; f.User = supportUser ?? f.User; f.Application = application ?? f.Application;
@@ -187,6 +188,8 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             b.Services.AddIBeamManagementCustomerInvitationsApi(b.Configuration);
         }
         if (memberships is not null) {
+            if (membershipPolicies is not null) b.Configuration.AddInMemoryCollection(membershipPolicies.SelectMany(policy => policy.Value.Select((role, index) =>
+                new KeyValuePair<string, string?>($"IBeam:Management:CustomerIdentity:Provisioning:Policies:{policy.Key}:{index}", role))));
             b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
                 ["IBeam:Management:CustomerIdentity:Provisioning:Policies:default:0"] = "Member",
                 ["IBeam:Management:CustomerIdentity:Provisioning:Policies:administrator:0"] = "Owner",

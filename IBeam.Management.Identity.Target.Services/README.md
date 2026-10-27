@@ -39,3 +39,5 @@ IBM-0113 conditional tenant activation/deactivation, lifecycle recovery and curr
 Onboarding policy discovery and optional durable consumer initialization: [integration contract](../docs/management/customer-onboarding-policy.md).
 
 Optional trusted tenant provenance and existing signup compatibility: [integration contract](../docs/management/tenant-provenance.md).
+
+Role replacement hardening (IBM-0121): the selected provisioning policy must authorize removals as well as assignments. Omitting an out-of-policy Owner or another privileged role is denied before membership writes; inconsistent legacy role names require trusted native normalization. This does not require the independent `roles.read` grant. See the [membership lifecycle contract](../docs/management/customer-membership-lifecycle.md).

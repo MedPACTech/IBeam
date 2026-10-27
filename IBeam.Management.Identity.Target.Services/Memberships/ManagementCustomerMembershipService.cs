@@ -42,6 +42,7 @@ public sealed class ManagementCustomerMembershipService(IIdentityTenantMembershi
                         if (role is null || role.TenantId != tenant || !role.IsActive || role.Name != item.Name || role.Name.Contains(',')) throw new ManagementAccessDeniedException();
                         selected.Add(role);
                     }
+                    await RequireEditableReplacement(tenant, user, assignment, selected, cancel);
                 }
                 var administrators = await Administrators(tenant, cancel);
                 var payload = assignment is null ? JsonSerializer.SerializeToUtf8Bytes(new { IsEnabled = status!.IsEnabled, ExpectedVersion = version }) :
@@ -78,6 +79,29 @@ public sealed class ManagementCustomerMembershipService(IIdentityTenantMembershi
             catch { throw new ManagementCustomerIdentityUnavailableException(); }
         }, new ServiceOperationExecutionOptions { OperationName = authority, AuditAction = authority, EntityId = user, EntityName = "ManagementCustomerMembership",
             PermissionEnabled = false, AuditEnabled = true }, ct);
+    }
+    private async Task RequireEditableReplacement(Guid tenant, Guid user, ChangeManagementCustomerRoles request,
+        IReadOnlyList<TenantRole> selected, CancellationToken ct)
+    {
+        var current = await members.FindStateAsync(tenant, user, ct) ?? throw new ManagementCustomerIdentityNotFoundException();
+        if (current.TenantId != tenant || current.UserId != user || current.RoleIds.Count > 32 || current.RoleNames.Count > 32 ||
+            current.RoleIds.Any(x => x == Guid.Empty) || current.RoleIds.Distinct().Count() != current.RoleIds.Count ||
+            current.RoleNames.Any(x => string.IsNullOrWhiteSpace(x) || x.Length > 100 || x.Any(char.IsControl)))
+            throw new ManagementCustomerIdentityUnavailableException();
+        // Replacement must not turn a narrow assignment policy into authority to revoke other roles.
+        // Named legacy roles must first be normalized through a trusted native migration.
+        if (current.RoleIds.Count == 0 && current.RoleNames.Count != 0) throw new ManagementIdentityOperationConflictException();
+        var currentNames = selected.Where(x => current.RoleIds.Contains(x.RoleId)).Select(x => x.Name).ToList();
+        foreach (var removed in current.RoleIds.Except(request.RoleIds).Chunk(8))
+        {
+            var approved = await catalog.RequireAsync(tenant, request.PolicyKey, removed, ManagementCustomerIdentityOperations.RolesAssign, ct);
+            if (approved.Count != removed.Length || approved.Any(x => x.TenantId != tenant || !removed.Contains(x.RoleId)) ||
+                approved.Select(x => x.RoleId).Distinct().Count() != removed.Length)
+                throw new ManagementCustomerIdentityUnavailableException();
+            currentNames.AddRange(approved.Select(x => x.Name));
+        }
+        if (!current.RoleNames.Order(StringComparer.OrdinalIgnoreCase).SequenceEqual(currentNames.Order(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase))
+            throw new ManagementIdentityOperationConflictException();
     }
     private async Task<IReadOnlyList<Guid>> Administrators(Guid tenant, CancellationToken ct)
     {
