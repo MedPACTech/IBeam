@@ -4,7 +4,7 @@ Created 2026-10-27. Baseline: IBeam 2.16.0. The preceding Management API epics r
 
 Hubbsly epic: `6b9422fc-0205-4c3b-88cb-63ff7f114cd1`. Stage: `in_flight`. Six features, 25 cards, **152 points**.
 
-Completed: **0/25 cards, 0/152 points**.
+Completed: **1/25 cards, 5/152 points**.
 
 Feature points are sums of their cards. Implement in the order below; each card depends on its stated predecessors and must merge into development before the next starts. Future scope stays in triage until selected.
 
@@ -44,7 +44,7 @@ Feature acceptance criteria:
 
 ### IBM-0121 / MLO-001: Reject policy-bound role replacement that would strip an unassignable role
 
-**5 points.** Lane: `in_progress`. Order: 10. Dependencies: None.
+**5 points.** Lane: `done`. Order: 10. Dependencies: None.
 
 Harden ManagementCustomerMembershipService.SetRolesAsync. Validate the roles being removed against the same target-owned policy and roles.assign authority before any mutation. Reject an out-of-policy removal instead of silently dropping Owner or another privileged role. Preserve existing replacement semantics for editable roles; no hardcoded Owner name, new privilege or implicit roles.read grant.
 
@@ -52,12 +52,14 @@ Paths/surfaces: `IBeam.Management.Identity.Target.Services/Memberships/Managemen
 
 Acceptance criteria:
 
-- [ ] A signed role update using a Member-only policy cannot remove an existing out-of-policy Owner or other privileged role, even if another administrator remains.
-- [ ] Rejected requests leave primary membership, secondary projection, native access version and mutation receipts unchanged; errors do not expose role/profile details.
-- [ ] An approved replacement and clearing editable roles still work; roles.assign alone is sufficient without roles.read or memberships.manage.
-- [ ] Exact retries and lost-projection recovery remain idempotent; stale member versions fail and concurrent native changes are never overwritten.
-- [ ] Real provider plus signed HTTP regressions cover mixed-role memberships, cross-tenant scope, empty/legacy role state and existing administrator protection.
-- [ ] Changed packages build/pack, public behavior is documented, and the card is merged to development before it is marked done.
+- [x] A signed role update using a Member-only policy cannot remove an existing out-of-policy Owner or other privileged role, even if another administrator remains.
+- [x] Rejected requests leave primary membership, secondary projection, native access version and mutation receipts unchanged; errors do not expose role/profile details.
+- [x] An approved replacement and clearing editable roles still work; roles.assign alone is sufficient without roles.read or memberships.manage.
+- [x] Exact retries and lost-projection recovery remain idempotent; stale member versions fail and concurrent native changes are never overwritten.
+- [x] Real provider plus signed HTTP regressions cover mixed-role memberships, cross-tenant scope, empty/legacy role state and existing administrator protection.
+- [x] Changed packages build/pack, public behavior is documented, and the card is merged to development before it is marked done.
+
+Merged implementation: `60dd46d30c287fd10497d478c233d347ca08c4ef`.
 
 24 focused provider/signed-HTTP/customer-access checks and 1,084 fresh NuGet-only regressions passed, zero failures/skips. Built/packed 31 production dependencies at private validation version 2.17.0-dev.mlo.121.1; inspected 16 management package roots; package-only portal/two-target smoke passed. Tests prove out-of-policy Owner/custom-role removal is rejected before receipts or primary/projection/access-version changes, approved replacement does not require read/membership grants, stale/concurrent writes do not overwrite newer authority, and role-removal projection recovery remains idempotent. The two-target enterprise test now proves narrow-policy denial and uses an explicit Member+Owner policy for an authorized atomic replacement. No stable package release or running app upgrade was performed.
 
@@ -65,7 +67,7 @@ Dependency keys: None.
 
 ### IBM-0122 / MLO-002: Enforce an independent last-owner invariant across native membership writers
 
-**8 points.** Lane: `triage`. Order: 20. Dependencies: IBM-0121.
+**8 points.** Lane: `ready`. Order: 20. Dependencies: IBM-0121.
 
 Add explicit target/native ownership policy and optional conditional ownership store contracts. Extend the tenant-partition guard to track owner protection separately from administrator protection. All supported role, membership disable/revoke and destructive native writers participate; do not hardcode Owner names or use the legacy tenant owner column. Define global account-disable and unsupported-writer behavior explicitly and fail closed when owner safety cannot be established.
 

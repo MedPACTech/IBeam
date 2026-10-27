@@ -47,7 +47,7 @@
             "Changed packages build/pack, public behavior is documented, and the card is merged to development before it is marked done."
           ],
           "boardKey": "hub",
-          "laneKey": "in_progress",
+          "laneKey": "done",
           "sourceSystem": "codex",
           "sourceKey": "IBM-0121",
           "sourceUrl": "https://github.com/MedPACTech/IBeam",
@@ -56,7 +56,20 @@
           "hubbslySourceKey": "IBM-0121",
           "dependencySourceKeys": [],
           "validation": "24 focused provider/signed-HTTP/customer-access checks and 1,084 fresh NuGet-only regressions passed, zero failures/skips. Built/packed 31 production dependencies at private validation version 2.17.0-dev.mlo.121.1; inspected 16 management package roots; package-only portal/two-target smoke passed. Tests prove out-of-policy Owner/custom-role removal is rejected before receipts or primary/projection/access-version changes, approved replacement does not require read/membership grants, stale/concurrent writes do not overwrite newer authority, and role-removal projection recovery remains idempotent. The two-target enterprise test now proves narrow-policy denial and uses an explicit Member+Owner policy for an authorized atomic replacement. No stable package release or running app upgrade was performed.",
-          "implementationStatus": "review"
+          "implementationStatus": "done",
+          "builtAgainst": "60dd46d30c287fd10497d478c233d347ca08c4ef",
+          "actualPaths": [
+            "IBeam.Management.Identity.Target.Services/.agent/prompt.md",
+            "IBeam.Management.Identity.Target.Services/Memberships/ManagementCustomerMembershipService.cs",
+            "IBeam.Management.Identity.Target.Services/README.md",
+            "IBeam.Tests.Management.CustomerIdentity/CustomerMembershipHttpTests.cs",
+            "IBeam.Tests.Management.CustomerIdentity/CustomerMembershipStorageTests.cs",
+            "IBeam.Tests.Management.CustomerIdentity/DelegationFixture.cs",
+            "docs/management/customer-membership-lifecycle.md",
+            "docs/planning/management-lifecycle-operations-backlog.json",
+            "docs/planning/management-lifecycle-operations-plan.md",
+            "samples/Management.CustomerIdentity.PackageSmoke/EnterpriseWorkflowPackageTests.cs"
+          ]
         },
         {
           "key": "MLO-002",
@@ -82,7 +95,7 @@
             "Race, retry, unavailable-provider and legacy-role tests preserve other tenants, global identity records and existing last-administrator protection."
           ],
           "boardKey": "hub",
-          "laneKey": "triage",
+          "laneKey": "ready",
           "sourceSystem": "codex",
           "sourceKey": "IBM-0122",
           "sourceUrl": "https://github.com/MedPACTech/IBeam",
@@ -949,6 +962,6 @@
     }
   ],
   "epicId": "6b9422fc-0205-4c3b-88cb-63ff7f114cd1",
-  "completedCardCount": 0,
-  "completedPoints": 0
+  "completedCardCount": 1,
+  "completedPoints": 5
 }
