@@ -175,3 +175,5 @@ Optional trusted tenant provenance and existing signup compatibility: [integrati
 IBM-0117: an app assignment can contain both diagnostic permissions and every explicitly assignable customer operation (16 total currently). Bound the size from the known catalog; keep distinct known values, live assignment checks and independent delegation ceilings. Unknown/wildcard authority stays rejected.
 
 IBM-0124 adds explicit scoped ownership lookup and transfer with independent grants and signed exact versions. See [customer ownership APIs](../docs/management/customer-ownership-api.md).
+
+Registered operation transport: AddIBeamManagementRegisteredOperationsPortal / Target and typed IManagementOperationClient are opt-in. See docs/management/registered-operation-dispatch.md for required providers, explicit permission migration and recovery.

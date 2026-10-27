@@ -1,0 +1,3 @@
+# IBeam.Management.Operations.Target.Api
+
+Read the root .agent/implementation-guide.md. Keep HTTP thin over the signed registry dispatcher. Every target route is a host-owned immutable descriptor; never accept an arbitrary origin, method, route or CLR type from HTTP. Require the dedicated persisted machine-key scheme plus exact short-lived signed actor/request/scope binding, independent live grants, bounded strict payloads, mutation nonce replay protection and current target policy. Info grants no write authority. Receipt endpoints are fixed and read-only. No raw body/header/provider error logging; responses are no-store. Keep Identity/Licensing/consumer dependencies optional and preserve existing diagnostics/customer authentication schemes.

@@ -22,13 +22,14 @@ public sealed class ManagementOperationRegistry
     {
         ArgumentNullException.ThrowIfNull(descriptors);
         var copy = descriptors.Take(MaximumOperations + 1).ToArray();
-        if (copy.Length > MaximumOperations - ManagementCustomerIdentityOperations.All.Count - 3) Invalid();
+        if (copy.Length > MaximumOperations - ManagementCustomerIdentityOperations.All.Count - 4) Invalid();
         var entries = new Dictionary<string, ManagementOperationDescriptor>(StringComparer.Ordinal);
         var requirements = ManagementCustomerIdentityOperations.All.ToDictionary(x => x,
             x => x == ManagementCustomerIdentityOperations.Info ? (IReadOnlyList<string>)Array.AsReadOnly(new[] { x }) :
                 ManagementCustomerIdentityPermissionPolicy.RequiredFor(x), StringComparer.Ordinal);
         foreach (var op in new[] { ManagementOperations.DiagnosticsInfo, ManagementOperations.ErrorsRead, ManagementOperations.LogsRead })
             requirements.Add(op, Array.AsReadOnly(new[] { op }));
+        requirements.Add(ManagementRegisteredOperations.Info, Array.AsReadOnly(new[] { ManagementRegisteredOperations.Info }));
         foreach (var descriptor in copy)
         {
             Validate(descriptor);
@@ -72,7 +73,7 @@ public sealed class ManagementOperationRegistry
 
     public bool Contains(string operation) => operation is not null && _requirements.ContainsKey(operation);
     public bool IsAssignable(string operation) => Contains(operation) && operation is not
-        (ManagementOperations.DiagnosticsInfo or ManagementCustomerIdentityOperations.Info);
+        (ManagementOperations.DiagnosticsInfo or ManagementCustomerIdentityOperations.Info or ManagementRegisteredOperations.Info);
     public IReadOnlyList<string> RequiredFor(string operation) => IsAssignable(operation)
         ? _requirements[operation] : throw new ManagementAccessDeniedException();
     public ManagementOperationDescriptor? Find(string operation) => _extensions.GetValueOrDefault(operation);
@@ -98,8 +99,14 @@ public sealed class ManagementOperationRegistry
         return Array.AsReadOnly(Descriptors.Where(x => RequiredFor(x.Operation).All(required =>
             credentialGrants.Contains(required, StringComparer.Ordinal) && enabledOperations.Contains(required, StringComparer.Ordinal)) &&
             isInstalled(x.HandlerServiceType)).Select(x => new ManagementOperationCapability(x.Operation, x.ProtocolVersion,
-                x.Request.Id, x.Request.Version, x.Result.Id, x.Result.Version, x.ReceiptProtocolVersion)).ToArray());
+                x.Request.Id, x.Request.Version, x.Result.Id, x.Result.Version, x.ReceiptProtocolVersion) { DescriptorFingerprint = Fingerprint(x) }).ToArray());
     }
+    public static string Fingerprint(ManagementOperationDescriptor descriptor) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+        JsonSerializer.SerializeToUtf8Bytes(new { descriptor.Operation, descriptor.Method, descriptor.RouteTemplate,
+            RequestSchema = descriptor.Request.Id, RequestVersion = descriptor.Request.Version,
+            ResultSchema = descriptor.Result.Id, ResultVersion = descriptor.Result.Version,
+            Grants = descriptor.RequiredGrants.Order(StringComparer.Ordinal).ToArray(), descriptor.ReceiptProtocolVersion,
+            descriptor.AuditAction, descriptor.MaximumRequestBytes, descriptor.MaximumResultBytes, descriptor.ProtocolVersion })));
 
     /// <summary>Validate a concrete extension binding; query parameters and percent-encoded path components are not accepted.</summary>
     public void RequireBinding(string operation, string method, string path, int bodyBytes)
@@ -128,6 +135,7 @@ public sealed class ManagementOperationRegistry
             d.Method is not ("GET" or "POST" or "PUT" or "PATCH" or "DELETE") ||
             d.RouteTemplate is not { Length: > 0 and <= 256 } ||
             !d.RouteTemplate.StartsWith("/api/management-operations/", StringComparison.Ordinal) ||
+            d.RouteTemplate == "/api/management-operations/info" || d.RouteTemplate.StartsWith("/api/management-operations/receipts/", StringComparison.Ordinal) ||
             d.RouteTemplate.Split('/').Skip(1).Any(x => !Regex.IsMatch(x, "^[a-z][a-z0-9-]{0,63}$|^\\{[a-z][a-zA-Z0-9]{0,31}:guid\\}$", RegexOptions.CultureInvariant)) ||
             d.RouteTemplate.Split('/').Where(Slot).Distinct(StringComparer.Ordinal).Count() != d.RouteTemplate.Split('/').Count(Slot) ||
             d.RequiredGrants is not { Count: > 0 and <= 32 } || !d.RequiredGrants.Contains(d.Operation, StringComparer.Ordinal) ||

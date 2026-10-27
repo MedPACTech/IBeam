@@ -105,3 +105,5 @@ IBM-0113 conditional tenant activation/deactivation, lifecycle recovery and curr
 Onboarding policy discovery and optional durable consumer initialization: [integration contract](../docs/management/customer-onboarding-policy.md).
 
 IBM-0124 adds explicit scoped ownership lookup and transfer with independent grants and signed exact versions. See [customer ownership APIs](../docs/management/customer-ownership-api.md).
+
+AddIBeamManagementRegisteredOperationsApi adds the human app operation metadata endpoint and the typed portal client. The optional IBeam.Management.Operations.Target.Api package hosts fixed signed target routes. See docs/management/registered-operation-dispatch.md.

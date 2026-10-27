@@ -14,5 +14,7 @@ public sealed record ManagementApplicationCredentialEntity
     public IReadOnlyList<string> Capabilities { get; init; } = [];
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public CustomerIdentity.ManagementCustomerIdentityDiscovery? CustomerIdentity { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Operations.ManagementRegisteredOperationDiscovery? Operations { get; init; }
     public override string ToString() => "Management connection credential (reference redacted)";
 }

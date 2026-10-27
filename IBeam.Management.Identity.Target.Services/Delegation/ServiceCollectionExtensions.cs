@@ -24,8 +24,8 @@ public static class ManagementDelegatedActorTargetExtensions
                     ManagementDelegationBinding.ValidName(t.Issuer) && ManagementDelegationBinding.ValidName(t.Audience)) &&
                 x.TrustedPortals.Select(t => (t.OrganizationId, t.ApplicationId, t.Issuer)).Distinct().Count() == x.TrustedPortals.Count,
                 "Explicit trusted issuer/audience and support organization/application bindings are required.").ValidateOnStart();
-        services.TryAddScoped<ManagementDelegatedActorContext>();
-        services.TryAddScoped<IManagementDelegatedActorContext>(p => p.GetRequiredService<ManagementDelegatedActorContext>());
+        services.TryAddScoped<ManagementDelegatedActorState>();
+        services.TryAddScoped<IManagementDelegatedActorContext>(p => p.GetRequiredService<ManagementDelegatedActorState>());
         services.TryAddScoped<ManagementCustomerIdentityCredentialGuard>();
         services.TryAddScoped<IManagementDelegatedActorValidator, ManagementDelegatedActorValidator>();
         services.TryAddScoped<IManagementCustomerIdentityTargetAccessService, ManagementCustomerIdentityTargetAccessService>();

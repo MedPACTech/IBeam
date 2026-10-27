@@ -20,6 +20,8 @@ public static class ManagementOperationServiceExtensions
     public static IServiceCollection AddIBeamManagementOperation<TRequest, TResult, THandler>(this IServiceCollection services,
         ManagementOperationDescriptor descriptor) where THandler : class, IManagementOperationHandler<TRequest, TResult>
     {
+        if (descriptor.ReceiptProtocolVersion == 1 && !typeof(IManagementOperationReceiptHandler<TResult>).IsAssignableFrom(typeof(THandler)))
+            throw new ArgumentException("A mutation handler must provide typed read-only receipt reconciliation.", nameof(descriptor));
         services.AddIBeamManagementOperationContract<TRequest, TResult>(descriptor);
         services.TryAddScoped<IManagementOperationHandler<TRequest, TResult>, THandler>();
         return services;
