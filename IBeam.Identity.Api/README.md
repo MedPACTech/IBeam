@@ -1756,3 +1756,7 @@ public sealed class PatientController : ControllerBase
 - Consuming API migration prompt: [`../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md`](../IBeam.AI.Enablement/examples/consuming-api-migration-prompt.md)
 
 Agents should keep controllers thin. Identity API controllers should expose service behavior, not duplicate service-layer auth, tenant, role, grant, or audit rules.
+
+IBM-0112 versioned tenant membership/role administration, concurrent final-administrator protection and required customer access enforcement: [lifecycle contract](../docs/management/customer-membership-lifecycle.md).
+
+For an explicitly host-owned IIdentityCommunicationSender (for example a private local outbox), register the sender first, then call AddIBeamIdentityApiWithCommunicationSender(configuration). It shares the normal API/JWT/session pipeline and does not install optional Azure communication providers. AddIBeamIdentityApi keeps its existing default composition. The host remains responsible for real delivery, and OTP/recipient verification is unchanged.

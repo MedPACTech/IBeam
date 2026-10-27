@@ -1,5 +1,13 @@
 # IBeam.Management.Repositories.AzureTable
 
+IBM-0105 adds separate target tenant administration metadata with atomic case-insensitive external-reference reservation and conditional lifecycle phase updates. No customer extension/profile rows or runtime schema creation. See docs/management/customer-tenant-administration.md.
+
+IBM-0104 adds explicit target operation metadata and idempotent mutation-audit adapters: scoped point reads, atomic inserts, required ETags and append-once audit IDs. Provision tables in trusted setup; no runtime schema creation/deletion, raw idempotency key or customer request storage. See docs/management/customer-identity-operations.md.
+
+IBM-0102 adds explicit TenantUsers and TenantInvites read adapters. They query one TEN|tenant-ID partition and USR| or INV| row prefix, select only approved membership/invitation metadata, and never access token-index partitions, profiles, OTP/session/user credential tables or runtime schemas. Read-only SAS is sufficient. See docs/management/customer-user-directory.md.
+
+IBM-0101: AddIBeamManagementAzureTableCustomerTenantReader accepts an explicit existing target customer tenants table, including read-only SAS. Reads only TEN partition metadata and one provider page; never creates schema or selects consumer profiles. No portal/global TableClient is replaced. See docs/management/customer-tenant-directory.md.
+
 Optional repository adapter for IBeam Management. It depends on core contracts and Azure Tables, with no Services, API or Identity dependency.
 
 ManagementApiCredentials stores credential ID, application/environment, a versioned SHA-256 secret hash, explicit capabilities, Active/Revoked status, UTC creation/expiry/rotation/revocation and operator IDs. Raw API keys are never persisted. Point reads use DEPLOY|SHA256(JSON([application, environment])) and CRED|credentialId; no cross-deployment scans or secondary secret indexes. Updates compare the supplied ETag; concurrent rotation/revocation cannot overwrite one another.
@@ -47,3 +55,9 @@ Register AddIBeamManagementAzureTableApplicationAccessStore(dedicatedTableClient
 AddIBeamManagementAzureTableAuditStore(dedicatedAuditTableClient) registers IManagementAuditRepository. AzureTableManagementAuditRepository adds generated entries without list/update/delete or runtime provisioning. Partition keys include the support organization (or target deployment marker) and UTC day. ExpiresUtc is metadata; Azure Table does not automatically expire rows. Use separate retention/archival tooling and privileges. A table-scoped Add-only SAS can keep the runtime append-only; support readers receive no storage credential or audit mutation API. Audit write timeout/failure policy belongs to the Management services sink, not this repository.
 
 Deployment configuration, identity storage choices, MFA/bootstrap, onboarding, exact registrations/endpoints, network/proxy policy, secret rotation, audit retention/failure behavior and the deferred consumer host are covered by the [Management deployment handoff](https://github.com/MedPACTech/IBeam/blob/development/docs/management/deployment-and-handoff.md). [Source/history isolation](https://github.com/MedPACTech/IBeam/blob/development/docs/management/diagnostic-source-isolation.md) describes which historical rows may be exposed. Generated-package validation uses the package-only two-target smoke sample; IBM-0097 supplies independent host-owned errors/logs sanitization switches, safe by default and restricted to explicit non-Production contexts. See [sanitization settings](https://github.com/MedPACTech/IBeam/blob/development/docs/management/diagnostic-sanitization.md).
+
+Enterprise onboarding services and durable invitation recovery are documented in [enterprise onboarding](../docs/management/enterprise-onboarding.md). Target services are opt-in; portal/HTTP integration follows in IBM-0108.
+
+Approved tenant roles and invitation-only customer provisioning: [registration and API contract](../docs/management/customer-provisioning.md). Catalog visibility uses the independent roles.read grant; no account/membership is created before customer verification.
+
+IBM-0110 invitation resend/revoke uses exact versions, durable private delivery recovery and native acceptance claims. See [invitation lifecycle](../docs/management/customer-invitation-lifecycle.md).

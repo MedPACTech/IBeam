@@ -135,6 +135,15 @@ internal sealed class ManagementIdentityHttpFixture : IAsyncDisposable
         await action(scope.ServiceProvider);
     }
 
+    public async Task CorruptInvitationIndexTenantAsync(string hash)
+    {
+        // Deliberate provider corruption: normal invitation updates no longer move rows across tenants.
+        var table = _storage.GetTableClient(Prefix + "TenantInvites");
+        var row = (await table.GetEntityAsync<TableEntity>("TOK|" + hash, "INV")).Value;
+        row["TenantId"] = Guid.NewGuid().ToString("D");
+        await table.UpdateEntityAsync(row, row.ETag, TableUpdateMode.Merge);
+    }
+
     public static async Task<T> ReadDataAsync<T>(HttpResponseMessage response)
     {
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());

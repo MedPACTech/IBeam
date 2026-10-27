@@ -1,0 +1,19 @@
+# IBeam.Management.Identity.Target.Api
+
+Read the repository .agent/implementation-guide.md before changes. This optional module runs inside the customer application's target host, not the support Identity host. Preserve API -> Services -> Repository, explicit named machine authentication, live credential checks and app/environment/Identity realm binding. No automatic customer membership for support staff, no customer principal impersonation, no direct portal DB access. Custom operations use IServiceOperationExecutor and metadata-only Management audit. Advertise only installed operations with usable adapters. Do not log keys, actor assertions, Identity profiles, tokens, OTPs or raw provider errors. IBM-0098 installs discovery only; tenant/user operations and delegated actors are later cards.
+
+IBM-0105 explicitly adds tenant administration and receipt modules. Keep POST/PATCH bodies typed and profile-free; If-Match and Idempotency-Key must be covered by the actor binding. Rename capability must resolve a real optional conditional adapter; no administrator bypass or automatic customer memberships.
+
+IBM-0106 receipt resolution is a fixed signed POST operations/resolve with an Idempotency-Key header and scope-only DTO. It performs no customer/operation mutation. Advertise the receipt protocol only with an installed endpoint and usable lookup adapter; require current original authority and fresh replay-protected proof.
+
+IBM-0108 onboarding POST/retry are explicit opt-in, typed and delegated under independent create/retry composite authority. Retry body is strictly empty JSON and cannot change intent. Operation GET/resolve use the query service for read-only authoritative onboarding status; never equate processing success with customer acceptance. Controllers preserve IBeam envelopes and use 202 until business completion.
+
+IBM-0109 role catalog requires its independent roles.read grant. Provisioning requires users.provision plus invitation/role prerequisites and strict recipient/policy/role-ID input, without passwords/redirects/access grants. These target modules are opt-in; portal provisioning/lifecycle comes in IBM-0111.
+
+IBM-0110: invitation transitions require exact ETags, stable operation IDs and native verified acceptance claims before membership. No claim stealing or automatic resend after SMTP uncertainty. Keep private ciphertext separate from safe receipts/audit and enforce target-owned roles/rate/redirect policy. See docs/management/customer-invitation-lifecycle.md.
+
+IBM-0112: membership and roles use caller ETags plus an atomic tenant-partition revision, target-owned immutable administrator roles and stable receipt IDs. Every native writer participates; protected legacy destructive writes fail closed. No implicit reactivation, global account/default/other-tenant edits or role restoration on re-enable. Customer request/refresh enforcement is required before capability registration; standard JWT uses live native versions, custom auth must explicitly integrate. Keep business eligibility in services and persistence fencing in stores. See docs/management/customer-membership-lifecycle.md.
+
+IBM-0113: tenant status is an independent exact-version, idempotent command with required lifecycle hooks and explicit customer request/refresh enforcement. Preserve global users, memberships, defaults and business/billing data. No bootstrap reactivation. Recover only owned status transitions; release only known unapplied metadata reservations after concurrent writes. See docs/management/customer-tenant-status.md.
+
+IBM-0114: onboarding policy keys, role templates and initializer selection are target-owned. Required initialization must reconcile durably by stable operation/tenant before invitations; Unknown never blindly initializes. Typed hook context excludes profiles and credentials. Identity-only remains independent of commercial modules. See docs/management/customer-onboarding-policy.md.

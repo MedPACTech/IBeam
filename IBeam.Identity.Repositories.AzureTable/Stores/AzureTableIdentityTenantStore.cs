@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace IBeam.Identity.Repositories.AzureTable.Stores;
 
-public sealed class AzureTableIdentityTenantStore : IIdentityTenantStore
+public sealed partial class AzureTableIdentityTenantStore : IIdentityTenantStore, IIdentityTenantConditionalStore
 {
     private readonly TableServiceClient _serviceClient;
     private readonly AzureTableIdentityOptions _opts;
@@ -121,6 +121,7 @@ public sealed class AzureTableIdentityTenantStore : IIdentityTenantStore
             var entity = resp.Value;
             entity.Status = status.Trim();
             entity.UpdatedAt = DateTimeOffset.UtcNow;
+            entity.LastOperationId = null; // A legacy writer must not retain another command's reconciliation marker.
 
             await TenantsTable()
                 .UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct)
@@ -136,6 +137,33 @@ public sealed class AzureTableIdentityTenantStore : IIdentityTenantStore
 
     private TableClient TenantsTable()
         => _serviceClient.GetTableClient(_opts.FullTableName(_opts.TenantsTableName));
+
+    public async Task<VersionedIdentityTenant?> FindVersionedAsync(Guid tenantId, CancellationToken ct = default)
+    {
+        try {
+            ValidateTenantId(tenantId);
+            var response = await TenantsTable().GetEntityIfExistsAsync<TenantEntity>(TenantEntity.TenantsPartitionKey, tenantId.ToString("D"),
+                ["PartitionKey", "RowKey", "Name", "NormalizedName", "Status", "CreatedAt", "UpdatedAt", "LastOperationId"], ct);
+            return response.HasValue ? new(Map(response.Value), response.Value.ETag.ToString(), response.Value.LastOperationId) : null;
+        } catch (Exception ex) { throw IdentityExceptionTranslator.ToProviderException(ex); }
+    }
+    public async Task<VersionedIdentityTenant> RenameAsync(Guid tenantId, string name, string expectedVersion, Guid operationId, CancellationToken ct = default)
+    {
+        try {
+            ValidateTenantId(tenantId);
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(expectedVersion) || expectedVersion == "*" || operationId == Guid.Empty)
+                throw new IdentityValidationException("A tenant name, exact version and operation ID are required.");
+            var previous = await FindVersionedAsync(tenantId, ct) ?? throw new IdentityNotFoundException("Tenant was not found.");
+            if (previous.Version != expectedVersion) throw new IdentityConcurrencyException();
+            var now = DateTimeOffset.UtcNow;
+            var patch = new TableEntity(TenantEntity.TenantsPartitionKey, tenantId.ToString("D")) {
+                ["Name"] = name.Trim(), ["NormalizedName"] = IdentityTenant.NormalizeName(name), ["UpdatedAt"] = now, ["LastOperationId"] = operationId };
+            var result = await TenantsTable().UpdateEntityAsync(patch, new ETag(expectedVersion), TableUpdateMode.Merge, ct);
+            return new(previous.Tenant with { Name = name.Trim(), NormalizedName = IdentityTenant.NormalizeName(name), UpdatedAt = now },
+                result.Headers.ETag?.ToString() ?? throw new IdentityProviderException("The tenant version was unavailable."), operationId);
+        } catch (RequestFailedException ex) when (ex.Status is 404 or 412) { throw new IdentityConcurrencyException(); }
+        catch (Exception ex) { throw IdentityExceptionTranslator.ToProviderException(ex); }
+    }
 
     private static TenantEntity ToEntity(IdentityTenant tenant)
         => new()
@@ -159,7 +187,7 @@ public sealed class AzureTableIdentityTenantStore : IIdentityTenantStore
             entity.Name,
             entity.NormalizedName,
             string.IsNullOrWhiteSpace(entity.Status) ? IdentityTenantStatuses.Active : entity.Status,
-            entity.CreatedAt,
+            entity.CreatedAt == default ? null : entity.CreatedAt,
             entity.UpdatedAt);
 
     private static void ValidateTenant(IdentityTenant tenant)

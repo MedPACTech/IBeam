@@ -6,6 +6,7 @@ namespace IBeam.Identity.Repositories.AzureTable.Entities;
 // TenantUsers table entity: PK = "TEN#{tenantId}", RK = "USR#{userId}"
 internal sealed class TenantUserEntity : ITableEntity
 {
+    public string? IBeamLastMembershipOperationId { get; set; }
     public string PartitionKey { get; set; } = default!;
     public string RowKey { get; set; } = default!;
     public DateTimeOffset? Timestamp { get; set; }

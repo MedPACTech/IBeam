@@ -12,5 +12,7 @@ public sealed record ManagementApplicationCredentialEntity
     public DateTimeOffset VerifiedUtc { get; init; }
     public string CreatedBy { get; init; } = "";
     public IReadOnlyList<string> Capabilities { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CustomerIdentity.ManagementCustomerIdentityDiscovery? CustomerIdentity { get; init; }
     public override string ToString() => "Management connection credential (reference redacted)";
 }

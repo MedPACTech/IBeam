@@ -1,4 +1,6 @@
-﻿# IBeam.Identity.Repositories.AzureTable
+# IBeam.Identity.Repositories.AzureTable
+
+IBM-0105: AzureTableIdentityTenantStore also implements IIdentityTenantConditionalStore. Exact ETags guard rename; a merge preserves consumer columns and adds LastOperationId only on managed writes. Legacy missing creation timestamps project as null and reads never rewrite rows. See docs/management/customer-tenant-administration.md.
 
 Azure Table Storage provider for IBeam identity store contracts.
 
@@ -226,3 +228,11 @@ Identity AzureTable provider resolves connection string with fallback precedence
 - Service logging and audit: [`../docs/service-logging-and-audit.md`](../docs/service-logging-and-audit.md)
 
 Agents should keep provider code storage-focused. Tenant, role, OTP, API credential, and access rules belong in Identity/AccessControl services.
+
+Enterprise onboarding services and durable invitation recovery are documented in [enterprise onboarding](../docs/management/enterprise-onboarding.md). Target services are opt-in; portal/HTTP integration follows in IBM-0108.
+
+IBM-0110 invitation resend/revoke uses exact versions, durable private delivery recovery and native acceptance claims. See [invitation lifecycle](../docs/management/customer-invitation-lifecycle.md).
+
+IBM-0112 versioned tenant membership/role administration, concurrent final-administrator protection and required customer access enforcement: [lifecycle contract](../docs/management/customer-membership-lifecycle.md).
+
+IBM-0113 conditional tenant activation/deactivation, lifecycle recovery and current customer access rejection: [status contract](../docs/management/customer-tenant-status.md).

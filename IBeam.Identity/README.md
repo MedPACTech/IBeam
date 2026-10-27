@@ -1,5 +1,7 @@
 # IBeam.Identity
 
+IBM-0105 adds optional IIdentityTenantConditionalStore / IIdentityTenantAdministrationService and VersionedIdentityTenant contracts without changing existing tenant store/service interfaces. External lifecycle contexts can redact failure details; the flag grants no authority. See docs/management/customer-tenant-administration.md.
+
 `IBeam.Identity` is the contract package for the IBeam identity domain.
 
 ## Narrative Introduction
@@ -912,3 +914,13 @@ public async Task UpdateProductAsync(
 - Identity extension scan prompt: [`../IBeam.AI.Enablement/examples/identity-extension-scan-prompt.md`](../IBeam.AI.Enablement/examples/identity-extension-scan-prompt.md)
 
 Agents should treat Identity as auth/account infrastructure and keep application domain behavior in the consuming application's services.
+
+Enterprise onboarding services and durable invitation recovery are documented in [enterprise onboarding](../docs/management/enterprise-onboarding.md). Target services are opt-in; portal/HTTP integration follows in IBM-0108.
+
+Approved tenant roles and invitation-only customer provisioning: [registration and API contract](../docs/management/customer-provisioning.md). Catalog visibility uses the independent roles.read grant; no account/membership is created before customer verification.
+
+IBM-0110 invitation resend/revoke uses exact versions, durable private delivery recovery and native acceptance claims. See [invitation lifecycle](../docs/management/customer-invitation-lifecycle.md).
+
+IBM-0112 versioned tenant membership/role administration, concurrent final-administrator protection and required customer access enforcement: [lifecycle contract](../docs/management/customer-membership-lifecycle.md).
+
+IBM-0113 conditional tenant activation/deactivation, lifecycle recovery and current customer access rejection: [status contract](../docs/management/customer-tenant-status.md).

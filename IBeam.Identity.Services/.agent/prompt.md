@@ -62,3 +62,15 @@ Provider or infrastructure integration tests should be opt-in when they require 
 ## Packaging
 
 The `.agent/prompt.md` file is included in the NuGet package by the repository-level packaging rules. Keep it useful for agents consuming the package from source or from the package artifact.
+
+IBM-0105 external tenant administration reuses Identity creation/lifecycle services with an optional conditional store. Preserve null customer AuthUserId, RequireLifecycleDelivery and RedactFailureDetails for external operations. These flags convey no permission; target Management authorization is separate. Recovery hooks can receive null previous state and must be idempotent by operation ID.
+
+IBM-0107 adds an optional trusted external invitation adapter to TenantInviteService. It never creates membership before customer acceptance, never fabricates a customer inviter and never returns tokens/links. External password setup requires an email verification challenge. Preserve ordinary invite/self-signup behavior. The Management journal owns ETag delivery claims; do not rewrite invitation state after SMTP or silently retry ambiguous delivery.
+
+IBM-0109 external callers may supply a bounded host-approved role-name result for selected target-local IDs. This is a trusted server adapter parameter, never an HTTP/claim-controlled allowlist. Native role scope/active/name checks still run before persisting. Legacy default external approval remains Admin/Owner; generic provisioning policy is enforced by the target Management service.
+
+IBM-0110: invitation transitions require exact ETags, stable operation IDs and native verified acceptance claims before membership. No claim stealing or automatic resend after SMTP uncertainty. Keep private ciphertext separate from safe receipts/audit and enforce target-owned roles/rate/redirect policy. See docs/management/customer-invitation-lifecycle.md.
+
+IBM-0112: membership and roles use caller ETags plus an atomic tenant-partition revision, target-owned immutable administrator roles and stable receipt IDs. Every native writer participates; protected legacy destructive writes fail closed. No implicit reactivation, global account/default/other-tenant edits or role restoration on re-enable. Customer request/refresh enforcement is required before capability registration; standard JWT uses live native versions, custom auth must explicitly integrate. Keep business eligibility in services and persistence fencing in stores. See docs/management/customer-membership-lifecycle.md.
+
+IBM-0113: tenant status is an independent exact-version, idempotent command with required lifecycle hooks and explicit customer request/refresh enforcement. Preserve global users, memberships, defaults and business/billing data. No bootstrap reactivation. Recover only owned status transitions; release only known unapplied metadata reservations after concurrent writes. See docs/management/customer-tenant-status.md.

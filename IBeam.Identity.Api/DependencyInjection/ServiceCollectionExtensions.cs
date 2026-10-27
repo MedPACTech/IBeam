@@ -25,17 +25,30 @@ namespace IBeam.Identity.Api.DependencyInjection;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddIBeamIdentityApi(
-        this IServiceCollection services,
-        IConfiguration configuration)
+    public static IServiceCollection AddIBeamIdentityApi(this IServiceCollection services, IConfiguration configuration)
+        => AddIdentityApiCore(services, configuration, true);
+
+    /// <summary>Use a host-registered Identity sender without installing optional Azure communication providers.
+    /// Authentication, JWT/session validation and API behavior are identical to AddIBeamIdentityApi.</summary>
+    public static IServiceCollection AddIBeamIdentityApiWithCommunicationSender(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddIBeamCommunications(configuration);
+        if (!services.Any(x => x.ServiceType == typeof(IIdentityCommunicationSender)))
+            throw new InvalidOperationException("Register an IIdentityCommunicationSender before composing the Identity API.");
+        return AddIdentityApiCore(services, configuration, false);
+    }
+
+    private static IServiceCollection AddIdentityApiCore(IServiceCollection services, IConfiguration configuration, bool registerCommunications)
+    {
+        if (registerCommunications) services.AddIBeamCommunications(configuration);
         services.AddIBeamIdentityAzureTable(configuration);
         services.AddIBeamIdentityServices(configuration);
 
-        services.AddIBeamCommunicationsSmsAzure(configuration);
-        services.AddIBeamAzureCommunicationsEmail(configuration);
-        services.AddScoped<IIdentityCommunicationSender, IdentityCommunicationAdapter>();
+        if (registerCommunications)
+        {
+            services.AddIBeamCommunicationsSmsAzure(configuration);
+            services.AddIBeamAzureCommunicationsEmail(configuration);
+            services.AddScoped<IIdentityCommunicationSender, IdentityCommunicationAdapter>();
+        }
 
         services.AddIBeamIdentityAuthOtpService();
         services.AddIBeamIdentityAuthPasswordService();

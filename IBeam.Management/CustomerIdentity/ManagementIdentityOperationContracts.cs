@@ -1,0 +1,73 @@
+using System.Text.Json.Serialization;
+using IBeam.Management.Entities;
+namespace IBeam.Management.CustomerIdentity;
+
+public sealed record ManagementIdentityOperationScope(Guid IdentityRealmId, Guid OrganizationId, Guid ApplicationId);
+/// <summary>Server-side request built by a validated business service. Never persist the key or payload.</summary>
+public sealed class ManagementIdentityMutationRequest
+{
+    public required string Operation { get; init; }
+    public Guid ResourceScope { get; init; }
+    /// <summary>Set only for changing an existing resource. A tenant-scoped create still reserves a new resource ID.</summary>
+    public Guid? ExistingResourceId { get; init; }
+    [JsonIgnore] public string IdempotencyKey { get; init; } = "";
+    [JsonIgnore] public ReadOnlyMemory<byte> CanonicalPayload { get; init; }
+    public override string ToString() => "Management mutation request (payload and key redacted)";
+}
+public sealed record ManagementIdentityOperationDto(Guid OperationId, string Operation, string Status, int Step,
+    Guid ResourceId, DateTimeOffset CreatedUtc, DateTimeOffset UpdatedUtc, DateTimeOffset ExpiresUtc)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ManagementEnterpriseOnboardingDto? Onboarding { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ManagementCustomerInvitationOperationDto? Invitation { get; init; }
+}
+public sealed record ManagementCustomerInvitationOperationDto(Guid TenantId, Guid InviteId, string Status, string DeliveryStatus, string Version);
+public interface IManagementCustomerInvitationOperationQuery
+{
+    Task<ManagementCustomerInvitationOperationDto?> GetAsync(ManagementIdentityOperationDto receipt, string authority, CancellationToken ct = default);
+}
+public interface IManagementIdentityOperationQueryService
+{
+    Task<ManagementIdentityOperationDto> GetAsync(Guid id, string authority, CancellationToken ct = default);
+    Task<ManagementIdentityOperationDto> ResolveAsync(ManagementIdentityOperationLookup request, string key, string authority, CancellationToken ct = default);
+}
+public sealed record ManagementIdentityMutationContext(Guid OperationId, Guid ResourceId, Guid ResourceScope, int Step, bool IsRecovery);
+public enum ManagementIdentityReconciliation { Absent, Applied, Unknown }
+/// <summary>Trusted business adapter: reconcile by stable ID/postcondition and apply with provider conditional writes.
+/// Never implement an unguarded insert/update; a lease alone cannot fence a downstream store.</summary>
+public interface IManagementIdentityMutationHandler
+{
+    Task<ManagementIdentityReconciliation> ReconcileAsync(ManagementIdentityMutationContext context, CancellationToken ct);
+    Task ApplyAsync(ManagementIdentityMutationContext context, CancellationToken ct);
+}
+public interface IManagementIdentityOperationRepository
+{
+    Task<ManagementIdentityOperationEntity?> GetAsync(ManagementIdentityOperationScope scope, Guid operationId, CancellationToken ct = default);
+    Task<bool> TryCreateAsync(ManagementIdentityOperationEntity operation, CancellationToken ct = default);
+    Task<ManagementIdentityOperationEntity> ReplaceAsync(ManagementIdentityOperationEntity operation, string expectedVersion, CancellationToken ct = default);
+}
+/// <summary>Append once by AuditId; retry of identical metadata succeeds, conflicting metadata must fail.</summary>
+public interface IManagementIdentityOperationAuditRepository
+{
+    Task AppendOnceAsync(ManagementAuditEntity entry, CancellationToken ct = default);
+}
+public interface IManagementIdentityOperationService
+{
+    Task<ManagementIdentityOperationDto> ExecuteAsync(ManagementIdentityMutationRequest request, IManagementIdentityMutationHandler handler, CancellationToken ct = default);
+    Task<ManagementIdentityOperationDto> GetAsync(Guid operationId, string authority, CancellationToken ct = default);
+    Task DeliverAuditAsync(Guid operationId, string authority, CancellationToken ct = default);
+}
+public interface IManagementPortalIdentityOperationService
+{
+    Task<ManagementIdentityOperationDto> GetAsync(Guid applicationId, Guid operationId, string authority, CancellationToken ct = default);
+}
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ManagementIdentityOperationLookup(string Operation, Guid ResourceScope, Guid? ExistingResourceId)
+{ public override string ToString() => "Operation lookup (scope redacted)"; }
+public interface IManagementIdentityOperationLookupService
+{
+    bool SupportsLookup { get; }
+    Task<ManagementIdentityOperationDto> ResolveAsync(ManagementIdentityOperationLookup request, string idempotencyKey, string authority, CancellationToken ct = default);
+}
+/// <summary>Registered by an installed target receipt endpoint module, not by storage/services alone.</summary>
+public interface IManagementIdentityReceiptProtocol { int Version { get; } }
+public sealed class ManagementIdentityOperationConflictException() : Exception("The management operation conflicts with an existing request.");

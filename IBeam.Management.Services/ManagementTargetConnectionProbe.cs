@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 namespace IBeam.Management.Services;
 
 /// <summary>Dedicated HTTP transport without factory logging, redirects, proxies, cookies or propagated trace headers.</summary>
-public sealed class ManagementTargetConnectionProbe(ManagementConnectionNetworkPolicy network,
+public sealed partial class ManagementTargetConnectionProbe(ManagementConnectionNetworkPolicy network,
     IOptions<ManagementConnectionOptions> options) : IManagementTargetConnectionProbe
 {
     public async Task<ManagementDiagnosticsInfo> ProbeAsync(string origin, ManagementSecretValue key, CancellationToken ct = default)
