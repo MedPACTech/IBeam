@@ -50,8 +50,10 @@ public sealed class ManagementCustomerIdentityInfoService(IManagementPrincipalPr
                 Array.AsReadOnly(capabilities.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray())) {
                     OperationReceiptProtocolVersion = provider.GetService<IManagementIdentityReceiptProtocol>()?.Version == 1 &&
                         provider.GetService<IManagementIdentityOperationLookupService>()?.SupportsLookup == true ? 1 : 0,
-                    OwnershipProtectionProtocolVersion = capabilities.Any(x => x is ManagementCustomerIdentityOperations.MembershipsManage or ManagementCustomerIdentityOperations.RolesAssign)
-                        ? provider.GetService<IBeam.Identity.Interfaces.IIdentityTenantOwnershipProtection>()?.ProtocolVersion ?? 0 : 0 };
+                    OwnershipProtectionProtocolVersion = capabilities.Any(x => x is ManagementCustomerIdentityOperations.MembershipsManage or ManagementCustomerIdentityOperations.RolesAssign or ManagementCustomerIdentityOperations.OwnersRead or ManagementCustomerIdentityOperations.OwnersTransfer)
+                        ? provider.GetService<IBeam.Identity.Interfaces.IIdentityTenantOwnershipProtection>()?.ProtocolVersion ?? 0 : 0,
+                    OwnershipTransferProtocolVersion = capabilities.Any(x => x is ManagementCustomerIdentityOperations.OwnersRead or ManagementCustomerIdentityOperations.OwnersTransfer)
+                        ? provider.GetService<IManagementCustomerOwnershipService>()?.ProtocolVersion ?? 0 : 0 };
             ManagementCustomerIdentityProtocol.Validate(result);
             return result;
         }, new ServiceOperationExecutionOptions { OperationName = ManagementCustomerIdentityOperations.Info,

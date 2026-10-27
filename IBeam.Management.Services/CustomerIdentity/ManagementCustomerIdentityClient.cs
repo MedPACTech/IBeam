@@ -47,7 +47,8 @@ public sealed partial class ManagementCustomerIdentityClient(ManagementConnectio
         var info = Data<ManagementCustomerIdentityInfo>(body.RootElement) ?? throw new ManagementCustomerIdentityResponseException();
         try { ManagementCustomerIdentityProtocol.Validate(info); } catch { throw new ManagementCustomerIdentityResponseException(); }
         if (info.ApplicationKey != c.ApplicationKey || info.Environment != c.Environment || info.IdentityRealmId != c.IdentityRealmId ||
-            !info.Capabilities.Contains(operation, StringComparer.Ordinal) || requireReceipts && info.OperationReceiptProtocolVersion != 1)
+            !info.Capabilities.Contains(operation, StringComparer.Ordinal) || requireReceipts && info.OperationReceiptProtocolVersion != 1 ||
+            operation is ManagementCustomerIdentityOperations.OwnersRead or ManagementCustomerIdentityOperations.OwnersTransfer && info.OwnershipTransferProtocolVersion != 1)
             throw new ManagementCustomerIdentityResponseException();
     }
     public async Task<ManagementIdentityOperationDto> GetOperationAsync(ManagementCustomerIdentityConnection c, Guid operationId, string authority, CancellationToken ct = default)

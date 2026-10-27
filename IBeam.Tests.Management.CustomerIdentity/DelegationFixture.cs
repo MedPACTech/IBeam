@@ -78,7 +78,8 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         OnboardingFixture? onboarding = null, ProvisioningFixture? provisioning = null, InvitationLifecycleFixture? invitations = null,
         MembershipStorageFixture? memberships = null, IIdentityTenantMembershipConditionalStore? membershipWrites = null, bool tenantStatus = false, Guid? organization = null, Guid? supportUser = null, Guid? application = null,
         Guid? identityRealm = null, string applicationKey = "atlas", string environment = "Testing", Func<IBeam.Identity.Models.IdentityTenant, Task>? createdHook = null,
-        IReadOnlyDictionary<string, string[]>? membershipPolicies = null, string[]? ownershipRoleNames = null, string[]? membershipAdministratorRoleNames = null)
+        IReadOnlyDictionary<string, string[]>? membershipPolicies = null, string[]? ownershipRoleNames = null, string[]? membershipAdministratorRoleNames = null,
+        bool ownershipTransfer = false)
     {
         var f = new DelegationFixture();
         f.Organization = organization ?? f.Organization; f.User = supportUser ?? f.User; f.Application = application ?? f.Application;
@@ -111,6 +112,8 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
         if (memberships is not null) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Concat(new[] {
             ManagementCustomerIdentityOperations.MembershipsManage, ManagementCustomerIdentityOperations.RolesAssign }).Distinct().ToArray() };
         if (tenantStatus) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Append(ManagementCustomerIdentityOperations.TenantsStatus).ToArray() };
+        if (ownershipTransfer) f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Concat(new[] {
+            ManagementCustomerIdentityOperations.OwnersRead, ManagementCustomerIdentityOperations.OwnersTransfer }).ToArray() };
         b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
             ["IBeam:Management:Diagnostics:ApplicationKey"] = applicationKey, ["IBeam:Management:Diagnostics:Environment"] = environment,
             ["IBeam:Management:CustomerIdentity:IdentityRealmId"] = realmId.ToString(),
@@ -188,6 +191,12 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             b.Services.AddIBeamManagementCustomerInvitationsApi(b.Configuration);
         }
         if (memberships is not null) {
+            if (ownershipTransfer) {
+                ownershipRoleNames ??= [memberships.Owner.Name];
+                b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
+                    ["IBeam:Identity:TenantOwnershipTransfer:Enabled"] = "true",
+                    ["IBeam:Identity:TenantOwnershipTransfer:Mode"] = "MultipleOwners" });
+            }
             if (ownershipRoleNames is not null) {
                 b.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["IBeam:Identity:TenantOwnership:Enabled"] = "true" });
                 b.Configuration.AddInMemoryCollection(ownershipRoleNames.Select((name, index) =>
@@ -206,6 +215,7 @@ internal sealed class DelegationFixture : IAsyncDisposable, IManagementActorSign
             b.Services.AddSingleton<IManagementAssignableRoleReadRepository>(new IBeam.Management.Repositories.AzureTable.AzureTableManagementAssignableRoleReadRepository(memberships.RoleTable));
             b.Services.AddSingleton<IIdentityTenantAccessEnforcement, TestMembershipEnforcement>();
             b.Services.AddIBeamManagementCustomerMembershipApi(b.Configuration);
+            if (ownershipTransfer) b.Services.AddIBeamManagementCustomerOwnershipApi(b.Configuration);
         }
         if (tenantStatus) { b.Services.AddSingleton<IIdentityTenantAccessEnforcement, TestMembershipEnforcement>(); b.Services.AddIBeamManagementTenantStatusApi(b.Configuration); }
         if (tenants is not null)

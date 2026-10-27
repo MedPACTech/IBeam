@@ -29,3 +29,5 @@ IBM-0114: onboarding policy keys, role templates and initializer selection are t
 IBM-0115: provenance is evidence-based optional target metadata: support-provisioned, self-service or unknown. Trusted self-service recorder has no HTTP endpoint and never infers origin or changes native signup. Reads enrich one bounded page without writes; missing evidence stays unknown. See docs/management/tenant-provenance.md.
 
 IBM-0122: install the optional native ownership policy for membership APIs. Discovery may report native ownership protocol 1 only with explicit compatible protection. This is not an ownership-transfer capability. Keep role-edit policy bounds and safe same-intent recovery; invalid/missing ownership adapters fail closed.
+
+IBM-0124: owners.read and owners.transfer are independent opt-in capabilities; roles.assign never grants transfer. Preserve atomic native adapters, live enforcement, signed source/destination/snapshot versions and same-intent receipt recovery. Polling is read-only. Audit only scoped IDs and outcome. Existing grants remain unchanged; see docs/management/customer-ownership-api.md.

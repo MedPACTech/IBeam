@@ -23,6 +23,11 @@ public interface IManagementCustomerIdentityConnectionResolver
 }
 public interface IManagementCustomerIdentityClient
 {
+    Task<ManagementCustomerOwnershipDto> ReadOwnershipAsync(ManagementCustomerIdentityConnection connection, Guid tenantId, CancellationToken ct = default)
+        => throw new ManagementCustomerIdentityUnavailableException();
+    Task<ManagementCustomerOwnershipResult> TransferOwnershipAsync(ManagementCustomerIdentityConnection connection, Guid tenantId,
+        TransferManagementCustomerOwnership request, string version, string key, CancellationToken ct = default)
+        => throw new ManagementCustomerIdentityUnavailableException();
     Task<IReadOnlyList<ManagementCustomerOnboardingPolicyDto>> ListOnboardingPoliciesAsync(ManagementCustomerIdentityConnection connection, CancellationToken ct = default) => throw new ManagementCustomerIdentityUnavailableException();
     Task<ManagementTenantMutationResult> SetTenantStatusAsync(ManagementCustomerIdentityConnection connection, Guid tenantId, bool active,
         string expectedVersion, string key, CancellationToken ct = default) => throw new ManagementCustomerIdentityUnavailableException();
