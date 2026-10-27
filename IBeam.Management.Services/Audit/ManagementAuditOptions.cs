@@ -24,7 +24,7 @@ public static class ManagementAuditOperations
     private static IReadOnlySet<string> Create()
     {
     var actions = new HashSet<string>(StringComparer.Ordinal) {
-        "management.identity.read", "management.identity.bootstrap", "management.diagnostics.info",
+        "management.identity.read", "management.identity.bootstrap", "management.diagnostics.info", "management.operations.info",
         "management.identity.info", "management.portal.customer-identity.info", "management.portal.customer-identity.authorize",
         "management.portal.customer-identity.connection", "management.portal.customer-identity.connection-check",
         "management.portal.customer-identity.tenants.list", "management.portal.customer-identity.tenants.read",

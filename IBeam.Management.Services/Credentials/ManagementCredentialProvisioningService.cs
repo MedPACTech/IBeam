@@ -1,3 +1,4 @@
+using IBeam.Management.Operations;
 using IBeam.Management.Entities;
 using IBeam.Services.Abstractions;
 using Microsoft.Extensions.Options;
@@ -12,6 +13,15 @@ public sealed class ManagementCredentialProvisioningService(
     IOptions<ManagementCredentialProvisioningOptions> provisioning,
     IServiceOperationExecutor operations) : IManagementCredentialProvisioningService
 {
+    private readonly ManagementOperationRegistry _registry = ManagementOperationRegistry.BuiltIn;
+    public ManagementCredentialProvisioningService(IManagementApiCredentialRepository repository,
+    IManagementCredentialOperatorProvider operators,
+    ManagementCredentialSecretCodec secrets,
+    IOptions<ManagementDiagnosticsOptions> deployment,
+    IOptions<ManagementCredentialProvisioningOptions> provisioning,
+    IServiceOperationExecutor operations, ManagementOperationRegistry registry)
+        : this(repository, operators, secrets, deployment, provisioning, operations) => _registry = registry;
+
     [IBeamOperation("management.credentials.issue", Permission = false)]
     public Task<ManagementIssuedCredential> IssueAsync(IReadOnlyList<string> capabilities, DateTimeOffset expiresUtc, CancellationToken ct = default)
         => operations.ExecuteAsync(this, async token =>
@@ -19,7 +29,7 @@ public sealed class ManagementCredentialProvisioningService(
             var actor = await RequireOperatorAsync(token);
             var now = DateTimeOffset.UtcNow;
             var requested = capabilities?.ToArray();
-            if (!ManagementCredentialPolicy.ValidCapabilities(requested) || expiresUtc <= now ||
+            if (!_registry.ValidCapabilities(requested) || expiresUtc <= now ||
                 expiresUtc > now.AddDays(provisioning.Value.MaximumLifetimeDays))
                 throw new ArgumentException("Explicit supported capabilities and a bounded future expiry are required.");
             var id = Guid.NewGuid();

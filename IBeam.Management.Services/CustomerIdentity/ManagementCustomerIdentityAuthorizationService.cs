@@ -1,3 +1,4 @@
+using IBeam.Management.Operations;
 using IBeam.Management.CustomerIdentity;
 using IBeam.Services.Abstractions;
 namespace IBeam.Management.Services.CustomerIdentity;
@@ -7,10 +8,15 @@ public sealed class ManagementCustomerIdentityAuthorizationService(IManagementAp
     IManagementCustomerIdentityAvailabilityService availability, IServiceOperationExecutor operations)
     : IManagementCustomerIdentityAuthorizationService
 {
+    private readonly ManagementOperationRegistry _registry = ManagementOperationRegistry.BuiltIn;
+    public ManagementCustomerIdentityAuthorizationService(IManagementApplicationAccessService access,
+    IManagementCustomerIdentityAvailabilityService availability, IServiceOperationExecutor operations, ManagementOperationRegistry registry)
+        : this(access, availability, operations) => _registry = registry;
+
     public Task RequireAsync(Guid applicationId, string operation, CancellationToken ct = default)
         => operations.ExecuteAsync(this, async token =>
         {
-            var required = ManagementCustomerIdentityPermissionPolicy.RequiredFor(operation);
+            var required = _registry.RequiredFor(operation);
             foreach (var permission in required) await access.RequireAsync(applicationId, permission, token);
             var current = await availability.GetAsync(applicationId, token);
             if (current.Status != ManagementCustomerIdentityStatuses.Available || current.Info is null ||

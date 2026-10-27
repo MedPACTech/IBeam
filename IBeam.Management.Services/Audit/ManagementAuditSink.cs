@@ -1,3 +1,4 @@
+using IBeam.Management.Operations;
 using System.Diagnostics.Metrics;
 using System.Security.Claims;
 using IBeam.Management.Entities;
@@ -15,11 +16,20 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
         IManagementAuditContext context, IOptions<ManagementAuditOptions> options, IOptions<ManagementDiagnosticsOptions> deployment,
         TimeProvider clock, IManagementDelegatedActorContext delegation)
         : this(repository, principals, context, options, deployment, clock) => _delegation = delegation;
+    private readonly ManagementOperationRegistry _registry = ManagementOperationRegistry.BuiltIn;
+    public ManagementAuditSink(IManagementAuditRepository repository, IManagementPrincipalProvider principals,
+        IManagementAuditContext context, IOptions<ManagementAuditOptions> options, IOptions<ManagementDiagnosticsOptions> deployment,
+        TimeProvider clock, ManagementOperationRegistry registry)
+        : this(repository, principals, context, options, deployment, clock) => _registry = registry;
+    public ManagementAuditSink(IManagementAuditRepository repository, IManagementPrincipalProvider principals,
+        IManagementAuditContext context, IOptions<ManagementAuditOptions> options, IOptions<ManagementDiagnosticsOptions> deployment,
+        TimeProvider clock, IManagementDelegatedActorContext delegation, ManagementOperationRegistry registry)
+        : this(repository, principals, context, options, deployment, clock, delegation) => _registry = registry;
     private static readonly Meter Meter = new("IBeam.Management.Audit");
     private static readonly Counter<long> Failures = Meter.CreateCounter<long>("management.audit.write_failures");
     public async Task WriteTransactionAsync(ServiceAuditTransaction transaction, CancellationToken ct = default)
     {
-        if (!ManagementAuditOperations.All.Contains(transaction.Action)) return;
+        if (!ManagementAuditOperations.All.Contains(transaction.Action) && !_registry.AllowsAudit(transaction.Action)) return;
         var now = clock.GetUtcNow();
         Guid? org = null, actor = null, credential = null; string subject = "unknown";
         var identities = principals.GetPrincipal()?.Identities.Where(x => x.IsAuthenticated).ToArray() ?? [];

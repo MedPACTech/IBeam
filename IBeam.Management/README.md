@@ -1,5 +1,7 @@
 # IBeam.Management
 
+IBM-0126 adds an immutable host-owned operation registry and typed provider-neutral app contracts. Reserved export/delete names confer no authority; app-data metadata stays separate from Identity. See [registered operations](https://github.com/MedPACTech/IBeam/blob/development/docs/management/registered-operations.md).
+
 Customer Identity info optionally reports `OwnershipProtectionProtocolVersion`; zero means unavailable and is omitted in JSON. This is native membership protocol metadata, not ownership transfer authority. See [tenant ownership protection](../docs/management/tenant-ownership-protection.md).
 
 IBM-0106 adds safe portal mutation/tracking contracts, typed operation lookup and optional operationReceiptProtocolVersion discovery. These are independent of grants and keep core free of Identity/HTTP dependencies. See docs/management/customer-tenant-portal-writes.md.

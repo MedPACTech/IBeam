@@ -1,3 +1,4 @@
+using IBeam.Management.Operations;
 using System.Security.Cryptography;
 using System.Text;
 using IBeam.Management.CustomerIdentity;
@@ -21,11 +22,19 @@ public sealed class ManagementActorTargetBinding
 }
 public static class ManagementDelegationBinding
 {
-    public static string Hash(ManagementDelegationRequest request)
+    public static string Hash(ManagementDelegationRequest request) => HashCore(request, false);
+    public static string Hash(ManagementDelegationRequest request, string operation, ManagementOperationRegistry registry)
+    {
+        if (registry.Find(operation) is null) return Hash(request);
+        if (request is null) throw new ManagementAccessDeniedException();
+        registry.RequireBinding(operation, request.Method, request.PathAndQuery, request.Body.Length);
+        return HashCore(request, true);
+    }
+    private static string HashCore(ManagementDelegationRequest request, bool registered)
     {
         if (request is null || request.Method is not ("GET" or "POST" or "PATCH" or "PUT" or "DELETE") ||
             request.PathAndQuery is not { Length: > 0 and <= 16384 } ||
-            !request.PathAndQuery.StartsWith("/api/management-identity/", StringComparison.Ordinal) ||
+            !registered && !request.PathAndQuery.StartsWith("/api/management-identity/", StringComparison.Ordinal) ||
             request.PathAndQuery.Any(char.IsControl) || request.PathAndQuery.Contains('#') || request.Body.Length > 32768 ||
             request.Method == "GET" && (!request.Body.IsEmpty || request.IdempotencyKey is not null || request.IfMatch is not null) ||
             request.IfMatch is not null && (request.IfMatch.Length is < 1 or > 256 || request.IfMatch.Any(char.IsControl)) ||

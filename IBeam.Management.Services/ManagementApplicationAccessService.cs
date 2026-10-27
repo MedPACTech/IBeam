@@ -1,3 +1,4 @@
+using IBeam.Management.Operations;
 using System.Security.Claims;
 using IBeam.Management.Entities;
 using IBeam.Management.CustomerIdentity;
@@ -11,6 +12,12 @@ public sealed class ManagementApplicationAccessService(IManagementApplicationAcc
     IManagementApplicationStateProvider applications, IManagementSupportUserStateProvider users,
     IManagementPrincipalProvider principals, IServiceOperationExecutor operations) : IManagementApplicationAccessService
 {
+    private readonly ManagementOperationRegistry _registry = ManagementOperationRegistry.BuiltIn;
+    public ManagementApplicationAccessService(IManagementApplicationAccessRepository access,
+    IManagementApplicationStateProvider applications, IManagementSupportUserStateProvider users,
+    IManagementPrincipalProvider principals, IServiceOperationExecutor operations, ManagementOperationRegistry registry)
+        : this(access, applications, users, principals, operations) => _registry = registry;
+
     public Task<ManagementApplicationAccessList> ListAsync(Guid applicationId, int pageSize = 50, string? continuationToken = null, CancellationToken ct = default)
         => Run("management.application-access.list", applicationId, async token =>
         {
@@ -85,8 +92,7 @@ public sealed class ManagementApplicationAccessService(IManagementApplicationAcc
             var current = await access.GetAsync(actor.Org, applicationId, actor.User, token);
             if (current is null) throw new ManagementAccessDeniedException();
             RequireBinding(current, actor.Org, applicationId, actor.User);
-            var required = ManagementCustomerIdentityPermissionPolicy.IsAssignable(permission)
-                ? ManagementCustomerIdentityPermissionPolicy.RequiredFor(permission) : [permission];
+            var required = _registry.RequiredFor(permission);
             if (current.RevokedUtc.HasValue || !ValidPermissions(current.Permissions) ||
                 required.Any(x => !current.Permissions.Contains(x, StringComparer.Ordinal))) throw new ManagementAccessDeniedException();
             return true;
@@ -118,16 +124,14 @@ public sealed class ManagementApplicationAccessService(IManagementApplicationAcc
         var app = await applications.GetAsync(org, id, ct);
         if (app is null || app.OrganizationId != org || app.ApplicationId != id || !app.IsEnabled) throw new ManagementAccessDeniedException();
     }
-    private static bool Known(string permission) => permission is ManagementOperations.ErrorsRead or ManagementOperations.LogsRead ||
-        ManagementCustomerIdentityPermissionPolicy.IsAssignable(permission);
-    private static bool ValidPermissions(IReadOnlyList<string>? permissions)
-        => permissions is { Count: > 0 } && permissions.Count <= 2 + ManagementCustomerIdentityOperations.All.Count(ManagementCustomerIdentityPermissionPolicy.IsAssignable) && permissions.All(Known) && permissions.Distinct(StringComparer.Ordinal).Count() == permissions.Count;
+    private bool Known(string permission) => _registry.IsAssignable(permission);
+    private bool ValidPermissions(IReadOnlyList<string>? permissions)
+        => _registry.ValidCapabilities(permissions) && permissions!.All(Known);
     private static bool ValidVersion(string? version) => !string.IsNullOrWhiteSpace(version) && version.Length <= 256 && version != "*";
-    private static void RequireCeiling(ClaimsIdentity actor, IReadOnlyList<string> permissions, Guid applicationId)
+    private void RequireCeiling(ClaimsIdentity actor, IReadOnlyList<string> permissions, Guid applicationId)
     {
         if (!ValidPermissions(permissions) || permissions.Any(x => !actor.HasClaim(ManagementClaimTypes.Permission,
-            x == ManagementOperations.ErrorsRead ? ManagementAccessDelegation.Errors :
-            x == ManagementOperations.LogsRead ? ManagementAccessDelegation.Logs : ManagementCustomerIdentityPermissionPolicy.DelegationFor(x, applicationId))))
+            _registry.DelegationFor(x, applicationId))))
             throw new ManagementAccessDeniedException();
     }
     private static void RequireBinding(ManagementApplicationAccessEntity row, Guid org, Guid app, Guid user)

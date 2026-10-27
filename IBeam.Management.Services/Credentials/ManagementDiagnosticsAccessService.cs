@@ -1,3 +1,4 @@
+using IBeam.Management.Operations;
 using System.Security.Claims;
 using IBeam.Services.Abstractions;
 using Microsoft.Extensions.Options;
@@ -16,6 +17,13 @@ public sealed class ManagementDiagnosticsAccessService(
     IOptions<ManagementDiagnosticsOptions> deployment,
     IServiceOperationExecutor operations) : IManagementDiagnosticsAccessService
 {
+    private readonly ManagementOperationRegistry _registry = ManagementOperationRegistry.BuiltIn;
+    public ManagementDiagnosticsAccessService(IManagementPrincipalProvider principals,
+    IManagementApiCredentialRepository repository,
+    IOptions<ManagementDiagnosticsOptions> deployment,
+    IServiceOperationExecutor operations, ManagementOperationRegistry registry)
+        : this(principals, repository, deployment, operations) => _registry = registry;
+
     public Task<ManagementCredentialMetadata> RequireAsync(string operation, CancellationToken ct = default)
     {
         if (operation is not (ManagementOperations.DiagnosticsInfo or ManagementOperations.ErrorsRead or ManagementOperations.LogsRead))
@@ -35,7 +43,7 @@ public sealed class ManagementDiagnosticsAccessService(
             if (row is null || row.CredentialId != id || row.ApplicationKey != configured.ApplicationKey ||
                 row.Environment != configured.Environment || row.Status != "Active" || row.RevokedUtc.HasValue ||
                 row.ExpiresUtc <= DateTimeOffset.UtcNow || row.Version != ManagementPrincipalGuard.RequireSingle(identity, ManagementClaimTypes.CredentialVersion) ||
-                !ManagementCredentialPolicy.ValidCapabilities(row.Capabilities) ||
+                !_registry.ValidCapabilities(row.Capabilities) ||
                 !row.Capabilities.Contains(operation, StringComparer.Ordinal))
                 throw new ManagementAccessDeniedException();
             return ManagementCredentialValidator.Metadata(row);

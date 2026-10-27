@@ -39,3 +39,5 @@ IBM-0117: an app assignment can contain both diagnostic permissions and every ex
 IBM-0122: validate optional ownership-protection discovery metadata without treating it as an operation grant or global-account lifecycle guarantee.
 
 IBM-0124: owners.read and owners.transfer are independent opt-in capabilities; roles.assign never grants transfer. Preserve atomic native adapters, live enforcement, signed source/destination/snapshot versions and same-intent receipt recovery. Polling is read-only. Audit only scoped IDs and outcome. Existing grants remain unchanged; see docs/management/customer-ownership-api.md.
+
+IBM-0126: preserve the immutable per-host ManagementOperationRegistry and original built-in overloads. Typed app descriptors are trusted code, with fixed GUID routes, bounded strict schemas, explicit grants and exact audit actions. Registration/discovery never grants authority or invokes handlers. Keep app data separate from Identity discovery; extension HTTP dispatch and commercial/data handlers require subsequent explicit modules. See docs/management/registered-operations.md.
