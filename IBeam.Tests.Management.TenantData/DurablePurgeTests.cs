@@ -22,6 +22,20 @@ namespace IBeam.Tests.Management.TenantData;
 public sealed class DurablePurgeTests
 {
     [TestMethod]
+    public async Task SameJobConfirmationRaceRecoversItsReceiptAfterAStaleInitialRead()
+    {
+        await using var f = await Fixture.Create(); await f.Confirm(); var reads = 0;
+        var repository = new Mock<IManagementTenantPurgeJournalRepository>();
+        repository.Setup(x => x.GetJobAsync(It.IsAny<ManagementTenantPurgeExecution>(), It.IsAny<CancellationToken>()))
+            .Returns((ManagementTenantPurgeExecution e, CancellationToken ct) => Interlocked.Increment(ref reads) == 1 ? Task.FromResult<ManagementTenantPurgeJournalEntity?>(null) : f.Store.GetJobAsync(e, ct));
+        repository.Setup(x => x.GetPlanAsync(It.IsAny<ManagementTenantPurgeExecution>(), f.SavedPlan!.PlanId, It.IsAny<CancellationToken>()))
+            .Returns((ManagementTenantPurgeExecution e, Guid id, CancellationToken ct) => f.Store.GetPlanAsync(e, id, ct));
+        var receipt = await f.JobsFor(repository.Object).ConfirmAsync(f.Execution, f.SavedPlan!);
+        Assert.AreEqual("accepted", receipt.Outcome); Assert.AreEqual(f.Execution.JobId, receipt.Job!.JobId); Assert.AreEqual(2, reads);
+        repository.Verify(x => x.TryConfirmAsync(It.IsAny<ManagementTenantPurgeJournalEntity>(), It.IsAny<string>(), It.IsAny<ManagementTenantPurgeJournalEntity>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.IsTrue(await f.Native.DataExists()); Assert.AreEqual(0, f.Native.PurgeCalls);
+    }
+    [TestMethod]
     public async Task ConcurrentConfirmationConsumesOnePlanAndReservesOneJobWithoutInlineDeletion()
     {
         await using var f = await Fixture.Create(); var plan = await f.Plan();
@@ -255,6 +269,8 @@ public sealed class DurablePurgeTests
             Jobs = new(Store, access.Object, Native, Native, Fences, Options.Create(new ManagementTenantPurgeOptions { Enabled = true, PolicyKeys = ["enterprise"] }), d, t, Clock, executor);
             Worker = new(Store, Native, Native, Fences, audit.Object, Options.Create(new ManagementAuditOptions()), Options.Create(new ManagementTenantPurgeJobOptions { LeaseSeconds = 30 }), Clock, executor, d, t);
         }
+        public ManagementTenantPurgeJobService JobsFor(IManagementTenantPurgeJournalRepository repository) => new(repository, access.Object, Native, Native, Fences,
+            Options.Create(new ManagementTenantPurgeOptions { Enabled = true, PolicyKeys = ["enterprise"] }), Options.Create(deployment), Options.Create(Target), Clock, new ServiceOperationExecutor());
         public ManagementTenantPurgeExecution WithJob(Guid job) => Execution with { JobId = job, Authority = Execution.Authority with { OperationId = job } };
         public async Task<ManagementTenantPurgePlan> Plan() {
             var e = WithJob(Guid.NewGuid()); var now = Clock.GetUtcNow();
