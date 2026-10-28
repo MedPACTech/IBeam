@@ -34,21 +34,22 @@ public sealed class ManagementRegisteredOperationDispatcher : IManagementRegiste
             catch (TargetInvocationException ex) when (ex.InnerException is not null) { ExceptionDispatchInfo.Capture(ex.InnerException).Throw(); throw; }
         }, new ServiceOperationExecutionOptions { OperationName = "management.operations.dispatch", AuditAction = "management.operations.dispatch",
             EntityName = "ManagementRegisteredOperation", PermissionEnabled = false, AuditEnabled = true }, ct);
-    private async Task<ManagementOperationDispatchResult> Invoke<TRequest, TResult>(ManagementOperationDescriptor descriptor,
+    private Task<ManagementOperationDispatchResult> Invoke<TRequest, TResult>(ManagementOperationDescriptor descriptor,
         ManagementOperationContext scope, ManagementOperationInvocation request, CancellationToken ct)
-    {
+        => operations.ExecuteAsync(this, async token => {
         var handler = (IManagementOperationHandler<TRequest, TResult>)provider.GetRequiredService(descriptor.HandlerServiceType);
         var codec = new ManagementOperationPayloadCodec(registry);
         var result = request.ReceiptLookup
-            ? await ((IManagementOperationReceiptHandler<TResult>)handler).ReadReceiptAsync(scope, ct)
-            : await handler.ExecuteAsync(scope, codec.ReadRequest<TRequest>(descriptor.Operation, request.Body), ct);
-        await authority.RequireAsync(descriptor.Operation, scope, ct);
+            ? await ((IManagementOperationReceiptHandler<TResult>)handler).ReadReceiptAsync(scope, token)
+            : await handler.ExecuteAsync(scope, codec.ReadRequest<TRequest>(descriptor.Operation, request.Body), token);
+        await authority.RequireAsync(descriptor.Operation, scope, token);
         byte[] bytes;
         try { bytes = codec.WriteResult(descriptor.Operation, result); }
         catch (ManagementAccessDeniedException) { throw new ManagementOperationUnavailableException(); }
         using var json = JsonDocument.Parse(bytes);
-        return new() { Body = bytes, Unknown = json.RootElement.TryGetProperty("outcome", out var outcome) && outcome.ValueKind == JsonValueKind.String && outcome.GetString() == "unknown" };
-    }
+        return new ManagementOperationDispatchResult { Body = bytes, Unknown = json.RootElement.TryGetProperty("outcome", out var outcome) && outcome.ValueKind == JsonValueKind.String && outcome.GetString() == "unknown" };
+    }, new ServiceOperationExecutionOptions { OperationName = descriptor.Operation, AuditAction = descriptor.AuditAction,
+        EntityName = "ManagementRegisteredOperation", EntityId = scope.ResourceId, TenantId = scope.TenantId, PermissionEnabled = false, AuditEnabled = true }, ct);
 }
 public sealed class ManagementRegisteredOperationInfoService(IManagementOperationCapabilityService capabilities,
     ManagementOperationRegistry registry, IOptions<ManagementOperationTargetOptions> options, IOptions<ManagementDiagnosticsOptions> deployment,

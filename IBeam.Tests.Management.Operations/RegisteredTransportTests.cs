@@ -273,6 +273,7 @@ public sealed partial class RegisteredTransportTests
         public IManagementRegisteredOperationAvailabilityService Availability { get; private set; } = null!;
         public ConcurrentBag<ManagementAuditEntity> Audits { get; } = [];
         public Func<HttpRequestMessage, Task>? BeforeSendAsync { get; set; }
+        public Func<HttpRequestMessage, CancellationToken, Task>? TransportGate { get; set; }
         public Action<HttpRequestMessage>? BeforeSend { get; set; }
         public Func<HttpRequestMessage, HttpResponseMessage, Task<HttpResponseMessage>>? AfterSend { get; set; }
         public Captured? LastWrite { get; private set; }
@@ -280,7 +281,7 @@ public sealed partial class RegisteredTransportTests
         private readonly List<IDisposable> owned = [];
         private static string[] Grants => [ManagementLicenseOperations.Read, ManagementLicenseOperations.Suspend, ManagementLicenseOperations.Restore,
             ManagementSeatOperations.Read, ManagementSeatOperations.Assign, ManagementSeatOperations.Unassign];
-        public static async Task<Fixture> Create(bool includeSynthetic = false)
+        public static async Task<Fixture> Create(bool includeSynthetic = false, int timeoutSeconds = 10)
         {
             var f = new Fixture(); var codec = new ManagementCredentialSecretCodec(); var credentialId = Guid.NewGuid(); f.Secret = codec.Create(credentialId);
             var grants = includeSynthetic ? Grants.Append(SharedSenderSyntheticOperation).ToArray() : Grants;
@@ -341,7 +342,7 @@ public sealed partial class RegisteredTransportTests
             var signing = new Mock<IManagementActorSigningKeyProvider>(); signing.Setup(x => x.GetSigningCredentials()).Returns(new SigningCredentials(key, SecurityAlgorithms.RsaSha256));
             var options = new StaticOptions<ManagementRegisteredOperationClientOptions>(new() { Issuer = "fixture-portal", OperationIdKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
                 Targets = [new() { ApplicationId = f.AppId, Audience = "fixture-target" }] });
-            var connectionOptions = Options.Create(new ManagementConnectionOptions { ApprovedOrigins = [f.Application.BaseUrl] });
+            var connectionOptions = Options.Create(new ManagementConnectionOptions { ApprovedOrigins = [f.Application.BaseUrl], TimeoutSeconds = timeoutSeconds });
             var network = new ManagementConnectionNetworkPolicy(connectionOptions, Mock.Of<IManagementTargetDnsResolver>(), Mock.Of<IManagementTargetSocketConnector>());
             f.Client = new(catalog, principals.Object, access, f.Availability, apps.Object, connections.Object, secrets.Object, codec, signing.Object, new ManagementAuditContext(),
                 network, connectionOptions, options, TimeProvider.System, executor) { TestTransportFactory = () => new Transport(f) { InnerHandler = f.Target.GetTestServer().CreateHandler() } };
@@ -373,6 +374,7 @@ public sealed partial class RegisteredTransportTests
                         request.Headers.GetValues("Idempotency-Key").Single(), request.Headers.GetValues("If-Match").Single());
                 }
                 f.BeforeSend?.Invoke(request); if (f.BeforeSendAsync is not null) await f.BeforeSendAsync(request);
+                if (f.TransportGate is not null) await f.TransportGate(request, ct);
                 var response = await base.SendAsync(request, ct);
                 return f.AfterSend is null ? response : await f.AfterSend(request, response);
             }

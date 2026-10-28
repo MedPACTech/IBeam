@@ -64,8 +64,10 @@ public sealed class ApplicationDiagnosticsClient(ManagementConnectionNetworkPoli
         catch { throw new ManagementPortalResponseException(); }
     }
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private async Task<JsonDocument> GetAsync(ManagementDiagnosticConnection c, string path, List<KeyValuePair<string, string>> query, CancellationToken ct)
-    {
+    private Task<JsonDocument> GetAsync(ManagementDiagnosticConnection c, string path, List<KeyValuePair<string, string>> query, CancellationToken ct)
+        => ManagementTargetTelemetry.Run("diagnostics", "read", path == "info" ? ManagementOperations.DiagnosticsInfo :
+            path.StartsWith("system-errors", StringComparison.Ordinal) ? ManagementOperations.ErrorsRead : ManagementOperations.LogsRead,
+            c.ApplicationId, null, null, audit, ct, async () => {
         try
         {
             var origin = network.RequireOrigin(c.BaseUrl);
@@ -102,7 +104,7 @@ public sealed class ApplicationDiagnosticsClient(ManagementConnectionNetworkPoli
         catch (Exception ex) when (ex is ManagementAccessDeniedException or ManagementDiagnosticNotFoundException or DiagnosticQueryException or
             ManagementPortalResponseException or ManagementPortalRateLimitException or ManagementDiagnosticUnavailableException) { throw; }
         catch { throw new ManagementDiagnosticUnavailableException(); }
-    }
+    });
     private static List<KeyValuePair<string, string>> Query(DiagnosticQuery q)
     {
         var values = new List<KeyValuePair<string, string>>();

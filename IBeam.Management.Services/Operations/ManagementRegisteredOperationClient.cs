@@ -36,21 +36,22 @@ public sealed class ManagementRegisteredOperationClient(ManagementOperationRegis
     internal Func<HttpMessageHandler>? TestTransportFactory { get; init; }
     public Task<TResult> ExecuteAsync<TRequest, TResult>(Guid applicationId, string operation, Guid tenantId, Guid resourceId,
         TRequest request, string idempotencyKey, string? expectedVersion, CancellationToken ct = default)
-    {
-        var descriptor = registry.Find(operation) ?? throw new ManagementAccessDeniedException();
+        => ManagementTargetTelemetry.Run("registered", "execute", ManagementTargetTelemetry.Registered(registry, operation), applicationId, tenantId, resourceId, audit, ct, async () => {
+        var descriptor = (operation is null ? null : registry.Find(operation)) ?? throw new ManagementAccessDeniedException();
         if (descriptor.Request.ContractType != typeof(TRequest) || descriptor.Result.ContractType != typeof(TResult)) throw new ManagementOperationInvalidException();
         var body = new ManagementOperationPayloadCodec(registry).WriteRequest(operation, request);
         if (descriptor.Method == "GET" && (!string.IsNullOrEmpty(idempotencyKey) || expectedVersion is not null) ||
             descriptor.Method != "GET" && (!ManagementDelegationBinding.ValidIdempotencyKey(idempotencyKey) ||
                 expectedVersion is not { Length: > 0 and <= 256 } || expectedVersion == "*" || expectedVersion.Any(char.IsControl))) throw new ManagementOperationInvalidException();
-        return Send<TResult>(applicationId, operation, tenantId, resourceId, Guid.Empty, body, idempotencyKey, expectedVersion, lookup: false, ct);
-    }
+        return await Send<TResult>(applicationId, operation, tenantId, resourceId, Guid.Empty, body, idempotencyKey, expectedVersion, lookup: false, ct);
+    });
     public Task<TResult> ReadReceiptAsync<TResult>(Guid applicationId, string operation, Guid tenantId, Guid resourceId, Guid operationId, CancellationToken ct = default)
-    {
-        var descriptor = registry.Find(operation) ?? throw new ManagementAccessDeniedException();
+        => ManagementTargetTelemetry.Run("registered", "receipt", ManagementTargetTelemetry.Registered(registry, operation), applicationId, tenantId, resourceId, audit, ct, async () => {
+        var descriptor = (operation is null ? null : registry.Find(operation)) ?? throw new ManagementAccessDeniedException();
         if (descriptor.Result.ContractType != typeof(TResult) || descriptor.ReceiptProtocolVersion != 1 || operationId == Guid.Empty) throw new ManagementOperationInvalidException();
-        return Send<TResult>(applicationId, operation, tenantId, resourceId, operationId, [], "", null, lookup: true, ct);
-    }
+        ManagementTargetTelemetry.Operation(operationId);
+        return await Send<TResult>(applicationId, operation, tenantId, resourceId, operationId, [], "", null, lookup: true, ct);
+    });
     private Task<TResult> Send<TResult>(Guid appId, string operation, Guid tenant, Guid resource, Guid receiptId, byte[] body, string key,
         string? version, bool lookup, CancellationToken ct)
         => operations.ExecuteAsync(this, async token =>
@@ -75,6 +76,7 @@ public sealed class ManagementRegisteredOperationClient(ManagementOperationRegis
             if (!keyCodec.TryReadId(secret.Value, out var credentialId)) throw new ManagementAccessDeniedException();
             var scope = new ManagementOperationContext(org, appId, info.RealmId, tenant, human, lookup ? receiptId : descriptor.Method == "GET" ? Guid.Empty :
                 Intent(configured.OperationIdKey, org, appId, info.RealmId, human, tenant, resource, operation, key)) { ResourceId = resource, ResourceVersion = version };
+            ManagementTargetTelemetry.Operation(scope.OperationId);
             var method = lookup ? "GET" : descriptor.Method;
             var path = lookup ? operation == ManagementTenantDataOperations.Export ? TenantData.ManagementTenantExportRoutes.StatusPath(tenant, receiptId) :
                 "/api/management-operations/receipts/" + receiptId.ToString("D") : ManagementRegisteredRoute.Path(descriptor, tenant, resource);
@@ -127,6 +129,7 @@ public sealed class ManagementRegisteredOperationClient(ManagementOperationRegis
                     var export = TenantData.ManagementTenantExportMetadata.Project((TenantData.ManagementTenantExportResult)(object)result!, tenant, scope.OperationId);
                     if (lookup && export.Outcome == "accepted" || !lookup && export.Outcome == "found") throw new ManagementOperationUnavailableException();
                     result = (TResult)(object)export;
+                    if (export.Outcome == "unknown") ManagementTargetTelemetry.Unknown();
                 }
                 if (operation == ManagementTenantDataOperations.Delete)
                 {
@@ -141,6 +144,7 @@ public sealed class ManagementRegisteredOperationClient(ManagementOperationRegis
                             throw new ManagementOperationUnavailableException();
                     }
                     result = (TResult)(object)purge;
+                    if (purge.Outcome == "unknown") ManagementTargetTelemetry.Unknown();
                 }
                 await Require(appId, operation, timeout.Token);
                 latest = await applications.GetAsync(org, appId, timeout.Token);
@@ -155,8 +159,8 @@ public sealed class ManagementRegisteredOperationClient(ManagementOperationRegis
                 if (sent && !lookup && descriptor.Method != "GET") throw new ManagementOperationUncertainException(appId, tenant, resource, scope.OperationId);
                 throw new ManagementOperationUnavailableException();
             }
-        }, new ServiceOperationExecutionOptions { OperationName = "management.operations.send", AuditAction = "management.operations.send",
-            EntityId = appId, EntityName = "ManagementRegisteredOperationClient", PermissionEnabled = false, AuditEnabled = true }, ct);
+        }, new ServiceOperationExecutionOptions { OperationName = "management.operations.send", AuditAction = registry.Find(operation)?.AuditAction ?? "management.operations.send",
+            EntityId = appId, TenantId = tenant, EntityName = "ManagementRegisteredOperationClient", PermissionEnabled = false, AuditEnabled = true }, ct);
     private async Task Require(Guid app, string operation, CancellationToken ct)
     {
         foreach (var permission in registry.RequiredFor(operation)) await access.RequireAsync(app, permission, ct);

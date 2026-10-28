@@ -7,8 +7,8 @@ namespace IBeam.Management.Services;
 public sealed partial class ManagementTargetConnectionProbe(ManagementConnectionNetworkPolicy network,
     IOptions<ManagementConnectionOptions> options) : IManagementTargetConnectionProbe
 {
-    public async Task<ManagementDiagnosticsInfo> ProbeAsync(string origin, ManagementSecretValue key, CancellationToken ct = default)
-    {
+    public Task<ManagementDiagnosticsInfo> ProbeAsync(string origin, ManagementSecretValue key, CancellationToken ct = default)
+        => ManagementTargetTelemetry.Run("discovery", "probe", ManagementOperations.DiagnosticsInfo, null, null, null, null, ct, async () => {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(options.Value.TimeoutSeconds));
         try
@@ -29,7 +29,7 @@ public sealed partial class ManagementTargetConnectionProbe(ManagementConnection
         catch (ManagementApplicationInvalidException) { throw new ManagementConnectionInvalidException(); }
         catch (ManagementConnectionInvalidException) { throw; }
         catch { throw new ManagementConnectionUnavailableException(); }
-    }
+    });
     internal Func<HttpMessageHandler>? TestTransportFactory { get; init; }
     internal SocketsHttpHandler CreateHandler(Uri approved) => ManagementTargetHttpTransport.CreateHandler(network, approved, Math.Min(5, options.Value.TimeoutSeconds));
 

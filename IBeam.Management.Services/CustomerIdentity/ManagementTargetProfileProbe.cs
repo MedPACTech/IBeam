@@ -12,8 +12,8 @@ public sealed partial class ManagementTargetConnectionProbe : IManagementTargetP
     private readonly ManagementOperationRegistry _registry = ManagementOperationRegistry.BuiltIn;
     public ManagementTargetConnectionProbe(ManagementConnectionNetworkPolicy network, IOptions<ManagementConnectionOptions> options, ManagementOperationRegistry registry)
         : this(network, options) => _registry = registry;
-    public async Task<ManagementTargetProfile> ProbeProfileAsync(string origin, ManagementSecretValue key, CancellationToken ct = default)
-    {
+    public Task<ManagementTargetProfile> ProbeProfileAsync(string origin, ManagementSecretValue key, CancellationToken ct = default)
+        => ManagementTargetTelemetry.Run("discovery", "probe", "management.operations.info", null, null, null, null, ct, async () => {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(options.Value.TimeoutSeconds));
         try
@@ -61,7 +61,7 @@ public sealed partial class ManagementTargetConnectionProbe : IManagementTargetP
         catch (ManagementApplicationInvalidException) { throw new ManagementConnectionInvalidException(); }
         catch (ManagementConnectionInvalidException) { throw; }
         catch { throw new ManagementConnectionUnavailableException(); }
-    }
+    });
     internal static async Task<ManagementRegisteredOperationDiscovery> ReadRegisteredInfoResponseAsync(HttpResponseMessage response, ManagementOperationRegistry registry, CancellationToken ct)
     {
         try
