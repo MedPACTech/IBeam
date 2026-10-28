@@ -127,11 +127,7 @@ public sealed partial class ManagementCustomerIdentityClient(ManagementConnectio
         {
             if (payload.Length > 32768) throw new ManagementCustomerIdentityInvalidRequestException();
             var origin = network.RequireOrigin(c.BaseUrl);
-            using var handler = TestTransportFactory?.Invoke() ?? new SocketsHttpHandler {
-                AllowAutoRedirect = false, UseProxy = false, UseCookies = false, AutomaticDecompression = DecompressionMethods.None,
-                ActivityHeadersPropagator = null, ConnectTimeout = TimeSpan.FromSeconds(5),
-                ConnectCallback = (context, token) => network.ConnectAsync(origin, context.DnsEndPoint, token) };
-            using var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+            using var client = ManagementTargetHttpTransport.CreateClient(network, origin, TestTransportFactory);
             var uri = new Uri(origin, path);
             using var request = new HttpRequestMessage(new HttpMethod(method), uri) { Version = HttpVersion.Version11, VersionPolicy = HttpVersionPolicy.RequestVersionExact };
             request.Headers.Add("X-IBeam-Management-Key", c.Key.Value);

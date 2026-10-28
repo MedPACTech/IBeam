@@ -32,7 +32,7 @@ using Moq;
 namespace IBeam.Tests.Management.Operations;
 
 [TestClass]
-public sealed class RegisteredTransportTests
+public sealed partial class RegisteredTransportTests
 {
     [TestMethod]
     public async Task RealSignedClientDiscoversAndExecutesLicenceAndSeatHandlersWithReadonlyRecovery()
@@ -280,11 +280,12 @@ public sealed class RegisteredTransportTests
         private readonly List<IDisposable> owned = [];
         private static string[] Grants => [ManagementLicenseOperations.Read, ManagementLicenseOperations.Suspend, ManagementLicenseOperations.Restore,
             ManagementSeatOperations.Read, ManagementSeatOperations.Assign, ManagementSeatOperations.Unassign];
-        public static async Task<Fixture> Create()
+        public static async Task<Fixture> Create(bool includeSynthetic = false)
         {
             var f = new Fixture(); var codec = new ManagementCredentialSecretCodec(); var credentialId = Guid.NewGuid(); f.Secret = codec.Create(credentialId);
+            var grants = includeSynthetic ? Grants.Append(SharedSenderSyntheticOperation).ToArray() : Grants;
             f.Credential = new() { CredentialId = credentialId, ApplicationKey = "fixture", Environment = "Testing", SecretHash = codec.Hash(f.Secret),
-                Capabilities = [ManagementRegisteredOperations.Info, .. Grants], ExpiresUtc = DateTimeOffset.UtcNow.AddHours(1), Version = "credential-1" };
+                Capabilities = [ManagementRegisteredOperations.Info, .. grants], ExpiresUtc = DateTimeOffset.UtcNow.AddHours(1), Version = "credential-1" };
             var key = new RsaSecurityKey(f.rsa) { KeyId = "fixture-signing" };
             var validation = new Mock<IManagementActorValidationKeyProvider>(); validation.Setup(x => x.GetTrustedKeys("fixture-portal")).Returns([key]);
             var credentials = new Mock<IManagementApiCredentialRepository>();
@@ -300,13 +301,14 @@ public sealed class RegisteredTransportTests
                 ["IBeam:Management:Operations:Target:RealmId"] = f.Realm.ToString("D"), ["IBeam:Management:Operations:Target:DedicatedApplicationRealm"] = "true",
                 ["IBeam:Management:Operations:Target:TrustedPortals:0:OrganizationId"] = f.Org.ToString("D"), ["IBeam:Management:Operations:Target:TrustedPortals:0:ApplicationId"] = f.AppId.ToString("D"),
                 ["IBeam:Management:Operations:Target:TrustedPortals:0:Issuer"] = "fixture-portal", ["IBeam:Management:Operations:Target:TrustedPortals:0:Audience"] = "fixture-target" };
-            for (var i = 0; i < Grants.Length; i++) config[$"IBeam:Management:Operations:Target:EnabledOperations:{i}"] = Grants[i];
+            for (var i = 0; i < grants.Length; i++) config[$"IBeam:Management:Operations:Target:EnabledOperations:{i}"] = grants[i];
             builder.Configuration.AddInMemoryCollection(config);
             builder.Services.AddSingleton(credentials.Object); builder.Services.AddSingleton(validation.Object); builder.Services.AddSingleton(replay.Object); builder.Services.AddSingleton(audit.Object);
             builder.Services.AddIBeamLicensingServices(builder.Configuration);
             builder.Services.AddSingleton<ILicenseStatusRestorePolicy>(new Restore()); builder.Services.AddSingleton<ILicenseSeatSubjectPolicy>(new Subjects());
             builder.Services.AddIBeamManagementLicenseStatusTarget(o => { o.Enabled = true; o.EnableRestore = true; o.AllowVolatileDevelopmentStore = true; });
             builder.Services.AddIBeamManagementSeatsTarget(o => { o.Enabled = true; o.AllowVolatileDevelopmentStore = true; });
+            if (includeSynthetic) builder.Services.AddIBeamManagementOperation<SharedSenderSyntheticRequest, SharedSenderSyntheticResult, SharedSenderSyntheticHandler>(SharedSenderSyntheticDescriptor);
             builder.Services.AddIBeamManagementRegisteredOperationsTargetApi(builder.Configuration);
             f.Target = builder.Build(); f.Target.UseAuthentication(); f.Target.UseAuthorization(); f.Target.MapIBeamManagementRegisteredOperations();
             await f.Target.StartAsync();
@@ -316,13 +318,14 @@ public sealed class RegisteredTransportTests
                     new() { PlanKey = "fixture", StartsUtc = DateTimeOffset.UtcNow.AddDays(-1), ExpiresUtc = DateTimeOffset.UtcNow.AddDays(1), SeatLimit = 3 });
                 f.License = license.LicenseId;
             }
-            var catalog = new ManagementOperationRegistry(ManagementLicensingServiceExtensions.LicenseStatusDescriptors.Concat(ManagementSeatServiceExtensions.SeatDescriptors));
-            var info = new ManagementRegisteredOperationInfo("fixture", "Testing", f.Realm, "dedicated-app", 1, catalog.Capabilities(f.Credential.Capabilities, Grants, _ => true).ToArray());
+            var catalog = new ManagementOperationRegistry(ManagementLicensingServiceExtensions.LicenseStatusDescriptors.Concat(ManagementSeatServiceExtensions.SeatDescriptors)
+                .Concat(includeSynthetic ? [SharedSenderSyntheticDescriptor] : []));
+            var info = new ManagementRegisteredOperationInfo("fixture", "Testing", f.Realm, "dedicated-app", 1, catalog.Capabilities(f.Credential.Capabilities, grants, _ => true).ToArray());
             var connectionId = Guid.NewGuid();
             f.Application = new() { OrganizationId = f.Org, ApplicationId = f.AppId, ApplicationKey = "fixture", Environment = "Testing", BaseUrl = "https://fixture.example", ActiveCredentialId = connectionId, Version = "app-1" };
-            f.Assignment = new() { OrganizationId = f.Org, ApplicationId = f.AppId, UserId = f.Human, Permissions = Grants, Version = "assignment-1" };
+            f.Assignment = new() { OrganizationId = f.Org, ApplicationId = f.AppId, UserId = f.Human, Permissions = grants, Version = "assignment-1" };
             f.Connection = new() { OrganizationId = f.Org, ApplicationId = f.AppId, CredentialId = connectionId, BaseUrl = f.Application.BaseUrl, SecretReference = "fixture-reference",
-                Capabilities = Grants, Operations = new("available", info) };
+                Capabilities = grants, Operations = new("available", info) };
             var principals = new Mock<IManagementPrincipalProvider>(); principals.Setup(x => x.GetPrincipal()).Returns(new ClaimsPrincipal(new ClaimsIdentity([
                 new Claim("sub", f.Human.ToString("D")), new(ManagementClaimTypes.OrganizationId, f.Org.ToString("D")), new(ManagementClaimTypes.SubjectType, ManagementSubjectTypes.Human),
                 new(ManagementClaimTypes.Permission, ManagementOperations.IdentityRead)], "trusted-management-fixture")));

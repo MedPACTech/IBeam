@@ -25,7 +25,10 @@ public static class ManagementRegisteredPortalExtensions
         services.TryAddSingleton(TimeProvider.System); services.TryAddSingleton<ManagementCredentialSecretCodec>();
         services.TryAddScoped<IManagementTargetProfileProbe, ManagementTargetConnectionProbe>();
         services.TryAddScoped<IManagementRegisteredOperationAvailabilityService, ManagementRegisteredOperationAvailabilityService>();
-        services.TryAddScoped<IManagementOperationClient, ManagementRegisteredOperationClient>(); services.AddHostedService<Validate>(); return services;
+        services.TryAddScoped<ManagementRegisteredOperationClient>();
+        services.TryAddScoped<IManagementTargetOperationSender>(p => p.GetRequiredService<ManagementRegisteredOperationClient>());
+        services.TryAddScoped<IManagementOperationClient>(p => p.GetRequiredService<IManagementTargetOperationSender>());
+        services.AddHostedService<Validate>(); return services;
     }
     private static bool Key(string? value) { try { return value is not null && Convert.FromBase64String(value).Length == 32; } catch { return false; } }
     private sealed class Validate(IServiceScopeFactory scopes) : IHostedService
