@@ -53,3 +53,5 @@ IBM-0137 adds opt-in typed purge preflight, exact confirmation and read-only pro
 IBM-0142 adds the supported typed IManagementTargetOperationSender port while preserving IManagementOperationClient. See [target sender](../docs/management/target-operation-sender.md).
 
 IBM-0143 adds bounded metadata-only ManagementTargetCallTelemetry contracts. See [safe target telemetry](../docs/management/target-operation-telemetry.md).
+
+IBM-0144 adds optional independently granted bounded invitation bulk revocation, durable original-intent progress and read-only receipts. See [bulk invitation revocation](../docs/management/bulk-invitation-revocation.md) for exact selection versions, partial/unknown outcomes, module setup and routes.
