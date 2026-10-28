@@ -1,6 +1,6 @@
 # Management lifecycle consumer handoff
 
-Build on the [baseline frontend prompt](../../samples/Management.Bootstrap/docs/baseline-app-prompt.md).
+Use aligned stable **2.17.0** NuGet packages. Build on the [baseline frontend prompt](../../samples/Management.Bootstrap/docs/baseline-app-prompt.md).
 Keep one normal support password/MFA session and use the assigned-app selector. The browser calls
 the support API only; machine keys and signing material remain on that backend. Clear app state
 on selection changes and discard protected results on revocation. A customer JWT is not a support
