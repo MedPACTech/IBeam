@@ -157,6 +157,25 @@ public sealed partial class RegisteredTransportTests
         Assert.AreEqual(f.License, entry.SubjectId); Assert.AreEqual(capture.For(f.AppId).Single().CorrelationId, entry.CorrelationId);
         Assert.DoesNotContain(f.Secret, JsonSerializer.Serialize(f.Audits)); Assert.DoesNotContain("PRIVATE-", JsonSerializer.Serialize(f.Audits));
     }
+    [TestMethod]
+    public async Task TargetTelemetryDiscoveryAndInstrumentPublicationFailuresCannotPoisonInitialization()
+    {
+        await using var f = await Fixture.Create();
+        using (DiagnosticListener.AllListeners.Subscribe(new FailingTelemetryDiscovery()))
+            Assert.IsNull(ManagementTargetTelemetry.CreateSource());
+        using (var listener = new MeterListener()) {
+            listener.Start(); listener.InstrumentPublished = (instrument, _) => { if (instrument.Meter.Name == ManagementTargetTelemetry.SourceName) throw new IOException("PRIVATE-PUBLICATION-FAILURE"); };
+            using var meter = ManagementTargetTelemetry.CreateMeter();
+            Assert.IsNull(ManagementTargetTelemetry.CreateCalls(meter)); Assert.IsNull(ManagementTargetTelemetry.CreateDuration(meter));
+        }
+        Assert.AreEqual("active", (await f.Read()).Status);
+    }
+    private sealed class FailingTelemetryDiscovery : IObserver<DiagnosticListener>
+    {
+        private bool initialized;
+        public void OnNext(DiagnosticListener source) { if (source.Name == ManagementTargetTelemetry.SourceName) { if (initialized) throw new IOException("PRIVATE-DISCOVERY-FAILURE"); initialized = true; } }
+        public void OnError(Exception error) { } public void OnCompleted() { }
+    }
     private sealed class TelemetryCapture : IObserver<DiagnosticListener>, IObserver<KeyValuePair<string, object?>>, IDisposable
     {
         public ConcurrentBag<ManagementTargetCallTelemetry> Records { get; } = []; public bool Throw;

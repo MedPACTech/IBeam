@@ -12,10 +12,10 @@ public static class ManagementTargetTelemetry
 {
     public const string SourceName = "IBeam.Management.TargetOperations";
     public const string CompletionEvent = "target.operation.completed";
-    private static readonly DiagnosticListener Source = new(SourceName);
-    private static readonly Meter Meter = new(SourceName);
-    private static readonly Counter<long> Calls = Meter.CreateCounter<long>("management.target.calls");
-    private static readonly Histogram<long> Duration = Meter.CreateHistogram<long>("management.target.duration", "ms");
+    private static readonly DiagnosticListener? Source = CreateSource();
+    private static readonly Meter? Meter = CreateMeter();
+    private static readonly Counter<long>? Calls = CreateCalls(Meter);
+    private static readonly Histogram<long>? Duration = CreateDuration(Meter);
     private static readonly AsyncLocal<Attempt?> Current = new();
 
     internal static async Task<T> Run<T>(string channel, string kind, string operation, Guid? application, Guid? tenant, Guid? resource,
@@ -33,14 +33,19 @@ public static class ManagementTargetTelemetry
                 var record = new ManagementTargetCallTelemetry(DateTimeOffset.UtcNow, elapsed, channel, kind, operation,
                     Id(application), Id(tenant), Id(resource), Id(attempt.OperationId), attempt.Correlation, outcome, code, attempt.Status, attempt.WriteSent);
                 // Each emitter is isolated: a listener or meter callback cannot change a result, authority or retry count.
-                try { if (Source.IsEnabled(CompletionEvent)) Source.Write(CompletionEvent, record); } catch { }
+                try { if (Source?.IsEnabled(CompletionEvent) == true) Source.Write(CompletionEvent, record); } catch { }
                 var tags = new TagList { { "operation", operation }, { "channel", channel }, { "outcome", outcome } };
-                try { Calls.Add(1, tags); } catch { }
-                try { Duration.Record(elapsed, tags); } catch { }
+                try { Calls?.Add(1, tags); } catch { }
+                try { Duration?.Record(elapsed, tags); } catch { }
             } catch { }
         }
     }
     internal static void Operation(Guid id) { if (Current.Value is { } state && id != Guid.Empty) state.OperationId = id; }
+    // Discovery/publication callbacks may run inside constructors; catch them before a type initializer can be poisoned.
+    internal static DiagnosticListener? CreateSource() { try { return new(SourceName); } catch { return null; } }
+    internal static Meter? CreateMeter() { try { return new(SourceName); } catch { return null; } }
+    internal static Counter<long>? CreateCalls(Meter? meter) { try { return meter?.CreateCounter<long>("management.target.calls"); } catch { return null; } }
+    internal static Histogram<long>? CreateDuration(Meter? meter) { try { return meter?.CreateHistogram<long>("management.target.duration", "ms"); } catch { return null; } }
     internal static void Unknown() { if (Current.Value is { } state) state.Unknown = true; }
     internal static string Registered(ManagementOperationRegistry registry, string? operation) => operation is not null ? registry.Find(operation)?.Operation ?? "unregistered" : "unregistered";
     internal static string Builtin(string operation) => operation is not null && ManagementOperationRegistry.BuiltIn.Contains(operation) ? operation : "unregistered";

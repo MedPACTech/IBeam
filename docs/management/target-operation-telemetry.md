@@ -61,3 +61,5 @@ The focused tests cover a real signed custom route, native Identity/diagnostics 
 discovery, all fixed outcome classes, original write correlation/recovery, metric
 dimensions, malformed correlations, canaries, ambient baggage, and throwing observers.
 No MPTPortal or consumer production telemetry configuration is changed by this module.
+
+Diagnostic-source discovery and instrument-publication constructors are isolated too: a failing startup observer can disable its telemetry channel, but cannot poison service type initialization or prevent an authorized operation.
