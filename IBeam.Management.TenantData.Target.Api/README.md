@@ -1,5 +1,7 @@
 # IBeam.Management.TenantData.Target.Api
 
+`AddIBeamManagementTenantPurgeTargetApi(configuration, options)` separately enables the strict fixed POST `/api/management-operations/tenants/{tenantId}/purges` plan/confirm contract and existing read-only operation receipts. It requires independent `management.tenants.delete`, native policy/handler and atomic durable plans/jobs. No destructive hook runs inline in the façade. Default disabled. The standard coordinator and typed portal purge routes follow in later cards; see [tenant-purge](../docs/management/tenant-purge.md).
+
 Register AddIBeamManagementTenantDataTargetApi(configuration, options) to explicitly enable tenant export with its required host-owned providers, then call MapIBeamManagementRegisteredOperations once for the host. The common signed dispatcher maps the compiled POST /api/management-tenant-data/tenants/{tenantId}/exports and read-only GET /api/management-tenant-data/tenants/{tenantId}/exports/{jobId}, plus its existing info/receipt endpoints. Default disabled registration adds no routes or capability.
 
 Status contains safe coverage/progress only. Customer retrieval authorization and private artifact delivery belong to the consumer. The standard durable job service/worker and Azure Table journal are optional registrations; scoped support portal export endpoints remain a subsequent card. See docs/management/tenant-export.md.
