@@ -16,6 +16,7 @@ using IBeam.Management.Services.Credentials;
 using IBeam.Management.Services.CustomerIdentity.Delegation;
 using IBeam.Management.TenantData;
 using IBeam.Management.TenantData.Target.Api;
+using IBeam.Management.TenantData.Target.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
@@ -30,6 +31,24 @@ namespace IBeam.Tests.Management.TenantData;
 [TestClass]
 public sealed class ExportTargetHttpTests
 {
+    [TestMethod]
+    public async Task StandardDurableJournalAndWorkerIntegrateWithTheRealSignedHttpBoundary()
+    {
+        await using var f = await Fixture.Create(standardJobs: true);
+        using var submit = f.Request(); using var response = await f.Http.SendAsync(submit);
+        Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
+        Assert.AreEqual("requested", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data").GetProperty("job").GetProperty("state").GetString());
+        Assert.AreEqual(1, f.Journal.Count);
+        var execution = (await f.Journal.ListPageAsync(new("fixture", "Testing", f.Org, f.AppId, f.Realm), 1, null)).Items.Single();
+        using (var scope = f.Server.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<IManagementTenantExportWorker>().RunAsync(execution);
+        using var poll = f.Request(lookup: true); using var status = await f.Http.SendAsync(poll);
+        Assert.AreEqual(HttpStatusCode.OK, status.StatusCode);
+        Assert.AreEqual("succeeded", (await status.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data").GetProperty("job").GetProperty("state").GetString());
+        using var replay = f.Request(); using var repeated = await f.Http.SendAsync(replay);
+        Assert.AreEqual(HttpStatusCode.OK, repeated.StatusCode); Assert.AreEqual(1, f.Journal.Count);
+        Assert.DoesNotContain("PRIVATE-", JsonSerializer.Serialize(f.Audits));
+    }
     [TestMethod]
     public async Task SignedNativeSubmitAndReadonlyStatusExposeOnlySafeRequestedJobMetadata()
     {
@@ -99,9 +118,10 @@ public sealed class ExportTargetHttpTests
         public ManagementApiCredentialEntity Credential { get; set; } = null!;
         public int Submits; public int Lookups; public bool PolicyDenied; public bool ProviderError; public bool Unknown;
         public ConcurrentBag<ManagementAuditEntity> Audits { get; } = [];
+        public DurableExportTests.Journal Journal { get; } = new();
         public WebApplication Server { get; private set; } = null!; public HttpClient Http { get; private set; } = null!;
         private readonly RSA rsa = RSA.Create(2048); private string secret = "";
-        public static async Task<Fixture> Create()
+        public static async Task<Fixture> Create(bool standardJobs = false)
         {
             var f = new Fixture(); var codec = new ManagementCredentialSecretCodec(); var credentialId = Guid.NewGuid(); f.secret = codec.Create(credentialId);
             f.Credential = new() { CredentialId = credentialId, ApplicationKey = "fixture", Environment = "Testing", Version = "credential-1", SecretHash = codec.Hash(f.secret),
@@ -115,6 +135,9 @@ public sealed class ExportTargetHttpTests
             replay.Setup(x => x.TryClaimAsync(f.Realm, "fixture-portal", It.IsAny<Guid>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((Guid _, string _, Guid id, DateTimeOffset _, CancellationToken _) => replayIds.TryAdd(id, 0));
             var handler = new Mock<IManagementTenantExportHandler>(); handler.SetupGet(x => x.ProtocolVersion).Returns(1); handler.Setup(x => x.Describe()).Returns(ExportContractTests.Definition);
+            handler.Setup(x => x.ExecuteOrResumeAsync(It.IsAny<ManagementTenantExportExecution>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((ManagementTenantExportExecution e, CancellationToken _) => new ManagementTenantExportOutput(new("PRIVATE-STANDARD-ARTIFACT", e.ArtifactExpiresUtc!.Value),
+                    ExportContractTests.Definition.Datasets.Select(x => new ManagementTenantExportCoverage(x.Key, x.Kind, "completed")).ToArray()));
             var delivery = new Mock<IManagementTenantExportDelivery>(); delivery.SetupGet(x => x.ProtocolVersion).Returns(1);
             var customer = new Mock<IManagementTenantExportCustomerAuthorization>(); customer.SetupGet(x => x.ProtocolVersion).Returns(1);
             var policy = new Mock<IManagementTenantExportPolicy>(); policy.SetupGet(x => x.ProtocolVersion).Returns(1);
@@ -136,7 +159,16 @@ public sealed class ExportTargetHttpTests
                 ["IBeam:Management:Operations:Target:TrustedPortals:0:OrganizationId"] = f.Org.ToString("D"), ["IBeam:Management:Operations:Target:TrustedPortals:0:ApplicationId"] = f.AppId.ToString("D"),
                 ["IBeam:Management:Operations:Target:TrustedPortals:0:Issuer"] = "fixture-portal", ["IBeam:Management:Operations:Target:TrustedPortals:0:Audience"] = "fixture-target" });
             builder.Services.AddSingleton(keys.Object); builder.Services.AddSingleton(credentials.Object); builder.Services.AddSingleton(replay.Object); builder.Services.AddSingleton(audit.Object);
-            builder.Services.AddSingleton(handler.Object); builder.Services.AddSingleton(delivery.Object); builder.Services.AddSingleton(customer.Object); builder.Services.AddSingleton(policy.Object); builder.Services.AddSingleton(jobs.Object);
+            builder.Services.AddSingleton(handler.Object); builder.Services.AddSingleton(delivery.Object); builder.Services.AddSingleton(customer.Object); builder.Services.AddSingleton(policy.Object);
+            if (standardJobs)
+            {
+                builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
+                    ["IBeam:Management:TenantExport:Jobs:ActiveKeyId"] = "artifact.v1",
+                    ["IBeam:Management:TenantExport:Jobs:ArtifactProtectionKeys:artifact.v1"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) });
+                builder.Services.AddSingleton<IManagementTenantExportJobRepository>(f.Journal);
+                builder.Services.AddIBeamManagementTenantExportJobs(builder.Configuration);
+            }
+            else builder.Services.AddSingleton(jobs.Object);
             builder.Services.AddIBeamManagementTenantDataTargetApi(builder.Configuration, o => { o.Enabled = true; o.AllowVolatileDevelopmentJobs = true; o.PolicyKeys = ["enterprise"]; });
             f.Server = builder.Build(); f.Server.UseAuthentication(); f.Server.UseAuthorization(); f.Server.MapIBeamManagementRegisteredOperations();
             await f.Server.StartAsync(); f.Http = f.Server.GetTestClient(); return f;

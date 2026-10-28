@@ -61,3 +61,5 @@ Enterprise onboarding services and durable invitation recovery are documented in
 Approved tenant roles and invitation-only customer provisioning: [registration and API contract](../docs/management/customer-provisioning.md). Catalog visibility uses the independent roles.read grant; no account/membership is created before customer verification.
 
 IBM-0110 invitation resend/revoke uses exact versions, durable private delivery recovery and native acceptance claims. See [invitation lifecycle](../docs/management/customer-invitation-lifecycle.md).
+
+AddIBeamManagementAzureTableTenantExportJobs registers a dedicated pre-provisioned export journal. Exact ETags protect leases/status/cancellation; separate ProtectedArtifact ciphertext is excluded from safe metadata and bounded recovery scans. No runtime table creation or app-data access. See docs/management/tenant-export.md.
