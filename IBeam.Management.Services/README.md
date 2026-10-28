@@ -177,3 +177,5 @@ IBM-0117: an app assignment can contain both diagnostic permissions and every ex
 IBM-0124 adds explicit scoped ownership lookup and transfer with independent grants and signed exact versions. See [customer ownership APIs](../docs/management/customer-ownership-api.md).
 
 Registered operation transport: AddIBeamManagementRegisteredOperationsPortal / Target and typed IManagementOperationClient are opt-in. See docs/management/registered-operation-dispatch.md for required providers, explicit permission migration and recovery.
+
+IBM-0137 adds opt-in typed purge preflight, exact confirmation and read-only progress. Portal hosts use `AddIBeamManagementPortalTenantPurgeApi(configuration)`; no native worker/provider is installed. See [tenant purge](../docs/management/tenant-purge.md) for routes, independent grants, unknown-reply recovery and metadata-only audit.

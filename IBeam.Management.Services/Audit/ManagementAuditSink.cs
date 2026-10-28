@@ -54,7 +54,8 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
         // TenantId is assigned by trusted management identity services for invitation/bootstrap calls without a session.
         if (!org.HasValue && transaction.Action is "management.support-invitations.accept" or "management.support-invitations.create" or "management.support-users.disable" or "management.identity.bootstrap")
             org = transaction.TenantId is { } tenant && tenant != Guid.Empty ? tenant : null;
-        var registered = _registry.AllowsAudit(transaction.Action) || transaction.Action == "management.operations.lookup";
+        var registered = _registry.AllowsAudit(transaction.Action) || transaction.Action == "management.operations.lookup" ||
+            ManagementAuditOperations.All.Contains(transaction.Action) && transaction.Action.StartsWith("management.tenants.delete.portal.", StringComparison.Ordinal);
         var isApp = registered && subject == ManagementSubjectTypes.Human || transaction.Action.StartsWith("management.applications.", StringComparison.Ordinal) ||
             transaction.Action.StartsWith("management.application-access.", StringComparison.Ordinal) ||
             transaction.Action.StartsWith("management.portal.errors.", StringComparison.Ordinal) || transaction.Action.StartsWith("management.portal.logs.", StringComparison.Ordinal) ||

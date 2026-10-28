@@ -47,3 +47,5 @@ Onboarding policy discovery and optional durable consumer initialization: [integ
 Optional trusted tenant provenance and existing signup compatibility: [integration contract](../docs/management/tenant-provenance.md).
 
 IBM-0124 adds explicit scoped ownership lookup and transfer with independent grants and signed exact versions. See [customer ownership APIs](../docs/management/customer-ownership-api.md).
+
+IBM-0137 adds opt-in typed purge preflight, exact confirmation and read-only progress. Portal hosts use `AddIBeamManagementPortalTenantPurgeApi(configuration)`; no native worker/provider is installed. See [tenant purge](../docs/management/tenant-purge.md) for routes, independent grants, unknown-reply recovery and metadata-only audit.
