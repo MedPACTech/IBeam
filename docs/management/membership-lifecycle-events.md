@@ -171,3 +171,5 @@ cleanup. No ordinary role event is emitted for purge's internal access fences. A
 must participate in its application's purge/write fence and current native access policy; delayed or
 replayed events cannot recreate deleted app data or grant access by themselves. Global accounts and
 other tenants remain unaffected.
+
+IBM-0141 provides an optional durable application receiver and bounded trusted reconciliation. See [membership projections](membership-projections.md), including the independent support-repair authorization boundary and Qurvia adapter guidance.

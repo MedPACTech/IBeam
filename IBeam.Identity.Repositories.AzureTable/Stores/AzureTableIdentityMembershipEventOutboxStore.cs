@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace IBeam.Identity.Repositories.AzureTable.Stores;
 
-public sealed class AzureTableIdentityMembershipEventOutboxStore(TableServiceClient storage, IOptions<AzureTableIdentityOptions> options)
+public sealed partial class AzureTableIdentityMembershipEventOutboxStore(TableServiceClient storage, IOptions<AzureTableIdentityOptions> options)
     : IIdentityMembershipEventOutboxStore
 {
     private AzureTableIdentityOptions Options => options.Value;
