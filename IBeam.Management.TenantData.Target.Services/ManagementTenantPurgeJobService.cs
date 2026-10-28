@@ -62,6 +62,14 @@ public sealed class ManagementTenantPurgeJobService(IManagementTenantPurgeJourna
                 await policy.RequireStatusAsync(existing.Execution, token); return Project(existing, "accepted", clock.GetUtcNow());
             }
             var stored = await repository.GetPlanAsync(execution, plan.PlanId, token) ?? throw new ManagementOperationPreconditionException();
+            if (stored.ConsumedJobId == execution.JobId) {
+                // Another identical confirmer may have committed after our initial job read but before this plan read.
+                // Recover that atomic receipt before evaluating fresh-plan expiry/inventory preconditions.
+                var committed = await repository.GetJobAsync(execution, token) ?? throw new ManagementOperationUnavailableException();
+                if (committed.IntentHash != intent) throw new ManagementOperationConflictException();
+                await policy.RequireStatusAsync(committed.Execution, token);
+                return Project(committed, "accepted", clock.GetUtcNow());
+            }
             var definition = ManagementTenantPurgeProtocol.Definition(handler.Describe());
             var verified = ManagementTenantPurgeProtocol.Plan(stored.Plan, execution, definition, clock.GetUtcNow());
             var keys = FenceKeys(fences);

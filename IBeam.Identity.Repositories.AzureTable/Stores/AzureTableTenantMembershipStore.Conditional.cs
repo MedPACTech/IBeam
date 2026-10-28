@@ -89,7 +89,7 @@ public sealed partial class AzureTableTenantMembershipStore : IIdentityTenantOwn
         row["RolesCsv"] = string.Join(',', next.RoleNames); row["IBeamLastMembershipOperationId"] = operation.ToString("D"); row["UpdatedAt"] = DateTimeOffset.UtcNow;
         if (!next.IsEnabled) row["DisabledAt"] = DateTimeOffset.UtcNow;
         else { row.Remove("DisabledAt"); row.Remove("DisabledReason"); }
-        try { await TenantMembershipPartition.Commit(table, row, false, guard, new ETag(tenantVersion), ct, true, _opts.RequireTenantPurgeFencing); }
+        try { await TenantMembershipPartition.Commit(table, row, false, guard, new ETag(tenantVersion), ct, true, _opts.RequireTenantPurgeFencing, _opts); }
         catch (RequestFailedException ex) when (ex.Status is 404 or 409 or 412) { throw new IdentityConcurrencyException(); }
         return await FindStateAsync(next.TenantId, next.UserId, ct) ?? throw new IdentityConcurrencyException();
     }

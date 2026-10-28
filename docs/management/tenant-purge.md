@@ -182,3 +182,5 @@ negative suites cover missing/aliased native adapters, missing app/write fences,
 proofs, expired plans, revocation and exact-version concurrency. The fresh NuGet-only matrix links
 this example as consumer source and contains zero framework ProjectReferences. No Qurvia purge
 adapter or production purge is shipped or executed by this card.
+
+IBM-0140 also closes a confirmation race: if a same-job retry initially sees no job but then reads its plan already consumed by that job, it reloads and validates the original atomic receipt before fresh-plan preconditions. It never reserves another job or invokes cleanup. Changed intent or another consuming job still fails, and current access/native status policy remains required.

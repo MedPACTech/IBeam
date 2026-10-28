@@ -7,6 +7,7 @@ using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using IBeam.Identity.Options;
+using IBeam.Identity.Repositories.AzureTable;
 using IBeam.Identity.Repositories.AzureTable.Options;
 using IBeam.Identity.Repositories.AzureTable.Stores;
 using IBeam.Identity.Services.Tenants;
@@ -44,7 +45,7 @@ internal sealed class IdentityPurgeFixture : IAsyncDisposable
     private readonly List<TableClient> owned = [];
     private string prefix = "";
     private IdentityPurgeFixture() { }
-    public static async Task<IdentityPurgeFixture> Create(int extraMembers = 0, bool includeAppFence = true)
+    public static async Task<IdentityPurgeFixture> Create(int extraMembers = 0, bool includeAppFence = true, bool membershipEvents = false)
     {
         var connection = Environment.GetEnvironmentVariable("IBEAM_MANAGEMENT_TEST_STORAGE") ?? "";
         var endpoint = Regex.Match(connection, "(?:^|;)TableEndpoint=([^;]+)");
@@ -73,6 +74,11 @@ internal sealed class IdentityPurgeFixture : IAsyncDisposable
         access.Setup(x => x.RequireAsync(ManagementTenantDataOperations.Delete, It.IsAny<ManagementOperationContext>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask); services.AddSingleton(access.Object);
         var audit = new Mock<IManagementAuditRepository>(); audit.Setup(x => x.AppendAsync(It.IsAny<ManagementAuditEntity>(), It.IsAny<CancellationToken>())).Callback<ManagementAuditEntity, CancellationToken>((e, _) => f.Audits.Add(e)).Returns(Task.CompletedTask); services.AddSingleton(audit.Object);
         var realm = Guid.NewGuid(); var org = Guid.NewGuid(); var app = Guid.NewGuid();
+        if (membershipEvents) {
+            f.NativeOptions.RequireMembershipLifecycleEvents = true;
+            f.NativeOptions.MembershipEventsApplicationKey = "fixture"; f.NativeOptions.MembershipEventsEnvironment = "Testing";
+            f.NativeOptions.MembershipEventsRealmId = realm; services.AddIBeamIdentityAzureTableMembershipEvents();
+        }
         services.Configure<ManagementDiagnosticsOptions>(o => { o.ApplicationKey = "fixture"; o.Environment = "Testing"; });
         services.Configure<ManagementOperationTargetOptions>(o => { o.RealmId = realm; o.DedicatedApplicationRealm = true; o.EnabledOperations = [ManagementTenantDataOperations.Delete]; o.TrustedPortals = [new() { OrganizationId = org, ApplicationId = app }]; });
         f.Provider = services.BuildServiceProvider();
@@ -185,6 +191,9 @@ internal sealed class IdentityPurgeFixture : IAsyncDisposable
         public Func<TableTransactionAction, bool>? Match;
         public ConcurrentQueue<string> Failures { get; } = new();
         public string? LoseDeleteTable;
+        public Func<TableTransactionAction[], bool>? EventFault;
+        public bool FailEventBeforeCommit;
+        private int eventFaulted;
         private int lostReply;
         public TaskCompletionSource Entered { get; private set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -197,7 +206,10 @@ internal sealed class IdentityPurgeFixture : IAsyncDisposable
                 var actions = transactionActions.ToArray();
                 if (owner.Match is { } match && actions.Any(match) && Interlocked.CompareExchange(ref owner.held, 1, 0) == 0) { owner.Entered.TrySetResult(); await owner.release.Task.WaitAsync(cancellationToken); }
                 try {
+                    var eventFault = owner.EventFault is { } fault && fault(actions) && Interlocked.CompareExchange(ref owner.eventFaulted, 1, 0) == 0;
+                    if (eventFault && owner.FailEventBeforeCommit) throw new IOException("PRIVATE-OUTBOX-BEFORE-COMMIT");
                     var result = await base.SubmitTransactionAsync(actions, cancellationToken);
+                    if (eventFault) throw new IOException("PRIVATE-OUTBOX-LOST-COMMIT-REPLY");
                     if (owner.LoseDeleteTable == name && actions.Any(x => x.ActionType == TableTransactionActionType.Delete) && Interlocked.CompareExchange(ref owner.lostReply, 1, 0) == 0)
                         throw new IOException("PRIVATE-SYNTHETIC-LOST-DELETE-REPLY");
                     return result;

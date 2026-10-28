@@ -187,9 +187,10 @@ internal sealed class MembershipStorageFixture : IAsyncDisposable
     public TableClient RoleTable { get; private set; } = null!; public TableClient TenantTable { get; private set; } = null!;
     public AzureTableTenantMembershipStore Members { get; private set; } = null!; public AzureTableTenantRoleStore Roles { get; private set; } = null!;
     public AzureTableIdentityTenantStore Tenants { get; private set; } = null!;
+    public AzureTableIdentityOptions NativeOptions { get; private set; } = null!; public TableServiceClient Storage { get; private set; } = null!;
     public TenantRole Owner { get; private set; } = null!; public TenantRole MemberRole { get; private set; } = null!;
     public IdentityTenantMembershipAdministrationService Administration(IIdentityTenantMembershipConditionalStore? store = null) => new(store ?? Members, Roles, Tenants, new ServiceOperationExecutor());
-    public static async Task<MembershipStorageFixture> Create(string? connectionOverride = null, bool ownershipProtection = false, string ownerRoleName = "Owner")
+    public static async Task<MembershipStorageFixture> Create(string? connectionOverride = null, bool ownershipProtection = false, string ownerRoleName = "Owner", bool membershipEvents = false, Guid? eventRealm = null)
     {
         var connection = connectionOverride ?? Environment.GetEnvironmentVariable("IBEAM_MANAGEMENT_TEST_STORAGE"); if (string.IsNullOrWhiteSpace(connection)) Assert.Inconclusive("Private Azurite required.");
         var f = new MembershipStorageFixture(); var suffix = Guid.NewGuid().ToString("N");
@@ -199,7 +200,10 @@ internal sealed class MembershipStorageFixture : IAsyncDisposable
             foreach (var table in new[] { f.Primary, f.Secondary, f.RoleTable, f.TenantTable }) await table.CreateIfNotExistsAsync();
             var options = Options.Create(new AzureTableIdentityOptions { TenantUsersTableName = f.Primary.Name, UserTenantsTableName = f.Secondary.Name,
                 TenantRolesTableName = f.RoleTable.Name, TenantsTableName = f.TenantTable.Name, CreateTablesIfNotExists = false,
-                RequireOwnershipProtection = ownershipProtection }); var tables = new TableServiceClient(connection);
+                RequireOwnershipProtection = ownershipProtection, RequireMembershipLifecycleEvents = membershipEvents,
+                MembershipEventsApplicationKey = membershipEvents ? "atlas" : "", MembershipEventsEnvironment = membershipEvents ? "Testing" : "",
+                MembershipEventsRealmId = membershipEvents ? eventRealm ?? DiscoveryProtocolTests.Info.IdentityRealmId : Guid.Empty }); var tables = new TableServiceClient(connection);
+            f.NativeOptions = options.Value; f.Storage = tables;
             f.Members = new(tables, options); f.Roles = new(tables, options); f.Tenants = new(tables, options);
             await f.Tenants.CreateAsync(new(f.Tenant, "Private enterprise")); await f.Tenants.CreateAsync(new(f.OtherTenant, "Other enterprise"));
             f.Owner = await f.Roles.CreateRoleAsync(f.Tenant, ownerRoleName, true); f.MemberRole = await f.Roles.CreateRoleAsync(f.Tenant, "Member");

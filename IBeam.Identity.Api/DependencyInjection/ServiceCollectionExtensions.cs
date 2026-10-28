@@ -193,7 +193,7 @@ public static class ServiceCollectionExtensions
     public static IMvcBuilder AddIBeamIdentityApiControllers(this IServiceCollection services)
     {
         return services
-            .AddControllers()
+            .AddControllers(options => options.Filters.Add<IdentityMembershipEventActorFilter>())
             .ConfigureApplicationPartManager(manager =>
             {
                 manager.ApplicationParts.Add(new AssemblyPart(typeof(AuthController).Assembly));

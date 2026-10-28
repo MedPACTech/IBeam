@@ -47,6 +47,13 @@ public sealed class TenantMembershipEventContractTests
         Assert.IsTrue(result.Changes.All(x => x.Before!.IsEnabled && x.After!.IsEnabled));
     }
     [TestMethod]
+    public async Task TransferMovesTheSourceHeldOwnerRolesWhenTheHostDefinesAdditionalOwnerRoles()
+    {
+        var result = await factory.ProjectAsync(Transfer() with { ProtectedOwnerRoleIds = [A, B] });
+        Assert.IsNotNull(result); Assert.AreEqual("ownership-transferred", result.Kind);
+        CollectionAssert.AreEquivalent(new[] { A }, result.Changes[1].After!.RoleIds.ToArray());
+    }
+    [TestMethod]
     [DataRow("ownerless")] [DataRow("two-sources")] [DataRow("unrelated-role-change")] [DataRow("disabled-destination")]
     public async Task PartialOrUnrelatedTransferSnapshotsCannotBeReportedAsAnAtomicOwnerTransfer(string change)
     {
