@@ -244,3 +244,5 @@ IBM-0113 conditional tenant activation/deactivation, lifecycle recovery and curr
 IBM-0123 adds optional native authoritative owner lookup and atomic transfer. See [native ownership transfer](../docs/management/tenant-ownership-transfer.md) for explicit policy, registration, exact versions and durable recovery; Management HTTP integration is separate.
 
 IBM-0140 adds optional native atomic membership/event intent and leased, bounded at-least-once dispatch with explicit durable receiver registration. Original actor/operation/sequence payloads are immutable; native owner/admin and purge fences remain active. Defaults install no emitter/delivery claim. See [membership lifecycle events](../docs/management/membership-lifecycle-events.md) for scope, enrollment, startup, actor capture and recovery.
+
+IBM-0141 adds bounded current-native-metadata projection reads through the explicitly installed lifecycle store. See [membership projections](../docs/management/membership-projections.md).

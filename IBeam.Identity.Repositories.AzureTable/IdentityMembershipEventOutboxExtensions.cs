@@ -17,6 +17,7 @@ public static class IdentityMembershipEventOutboxExtensions
         services.AddSingleton<Registration>(); services.TryAddScoped<AzureTableIdentityMembershipEventOutboxStore>();
         services.TryAddScoped<IIdentityMembershipEventOutboxStore>(p => p.GetRequiredService<AzureTableIdentityMembershipEventOutboxStore>());
         services.TryAddScoped<IIdentityTenantMembershipCommittedEventReader>(p => p.GetRequiredService<AzureTableIdentityMembershipEventOutboxStore>());
+        services.TryAddScoped<IIdentityMembershipProjectionSource>(p => p.GetRequiredService<AzureTableIdentityMembershipEventOutboxStore>());
         services.AddHostedService<Validate>(); return services;
     }
     private sealed class Registration;
