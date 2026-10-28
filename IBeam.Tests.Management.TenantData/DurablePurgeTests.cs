@@ -212,7 +212,7 @@ public sealed class DurablePurgeTests
         await Assert.ThrowsAsync<ManagementOperationInvalidException>(() => f.Store.ListPageAsync(new("fixture", "Testing", s.OrganizationId, s.ApplicationId, s.RealmId), 26, null));
     }
 
-    private sealed class Fixture : IAsyncDisposable
+    internal sealed class Fixture : IAsyncDisposable
     {
         public TableClient JournalTable { get; private set; } = null!;
         public TableClient NativeTable { get; private set; } = null!;
@@ -269,7 +269,7 @@ public sealed class DurablePurgeTests
             if (JournalTable is not null) await JournalTable.DeleteAsync(); if (NativeTable is not null) await NativeTable.DeleteAsync();
         }
     }
-    private sealed class NativeProvider(TableClient table, ManagementTenantPurgeExecution expected) : IManagementTenantPurgeHandler, IManagementTenantPurgeAccessFence, IManagementTenantPurgePolicy
+    internal sealed class NativeProvider(TableClient table, ManagementTenantPurgeExecution expected) : IManagementTenantPurgeHandler, IManagementTenantPurgeAccessFence, IManagementTenantPurgePolicy
     {
         public static ManagementTenantPurgeDefinition Definition => new(1, "fixture-native", 1, Array.AsReadOnly(new[] {
             new ManagementTenantPurgeCategory("app-data", "dataset", "delete"), new("audit-history", "dataset", "retain"), new("global-accounts", "identity-metadata", "exclude") }));
@@ -330,5 +330,5 @@ public sealed class DurablePurgeTests
         private static string Scope(ManagementTenantPurgeExecution e) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { e.ApplicationKey, e.Environment,
             e.Authority.OrganizationId, e.Authority.ApplicationId, e.Authority.RealmId, e.Authority.TenantId, e.Authority.ActorUserId, e.JobId })));
     }
-    private sealed class Clock : TimeProvider { public DateTimeOffset Now = DateTimeOffset.UtcNow; public override DateTimeOffset GetUtcNow() => Now; }
+    internal sealed class Clock : TimeProvider { public DateTimeOffset Now = DateTimeOffset.UtcNow; public override DateTimeOffset GetUtcNow() => Now; }
 }

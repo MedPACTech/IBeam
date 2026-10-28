@@ -78,6 +78,8 @@ public static class ManagementAuditOperations
         foreach (var status in new[] { "pending", "running", "succeeded", "uncertain", "sending", "sent", "failed", "unknown", "accepted", "redeemed", "expired", "revoked", "superseded", "not-required" })
             actions.Add("management.portal.customer-identity." + action + "." + status);
     }
+    foreach (var phase in new[] { "planned", "confirmation", "accepted", "requested", "fencing", "purging", "verifying", "partially-completed", "succeeded", "failed", "cancelled", "unknown" })
+        actions.Add("management.tenants.delete.portal." + phase);
     return actions;
     }
     public static bool IsManagementService(object service) => service.GetType().Assembly.GetName().Name is

@@ -131,6 +131,20 @@ public sealed class ManagementRegisteredOperationClient(ManagementOperationRegis
                     if (lookup && export.Outcome == "accepted" || !lookup && export.Outcome == "found") throw new ManagementOperationUnavailableException();
                     result = (TResult)(object)export;
                 }
+                if (operation == ManagementTenantDataOperations.Delete)
+                {
+                    var purge = TenantData.ManagementTenantPurgeMetadata.Project((TenantData.ManagementTenantPurgeResult)(object)result!, tenant, scope.OperationId);
+                    if (lookup && purge.Outcome is not ("found" or "unknown")) throw new ManagementOperationUnavailableException();
+                    if (!lookup)
+                    {
+                        var command = new ManagementOperationPayloadCodec(registry).ReadRequest<TenantData.ManagementTenantPurgeRequest>(operation, body);
+                        if (command.Stage == "plan" && (purge.Outcome is not ("planned" or "unknown") || purge.Plan is { } plan &&
+                                (plan.PolicyKey != command.PolicyKey || plan.ExpectedVersion != command.ExpectedVersion)) ||
+                            command.Stage == "confirm" && (purge.Outcome is not ("accepted" or "unknown") || purge.Job is { } job && job.PlanId != command.PlanId))
+                            throw new ManagementOperationUnavailableException();
+                    }
+                    result = (TResult)(object)purge;
+                }
                 await Require(appId, operation, timeout.Token);
                 latest = await applications.GetAsync(org, appId, timeout.Token);
                 if (latest is null || !latest.IsEnabled || latest.Version != app.Version || latest.ActiveCredentialId != connectionId) throw new ManagementAccessDeniedException();

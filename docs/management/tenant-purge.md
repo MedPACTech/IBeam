@@ -87,3 +87,52 @@ The bridge creates opaque native authorization only after verifying the consumed
 Each native writer registers its physical partition before committing, then joins its row and tenant-specific local guard by exact ETag. A frozen root inventories delayed writers, including token partitions and shared user partitions. Fencing registers legacy attributable partitions, denies new registration and marks every known local partition. Cleanup removes one bounded page at a time with conditional deletes, retains checkpoints and verifies emptiness. A late prepared write loses its guard version and cannot recreate an index after cleanup. Native pending signals resume the same job; an uncertain delete reply pauses for explicit original-job reconciliation. Source selectors are compiled provider code, never portal inputs. Canonical key/tag attribution is required; ambiguous ownership fails closed rather than deleting another tenant's data.
 
 Minimal permanent controls use the reserved `!IBEAM|PURGE|` row prefix and `PURGE|<tenant>` registry partitions. Their declared `identity-purge-tombstones` coverage is **retained**, including job-bound scope hashes, necessary tenant/user partition references and hashed-token partition references. They contain no invitation recipient/profile, raw token or credential secret. They are the persistence fence against late writers and tenant-ID recreation: do not drop/reset them or treat physical zero rows as the completion criterion. Raw table integrations must skip reserved controls. Ordinary owner/admin checks remain intact; deliberate whole-tenant deletion runs through the separately verified native path.
+
+
+## Portal preflight, confirmation and status (IBM-0137)
+
+Opt in on the portal with `services.AddIBeamManagementPortalTenantPurgeApi(configuration)`.
+This installs the typed portal service and compiled contract only. The portal requires no native
+Identity provider, purge journal, worker or application cleanup handler. A target must separately
+install the signed dispatcher, durable purge coordinator, native policy and all access/write fences.
+Existing app assignments, target credentials and connections are not upgraded automatically;
+explicit `management.tenants.delete` authority is required at every boundary.
+
+| Method and portal path (under `/api/management/applications/{applicationId}/tenants/{tenantId}`) | Input | Result |
+| --- | --- | --- |
+| POST `/purge-plans` | `{ "policyKey": "enterprise" }`, exact `If-Match`, `Idempotency-Key` | 200 planned inventory, plan ID, short expiry and confirmation binding; 202 unknown if the reply is ambiguous |
+| POST `/purges` | `{ "policyKey": "enterprise", "planId": "...", "confirmationBinding": "..." }`, original exact `If-Match`, a **different** stable `Idempotency-Key` | 202 acceptance or unknown, original operation ID and `Location` for status |
+| GET `/purges/{jobId}` | Original selected app/tenant and authenticated support person | 200 authoritative metadata or 202 unknown; never resumes or retries deletion |
+
+Show the full plan inventory, retained/excluded categories and expiry before the user explicitly
+confirms. Echo the returned policy, plan ID, binding and original version exactly. The binding is
+public confirmation metadata, not a credential: the target still checks the original person,
+app/environment/org/realm/tenant, inventory, native revision, expiry and one-use consumption.
+Reusing a consumed plan for another job or substituting its scope fails. Same confirmed intent
+may recover its receipt without repeating destruction. A preflight is read-only: if its reply is
+unknown, do not enable confirmation until a successful explicit repeat using the same preflight
+key recovers the plan (or the user requests a fresh plan). There is no automatic retry or job
+status URL for an unconfirmed preflight.
+
+Preserve the original confirmation key and returned operation ID/Location when a reply is lost.
+Poll that Location; do not make a new confirmation with a new key. Schema errors, malformed
+metadata and substituted job/plan IDs after sending are treated as unknown while the signed client
+still has the authoritative original operation ID. Current support-user/app/assignment state,
+connection and target machine grants/capability are checked again on every call. Revocation denies
+new requests and polling; it does not retract already accepted native work.
+
+Acceptance is not completed deletion. Render `requested`, `fencing`, `purging` and `verifying` as
+in progress; preserve `partially-completed`, `failed`, `cancelled` and `unknown` as distinct outcomes.
+A succeeded job can still declare policy-retained backups/audit metadata and excluded global
+accounts: display its category coverage rather than claiming all customer data everywhere vanished.
+No support resume, cancellation, artifact download, storage selector or arbitrary target proxy is
+installed. Unknown native work can only be reconciled by the trusted consumer worker/operator.
+
+Audit uses the existing metadata-only pipeline and correlation ID. The base event identifies the
+app and tenant. Fixed `management.tenants.delete.portal.*` events use `SubjectId` for the plan or
+job reference: `planned`, `confirmation`, `accepted`, and the fixed progress state names. Separate
+confirmation and acceptance events link the original plan and job without copying the request.
+Unknown, failed, cancelled and partial phase events have `Succeeded=false`; an accepted event
+means durable command acceptance, not completed deletion. No confirmation binding, inventory hash,
+policy/version body, provider exception, storage identifier, customer content or key is persisted.
+The target's existing job journal and worker audit remain authoritative for execution phases.
