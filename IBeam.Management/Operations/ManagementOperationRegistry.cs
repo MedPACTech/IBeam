@@ -136,6 +136,7 @@ public sealed class ManagementOperationRegistry
             d.RouteTemplate is not { Length: > 0 and <= 256 } ||
             !(d.RouteTemplate.StartsWith("/api/management-operations/", StringComparison.Ordinal) || NativeExport(d)) ||
             d.Operation == ManagementTenantDataOperations.Export && !NativeExport(d) ||
+            (d.Operation == ManagementTenantDataOperations.Delete || d.RouteTemplate == TenantData.ManagementTenantPurgeRoutes.Command) && !NativePurge(d) ||
             d.RouteTemplate == "/api/management-operations/info" || d.RouteTemplate.StartsWith("/api/management-operations/receipts/", StringComparison.Ordinal) ||
             d.RouteTemplate.Split('/').Skip(1).Any(x => !Regex.IsMatch(x, "^[a-z][a-z0-9-]{0,63}$|^\\{[a-z][a-zA-Z0-9]{0,31}:guid\\}$", RegexOptions.CultureInvariant)) ||
             d.RouteTemplate.Split('/').Where(Slot).Distinct(StringComparer.Ordinal).Count() != d.RouteTemplate.Split('/').Count(Slot) ||
@@ -150,6 +151,9 @@ public sealed class ManagementOperationRegistry
     }
     private static bool Name(string? name) => name is { Length: <= 128 } && Regex.IsMatch(name,
         "^management\\.[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9-]*){1,5}$", RegexOptions.CultureInvariant);
+    private static bool NativePurge(ManagementOperationDescriptor d) => d.Operation == ManagementTenantDataOperations.Delete && d.Method == "POST" && d.RouteTemplate == TenantData.ManagementTenantPurgeRoutes.Command &&
+        d.Request?.ContractType == typeof(TenantData.ManagementTenantPurgeRequest) && d.Result?.ContractType == typeof(TenantData.ManagementTenantPurgeResult) &&
+        d.RequiredGrants is { Count: 1 } && d.RequiredGrants[0] == ManagementTenantDataOperations.Delete;
     private static bool NativeExport(ManagementOperationDescriptor d) => d.Operation == ManagementTenantDataOperations.Export && d.Method == "POST" &&
         d.RouteTemplate == TenantData.ManagementTenantExportRoutes.Submit && d.Request?.ContractType == typeof(TenantData.ManagementTenantExportRequest) &&
         d.Result?.ContractType == typeof(TenantData.ManagementTenantExportResult) && d.RequiredGrants is { Count: 1 } && d.RequiredGrants[0] == ManagementTenantDataOperations.Export;

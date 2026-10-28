@@ -1,5 +1,7 @@
 # IBeam.Management.TenantData.Target.Services
 
+`AddIBeamManagementTenantPurgeTarget` separately opts into the independent delete capability, metadata-only preflight and expiring scope/version/inventory/person-bound confirmation contracts. It requires compatible native handler/policy/access and atomic durable plan/job providers; disabled registration installs nothing. The standard purge coordinator and optional Identity cleanup are subsequent cards. See [tenant-purge](../docs/management/tenant-purge.md).
+
 Optional tenant export target adapter with versioned safe job/coverage contracts. No native Identity or commercial dependency. Register AddIBeamManagementTenantExportTarget with explicit enabling and approved policy keys. The host must supply a usable exporter, delivery and customer-authorization policies, native tenant-version policy, live signed Management access and a durable job service. Missing providers fail startup; default registration installs nothing.
 
 AddIBeamManagementTenantExportJobs supplies the standard scoped durable job service, leased worker, optional bounded recovery scan and server-only customer artifact gate. Supply the dedicated Azure Table journal (or a compatible durable provider), versioned artifact protection key ring and app-owned idempotent export/delivery/policy adapters. Unknown work pauses for explicit same-job reconciliation; customer data stays in the app's artifact channel. See docs/management/tenant-export.md for registration, retention/fencing, accepted-command semantics and ordered rollout.
