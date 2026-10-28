@@ -2,10 +2,10 @@ name: Validate Management Boundary
 on:
   push:
     branches: [development]
-    paths: ['IBeam.Management*/**', 'IBeam.Tests.Management*/**', 'IBeam.Identity*/**', 'IBeam.Licensing*/**', 'IBeam.Tests.Licensing/**', 'IBeam.Services*/**', 'IBeam.Api/**', 'samples/Management.PackageSmoke/**', 'scripts/Test-ManagementPackages.ps1', '.github/workflows/validate-management.yml']
+    paths: ['IBeam.Management*/**', 'IBeam.Tests.Management*/**', 'IBeam.Identity*/**', 'IBeam.Licensing*/**', 'IBeam.Tests.Licensing/**', 'IBeam.Services*/**', 'IBeam.Api/**', 'samples/Management.PackageSmoke/**', 'samples/Management.Bootstrap/**', 'scripts/Test-ManagementPackages.ps1', 'scripts/Test-ManagementCustomerIdentityPackages.ps1', '.github/workflows/validate-management.yml']
   pull_request:
     branches: [development]
-    paths: ['IBeam.Management*/**', 'IBeam.Tests.Management*/**', 'IBeam.Identity*/**', 'IBeam.Licensing*/**', 'IBeam.Tests.Licensing/**', 'IBeam.Services*/**', 'IBeam.Api/**', 'samples/Management.PackageSmoke/**', 'scripts/Test-ManagementPackages.ps1', '.github/workflows/validate-management.yml']
+    paths: ['IBeam.Management*/**', 'IBeam.Tests.Management*/**', 'IBeam.Identity*/**', 'IBeam.Licensing*/**', 'IBeam.Tests.Licensing/**', 'IBeam.Services*/**', 'IBeam.Api/**', 'samples/Management.PackageSmoke/**', 'samples/Management.Bootstrap/**', 'scripts/Test-ManagementPackages.ps1', 'scripts/Test-ManagementCustomerIdentityPackages.ps1', '.github/workflows/validate-management.yml']
   workflow_dispatch:
 permissions:
   contents: read
