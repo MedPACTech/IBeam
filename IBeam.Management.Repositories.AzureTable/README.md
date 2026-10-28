@@ -65,3 +65,5 @@ IBM-0110 invitation resend/revoke uses exact versions, durable private delivery 
 AddIBeamManagementAzureTableTenantExportJobs registers a dedicated pre-provisioned export journal. Exact ETags protect leases/status/cancellation; separate ProtectedArtifact ciphertext is excluded from safe metadata and bounded recovery scans. No runtime table creation or app-data access. See docs/management/tenant-export.md.
 
 AddIBeamManagementAzureTableTenantPurgeJournal registers a dedicated pre-provisioned metadata journal. One exact-ETag Table transaction consumes the scoped plan and reserves its sole job. Tenant partitions include deployment/org/app/realm; point reads bind the original person and bounded scans bind the current app. No runtime table creation, business-data queries or wildcard writes. See docs/management/tenant-purge.md.
+
+IBM-0144 adds optional independently granted bounded invitation bulk revocation, durable original-intent progress and read-only receipts. See [bulk invitation revocation](../docs/management/bulk-invitation-revocation.md) for exact selection versions, partial/unknown outcomes, module setup and routes.

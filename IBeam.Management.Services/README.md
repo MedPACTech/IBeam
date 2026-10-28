@@ -183,3 +183,5 @@ IBM-0137 adds opt-in typed purge preflight, exact confirmation and read-only pro
 IBM-0142 unifies default typed sender resolution and secure HTTP construction across registered operations, native Identity, diagnostics and discovery. See [target sender](../docs/management/target-operation-sender.md) for consumer migration and independent grants.
 
 IBM-0143 emits correlated safe completion telemetry for target calls and scoped allowlisted registered-operation audit. DiagnosticListener/Meter failures are observational and cannot retry or change operation results. See [safe target telemetry](../docs/management/target-operation-telemetry.md).
+
+IBM-0144 adds optional independently granted bounded invitation bulk revocation, durable original-intent progress and read-only receipts. See [bulk invitation revocation](../docs/management/bulk-invitation-revocation.md) for exact selection versions, partial/unknown outcomes, module setup and routes.

@@ -49,3 +49,5 @@ Role replacement hardening (IBM-0121): the selected provisioning policy must aut
 IBM-0124 adds explicit scoped ownership lookup and transfer with independent grants and signed exact versions. See [customer ownership APIs](../docs/management/customer-ownership-api.md).
 
 IBM-0140 adds optional native atomic membership/event intent and leased, bounded at-least-once dispatch with explicit durable receiver registration. Original actor/operation/sequence payloads are immutable; native owner/admin and purge fences remain active. Defaults install no emitter/delivery claim. See [membership lifecycle events](../docs/management/membership-lifecycle-events.md) for scope, enrollment, startup, actor capture and recovery.
+
+IBM-0144 adds optional independently granted bounded invitation bulk revocation, durable original-intent progress and read-only receipts. See [bulk invitation revocation](../docs/management/bulk-invitation-revocation.md) for exact selection versions, partial/unknown outcomes, module setup and routes.

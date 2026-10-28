@@ -281,10 +281,10 @@ public sealed partial class RegisteredTransportTests
         private readonly List<IDisposable> owned = [];
         private static string[] Grants => [ManagementLicenseOperations.Read, ManagementLicenseOperations.Suspend, ManagementLicenseOperations.Restore,
             ManagementSeatOperations.Read, ManagementSeatOperations.Assign, ManagementSeatOperations.Unassign];
-        public static async Task<Fixture> Create(bool includeSynthetic = false, int timeoutSeconds = 10)
+        public static async Task<Fixture> Create(bool includeSynthetic = false, int timeoutSeconds = 10, bool includeBulkContract = false)
         {
             var f = new Fixture(); var codec = new ManagementCredentialSecretCodec(); var credentialId = Guid.NewGuid(); f.Secret = codec.Create(credentialId);
-            var grants = includeSynthetic ? Grants.Append(SharedSenderSyntheticOperation).ToArray() : Grants;
+            var grants = (includeSynthetic ? Grants.Append(SharedSenderSyntheticOperation) : Grants).Concat(includeBulkContract ? [ManagementBulkInvitationRevokeOperation.Name] : []).ToArray();
             f.Credential = new() { CredentialId = credentialId, ApplicationKey = "fixture", Environment = "Testing", SecretHash = codec.Hash(f.Secret),
                 Capabilities = [ManagementRegisteredOperations.Info, .. grants], ExpiresUtc = DateTimeOffset.UtcNow.AddHours(1), Version = "credential-1" };
             var key = new RsaSecurityKey(f.rsa) { KeyId = "fixture-signing" };
@@ -310,6 +310,7 @@ public sealed partial class RegisteredTransportTests
             builder.Services.AddIBeamManagementLicenseStatusTarget(o => { o.Enabled = true; o.EnableRestore = true; o.AllowVolatileDevelopmentStore = true; });
             builder.Services.AddIBeamManagementSeatsTarget(o => { o.Enabled = true; o.AllowVolatileDevelopmentStore = true; });
             if (includeSynthetic) builder.Services.AddIBeamManagementOperation<SharedSenderSyntheticRequest, SharedSenderSyntheticResult, SharedSenderSyntheticHandler>(SharedSenderSyntheticDescriptor);
+            if (includeBulkContract) { builder.Services.AddSingleton(new BulkStubState()); builder.Services.AddIBeamManagementOperation<ManagementBulkInvitationRevokeRequest, ManagementBulkInvitationRevokeResult, BulkStubHandler>(ManagementBulkInvitationRevokeOperation.Descriptor); }
             builder.Services.AddIBeamManagementRegisteredOperationsTargetApi(builder.Configuration);
             f.Target = builder.Build(); f.Target.UseAuthentication(); f.Target.UseAuthorization(); f.Target.MapIBeamManagementRegisteredOperations();
             await f.Target.StartAsync();
@@ -320,7 +321,7 @@ public sealed partial class RegisteredTransportTests
                 f.License = license.LicenseId;
             }
             var catalog = new ManagementOperationRegistry(ManagementLicensingServiceExtensions.LicenseStatusDescriptors.Concat(ManagementSeatServiceExtensions.SeatDescriptors)
-                .Concat(includeSynthetic ? [SharedSenderSyntheticDescriptor] : []));
+                .Concat(includeSynthetic ? [SharedSenderSyntheticDescriptor] : []).Concat(includeBulkContract ? [ManagementBulkInvitationRevokeOperation.Descriptor] : []));
             var info = new ManagementRegisteredOperationInfo("fixture", "Testing", f.Realm, "dedicated-app", 1, catalog.Capabilities(f.Credential.Capabilities, grants, _ => true).ToArray());
             var connectionId = Guid.NewGuid();
             f.Application = new() { OrganizationId = f.Org, ApplicationId = f.AppId, ApplicationKey = "fixture", Environment = "Testing", BaseUrl = "https://fixture.example", ActiveCredentialId = connectionId, Version = "app-1" };

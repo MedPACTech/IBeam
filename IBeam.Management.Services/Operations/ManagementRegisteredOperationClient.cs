@@ -146,6 +146,17 @@ public sealed class ManagementRegisteredOperationClient(ManagementOperationRegis
                     result = (TResult)(object)purge;
                     if (purge.Outcome == "unknown") ManagementTargetTelemetry.Unknown();
                 }
+                if (operation == ManagementBulkInvitationRevokeOperation.Name)
+                {
+                    var bulk = ManagementBulkInvitationRevokeOperation.Project((ManagementBulkInvitationRevokeResult)(object)result!, tenant, resource, scope.OperationId);
+                    if (lookup && bulk.Outcome == "accepted" || !lookup && bulk.Outcome == "found") throw new ManagementOperationUnavailableException();
+                    if (!lookup && bulk.Total > 0) {
+                        var selection = new ManagementOperationPayloadCodec(registry).ReadRequest<ManagementBulkInvitationRevokeRequest>(operation, body);
+                        if (!bulk.Items.Select(x => x.InviteId).Order().SequenceEqual(selection.Invitations.Select(x => x.InviteId).Order())) throw new ManagementOperationUnavailableException();
+                    }
+                    result = (TResult)(object)bulk;
+                    if (bulk.Outcome == "unknown" || bulk.State == "unknown") ManagementTargetTelemetry.Unknown();
+                }
                 await Require(appId, operation, timeout.Token);
                 latest = await applications.GetAsync(org, appId, timeout.Token);
                 if (latest is null || !latest.IsEnabled || latest.Version != app.Version || latest.ActiveCredentialId != connectionId) throw new ManagementAccessDeniedException();
