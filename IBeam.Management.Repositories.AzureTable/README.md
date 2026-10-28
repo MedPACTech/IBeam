@@ -63,3 +63,5 @@ Approved tenant roles and invitation-only customer provisioning: [registration a
 IBM-0110 invitation resend/revoke uses exact versions, durable private delivery recovery and native acceptance claims. See [invitation lifecycle](../docs/management/customer-invitation-lifecycle.md).
 
 AddIBeamManagementAzureTableTenantExportJobs registers a dedicated pre-provisioned export journal. Exact ETags protect leases/status/cancellation; separate ProtectedArtifact ciphertext is excluded from safe metadata and bounded recovery scans. No runtime table creation or app-data access. See docs/management/tenant-export.md.
+
+AddIBeamManagementAzureTableTenantPurgeJournal registers a dedicated pre-provisioned metadata journal. One exact-ETag Table transaction consumes the scoped plan and reserves its sole job. Tenant partitions include deployment/org/app/realm; point reads bind the original person and bounded scans bind the current app. No runtime table creation, business-data queries or wildcard writes. See docs/management/tenant-purge.md.

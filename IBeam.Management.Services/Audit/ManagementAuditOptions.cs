@@ -26,6 +26,7 @@ public static class ManagementAuditOperations
     var actions = new HashSet<string>(StringComparer.Ordinal) {
         "management.identity.read", "management.identity.bootstrap", "management.diagnostics.info", "management.operations.info", "management.operations.lookup", "management.operations.dispatch", "management.operations.send", "management.operations.availability",
         "management.tenants.export.worker", "management.tenants.export.customer-retrieve",
+        "management.tenants.delete.worker",
         "management.identity.info", "management.portal.customer-identity.info", "management.portal.customer-identity.authorize",
         "management.portal.customer-identity.connection", "management.portal.customer-identity.connection-check",
         "management.portal.customer-identity.tenants.list", "management.portal.customer-identity.tenants.read",

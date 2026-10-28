@@ -30,6 +30,12 @@ public sealed class ManagementTenantPurgeTarget(IManagementOperationAccessServic
                 request.Stage == "plan" && (request.PlanId is not null || request.ConfirmationBinding is not null) ||
                 request.Stage == "confirm" && (request.PlanId is null || request.PlanId == Guid.Empty || request.PlanId == context.OperationId || request.ConfirmationBinding is not { Length: 64 }))
                 throw new ManagementOperationInvalidException();
+            if (request.Stage == "confirm" && jobs is ManagementTenantPurgeJobService standard) {
+                // A known immutable receipt is read before fresh-version/expiry preconditions; it cannot start another purge.
+                var prior = await standard.FindPriorConfirmationAsync(new(context, deployment.Value.ApplicationKey, deployment.Value.Environment,
+                    context.OperationId, request.PolicyKey, ""), request, token);
+                if (prior is not null) return prior;
+            }
             var definition = ManagementTenantPurgeProtocol.Definition(handler.Describe());
             var execution = Execution(context, request.PolicyKey, definition);
             await policy.RequireAsync(execution, request.ExpectedVersion, token);
@@ -60,6 +66,10 @@ public sealed class ManagementTenantPurgeTarget(IManagementOperationAccessServic
 
     public Task<ManagementTenantPurgeResult> ReadReceiptAsync(ManagementOperationContext context, CancellationToken ct = default)
         => Run(context, true, async token => {
+            if (jobs is ManagementTenantPurgeJobService) {
+                // The standard service projects its frozen inventory, including after a later host inventory upgrade.
+                return await jobs.FindAsync(new(context, deployment.Value.ApplicationKey, deployment.Value.Environment, context.OperationId, "", ""), token);
+            }
             var definition = ManagementTenantPurgeProtocol.Definition(handler.Describe());
             var execution = Execution(context, "", definition);
             await policy.RequireStatusAsync(execution, token);
