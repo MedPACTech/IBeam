@@ -69,13 +69,7 @@ public sealed class ApplicationDiagnosticsClient(ManagementConnectionNetworkPoli
         try
         {
             var origin = network.RequireOrigin(c.BaseUrl);
-            using var handler = TestTransportFactory?.Invoke() ?? new SocketsHttpHandler
-            {
-                AllowAutoRedirect = false, UseProxy = false, UseCookies = false, AutomaticDecompression = DecompressionMethods.None,
-                ActivityHeadersPropagator = null, ConnectTimeout = TimeSpan.FromSeconds(5),
-                ConnectCallback = (context, token) => network.ConnectAsync(origin, context.DnsEndPoint, token)
-            };
-            using var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+            using var client = ManagementTargetHttpTransport.CreateClient(network, origin, TestTransportFactory);
             var suffix = query.Count == 0 ? "" : "?" + string.Join("&", query.Select(x => Uri.EscapeDataString(x.Key) + "=" + Uri.EscapeDataString(x.Value)));
             using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(origin, "/api/management-diagnostics/" + path + suffix))
                 { Version = HttpVersion.Version11, VersionPolicy = HttpVersionPolicy.RequestVersionExact };

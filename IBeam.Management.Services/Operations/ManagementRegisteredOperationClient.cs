@@ -31,7 +31,7 @@ public sealed class ManagementRegisteredOperationClient(ManagementOperationRegis
     IManagementApplicationStateProvider applications, IManagementApplicationCredentialRepository credentials, IManagementSecretStore secrets,
     ManagementCredentialSecretCodec keyCodec, IManagementActorSigningKeyProvider signing, IManagementAuditContext audit,
     ManagementConnectionNetworkPolicy network, IOptions<ManagementConnectionOptions> connectionOptions,
-    IOptionsMonitor<ManagementRegisteredOperationClientOptions> options, TimeProvider clock, IServiceOperationExecutor operations) : IManagementOperationClient
+    IOptionsMonitor<ManagementRegisteredOperationClientOptions> options, TimeProvider clock, IServiceOperationExecutor operations) : IManagementTargetOperationSender
 {
     internal Func<HttpMessageHandler>? TestTransportFactory { get; init; }
     public Task<TResult> ExecuteAsync<TRequest, TResult>(Guid applicationId, string operation, Guid tenantId, Guid resourceId,
@@ -83,10 +83,7 @@ public sealed class ManagementRegisteredOperationClient(ManagementOperationRegis
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token); timeout.CancelAfter(TimeSpan.FromSeconds(connectionOptions.Value.TimeoutSeconds));
                 var origin = network.RequireOrigin(app.BaseUrl);
-                using var handler = TestTransportFactory?.Invoke() ?? new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false, UseCookies = false,
-                    AutomaticDecompression = DecompressionMethods.None, ActivityHeadersPropagator = null, ConnectTimeout = TimeSpan.FromSeconds(5),
-                    ConnectCallback = (context, cancellation) => network.ConnectAsync(origin, context.DnsEndPoint, cancellation) };
-                using var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+                using var client = ManagementTargetHttpTransport.CreateClient(network, origin, TestTransportFactory);
                 // Refresh target metadata without actor authority; stale stored discovery never authorizes a new call.
                 using (var probe = new HttpRequestMessage(HttpMethod.Get, new Uri(origin, "/api/management-operations/info")) { Version = HttpVersion.Version11, VersionPolicy = HttpVersionPolicy.RequestVersionExact })
                 {

@@ -19,8 +19,7 @@ public sealed partial class ManagementTargetConnectionProbe : IManagementTargetP
         try
         {
             var approved = network.RequireOrigin(origin);
-            using var handler = TestTransportFactory?.Invoke() ?? CreateHandler(approved);
-            using var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+            using var client = ManagementTargetHttpTransport.CreateClient(network, approved, TestTransportFactory, Math.Min(5, options.Value.TimeoutSeconds));
             async Task<HttpResponseMessage> Send(string path)
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(approved, path))
