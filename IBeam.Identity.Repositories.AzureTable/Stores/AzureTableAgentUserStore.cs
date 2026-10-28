@@ -26,7 +26,7 @@ public sealed class AzureTableAgentUserStore : IAgentUserStore
         try
         {
             var entity = Map(agentUser);
-            await AgentUsersTable().AddEntityAsync(entity, ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Add(AgentUsersTable(), entity, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
             return Map(entity);
         }
         catch (Exception ex)
@@ -39,12 +39,14 @@ public sealed class AzureTableAgentUserStore : IAgentUserStore
     {
         try
         {
+            if (await IdentityTenantPurgePartition.HasTenantFence(_serviceClient, _opts, tenantId, ct) || await IdentityTenantPurgePartition.IsFenced(AgentUsersTable(), tenantId, _opts.AgentUsersPk(tenantId), ct)) return [];
             var pk = _opts.AgentUsersPk(tenantId);
             var list = new List<AgentUserRecord>();
             await foreach (var entity in AgentUsersTable().QueryAsync<AgentUserEntity>(
                 x => x.PartitionKey == pk,
                 cancellationToken: ct))
             {
+                if (entity.RowKey.StartsWith(IdentityTenantPurgePartition.Prefix, StringComparison.Ordinal)) continue;
                 list.Add(Map(entity));
             }
 
@@ -62,6 +64,7 @@ public sealed class AzureTableAgentUserStore : IAgentUserStore
     {
         try
         {
+            if (await IdentityTenantPurgePartition.HasTenantFence(_serviceClient, _opts, tenantId, ct) || await IdentityTenantPurgePartition.IsFenced(AgentUsersTable(), tenantId, _opts.AgentUsersPk(tenantId), ct)) return null;
             var response = await AgentUsersTable()
                 .GetEntityIfExistsAsync<AgentUserEntity>(
                     _opts.AgentUsersPk(tenantId),
@@ -94,7 +97,7 @@ public sealed class AzureTableAgentUserStore : IAgentUserStore
                     entity.Status = agentUser.Status;
                     entity.UpdatedUtc = agentUser.UpdatedUtc;
                     entity.MetadataJson = agentUser.MetadataJson;
-                    await AgentUsersTable().UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct)
+                    await IdentityTenantPurgePartition.Update(AgentUsersTable(), entity, entity.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct)
                         .ConfigureAwait(false);
                     return Map(entity);
                 }
@@ -123,9 +126,9 @@ public sealed class AzureTableAgentUserStore : IAgentUserStore
                 throw new IdentityValidationException("API credential is already assigned to an active agent user.");
 
             var entity = Map(binding);
-            await AgentUserCredentialsTable().UpsertEntityAsync(entity, TableUpdateMode.Replace, ct)
+            await IdentityTenantPurgePartition.Upsert(AgentUserCredentialsTable(), entity, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct)
                 .ConfigureAwait(false);
-            await AgentUserCredentialsTable().UpsertEntityAsync(Index(binding), TableUpdateMode.Replace, ct)
+            await IdentityTenantPurgePartition.Upsert(AgentUserCredentialsTable(), Index(binding), TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct)
                 .ConfigureAwait(false);
             return Map(entity);
         }
@@ -142,12 +145,14 @@ public sealed class AzureTableAgentUserStore : IAgentUserStore
     {
         try
         {
+            if (await IdentityTenantPurgePartition.HasTenantFence(_serviceClient, _opts, tenantId, ct) || await IdentityTenantPurgePartition.IsFenced(AgentUserCredentialsTable(), tenantId, _opts.AgentUserCredentialsPk(tenantId, agentUserId), ct)) return [];
             var pk = _opts.AgentUserCredentialsPk(tenantId, agentUserId);
             var list = new List<AgentUserCredentialBindingRecord>();
             await foreach (var entity in AgentUserCredentialsTable().QueryAsync<AgentUserCredentialEntity>(
                 x => x.PartitionKey == pk,
                 cancellationToken: ct))
             {
+                if (entity.RowKey.StartsWith(IdentityTenantPurgePartition.Prefix, StringComparison.Ordinal)) continue;
                 list.Add(Map(entity));
             }
 
@@ -168,6 +173,7 @@ public sealed class AzureTableAgentUserStore : IAgentUserStore
     {
         try
         {
+            if (await IdentityTenantPurgePartition.HasTenantFence(_serviceClient, _opts, tenantId, ct) || await IdentityTenantPurgePartition.IsFenced(AgentUserCredentialsTable(), tenantId, _opts.AgentCredentialIndexPk(tenantId), ct)) return null;
             var indexResponse = await AgentUserCredentialsTable()
                 .GetEntityIfExistsAsync<TableEntity>(
                     _opts.AgentCredentialIndexPk(tenantId),
@@ -215,13 +221,12 @@ public sealed class AzureTableAgentUserStore : IAgentUserStore
                     entity.Status = AgentUserStatuses.Disabled;
                     entity.RevokedUtc ??= DateTimeOffset.UtcNow;
                     entity.RevokedByUserId ??= revokedByUserId?.ToString("D");
-                    await AgentUserCredentialsTable().UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct)
+                    await IdentityTenantPurgePartition.Update(AgentUserCredentialsTable(), entity, entity.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct)
                         .ConfigureAwait(false);
-                    await AgentUserCredentialsTable().DeleteEntityAsync(
+                    await IdentityTenantPurgePartition.Delete(AgentUserCredentialsTable(),
                         _opts.AgentCredentialIndexPk(tenantId),
                         _opts.AgentCredentialIndexRk(credentialId),
-                        ETag.All,
-                        ct).ConfigureAwait(false);
+                        ETag.All, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
                     return;
                 }
                 catch (RequestFailedException ex) when (ex.Status == 412 && attempt < 4)

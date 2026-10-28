@@ -9,7 +9,7 @@ public sealed partial class AzureTableTenantInviteStore : IManagedTenantInviteSt
     private async Task EnsureTokenIndex(TenantInviteRecord row, CancellationToken ct)
     {
         var entity = ToEntity(row); entity.PartitionKey = TokenPk(row.TokenHash); entity.RowKey = TokenRk();
-        try { await Table().AddEntityAsync(entity, ct); }
+        try { await IdentityTenantPurgePartition.Add(Table(), entity, _opts.RequireTenantPurgeFencing, ct); }
         catch (RequestFailedException ex) when (ex.Status == 409) {
             var old = await Table().GetEntityAsync<Entities.TenantInviteEntity>(entity.PartitionKey, entity.RowKey, cancellationToken: ct);
             if (old.Value.InviteId != entity.InviteId || old.Value.TenantId != entity.TenantId) throw new IdentityConcurrencyException();
@@ -24,7 +24,7 @@ public sealed partial class AzureTableTenantInviteStore : IManagedTenantInviteSt
             throw new IdentityConcurrencyException();
         if (current.AcceptanceUserId == userId) return current;
         var next = current with { AcceptanceId = Guid.NewGuid(), AcceptanceUserId = userId };
-        try { await Table().UpdateEntityAsync(ToEntity(next), new ETag(current.Version!), Azure.Data.Tables.TableUpdateMode.Merge, ct); }
+        try { await IdentityTenantPurgePartition.Update(Table(), ToEntity(next), new ETag(current.Version!), Azure.Data.Tables.TableUpdateMode.Merge, _opts.RequireTenantPurgeFencing, ct); }
         catch (RequestFailedException ex) when (ex.Status is 404 or 412) { throw new IdentityConcurrencyException(); }
         return await GetAsync(tenantId, inviteId, ct) ?? throw new IdentityConcurrencyException();
     }
@@ -54,7 +54,7 @@ public sealed partial class AzureTableTenantInviteStore : IManagedTenantInviteSt
             entity.IBeamInviteLastManagementUserId = actor.UserId.ToString("D");
             entity.IBeamInviteLastManagementApplicationId = actor.ApplicationId.ToString("D");
         }
-        try { await Table().UpdateEntityAsync(entity, new ETag(current.Version!), Azure.Data.Tables.TableUpdateMode.Merge, ct); }
+        try { await IdentityTenantPurgePartition.Update(Table(), entity, new ETag(current.Version!), Azure.Data.Tables.TableUpdateMode.Merge, _opts.RequireTenantPurgeFencing, ct); }
         catch (RequestFailedException ex) when (ex.Status is 404 or 412) { throw new IdentityConcurrencyException(); }
         var changed = await GetAsync(request.TenantId, request.InviteId, ct) ?? throw new IdentityConcurrencyException();
         await EnsureTokenIndex(changed, ct); // The primary hash/status is authoritative if a stale old index remains.

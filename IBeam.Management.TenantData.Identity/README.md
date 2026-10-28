@@ -1,0 +1,5 @@
+# IBeam.Management.TenantData.Identity
+
+Optional native Identity cleanup bridge for the standard durable Management tenant purge. Register the app handler as its concrete type, enable protected native providers, then call `AddIBeamManagementTenantPurgeIdentity<TAppHandler>(o => o.Enabled = true)` before the target purge registration. Default disabled. It composes the app inventory/cleanup with native entity-family ports and adds a native access/write fence. No commercial or Identity Target API dependency is required.
+
+The bridge verifies the original consumed plan, confirmed journal job, exact app/environment/org/realm/tenant/person scope and active worker lease before native authorization. Native cleanup removes tenant-owned memberships, roles, invitations, credentials, consent and catalog data while preserving global accounts and other tenants. Minimal permanent purge tombstones remain declared operational metadata. No generic skip-owner flag, customer impersonation or support download is added. See [tenant-purge](../docs/management/tenant-purge.md) for provider/migration requirements.

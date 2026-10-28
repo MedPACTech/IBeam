@@ -1,5 +1,7 @@
 # IBeam.Identity
 
+Optional tenant purge contracts are server-only and provider-neutral. Native cleanup requires opaque authorization from a confirmed scoped job and active worker lease; global accounts and shared authentication records remain outside tenant authority. See [tenant purge](../docs/management/tenant-purge.md).
+
 Optional independent tenant owner protection (IBM-0122) adds explicit host policy and versioned native writer contracts without inferring an owner from a legacy tenant column. See [configuration, provider and global-account boundaries](../docs/management/tenant-ownership-protection.md).
 
 IBM-0105 adds optional IIdentityTenantConditionalStore / IIdentityTenantAdministrationService and VersionedIdentityTenant contracts without changing existing tenant store/service interfaces. External lifecycle contexts can redact failure details; the flag grants no authority. See docs/management/customer-tenant-administration.md.

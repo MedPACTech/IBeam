@@ -8,23 +8,26 @@ namespace IBeam.Identity.Repositories.AzureTable.Stores;
 internal static class TenantMembershipPartition
 {
     internal const string GuardKey = "!IBEAM|MEMBERSHIP";
-    internal static async Task<TableEntity> Read(TableClient table, string partition, CancellationToken ct)
+    internal static async Task<TableEntity> Read(TableClient table, string partition, CancellationToken ct, bool requirePurge = false)
     {
+        var tenant = IdentityTenantPurgePartition.TenantOf(new TableEntity(partition, GuardKey));
+        await IdentityTenantPurgePartition.RequireMutable(table, tenant, partition, ct);
         var row = await table.GetEntityIfExistsAsync<TableEntity>(partition, GuardKey, cancellationToken: ct);
         if (row.HasValue) return row.Value;
-        try { await table.AddEntityAsync(new TableEntity(partition, GuardKey) { ["Revision"] = Guid.NewGuid(), ["AdministratorRoleIds"] = "" }, ct); }
-        catch (RequestFailedException ex) when (ex.Status == 409) { }
+        try { await IdentityTenantPurgePartition.Add(table, new TableEntity(partition, GuardKey) { ["Revision"] = Guid.NewGuid(), ["AdministratorRoleIds"] = "" }, requirePurge, ct); }
+        catch (RequestFailedException ex) when (ex.Status is 409 or 412) { await IdentityTenantPurgePartition.RequireMutable(table, tenant, partition, ct); }
+        catch (IdentityConcurrencyException) { await IdentityTenantPurgePartition.RequireMutable(table, tenant, partition, ct); }
         return (await table.GetEntityAsync<TableEntity>(partition, GuardKey, cancellationToken: ct)).Value;
     }
     internal static async Task Write<T>(TableClient table, T row, bool add, CancellationToken ct, bool requireUnprotected = false,
-        bool requireOwnershipProtection = false) where T : class, ITableEntity, new()
+        bool requireOwnershipProtection = false, bool requirePurge = false) where T : class, ITableEntity, new()
     {
         if (row is Entities.TenantUserEntity member) {
             member.IBeamLastMembershipOperationId = "native";
             if (string.IsNullOrWhiteSpace(member.TenantId) && row.PartitionKey.StartsWith("TEN|", StringComparison.Ordinal) && Guid.TryParseExact(row.PartitionKey[4..], "D", out var tenant)) member.TenantId = tenant.ToString("D");
             if (string.IsNullOrWhiteSpace(member.UserId) && row.RowKey.StartsWith("USR|", StringComparison.Ordinal) && Guid.TryParseExact(row.RowKey[4..], "D", out var user)) member.UserId = user.ToString("D");
         }
-        var guard = await Read(table, row.PartitionKey, ct);
+        var guard = await Read(table, row.PartitionKey, ct, requirePurge);
         var owned = requireOwnershipProtection || !string.IsNullOrEmpty(guard.GetString("OwnerRoleIds"));
         if (requireUnprotected && (owned || !string.IsNullOrEmpty(guard.GetString("AdministratorRoleIds"))))
             throw new IdentityValidationException("Versioned membership administration is required for this tenant.");
@@ -42,23 +45,25 @@ internal static class TenantMembershipPartition
                     throw new IdentityValidationException("Versioned membership administration is required for this tenant.");
             }
         }
-        await Commit(table, row, add, guard, guard.ETag, ct);
+        await Commit(table, row, add, guard, guard.ETag, ct, requirePurge: requirePurge);
     }
-    internal static async Task Commit<T>(TableClient table, T row, bool add, TableEntity guard, ETag expectedGuard, CancellationToken ct, bool replace = false) where T : class, ITableEntity, new()
+    internal static async Task Commit<T>(TableClient table, T row, bool add, TableEntity guard, ETag expectedGuard, CancellationToken ct, bool replace = false, bool requirePurge = false) where T : class, ITableEntity, new()
     {
         guard["Revision"] = Guid.NewGuid();
-        await table.SubmitTransactionAsync([
+        await IdentityTenantPurgePartition.Commit(table, [
             new(TableTransactionActionType.UpdateMerge, guard, expectedGuard),
-            new(add ? TableTransactionActionType.Add : replace ? TableTransactionActionType.UpdateReplace : TableTransactionActionType.UpdateMerge, row, row.ETag)], ct);
+            new(add ? TableTransactionActionType.Add : replace ? TableTransactionActionType.UpdateReplace : TableTransactionActionType.UpdateMerge, row, row.ETag)], requirePurge, ct);
     }
     internal static async Task RequireLegacyDestructiveWrite(TableClient table, string partition, CancellationToken ct, bool requireOwnershipProtection = false)
     {
+        await IdentityTenantPurgePartition.RequireMutable(table, IdentityTenantPurgePartition.TenantOf(new TableEntity(partition, GuardKey)), partition, ct);
         var row = await table.GetEntityIfExistsAsync<TableEntity>(partition, GuardKey, cancellationToken: ct);
         if (requireOwnershipProtection || row.HasValue && (!string.IsNullOrEmpty(row.Value.GetString("AdministratorRoleIds")) || !string.IsNullOrEmpty(row.Value.GetString("OwnerRoleIds"))))
             throw new IdentityValidationException("Versioned membership administration is required for this tenant.");
     }
     internal static async Task RequireOwnerAwareWrite(TableClient table, string partition, CancellationToken ct, bool required)
     {
+        await IdentityTenantPurgePartition.RequireMutable(table, IdentityTenantPurgePartition.TenantOf(new TableEntity(partition, GuardKey)), partition, ct);
         var row = await table.GetEntityIfExistsAsync<TableEntity>(partition, GuardKey, cancellationToken: ct);
         if (required || row.HasValue && !string.IsNullOrEmpty(row.Value.GetString("OwnerRoleIds")))
             throw new IdentityValidationException("An ownership-aware versioned operation is required for this tenant.");

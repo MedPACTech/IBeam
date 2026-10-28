@@ -29,11 +29,11 @@ public sealed partial class AzureTableTenantInviteStore : ITenantInviteStore
         try
         {
             ct.ThrowIfCancellationRequested();
-            await Table().AddEntityAsync(ToEntity(invite), ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Add(Table(), ToEntity(invite), _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
             var tokenEntity = ToEntity(invite);
             tokenEntity.PartitionKey = TokenPk(invite.TokenHash);
             tokenEntity.RowKey = TokenRk();
-            await Table().AddEntityAsync(tokenEntity, ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Add(Table(), tokenEntity, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
             return await GetAsync(invite.TenantId, invite.InviteId, ct).ConfigureAwait(false) ?? throw new IdentityConcurrencyException();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -52,6 +52,7 @@ public sealed partial class AzureTableTenantInviteStore : ITenantInviteStore
                                x => x.PartitionKey == TenantPk(tenantId),
                                cancellationToken: ct).ConfigureAwait(false))
             {
+                if (entity.RowKey.StartsWith(IdentityTenantPurgePartition.Prefix, StringComparison.Ordinal)) continue;
                 list.Add(ToRecord(entity));
             }
 
@@ -68,6 +69,7 @@ public sealed partial class AzureTableTenantInviteStore : ITenantInviteStore
         try
         {
             ct.ThrowIfCancellationRequested();
+            if (await IdentityTenantPurgePartition.HasTenantFence(_serviceClient, _opts, tenantId, ct)) return null;
             var response = await Table().GetEntityIfExistsAsync<TenantInviteEntity>(
                     TenantPk(tenantId),
                     InviteRk(inviteId),
@@ -118,7 +120,7 @@ public sealed partial class AzureTableTenantInviteStore : ITenantInviteStore
             if (existing.AcceptanceUserId is Guid accepting && (invite.Status != TenantInviteStatuses.Redeemed || invite.RedeemedByUserId != accepting ||
                 invite.AcceptanceId != existing.AcceptanceId || invite.TokenHash != existing.TokenHash)) throw new IdentityConcurrencyException();
             if (existing.Status is TenantInviteStatuses.Redeemed or TenantInviteStatuses.Revoked && invite.Status != existing.Status) throw new IdentityConcurrencyException();
-            try { await Table().UpdateEntityAsync(ToEntity(invite), new ETag(existing.Version!), TableUpdateMode.Merge, ct).ConfigureAwait(false); }
+            try { await IdentityTenantPurgePartition.Update(Table(), ToEntity(invite), new ETag(existing.Version!), TableUpdateMode.Merge, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false); }
             catch (RequestFailedException ex) when (ex.Status is 404 or 412) { throw new IdentityConcurrencyException(); }
             var current = await GetAsync(invite.TenantId, invite.InviteId, ct).ConfigureAwait(false) ?? throw new IdentityConcurrencyException();
             await EnsureTokenIndex(current, ct);

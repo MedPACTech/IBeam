@@ -43,3 +43,47 @@ Confirmation is an accepted durable command. Revoking a support assignment denie
 Worker audit is explicit metadata-only system attribution by app/org/job; `Succeeded=true` is emitted only after verified complete cleanup. Partial, pending and uncertain phases do not become successful business audit. Audit and native deletion are separate durable systems: audit failure must be repaired/backfilled from journal/consumer evidence, without repeating business work merely to recreate an audit entry. Journal/native tombstones preserve idempotency; no automatic journal deletion or access reset is installed.
 
 No production purge is performed by these implementation cards. Physical backup and external-system coverage must be declared by each consumer; the framework does not promise deletion outside that inventory.
+
+## Optional IBeam Identity bridge (IBM-0136)
+
+`IBeam.Management.TenantData.Identity` composes the consumer's app handler with verified native Identity cleanup. It requires the standard Management journal/worker, a separate app access/write fence, and native providers that protect every supported tenant-owned writer. Default registration is disabled. It adds no HTTP route and does not depend on the Identity Target API or commercial modules.
+
+For the Azure Table provider, deploy the protected native writers to **all** instances, pre-provision the ten distinct entity-family tables below, and set `IBeam:Identity:AzureTable:RequireTenantPurgeFencing` to true before enabling purge. Runtime purge paths never create tables. Existing ownership and administrator protection remains enabled for ordinary operations. Keep standard live tenant/membership request and refresh enforcement (or equivalent app enforcement); the app fence must also protect custom auth, anonymous invite paths and business writes. Native invitation, API-key, agent and consent lookup denies a tenant as soon as its metadata fence is established.
+
+Register the consumer handler by concrete type, not as a second public `IManagementTenantPurgeHandler`:
+
+```csharp
+services.AddScoped<MyAppPurgeHandler>();
+services.AddScoped<IManagementTenantPurgeAccessFence, MyAppPurgeFence>();
+services.AddIBeamIdentityAzureTableTenantPurge();
+services.AddIBeamManagementTenantPurgeIdentity<MyAppPurgeHandler>(o => o.Enabled = true);
+services.AddIBeamManagementAzureTableTenantPurgeJournal(dedicatedPurgeTable);
+services.AddIBeamManagementTenantPurgeJobs(configuration);
+services.AddIBeamManagementTenantPurgeTargetApi(configuration, o => {
+    o.Enabled = true;
+    o.PolicyKeys = ["enterprise"];
+});
+```
+
+Supply the existing app-owned policy/audit/access registrations and signed target trust/realm settings. The native provider uses that target's configured Identity `TableServiceClient` and table prefix; portal Identity storage is unrelated. Duplicate handlers/authorities, unprotected providers, aliased native table families or a missing app fence fail startup. Do not enable this bridge over an unsupported shared realm or a partially upgraded fleet of writers.
+
+| Native inventory key | Default table | Scope removed |
+| --- | --- | --- |
+| `identity-tenant-metadata` | Tenants | Exact tenant row |
+| `identity-tenant-memberships` | TenantUsers | Members, roles on members, owner/admin snapshots and native transfer receipts |
+| `identity-user-membership-indexes` | UserTenants | Only that tenant's reverse index/default marker per user |
+| `identity-tenant-roles` | Roles | Tenant-local role definitions |
+| `identity-tenant-invitations` | TenantInvites | Pending/completed primary invitations and attributable current/stale token indexes |
+| `identity-tenant-api-credentials` | ApiCredentials | Tenant-owned API credentials |
+| `identity-tenant-agent-users` | AgentUsers | Tenant-owned agents |
+| `identity-tenant-agent-credentials` | AgentUserCredentials | Scoped bindings and credential indexes |
+| `identity-tenant-oauth-consents` | OAuthConsents | Tenant-specific consent grants |
+| `identity-tenant-access-catalog-overrides` | AccessCatalogOverrides | Tenant-specific access catalog overrides |
+
+Global users/passwords, OTP challenges, shared sessions, unscoped account authorization artifacts and preferences remain outside tenant purge authority. The same user can retain its roles, default tenant and live session in another tenant. Purging a tenant does not grant account-level deletion authority.
+
+The bridge creates opaque native authorization only after verifying the consumed plan, confirmed job, exact original app/environment/org/realm/tenant/person/version and active worker lease. Native stores cannot accept a public DTO or general skip-owner flag instead. Journal-only lease proof is used when a fence validates itself, avoiding recursive rechecks of that same fence. `IIdentityTenantPurgeService.HasPurgeMarkerAsync` is a read-only operational binding check for app status policy after tenant metadata is removed; it grants no cleanup authority. New submissions still require an existing tenant and exact native revision.
+
+Each native writer registers its physical partition before committing, then joins its row and tenant-specific local guard by exact ETag. A frozen root inventories delayed writers, including token partitions and shared user partitions. Fencing registers legacy attributable partitions, denies new registration and marks every known local partition. Cleanup removes one bounded page at a time with conditional deletes, retains checkpoints and verifies emptiness. A late prepared write loses its guard version and cannot recreate an index after cleanup. Native pending signals resume the same job; an uncertain delete reply pauses for explicit original-job reconciliation. Source selectors are compiled provider code, never portal inputs. Canonical key/tag attribution is required; ambiguous ownership fails closed rather than deleting another tenant's data.
+
+Minimal permanent controls use the reserved `!IBEAM|PURGE|` row prefix and `PURGE|<tenant>` registry partitions. Their declared `identity-purge-tombstones` coverage is **retained**, including job-bound scope hashes, necessary tenant/user partition references and hashed-token partition references. They contain no invitation recipient/profile, raw token or credential secret. They are the persistence fence against late writers and tenant-ID recreation: do not drop/reset them or treat physical zero rows as the completion criterion. Raw table integrations must skip reserved controls. Ordinary owner/admin checks remain intact; deliberate whole-tenant deletion runs through the separately verified native path.

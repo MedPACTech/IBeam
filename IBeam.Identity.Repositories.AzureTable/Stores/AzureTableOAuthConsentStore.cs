@@ -31,6 +31,7 @@ public sealed class AzureTableOAuthConsentStore : IOAuthConsentStore
     {
         try
         {
+            if (await IdentityTenantPurgePartition.HasTenantFence(_serviceClient, _options, tenantId, ct) || await IdentityTenantPurgePartition.IsFenced(Table(), tenantId, _options.OAuthConsentsPk(tenantId, userId), ct)) return null;
             var response = await Table().GetEntityIfExistsAsync<OAuthConsentEntity>(
                 _options.OAuthConsentsPk(tenantId, userId),
                 _options.OAuthConsentsRk(clientId, resource),
@@ -50,7 +51,7 @@ public sealed class AzureTableOAuthConsentStore : IOAuthConsentStore
         try
         {
             var entity = Map(consent);
-            await Table().UpsertEntityAsync(entity, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Upsert(Table(), entity, TableUpdateMode.Replace, _options.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
             return Map(entity);
         }
         catch (Exception ex)
@@ -84,11 +85,10 @@ public sealed class AzureTableOAuthConsentStore : IOAuthConsentStore
                 response.Value.UpdatedUtc = revokedUtc;
                 try
                 {
-                    await Table().UpdateEntityAsync(
+                    await IdentityTenantPurgePartition.Update(Table(),
                         response.Value,
                         response.Value.ETag,
-                        TableUpdateMode.Replace,
-                        ct).ConfigureAwait(false);
+                        TableUpdateMode.Replace, _options.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
                     return true;
                 }
                 catch (RequestFailedException ex) when (ex.Status == 412 && attempt < 4)

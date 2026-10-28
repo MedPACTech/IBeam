@@ -46,11 +46,11 @@ public sealed partial class AzureTableTenantMembershipStore : IIdentityTenantOwn
             ["IBeamLastMembershipOperationId"] = change.OperationId.ToString("D"), ["UpdatedAt"] = DateTimeOffset.UtcNow };
         guard.Value["Revision"] = Guid.NewGuid();
         try {
-            await table.SubmitTransactionAsync([
+            await IdentityTenantPurgePartition.Commit(table, [
                 new(TableTransactionActionType.UpdateMerge, guard.Value, new ETag(change.ExpectedOwnershipVersion)),
                 new(TableTransactionActionType.UpdateMerge, Membership(source), new ETag(source.Version)),
                 new(TableTransactionActionType.UpdateMerge, Membership(destination), new ETag(destination.Version)),
-                new(TableTransactionActionType.Add, receipt)], ct);
+                new(TableTransactionActionType.Add, receipt)], _opts.RequireTenantPurgeFencing, ct);
         } catch (RequestFailedException ex) when (ex.Status is 404 or 409 or 412) {
             var committed = await FindOwnershipTransferAsync(tenant, change.OperationId, ct);
             if (committed is not null) return SameIntent(committed, change);

@@ -136,6 +136,7 @@ public sealed partial class AzureTableTenantMembershipStore : ITenantMembershipS
             await foreach (var e in table.QueryAsync<TenantUserEntity>(x => x.PartitionKey == pk, cancellationToken: ct)
                 .ConfigureAwait(false))
             {
+                if (e.RowKey.StartsWith("!IBEAM|", StringComparison.Ordinal)) continue;
                 if (string.IsNullOrWhiteSpace(e.UserId))
                 {
                     if (_opts.TryParseUserIdFromTenantUsersRk(e.RowKey, out var parsed))
@@ -250,13 +251,13 @@ public sealed partial class AzureTableTenantMembershipStore : ITenantMembershipS
 
             if (toUpdate.Count == 0) return;
 
-            foreach (var batch in Batch(toUpdate, 100))
+            foreach (var batch in Batch(toUpdate, 49))
             {
                 var actions = batch
-                    .Select(e => new TableTransactionAction(TableTransactionActionType.UpdateReplace, e))
+                    .Select(e => new TableTransactionAction(TableTransactionActionType.UpdateReplace, e, e.ETag))
                     .ToList();
 
-                await table.SubmitTransactionAsync(actions, ct).ConfigureAwait(false);
+                await IdentityTenantPurgePartition.Commit(table, actions, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
             }
         }
         catch (Exception ex)
@@ -301,7 +302,7 @@ public sealed partial class AzureTableTenantMembershipStore : ITenantMembershipS
                 tenantUser.Status = "Disabled";
                 tenantUser.DisabledAt = now;
                 tenantUser.DisabledReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
-                await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, true, _opts.RequireOwnershipProtection)
+                await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, true, _opts.RequireOwnershipProtection, _opts.RequireTenantPurgeFencing)
                     .ConfigureAwait(false);
             }
 
@@ -312,7 +313,7 @@ public sealed partial class AzureTableTenantMembershipStore : ITenantMembershipS
                 userTenant.DisabledAt = now;
                 userTenant.DisabledReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
                 userTenant.IsDefault = false;
-                await userTenants.UpdateEntityAsync(userTenant, userTenant.ETag, TableUpdateMode.Replace, ct)
+                await IdentityTenantPurgePartition.Update(userTenants, userTenant, userTenant.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct)
                     .ConfigureAwait(false);
             }
         }

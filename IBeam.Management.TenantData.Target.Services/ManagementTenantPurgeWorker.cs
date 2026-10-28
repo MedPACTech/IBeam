@@ -128,6 +128,8 @@ public sealed class ManagementTenantPurgeWorker(IManagementTenantPurgeJournalRep
     {
         public bool NativeReady { get; set; }
         public DateTimeOffset ExpiresUtc => expires;
+        public int JournalProtocolVersion => 1;
+        public Task RequireJournalAsync(CancellationToken ct = default) => JournalAsync(ct);
         public async Task JournalAsync(CancellationToken ct) {
             guard();
             var row = await repository.GetJobAsync(execution, ct);
@@ -137,7 +139,7 @@ public sealed class ManagementTenantPurgeWorker(IManagementTenantPurgeJournalRep
             await JournalAsync(ct);
             if (NativeReady) {
                 await policy(ct);
-                foreach (var nativeFence in nativeFences) await nativeFence.RequireFencedAsync(execution, ct);
+                foreach (var nativeFence in nativeFences) await nativeFence.RequireFencedAsync(execution with { LeaseFence = this }, ct);
             }
             await JournalAsync(ct);
         }

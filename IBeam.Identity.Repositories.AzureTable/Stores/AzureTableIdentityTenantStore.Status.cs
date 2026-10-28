@@ -17,7 +17,7 @@ public sealed partial class AzureTableIdentityTenantStore : IIdentityTenantStatu
         if (current.Version != version) throw new IdentityConcurrencyException();
         var now = DateTimeOffset.UtcNow; var patch = new TableEntity(TenantEntity.TenantsPartitionKey, tenant.ToString("D")) {
             ["Status"] = status, ["UpdatedAt"] = now, ["LastOperationId"] = operation };
-        try { var response = await TenantsTable().UpdateEntityAsync(patch, new ETag(version), TableUpdateMode.Merge, ct);
+        try { var response = await IdentityTenantPurgePartition.Update(TenantsTable(), patch, new ETag(version), TableUpdateMode.Merge, _opts.RequireTenantPurgeFencing, ct);
             return new(current.Tenant with { Status = status, UpdatedAt = now }, response.Headers.ETag?.ToString() ?? throw new IdentityProviderException("Tenant version unavailable."), operation); }
         catch (RequestFailedException ex) when (ex.Status is 404 or 412) { throw new IdentityConcurrencyException(); }
     }
