@@ -1,5 +1,7 @@
 # IBeam.Identity.Services
 
+`AddIBeamIdentityTenantPurge` supplies optional native orchestration over protected entity-family stores and a required trusted confirmed-job authority. No default customer/support caller can create native authorization. The Management bridge is a separate opt-in package; ordinary ownership/admin protection and global accounts remain unchanged. See [tenant purge](../docs/management/tenant-purge.md).
+
 Independent owner protection is opt-in under `IBeam:Identity:TenantOwnership`. Native membership administration enforces separate owner and administrator invariants using a shared conditional snapshot. See [tenant ownership protection](../docs/management/tenant-ownership-protection.md) for registration, sticky policy and the unsupported global-account lifecycle boundary.
 
 IBM-0105: AddIBeamIdentityTenantAdministration registers an optional external tenant adapter over existing Identity creation/hooks and conditional rename ports. Recovery resumes lifecycle work with no customer actor, membership, default tenant or token. See docs/management/customer-tenant-administration.md.

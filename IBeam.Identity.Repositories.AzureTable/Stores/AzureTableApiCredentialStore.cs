@@ -26,7 +26,7 @@ public sealed class AzureTableApiCredentialStore : IApiCredentialStore
         try
         {
             var entity = Map(credential);
-            await Table().AddEntityAsync(entity, ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Add(Table(), entity, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
             return Map(entity);
         }
         catch (Exception ex)
@@ -39,6 +39,7 @@ public sealed class AzureTableApiCredentialStore : IApiCredentialStore
     {
         try
         {
+            if (await IdentityTenantPurgePartition.HasTenantFence(_serviceClient, _opts, tenantId, ct) || await IdentityTenantPurgePartition.IsFenced(Table(), tenantId, _opts.ApiCredentialsPk(tenantId), ct)) return [];
             var pk = _opts.ApiCredentialsPk(tenantId);
             var list = new List<ApiCredentialRecord>();
             await foreach (var entity in Table().QueryAsync<ApiCredentialEntity>(
@@ -63,6 +64,7 @@ public sealed class AzureTableApiCredentialStore : IApiCredentialStore
     {
         try
         {
+            if (await IdentityTenantPurgePartition.HasTenantFence(_serviceClient, _opts, tenantId, ct) || await IdentityTenantPurgePartition.IsFenced(Table(), tenantId, _opts.ApiCredentialsPk(tenantId), ct)) return null;
             var response = await Table()
                 .GetEntityIfExistsAsync<ApiCredentialEntity>(
                     _opts.ApiCredentialsPk(tenantId),
@@ -97,7 +99,7 @@ public sealed class AzureTableApiCredentialStore : IApiCredentialStore
                     entity.RoleIdsCsv = JoinGuids(credential.RoleIds);
                     entity.RoleNamesCsv = JoinStrings(credential.RoleNames);
                     entity.ExpiresUtc = credential.ExpiresUtc;
-                    await Table().UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+                    await IdentityTenantPurgePartition.Update(Table(), entity, entity.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
                     return Map(entity);
                 }
                 catch (RequestFailedException ex) when (ex.Status == 412 && attempt < 4)
@@ -129,7 +131,7 @@ public sealed class AzureTableApiCredentialStore : IApiCredentialStore
                     var entity = await RequireEntityAsync(tenantId, credentialId, ct).ConfigureAwait(false);
                     entity.RoleIdsCsv = JoinGuids(roleIds);
                     entity.RoleNamesCsv = JoinStrings(roleNames);
-                    await Table().UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+                    await IdentityTenantPurgePartition.Update(Table(), entity, entity.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
                     return Map(entity);
                 }
                 catch (RequestFailedException ex) when (ex.Status == 412 && attempt < 4)
@@ -164,7 +166,7 @@ public sealed class AzureTableApiCredentialStore : IApiCredentialStore
                     entity.RevokedUtc = null;
                     entity.RevokedByUserId = null;
                     entity.RevocationReason = null;
-                    await Table().UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+                    await IdentityTenantPurgePartition.Update(Table(), entity, entity.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
                     return Map(entity);
                 }
                 catch (RequestFailedException ex) when (ex.Status == 412 && attempt < 4)
@@ -197,7 +199,7 @@ public sealed class AzureTableApiCredentialStore : IApiCredentialStore
                     entity.RevokedUtc ??= DateTimeOffset.UtcNow;
                     entity.RevokedByUserId ??= revokedByUserId?.ToString("D");
                     entity.RevocationReason = string.IsNullOrWhiteSpace(reason) ? entity.RevocationReason : reason.Trim();
-                    await Table().UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+                    await IdentityTenantPurgePartition.Update(Table(), entity, entity.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
                     return Map(entity);
                 }
                 catch (RequestFailedException ex) when (ex.Status == 412 && attempt < 4)
@@ -228,7 +230,7 @@ public sealed class AzureTableApiCredentialStore : IApiCredentialStore
                     entity.RevokedUtc = null;
                     entity.RevokedByUserId = null;
                     entity.RevocationReason = null;
-                    await Table().UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+                    await IdentityTenantPurgePartition.Update(Table(), entity, entity.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
                     return Map(entity);
                 }
                 catch (RequestFailedException ex) when (ex.Status == 412 && attempt < 4)
@@ -260,7 +262,7 @@ public sealed class AzureTableApiCredentialStore : IApiCredentialStore
                     var entity = await RequireEntityAsync(tenantId, credentialId, ct).ConfigureAwait(false);
                     entity.LastUsedUtc = usedUtc;
                     entity.LastUsedIp = string.IsNullOrWhiteSpace(ipAddress) ? entity.LastUsedIp : ipAddress.Trim();
-                    await Table().UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+                    await IdentityTenantPurgePartition.Update(Table(), entity, entity.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
                     return;
                 }
                 catch (RequestFailedException ex) when (ex.Status == 412 && attempt < 4)

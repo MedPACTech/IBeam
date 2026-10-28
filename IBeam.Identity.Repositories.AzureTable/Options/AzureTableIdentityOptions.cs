@@ -19,6 +19,8 @@ public sealed class AzureTableIdentityOptions
     public bool CreateTablesIfNotExists { get; set; } = true;
     /// <summary>Provider fence; automatically enabled by IBeam:Identity:TenantOwnership:Enabled.</summary>
     public bool RequireOwnershipProtection { get; set; }
+    /// <summary>Opt-in protocol for every native tenant-owned writer. Deploy all protected writers before enabling tenant purge.</summary>
+    public bool RequireTenantPurgeFencing { get; set; }
 
     // --- ElCamino identity tables (match IdentityConfiguration) ---
     public string IndexTableName { get; set; } = "AspNetIndex";

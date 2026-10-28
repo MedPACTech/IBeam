@@ -90,7 +90,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
                 CreatedAt = now
             };
 
-            await RolesTable().AddEntityAsync(entity, ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Add(RolesTable(), entity, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
             return Map(entity);
         }
         catch (Exception ex)
@@ -133,7 +133,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
                 existing.Description = roleDescription;
             existing.UpdatedAt = DateTimeOffset.UtcNow;
 
-            await RolesTable().UpdateEntityAsync(existing, existing.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Update(RolesTable(), existing, existing.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
             await RenameRoleInMembershipsAsync(tenantId, roleId, previousName, roleName, ct).ConfigureAwait(false);
 
             return Map(existing);
@@ -161,7 +161,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
             existing.Status = "Disabled";
             existing.UpdatedAt = DateTimeOffset.UtcNow;
 
-            await RolesTable().UpdateEntityAsync(existing, existing.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Update(RolesTable(), existing, existing.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
             await RemoveRoleFromMembershipsAsync(tenantId, roleId, existing.Name, ct).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -364,8 +364,8 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
         userTenant.RoleIdsCsv = roleIdsCsv;
         userTenant.RolesCsv = rolesCsv;
 
-        await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, destructive, _opts.RequireOwnershipProtection).ConfigureAwait(false);
-        await UserTenantsTable().UpdateEntityAsync(userTenant, userTenant.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+        await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, destructive, _opts.RequireOwnershipProtection, _opts.RequireTenantPurgeFencing).ConfigureAwait(false);
+        await IdentityTenantPurgePartition.Update(UserTenantsTable(), userTenant, userTenant.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
 
         return new UserTenantRoleAssignment(tenantId, userId, effectiveRoles);
     }
@@ -386,7 +386,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
 
         try
         {
-            await TenantsTable().AddEntityAsync(entity, ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Add(TenantsTable(), entity, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
         }
         catch (RequestFailedException ex) when (ex.Status == 409)
         {
@@ -415,7 +415,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
             {
                 tenant.LastOperationId = null;
                 tenant.UpdatedAt = now;
-                await TenantsTable().UpdateEntityAsync(tenant, tenant.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+                await IdentityTenantPurgePartition.Update(TenantsTable(), tenant, tenant.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
             }
         }
     }
@@ -451,7 +451,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
                 tenantUser.Email = userEmail;
             if (!string.IsNullOrWhiteSpace(userPhoneNumber))
                 tenantUser.PhoneNumber = userPhoneNumber;
-            await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection).ConfigureAwait(false);
+            await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection, requirePurge: _opts.RequireTenantPurgeFencing).ConfigureAwait(false);
         }
         else
         {
@@ -467,7 +467,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
                     Email = userEmail,
                     PhoneNumber = userPhoneNumber,
                     CreatedAt = now
-                }, true, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection).ConfigureAwait(false);
+                }, true, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection, requirePurge: _opts.RequireTenantPurgeFencing).ConfigureAwait(false);
             }
             catch (RequestFailedException ex) when (ex.Status == 409)
             {
@@ -487,7 +487,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
                     tenantUser.Email = userEmail;
                 if (!string.IsNullOrWhiteSpace(userPhoneNumber))
                     tenantUser.PhoneNumber = userPhoneNumber;
-                await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection)
+                await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection, requirePurge: _opts.RequireTenantPurgeFencing)
                     .ConfigureAwait(false);
             }
         }
@@ -513,13 +513,13 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
                 userTenant.LastSelectedAt = now;
             }
 
-            await userTenants.UpdateEntityAsync(userTenant, userTenant.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Update(userTenants, userTenant, userTenant.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
         }
         else
         {
             try
             {
-                await userTenants.AddEntityAsync(new UserTenantEntity
+                await IdentityTenantPurgePartition.Add(userTenants, new UserTenantEntity
                 {
                     PartitionKey = userTenantPk,
                     RowKey = userTenantRk,
@@ -530,7 +530,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
                     IsDefault = setAsDefault,
                     LastSelectedAt = setAsDefault ? now : null,
                     CreatedAt = now
-                }, ct).ConfigureAwait(false);
+                }, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
             }
             catch (RequestFailedException ex) when (ex.Status == 409)
             {
@@ -553,7 +553,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
                     userTenant.LastSelectedAt = now;
                 }
 
-                await userTenants.UpdateEntityAsync(userTenant, userTenant.ETag, TableUpdateMode.Replace, ct)
+                await IdentityTenantPurgePartition.Update(userTenants, userTenant, userTenant.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct)
                     .ConfigureAwait(false);
             }
         }
@@ -600,8 +600,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
             if (changed)
             {
                 existingByName.UpdatedAt = DateTimeOffset.UtcNow;
-                await RolesTable()
-                    .UpdateEntityAsync(existingByName, existingByName.ETag, TableUpdateMode.Replace, ct)
+                await IdentityTenantPurgePartition.Update(RolesTable(), existingByName, existingByName.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct)
                     .ConfigureAwait(false);
             }
 
@@ -628,7 +627,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
 
         try
         {
-            await RolesTable().AddEntityAsync(entity, ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Add(RolesTable(), entity, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
             return Map(entity);
         }
         catch (RequestFailedException ex) when (ex.Status == 409)
@@ -674,8 +673,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
             if (changed)
             {
                 existing.UpdatedAt = now;
-                await RolesTable()
-                    .UpdateEntityAsync(existing, existing.ETag, TableUpdateMode.Replace, ct)
+                await IdentityTenantPurgePartition.Update(RolesTable(), existing, existing.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct)
                     .ConfigureAwait(false);
             }
 
@@ -704,7 +702,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
 
         foreach (var tenantUser in affectedTenantUsers)
         {
-            await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection).ConfigureAwait(false);
+            await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection, requirePurge: _opts.RequireTenantPurgeFencing).ConfigureAwait(false);
 
             var userId = tenantUser.UserId;
             var userTenantResp = await UserTenantsTable()
@@ -716,7 +714,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
             var userTenant = userTenantResp.Value;
             userTenant.RolesCsv = tenantUser.RolesCsv;
             userTenant.RoleIdsCsv = tenantUser.RoleIdsCsv;
-            await UserTenantsTable().UpdateEntityAsync(userTenant, userTenant.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Update(UserTenantsTable(), userTenant, userTenant.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
         }
     }
 
@@ -743,7 +741,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
 
         foreach (var tenantUser in affectedTenantUsers)
         {
-            await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection).ConfigureAwait(false);
+            await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection, requirePurge: _opts.RequireTenantPurgeFencing).ConfigureAwait(false);
 
             var userId = tenantUser.UserId;
             var userTenantResp = await UserTenantsTable()
@@ -755,7 +753,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
             var userTenant = userTenantResp.Value;
             userTenant.RolesCsv = tenantUser.RolesCsv;
             userTenant.RoleIdsCsv = tenantUser.RoleIdsCsv;
-            await UserTenantsTable().UpdateEntityAsync(userTenant, userTenant.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Update(UserTenantsTable(), userTenant, userTenant.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
         }
     }
 

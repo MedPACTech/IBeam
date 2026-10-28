@@ -213,6 +213,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Management.TenantData
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Tests.Management.TenantData", "IBeam.Tests.Management.TenantData\IBeam.Tests.Management.TenantData.csproj", "{E4932EB7-5EC9-4DD3-8282-08114147905E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBeam.Management.TenantData.Identity", "IBeam.Management.TenantData.Identity\IBeam.Management.TenantData.Identity.csproj", "{7AAFCD49-2103-47B9-94D1-C558793088A5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1435,6 +1437,18 @@ Global
 		{E4932EB7-5EC9-4DD3-8282-08114147905E}.Release|x64.Build.0 = Release|Any CPU
 		{E4932EB7-5EC9-4DD3-8282-08114147905E}.Release|x86.ActiveCfg = Release|Any CPU
 		{E4932EB7-5EC9-4DD3-8282-08114147905E}.Release|x86.Build.0 = Release|Any CPU
+		{7AAFCD49-2103-47B9-94D1-C558793088A5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7AAFCD49-2103-47B9-94D1-C558793088A5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7AAFCD49-2103-47B9-94D1-C558793088A5}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7AAFCD49-2103-47B9-94D1-C558793088A5}.Debug|x64.Build.0 = Debug|Any CPU
+		{7AAFCD49-2103-47B9-94D1-C558793088A5}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7AAFCD49-2103-47B9-94D1-C558793088A5}.Debug|x86.Build.0 = Debug|Any CPU
+		{7AAFCD49-2103-47B9-94D1-C558793088A5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7AAFCD49-2103-47B9-94D1-C558793088A5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7AAFCD49-2103-47B9-94D1-C558793088A5}.Release|x64.ActiveCfg = Release|Any CPU
+		{7AAFCD49-2103-47B9-94D1-C558793088A5}.Release|x64.Build.0 = Release|Any CPU
+		{7AAFCD49-2103-47B9-94D1-C558793088A5}.Release|x86.ActiveCfg = Release|Any CPU
+		{7AAFCD49-2103-47B9-94D1-C558793088A5}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

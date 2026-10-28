@@ -45,6 +45,9 @@ public interface IManagementTenantPurgeLeaseFence
 {
     DateTimeOffset ExpiresUtc { get; }
     Task RequireAsync(CancellationToken ct = default);
+    /// <summary>Optional journal-only proof for a native fence validating itself; avoids recursive checks of that same fence.</summary>
+    int JournalProtocolVersion => 0;
+    Task RequireJournalAsync(CancellationToken ct = default) => throw new ManagementOperationUnavailableException();
 }
 /// <summary>App-owned exact-tenant cleanup. Preview is read-only. Destruction must reconcile by the stable fully scoped job and require its lease/write fence.</summary>
 public interface IManagementTenantPurgeHandler

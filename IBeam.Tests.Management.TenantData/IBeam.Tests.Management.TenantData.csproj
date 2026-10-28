@@ -3,4 +3,5 @@
   <ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /><PackageReference Include="MSTest" Version="4.0.1" /><PackageReference Include="Moq" Version="4.20.72" /><PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.3" /><Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../IBeam.Management.TenantData.Target.Api/IBeam.Management.TenantData.Target.Api.csproj" /><ProjectReference Include="../IBeam.Management.Repositories.AzureTable/IBeam.Management.Repositories.AzureTable.csproj" /><ProjectReference Include="../IBeam.Management.Api/IBeam.Management.Api.csproj" /></ItemGroup>
   <ItemGroup><Compile Include="../samples/Management.Bootstrap/docs/examples/SyntheticTenantExporter.cs" Link="SyntheticTenantExporter.cs" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../IBeam.Management.TenantData.Identity/IBeam.Management.TenantData.Identity.csproj" /><ProjectReference Include="../IBeam.Identity.Repositories.AzureTable/IBeam.Identity.Repositories.AzureTable.csproj" /></ItemGroup>
 </Project>

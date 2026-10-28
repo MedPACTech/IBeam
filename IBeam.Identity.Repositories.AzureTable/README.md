@@ -1,5 +1,7 @@
 # IBeam.Identity.Repositories.AzureTable
 
+Optional tenant purge requires `IBeam:Identity:AzureTable:RequireTenantPurgeFencing=true`, all protected native writers deployed, and ten distinct pre-provisioned entity-family tables. `AddIBeamIdentityAzureTableTenantPurge` registers entity-focused native resource stores. Per-tenant partition registries and exact local ETags prevent delayed writes from recreating records; permanent operational tombstones remain explicit retained scope. No runtime purge table creation or global user/OTP/session deletion. See [tenant purge](../docs/management/tenant-purge.md).
+
 IBM-0122 adds the optional ownership protocol: `OwnerRoleIds` and `OwnershipProtocolVersion` share the existing tenant membership revision; the provider's `RequireOwnershipProtection` fence is derived from the native ownership configuration. Uncoordinated destructive writers fail closed and ordinary grants cannot discard existing authority. See [ownership protocol and rollout](../docs/management/tenant-ownership-protection.md).
 
 IBM-0105: AzureTableIdentityTenantStore also implements IIdentityTenantConditionalStore. Exact ETags guard rename; a merge preserves consumer columns and adds LastOperationId only on managed writes. Legacy missing creation timestamps project as null and reads never rewrite rows. See docs/management/customer-tenant-administration.md.

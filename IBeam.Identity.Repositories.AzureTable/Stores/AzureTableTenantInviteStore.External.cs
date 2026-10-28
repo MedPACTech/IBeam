@@ -9,7 +9,7 @@ public sealed partial class AzureTableTenantInviteStore : IExternalTenantInviteS
     public async Task<TenantInviteRecord> EnsureAsync(TenantInviteRecord invite, CancellationToken ct = default)
     {
         // The primary insert fences expired workers. Index repair is safe after a crash between partitions.
-        try { await Table().AddEntityAsync(ToEntity(invite), ct); }
+        try { await IdentityTenantPurgePartition.Add(Table(), ToEntity(invite), _opts.RequireTenantPurgeFencing, ct); }
         catch (RequestFailedException ex) when (ex.Status == 409) { }
         var current = await GetAsync(invite.TenantId, invite.InviteId, ct)
             ?? throw new IdentityValidationException("External invitation is unavailable.");
@@ -21,7 +21,7 @@ public sealed partial class AzureTableTenantInviteStore : IExternalTenantInviteS
             !(current.RoleIds ?? []).Order().SequenceEqual((invite.RoleIds ?? []).Order()) ||
             Serialize(current.Metadata) != Serialize(invite.Metadata)) throw new IdentityValidationException("External invitation conflicts.");
         var index = ToEntity(current); index.PartitionKey = TokenPk(current.TokenHash); index.RowKey = TokenRk();
-        try { await Table().AddEntityAsync(index, ct); }
+        try { await IdentityTenantPurgePartition.Add(Table(), index, _opts.RequireTenantPurgeFencing, ct); }
         catch (RequestFailedException ex) when (ex.Status == 409) {
             var existing = await Table().GetEntityAsync<Entities.TenantInviteEntity>(index.PartitionKey, index.RowKey, cancellationToken: ct);
             if (existing.Value.TenantId != index.TenantId || existing.Value.InviteId != index.InviteId)

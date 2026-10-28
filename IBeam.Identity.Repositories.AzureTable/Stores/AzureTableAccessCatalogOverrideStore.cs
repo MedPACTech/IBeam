@@ -130,7 +130,7 @@ public sealed class AzureTableAccessCatalogOverrideStore : IIBeamAccessCatalogOv
             entity.Status = "Active";
             entity.UpdatedAt = now;
 
-            await Table().UpsertEntityAsync(entity, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Upsert(Table(), entity, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
             return Map(entity);
         }
         catch (Exception ex)
@@ -160,7 +160,7 @@ public sealed class AzureTableAccessCatalogOverrideStore : IIBeamAccessCatalogOv
             var entity = response.Value;
             entity.Status = "Disabled";
             entity.UpdatedAt = DateTimeOffset.UtcNow;
-            await Table().UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Update(Table(), entity, entity.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
