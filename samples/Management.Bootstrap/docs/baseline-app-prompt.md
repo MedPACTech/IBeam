@@ -49,3 +49,22 @@ Use the existing diagnostics, app registry, connection and support-user/assignme
 ## Ownership integration (upcoming release)
 
 Use the independent `management.identity.owners.read` and `management.identity.owners.transfer` grants and fixed scoped routes described in [ownership migration](../../../docs/management/ownership-consumer-migration.md). Keep `users.read` independent for destination selection. Bind the current ownership version through If-Match and include both membership versions in the strict transfer body. Preserve original intent/key on uncertain retries and poll the returned Location without repeating a transfer. Do not derive the owner badge from Tenants.OwnerUserId, expose machine keys, or treat roles.assign as transfer authority. Stable 2.16.1 lacks these endpoints; use a matching validated development package feed until the coordinated ownership release.
+
+
+## Optional tenant purge (upcoming release; separately enabled target/portal)
+
+Use independent `management.tenants.delete` authority, not tenant status or export permission.
+Routes under `/api/management/applications/{app}/tenants/{tenant}` are POST `/purge-plans`
+with `{policyKey}`, POST `/purges` with `{policyKey,planId,confirmationBinding}`, and GET
+`/purges/{jobId}`. Both POSTs require the original exact tenant `If-Match` and separate stable
+idempotency keys. Show the returned inventory, retained/excluded categories and short plan expiry;
+confirm only after explicit human intent. A valid plan is bound to the original support person,
+app/realm/tenant, policy, inventory and native version. A changed/expired plan needs fresh preflight.
+
+An unknown preflight requires a valid explicitly recovered plan before confirmation. An unknown
+confirmation preserves its original operation ID and status Location: poll it without creating a
+new destructive intent. Queued/fencing/purging/verifying, partial, failed, cancelled and unknown
+remain distinct from succeeded; display retained/excluded coverage even after success. There is
+no support resume, cancellation or global-account deletion endpoint. The consumer owns app data
+cleanup and all request/write fences. This capability is not installed in the running demo; use
+an explicitly configured test instance and the tenant-purge guide. Stable 2.16.1 lacks it.
