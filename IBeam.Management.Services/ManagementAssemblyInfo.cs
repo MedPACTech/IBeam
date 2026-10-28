@@ -4,3 +4,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("IBeam.Tests.Management.CustomerIdentity")]
 
 [assembly: InternalsVisibleTo("IBeam.Tests.Management.Operations")]
+[assembly: InternalsVisibleTo("IBeam.Tests.Management.TenantData")]

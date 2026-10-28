@@ -42,6 +42,20 @@ public sealed record ManagementTenantExportJobStatus(int ContractVersion, Guid T
     ManagementTenantExportCoverage[] Coverage, string? FailureCode);
 /// <summary>Acceptance/lookup outcome is separate from business job state. Unknown is never reported as succeeded.</summary>
 public sealed record ManagementTenantExportResult(Guid TenantId, Guid JobId, string Outcome, ManagementTenantExportJobStatus? Job);
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ManagementTenantExportAction(string PolicyKey);
+public interface IManagementTenantExportPortalService
+{
+    Task<ManagementTenantExportResult> SubmitAsync(Guid applicationId, Guid tenantId, ManagementTenantExportRequest request, string idempotencyKey, CancellationToken ct = default);
+    Task<ManagementTenantExportResult> FindAsync(Guid applicationId, Guid tenantId, Guid jobId, CancellationToken ct = default);
+}
+/// <summary>Same fixed contract on portal and target; does not install a handler or grant authority.</summary>
+public static class ManagementTenantExportOperation
+{
+    public static ManagementOperationDescriptor Descriptor { get; } = new(ManagementTenantDataOperations.Export, "POST", ManagementTenantExportRoutes.Submit,
+        new(typeof(ManagementTenantExportRequest), "management.tenant-export.submit.request"), new(typeof(ManagementTenantExportResult), "management.tenant-export.job.result"),
+        typeof(IManagementOperationHandler<ManagementTenantExportRequest, ManagementTenantExportResult>), Array.AsReadOnly(new[] { ManagementTenantDataOperations.Export }), 1, ManagementTenantDataOperations.Export);
+}
 
 public sealed record ManagementTenantExportDataset(string Key, string Kind);
 /// <summary>Trusted static inventory declared by the consumer, never discovered from customer record names.</summary>

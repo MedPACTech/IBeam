@@ -111,7 +111,7 @@ public sealed class ExportTargetHttpTests
         Assert.DoesNotContain("PRIVATE-", JsonSerializer.Serialize(f.Audits));
         Assert.IsTrue(f.Audits.Any(x => x.Operation == ManagementTenantDataOperations.Export && !x.Succeeded));
     }
-    private sealed class Fixture : IAsyncDisposable
+    internal sealed class Fixture : IAsyncDisposable
     {
         public Guid Tenant { get; } = Guid.NewGuid(); public Guid Job { get; } = Guid.NewGuid();
         public Guid Org { get; } = Guid.NewGuid(); public Guid AppId { get; } = Guid.NewGuid(); public Guid Realm { get; } = Guid.NewGuid(); public Guid User { get; } = Guid.NewGuid();
@@ -121,6 +121,8 @@ public sealed class ExportTargetHttpTests
         public DurableExportTests.Journal Journal { get; } = new();
         public WebApplication Server { get; private set; } = null!; public HttpClient Http { get; private set; } = null!;
         private readonly RSA rsa = RSA.Create(2048); private string secret = "";
+        internal string Secret => secret;
+        internal SigningCredentials Signing => new(new RsaSecurityKey(rsa) { KeyId = "export-fixture-key" }, SecurityAlgorithms.RsaSha256);
         public static async Task<Fixture> Create(bool standardJobs = false)
         {
             var f = new Fixture(); var codec = new ManagementCredentialSecretCodec(); var credentialId = Guid.NewGuid(); f.secret = codec.Create(credentialId);

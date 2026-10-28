@@ -2,14 +2,14 @@
 
 ## IBM-0130: versioned contracts and optional target boundary
 
-The contract/adaptor card supplies `IBeam.Management.TenantData` contracts, optional `IBeam.Management.TenantData.Target.Services` and `.Api` packages, and compiled signed submit/status routes. IBM-0131 adds the framework's durable journal/service, leased worker and private customer retrieval gate described below. Qurvia's business exporter remains app-owned; the scoped support portal endpoints/client facade are IBM-0132. Synthetic consumer coverage and the full export feature regression are IBM-0133. These are development changes for a future release, not published 2.16.1 functionality.
+The contract/adaptor card supplies `IBeam.Management.TenantData` contracts, optional `IBeam.Management.TenantData.Target.Services` and `.Api` packages, and compiled signed submit/status routes. IBM-0131 adds the framework's durable journal/service, leased worker and private customer retrieval gate. IBM-0132 adds scoped support portal submission/status. Qurvia's business exporter remains app-owned. Synthetic consumer coverage and the full export feature regression are IBM-0133. These are development changes for a future release, not published 2.16.1 functionality.
 
 | Surface | Contract / path |
 | --- | --- |
 | Native export submission | `POST /api/management-tenant-data/tenants/{tenantId}/exports` |
 | Native read-only status | `GET /api/management-tenant-data/tenants/{tenantId}/exports/{jobId}` |
-| Planned scoped portal submission | `POST /api/management/applications/{applicationId}/tenants/{tenantId}/exports` |
-| Planned scoped portal status | `GET /api/management/applications/{applicationId}/tenants/{tenantId}/exports/{jobId}` |
+| Scoped portal submission | `POST /api/management/applications/{applicationId}/tenants/{tenantId}/exports` |
+| Scoped portal status | `GET /api/management/applications/{applicationId}/tenants/{tenantId}/exports/{jobId}` |
 | Independent authority | `management.tenants.export`; discovery additionally needs `management.operations.info` |
 
 The native routes use the standard persisted machine-key plus short-lived RS256 Management actor proof. The descriptor is bound to the exact compiled export DTOs, method and submit route. The status route is a compiled read-only receipt alias bound to the same export operation, signed tenant and stable job GUID. It cannot become a general native route proxy. Export's selected resource GUID is the tenant GUID. Neither ownership, tenant status, membership nor another app's assignment grants export. The existing `management.tenants.delete` name remains unavailable until its own later module is installed.
@@ -88,6 +88,27 @@ Unknown exceptions, timeouts and ambiguous replies pause the journal with `Needs
 For the app's separate authenticated customer retrieval route, call the server-only `IManagementTenantExportCustomerArtifacts.RequireAsync` with the trusted stored job scope and authenticated customer. It rejects Management human/credential principals, guessed/foreign jobs, incomplete/cancelled/expired outputs and revoked customer access. It checks customer authorization before private lookup and again before returning the JSON-hidden artifact handle; the delivery adapter verifies artifact ownership. The app then reads/streams its own artifact through its customer channel. No support HTTP download route, bearer URL or customer impersonation is supplied.
 
 Worker audit events are metadata-only system events bound to organization/app/job and deployment. The initiating support person remains in the immutable journal; workers do not impersonate that person. Audit and app/journal commits are separate resources: a late audit outage must be reconciled from the journal without replaying consumer work. The optional scan emits a fixed failure counter, never provider exception text.
+
+## IBM-0132: scoped support portal API
+
+Register the standard Management-only authentication/MFA, current app/user assignments, verified connections, secret/signing providers and approved HTTPS origins from [registered dispatch](registered-operation-dispatch.md), then enable export:
+
+```csharp
+using IBeam.Management.Api;
+
+services.AddIBeamManagementRegisteredOperationsApi(configuration);
+services.AddIBeamManagementPortalTenantExportApi(configuration);
+```
+
+The explicit API opt-in also registers `AddIBeamManagementTenantExportPortal` and the same Core `ManagementTenantExportOperation.Descriptor` used at the target. It installs no native job service, app exporter, delivery provider or customer content access in the portal. Base Management API registration does not expose these controllers. Existing key/human grants are unchanged: reissue/reconnect keys and explicitly assign/delegate `management.tenants.export` to the appropriate support people.
+
+Submit a strict JSON object containing only `policyKey`, plus the native tenant's exact `If-Match` and a valid `Idempotency-Key`. The selected app and tenant are GUID route parameters. POST returns 202 with `Location` pointing to the scoped job status. `Outcome: accepted` acknowledges submission; the nested job state determines actual progress/completion. Polling returns 200 for known safe status or 202 with `Outcome: unknown` and no job projection. Never treat transport/submission acceptance as completed export.
+
+Before resolving secrets, the registered client checks current support user/app/assignment and the verified connection. It then refreshes the live target key/enablement and descriptor metadata before signed dispatch, with further live authorization checks around the call. Every submit/poll is signed for its exact operation/app/realm/person/tenant/job, and the target's journal checks the original person binding. The target policy resolves its own approved recipient/channel; the portal has no recipient, destination URL, artifact reference or download parameter.
+
+Unknown mutation replies retain the original scoped operation/job GUID from the signed client and return the same status location. They never launch an automatic replacement export. Malformed/foreign native scope or unsafe metadata is rejected inside the transport while that original intent is still known, so an ambiguous committed write becomes scoped unknown rather than a false failure/completion. Polling uses read-only receipt reconciliation with current authority and never creates/retries a job. A rotated key can poll an existing job only through a newly verified compatible connection and the original authorized support person.
+
+Both ends reconstruct versioned metadata: known states/outcomes, UTC bounds, at most 32 unique approved category keys, dataset/attachment kinds, fixed failure codes and truthful full/partial dispositions. The portal never echoes provider error text, recipient details or artifact content. Responses are no-store and body/header logging is disabled. The service uses metadata-only audit and marks unknown outcomes separately from successful acceptance; no customer artifact HTTP route is implied.
 
 ## Verification cadence
 

@@ -125,6 +125,12 @@ public sealed class ManagementRegisteredOperationClient(ManagementOperationRegis
                 TResult result;
                 try { result = new ManagementOperationPayloadCodec(registry).ReadResult<TResult>(operation, payload); }
                 catch (ManagementAccessDeniedException) { throw new ManagementOperationUnavailableException(); }
+                if (operation == ManagementTenantDataOperations.Export)
+                {
+                    var export = TenantData.ManagementTenantExportMetadata.Project((TenantData.ManagementTenantExportResult)(object)result!, tenant, scope.OperationId);
+                    if (lookup && export.Outcome == "accepted" || !lookup && export.Outcome == "found") throw new ManagementOperationUnavailableException();
+                    result = (TResult)(object)export;
+                }
                 await Require(appId, operation, timeout.Token);
                 latest = await applications.GetAsync(org, appId, timeout.Token);
                 if (latest is null || !latest.IsEnabled || latest.Version != app.Version || latest.ActiveCredentialId != connectionId) throw new ManagementAccessDeniedException();
