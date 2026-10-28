@@ -20,7 +20,7 @@ services.AddIBeamManagementPortalCustomerOwnershipApi(configuration);
 
 Use the normal support Identity login, current application assignments, verified target connection, secret store and delegated signing configuration. The portal retains its existing approved HTTPS origins and network restrictions. No request accepts a target URL, API key, actor ID or consumer policy override.
 
-These are development capabilities for a future coordinated release. Stable 2.16.1 contains the invitation compatibility fix; it does not contain IBM-0123/0124. Upgrade related package versions together after release approval. Neither this work nor its tests perform production ownership transfers.
+These capabilities are included in 2.17.0. Stable 2.16.1 contains the invitation compatibility fix and lacks IBM-0123/0124. Upgrade related package versions together and explicitly activate the native adapters, trust and grants. Installing packages and running the synthetic tests do not perform production ownership transfers.
 
 ## Routes and independent permissions
 

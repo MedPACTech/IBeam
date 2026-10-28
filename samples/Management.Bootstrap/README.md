@@ -2,7 +2,7 @@
 
 This versioned sample runs a support API from IBeam NuGets and, optionally, three separate synthetic customer Identity API processes. The frontend requires only the running support API URL and a normal support login. No framework ProjectReferences or customer-specific backend are used.
 
-This development bootstrap targets the upcoming `2.17.0` ownership release; stable `2.16.1` contains only the invite compatibility patch. Until 2.17.0 is released, provide a generated local feed and its exact `-PackageVersion`. For local validation, generate a matching feed using `scripts/Test-ManagementCustomerIdentityPackages.ps1` and supply `-PackageFeed <absolute-feed-path> -PackageVersion <actual-generated-version>`. With no feed supplied, startup restores published packages from NuGet.org. They do not publish packages or deploy services. Requirements: PowerShell 7, .NET 10, Node.js and Azurite Table (`npm install -g azurite@3.35.0`).
+This bootstrap targets the stable `2.17.0` Management lifecycle release. Keep related IBeam packages aligned at that version. For local validation, generate a matching feed using `scripts/Test-ManagementCustomerIdentityPackages.ps1` and supply `-PackageFeed <absolute-feed-path> -PackageVersion <actual-generated-version>`. With no feed supplied, startup restores published packages from NuGet.org. They do not publish packages or deploy services. Requirements: PowerShell 7, .NET 10, Node.js and Azurite Table (`npm install -g azurite@3.35.0`).
 
 From this sample directory:
 

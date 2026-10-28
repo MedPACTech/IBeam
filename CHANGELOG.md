@@ -1,5 +1,89 @@
 # Changelog
 
+## 2.17.0 - 2026-10-28
+
+IBeam 2.17.0 extends the Management API with ownership safety, independently authorized
+commercial and app operations, tenant export/purge hooks, committed membership events,
+safe transport telemetry and bounded invitation bulk revocation. Related packages remain
+one .NET 10 release train; align all IBeam package references at **2.17.0**.
+
+## Highlights
+
+- Independent last-owner and last-administrator protection, policy-bound role replacement,
+  authoritative owner lookup and atomic ownership transfer with exact versions and durable receipts.
+- A typed registered-operation catalog and shared signed target sender. Fixed routes, schema
+  fingerprints, live person/app/machine grants and separate support/customer realms remain enforced.
+- Explicit licence read/suspend/restore and seat read/assign/unassign operations replace borrowed
+  tenant-status and membership permissions. Native eligibility, capacity and all-writer fencing apply.
+- Optional asynchronous tenant export and recoverable tenant purge. Apps implement their own data
+  inventory and hooks; support receives safe progress/coverage metadata. Export delivery belongs to
+  the authenticated customer. Purge preflight and confirmation bind the person, inventory and native
+  version, preserve original unknown outcomes and require native/app access and write fences.
+- Durable native membership/role/ownership events with at-least-once delivery, bounded retries and
+  dead-letter handling. App projections deduplicate original IDs and reconcile current native state
+  behind their app write fence; delivery alone does not prove projection completion.
+- Metadata-only registered-operation audit and completion telemetry, including original operation
+  IDs on uncertain writes. No keys, request/response bodies or provider exception text are exported.
+- Independently granted `management.invites.bulk-revoke` freezes 1–50 native invitations and exact
+  versions into a durable batch. Bounded work, acceptance races, per-item outcomes and read-only
+  receipts preserve safe same-intent recovery without sending invitation mail.
+- Package-only Management bootstrap with Development Swagger UI, accurate loaded-package version,
+  optional portal composition and updated frontend migration instructions. Repeated synthetic setup
+  preserves passwords, keys and changed/revoked access. The three-app running demo remains native
+  Identity/ownership; lifecycle hooks are demonstrated by isolated synthetic integration fixtures.
+
+## New optional packages
+
+- `IBeam.Management.Licensing`
+- `IBeam.Management.Operations.Target.Api`
+- `IBeam.Management.TenantData.Target.Services`
+- `IBeam.Management.TenantData.Target.Api`
+- `IBeam.Management.TenantData.Identity`
+
+Existing diagnostics-only and Identity-only compositions remain supported. Upgrading a package
+does not enable a lifecycle endpoint, install a consumer data adapter or widen any existing grant.
+
+## Upgrade and activation
+
+1. Update related framework packages together to 2.17.0. The bootstrap project already pins this
+   version and restores NuGet.org packages unless an explicit local validation feed is supplied.
+2. Deploy compatible conditional native stores and every participating request/write fence before
+   enabling mutation capabilities. Custom providers must implement their declared durable protocols;
+   missing/incompatible adapters fail closed. Preprovision dedicated tables and retain protection keys.
+3. Migrate existing owner metadata through trusted native setup, using immutable owner-role
+   definitions and the chosen single/multiple-owner policy. Never infer ownership from the deprecated
+   `Tenants.OwnerUserId`, widen a provisioning policy to transfer owners or delete persisted guards.
+4. Explicitly configure target enabled operations, backend credentials, support app assignments and
+   delegation ceilings. Licence, seat, owner-transfer, export, purge and bulk-revoke grants are distinct.
+5. Implement app-owned exporter/purger/delivery/projection hooks and durable stores for the app's
+   actual inventory. The synthetic samples are not production Qurvia data adapters. Export adds no
+   support download endpoint; tenant purge does not imply deletion of shared global user identities.
+6. Preserve exact `If-Match`, original body/idempotency key and returned operation IDs/Locations after
+   uncertain writes. Polling reads receipts only. Purge requires explicit human confirmation; trusted
+   recovery must resume its original durable job. Retained/excluded coverage remains visible.
+7. Replace duplicate app-route signing with `IManagementTargetOperationSender` only after typed,
+   allowlisted app descriptors and handlers are installed. Keep approved HTTPS/DNS/TLS policy.
+
+See [the frontend and lifecycle handoff](../management/lifecycle-consumer-handoff.md),
+[ownership migration](../management/ownership-consumer-migration.md),
+[registered dispatch](../management/registered-operation-dispatch.md),
+[tenant export](../management/tenant-export.md), [tenant purge](../management/tenant-purge.md),
+[events](../management/membership-lifecycle-events.md),
+[projections](../management/membership-projections.md) and
+[bulk revoke](../management/bulk-invitation-revocation.md).
+
+## Validation and release scope
+
+The implementation epic completed **29 cards across seven features, 165 points**. Feature-completion
+validation passed **1,785 checks in 12 fresh generated-NuGet-only suites**, 38 dependency packages,
+24 inspected Management packages, an isolated two-target smoke, real support/customer MFA and
+three-app ownership/enterprise workflows, and 45 new host/Swagger/optional-route checks.
+
+The stable release adds versioned release-train packing, required main CI and a fresh public-feed
+restore/build verification. Package manifests/checksums and validation evidence accompany the release.
+Publishing framework packages does not deploy a consuming API/frontend or execute production
+export, purge, ownership transfer or invitation changes. Those remain app-owned rollout actions.
+
 ## 2.16.0 - 2026-10-20
 
 IBeam 2.16.0 adds tenant and customer user management for enterprise onboarding through the Management API. Support users can administer their assigned applications while customer authentication, invitation acceptance and tenant data remain owned by each application backend.

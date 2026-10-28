@@ -40,7 +40,7 @@ Customer tokens are separate from support tokens. After committed role/ownership
 
 ## Synthetic package-only demo
 
-The portable bootstrap project targets upcoming 2.17.0. Until its stable release exists, provide a generated package feed and its exact version; the scripts apply that version consistently to both restore and publish. Development prereleases currently use the repository's existing GitHub Packages channel, not public NuGet.org; a successful development publish must not be mistaken for a new stable NuGet release.
+The portable bootstrap project targets stable 2.17.0 from NuGet.org. Local validation can supply a generated package feed and its exact version; the scripts apply that version consistently to both restore and publish. Development prereleases currently use the repository's existing GitHub Packages channel, not public NuGet.org; a successful development publish must not be mistaken for a new stable NuGet release.
 
 From `samples/Management.Bootstrap`, using PowerShell 7:
 

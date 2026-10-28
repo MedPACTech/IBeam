@@ -2,7 +2,7 @@
 
 Build the tenant and customer-user management screens in the existing frontend stack against the running **IBeam Management API**. This is an independent bootstrap application: configure its API URL, authenticate a support person, select an assigned application, and call that API. The frontend does not need the framework source or a backend repository checkout.
 
-Local enterprise demo API: `http://127.0.0.1:5155`. Check `GET /health`, Development Swagger UI at `/swagger`, and its live specification at `/openapi/v1.json`. The version is read from the loaded Management package; check it before assuming a capability exists. Allowed local frontend origins are `http://127.0.0.1:5145` and `http://localhost:5145`. The operator starts the API using the framework's `samples/Management.Bootstrap/.scripts/start-enterprise-demo.ps1`; `-HostRoot` can point at a temporary host. Do not start or silently mock a missing API from browser code. These new lifecycle features require a matching validated development NuGet feed until a coordinated stable release; stable 2.16.1 does not contain them.
+Local enterprise demo API: `http://127.0.0.1:5155`. Check `GET /health`, Development Swagger UI at `/swagger`, and its live specification at `/openapi/v1.json`. The version is read from the loaded Management package; check it before assuming a capability exists. Allowed local frontend origins are `http://127.0.0.1:5145` and `http://localhost:5145`. The operator starts the API using the framework's `samples/Management.Bootstrap/.scripts/start-enterprise-demo.ps1`; `-HostRoot` can point at a temporary host. Do not start or silently mock a missing API from browser code. Use the aligned stable 2.17.0 NuGet packages; stable 2.16.1 does not contain these lifecycle features.
 
 The temporary host's private `.local/management-enterprise/operator.json` and `demo-users.json` contain local support credentials. Real MFA messages are in `.local/management-enterprise/outbox`. The operator may use these files for local interactive tests; never paste, log, commit, expose over HTTP or embed their contents. `reader@example.test` has all-app customer management; `limited@example.test` has diagnostic errors only for Atlas; `unassigned@example.test` has no app assignment. Passwords are generated privately. Customer passwords, target keys, signing material and storage settings remain backend/operator-only.
 
@@ -46,12 +46,12 @@ Show tenant and membership status independently. Disabling a tenant preserves it
 
 Use the existing diagnostics, app registry, connection and support-user/assignment screens. A connection key is a backend secret stored by an authorized operator workflow; ordinary frontend configuration and customer-management calls need only the API URL and normal support session. Do not persist machine keys in browser storage or code. Build the frontend and its normal UI tests; backend feature implementation, new authentication shortcuts, production deployment and package publication are outside this handoff.
 
-## Ownership integration (upcoming release)
+## Ownership integration (2.17.0)
 
-Use the independent `management.identity.owners.read` and `management.identity.owners.transfer` grants and fixed scoped routes described in [ownership migration](../../../docs/management/ownership-consumer-migration.md). Keep `users.read` independent for destination selection. Bind the current ownership version through If-Match and include both membership versions in the strict transfer body. Preserve original intent/key on uncertain retries and poll the returned Location without repeating a transfer. Do not derive the owner badge from Tenants.OwnerUserId, expose machine keys, or treat roles.assign as transfer authority. Stable 2.16.1 lacks these endpoints; use a matching validated development package feed until the coordinated ownership release.
+Use the independent `management.identity.owners.read` and `management.identity.owners.transfer` grants and fixed scoped routes described in [ownership migration](../../../docs/management/ownership-consumer-migration.md). Keep `users.read` independent for destination selection. Bind the current ownership version through If-Match and include both membership versions in the strict transfer body. Preserve original intent/key on uncertain retries and poll the returned Location without repeating a transfer. Do not derive the owner badge from Tenants.OwnerUserId, expose machine keys, or treat roles.assign as transfer authority. These endpoints require aligned 2.17.0 packages; stable 2.16.1 lacks them.
 
 
-## Optional tenant purge (upcoming release; separately enabled target/portal)
+## Optional tenant purge (2.17.0; separately enabled target/portal)
 
 Use independent `management.tenants.delete` authority, not tenant status or export permission.
 Routes under `/api/management/applications/{app}/tenants/{tenant}` are POST `/purge-plans`
