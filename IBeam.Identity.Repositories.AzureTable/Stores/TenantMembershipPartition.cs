@@ -1,6 +1,7 @@
 using Azure;
 using Azure.Data.Tables;
 using IBeam.Identity.Exceptions;
+using IBeam.Identity.Repositories.AzureTable.Options;
 namespace IBeam.Identity.Repositories.AzureTable.Stores;
 
 /// <summary>Persistence fence only: membership + partition revision commit in one Table transaction.
@@ -20,7 +21,7 @@ internal static class TenantMembershipPartition
         return (await table.GetEntityAsync<TableEntity>(partition, GuardKey, cancellationToken: ct)).Value;
     }
     internal static async Task Write<T>(TableClient table, T row, bool add, CancellationToken ct, bool requireUnprotected = false,
-        bool requireOwnershipProtection = false, bool requirePurge = false) where T : class, ITableEntity, new()
+        bool requireOwnershipProtection = false, bool requirePurge = false, AzureTableIdentityOptions? eventOptions = null) where T : class, ITableEntity, new()
     {
         if (row is Entities.TenantUserEntity member) {
             member.IBeamLastMembershipOperationId = "native";
@@ -45,14 +46,20 @@ internal static class TenantMembershipPartition
                     throw new IdentityValidationException("Versioned membership administration is required for this tenant.");
             }
         }
-        await Commit(table, row, add, guard, guard.ETag, ct, requirePurge: requirePurge);
+        await Commit(table, row, add, guard, guard.ETag, ct, requirePurge: requirePurge, eventOptions: eventOptions);
     }
-    internal static async Task Commit<T>(TableClient table, T row, bool add, TableEntity guard, ETag expectedGuard, CancellationToken ct, bool replace = false, bool requirePurge = false) where T : class, ITableEntity, new()
+    internal static async Task Commit<T>(TableClient table, T row, bool add, TableEntity guard, ETag expectedGuard, CancellationToken ct, bool replace = false, bool requirePurge = false, AzureTableIdentityOptions? eventOptions = null) where T : class, ITableEntity, new()
     {
         guard["Revision"] = Guid.NewGuid();
-        await IdentityTenantPurgePartition.Commit(table, [
+        var actions = new List<TableTransactionAction> {
             new(TableTransactionActionType.UpdateMerge, guard, expectedGuard),
-            new(add ? TableTransactionActionType.Add : replace ? TableTransactionActionType.UpdateReplace : TableTransactionActionType.UpdateMerge, row, row.ETag)], requirePurge, ct);
+            new(add ? TableTransactionActionType.Add : replace ? TableTransactionActionType.UpdateReplace : TableTransactionActionType.UpdateMerge, row, row.ETag) };
+        try {
+            await IdentityMembershipEventPartition.AppendAsync(table, actions, guard, eventOptions, null, null, ct);
+            await IdentityTenantPurgePartition.Commit(table, actions, requirePurge, ct);
+        } catch (RequestFailedException ex) when (eventOptions?.RequireMembershipLifecycleEvents == true && ex.Status is 409 or 412) { throw new IdentityConcurrencyException(); }
+        catch (Exception ex) when (eventOptions?.RequireMembershipLifecycleEvents == true && ex is not IBeam.Identity.Exceptions.IdentityException && !(ex is OperationCanceledException && ct.IsCancellationRequested))
+            { throw new IdentityProviderException("The atomic membership event commit outcome is unavailable; inspect its original operation."); }
     }
     internal static async Task RequireLegacyDestructiveWrite(TableClient table, string partition, CancellationToken ct, bool requireOwnershipProtection = false)
     {

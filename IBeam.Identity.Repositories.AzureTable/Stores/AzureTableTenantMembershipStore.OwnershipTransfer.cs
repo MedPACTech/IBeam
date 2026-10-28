@@ -42,19 +42,23 @@ public sealed partial class AzureTableTenantMembershipStore : IIdentityTenantOwn
             ["SourceUserId"] = source.UserId.ToString("D"), ["DestinationUserId"] = destination.UserId.ToString("D"),
             ["IntentHash"] = change.IntentHash, ["CommittedAt"] = DateTimeOffset.UtcNow };
         TableEntity Membership(IdentityTenantMembershipState state) => new(pk, _opts.TenantUsersRk(state.UserId.ToString("D"))) {
-            ["RoleIdsCsv"] = string.Join(',', state.RoleIds.Select(x => x.ToString("D"))), ["RolesCsv"] = string.Join(',', state.RoleNames),
+            ETag = new ETag(state.Version), ["RoleIdsCsv"] = string.Join(',', state.RoleIds.Select(x => x.ToString("D"))), ["RolesCsv"] = string.Join(',', state.RoleNames),
             ["IBeamLastMembershipOperationId"] = change.OperationId.ToString("D"), ["UpdatedAt"] = DateTimeOffset.UtcNow };
         guard.Value["Revision"] = Guid.NewGuid();
         try {
-            await IdentityTenantPurgePartition.Commit(table, [
+            var actions = new List<TableTransactionAction> {
                 new(TableTransactionActionType.UpdateMerge, guard.Value, new ETag(change.ExpectedOwnershipVersion)),
                 new(TableTransactionActionType.UpdateMerge, Membership(source), new ETag(source.Version)),
                 new(TableTransactionActionType.UpdateMerge, Membership(destination), new ETag(destination.Version)),
-                new(TableTransactionActionType.Add, receipt)], _opts.RequireTenantPurgeFencing, ct);
+                new(TableTransactionActionType.Add, receipt) };
+            await IdentityMembershipEventPartition.AppendAsync(table, actions, guard.Value, _opts, change.OperationId, Ids(guard.Value.GetString("OwnerRoleIds")), ct);
+            await IdentityTenantPurgePartition.Commit(table, actions, _opts.RequireTenantPurgeFencing, ct);
         } catch (RequestFailedException ex) when (ex.Status is 404 or 409 or 412) {
             var committed = await FindOwnershipTransferAsync(tenant, change.OperationId, ct);
             if (committed is not null) return SameIntent(committed, change);
             throw new IdentityConcurrencyException();
+        } catch (Exception ex) when (_opts.RequireMembershipLifecycleEvents && ex is not IdentityException && !(ex is OperationCanceledException && ct.IsCancellationRequested)) {
+            throw new IdentityProviderException("The atomic ownership event commit outcome is unavailable; inspect its original operation.");
         }
         return new(tenant, change.OperationId, source.UserId, destination.UserId, change.IntentHash);
     }

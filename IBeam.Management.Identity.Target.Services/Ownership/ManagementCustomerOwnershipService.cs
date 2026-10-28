@@ -1,3 +1,4 @@
+using IBeam.Identity.Events;
 using System.Text.Json;
 using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
@@ -74,7 +75,10 @@ public sealed class ManagementCustomerOwnershipService : IManagementCustomerOwne
         => operations.ExecuteAsync(this, async token => {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token); timeout.CancelAfter(TimeSpan.FromSeconds(25));
             try {
-                await access.RequireAsync(authority, timeout.Token);
+                var eventActor = await access.RequireAsync(authority, timeout.Token);
+                using var eventCapture = IdentityMembershipEventActorContext.Push(new(IdentityMembershipActorKind.Support,
+                    eventActor.UserId, eventActor.OrganizationId, eventActor.ApplicationId,
+                    Guid.TryParse(eventActor.CorrelationId, out var eventCorrelation) ? eventCorrelation : null));
                 if (tenant == Guid.Empty) throw new ManagementCustomerIdentityInvalidRequestException();
                 return await body(timeout.Token);
             } catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }

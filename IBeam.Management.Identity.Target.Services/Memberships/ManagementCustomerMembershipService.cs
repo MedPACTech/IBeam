@@ -1,3 +1,4 @@
+using IBeam.Identity.Events;
 using System.Text.Json;
 using IBeam.Identity.Exceptions;
 using IBeam.Identity.Interfaces;
@@ -27,7 +28,10 @@ public sealed class ManagementCustomerMembershipService(IIdentityTenantMembershi
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token); timeout.CancelAfter(TimeSpan.FromSeconds(options.Value.TimeoutSeconds));
             var cancel = timeout.Token;
             try {
-                await access.RequireAsync(authority, cancel);
+                var eventActor = await access.RequireAsync(authority, cancel);
+                using var eventCapture = IdentityMembershipEventActorContext.Push(new(IdentityMembershipActorKind.Support,
+                    eventActor.UserId, eventActor.OrganizationId, eventActor.ApplicationId,
+                    Guid.TryParse(eventActor.CorrelationId, out var eventCorrelation) ? eventCorrelation : null));
                 if (enforcement.ProtocolVersion != 1 || string.IsNullOrWhiteSpace(enforcement.Mode) || !policy.Value.IsValid()) throw new ManagementAccessDeniedException();
                 if (tenant == Guid.Empty || user == Guid.Empty || status is null && assignment is null || string.IsNullOrWhiteSpace(version) || version == "*" ||
                     version.Length > 256 || version.Any(char.IsControl)) throw new ManagementCustomerIdentityInvalidRequestException();

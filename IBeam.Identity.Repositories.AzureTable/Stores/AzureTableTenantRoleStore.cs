@@ -364,7 +364,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
         userTenant.RoleIdsCsv = roleIdsCsv;
         userTenant.RolesCsv = rolesCsv;
 
-        await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, destructive, _opts.RequireOwnershipProtection, _opts.RequireTenantPurgeFencing).ConfigureAwait(false);
+        await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, destructive, _opts.RequireOwnershipProtection, _opts.RequireTenantPurgeFencing, _opts).ConfigureAwait(false);
         await IdentityTenantPurgePartition.Update(UserTenantsTable(), userTenant, userTenant.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
 
         return new UserTenantRoleAssignment(tenantId, userId, effectiveRoles);
@@ -451,7 +451,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
                 tenantUser.Email = userEmail;
             if (!string.IsNullOrWhiteSpace(userPhoneNumber))
                 tenantUser.PhoneNumber = userPhoneNumber;
-            await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection, requirePurge: _opts.RequireTenantPurgeFencing).ConfigureAwait(false);
+            await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection, requirePurge: _opts.RequireTenantPurgeFencing, eventOptions: _opts).ConfigureAwait(false);
         }
         else
         {
@@ -467,7 +467,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
                     Email = userEmail,
                     PhoneNumber = userPhoneNumber,
                     CreatedAt = now
-                }, true, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection, requirePurge: _opts.RequireTenantPurgeFencing).ConfigureAwait(false);
+                }, true, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection, requirePurge: _opts.RequireTenantPurgeFencing, eventOptions: _opts).ConfigureAwait(false);
             }
             catch (RequestFailedException ex) when (ex.Status == 409)
             {
@@ -487,7 +487,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
                     tenantUser.Email = userEmail;
                 if (!string.IsNullOrWhiteSpace(userPhoneNumber))
                     tenantUser.PhoneNumber = userPhoneNumber;
-                await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection, requirePurge: _opts.RequireTenantPurgeFencing)
+                await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection, requirePurge: _opts.RequireTenantPurgeFencing, eventOptions: _opts)
                     .ConfigureAwait(false);
             }
         }
@@ -702,7 +702,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
 
         foreach (var tenantUser in affectedTenantUsers)
         {
-            await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection, requirePurge: _opts.RequireTenantPurgeFencing).ConfigureAwait(false);
+            await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection, requirePurge: _opts.RequireTenantPurgeFencing, eventOptions: _opts).ConfigureAwait(false);
 
             var userId = tenantUser.UserId;
             var userTenantResp = await UserTenantsTable()
@@ -741,7 +741,7 @@ public sealed partial class AzureTableTenantRoleStore : ITenantRoleStore
 
         foreach (var tenantUser in affectedTenantUsers)
         {
-            await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection, requirePurge: _opts.RequireTenantPurgeFencing).ConfigureAwait(false);
+            await TenantMembershipPartition.Write(TenantUsersTable(), tenantUser, false, ct, requireOwnershipProtection: _opts.RequireOwnershipProtection, requirePurge: _opts.RequireTenantPurgeFencing, eventOptions: _opts).ConfigureAwait(false);
 
             var userId = tenantUser.UserId;
             var userTenantResp = await UserTenantsTable()

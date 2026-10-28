@@ -302,7 +302,7 @@ public sealed partial class AzureTableTenantMembershipStore : ITenantMembershipS
                 tenantUser.Status = "Disabled";
                 tenantUser.DisabledAt = now;
                 tenantUser.DisabledReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
-                await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, true, _opts.RequireOwnershipProtection, _opts.RequireTenantPurgeFencing)
+                await TenantMembershipPartition.Write(tenantUsers, tenantUser, false, ct, true, _opts.RequireOwnershipProtection, _opts.RequireTenantPurgeFencing, _opts)
                     .ConfigureAwait(false);
             }
 

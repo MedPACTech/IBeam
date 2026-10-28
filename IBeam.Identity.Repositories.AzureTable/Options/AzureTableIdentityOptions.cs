@@ -21,6 +21,11 @@ public sealed class AzureTableIdentityOptions
     public bool RequireOwnershipProtection { get; set; }
     /// <summary>Opt-in protocol for every native tenant-owned writer. Deploy all protected writers before enabling tenant purge.</summary>
     public bool RequireTenantPurgeFencing { get; set; }
+    /// <summary>Explicit all-writer atomic membership/outbox protocol. Upgrade every writer before enrolling tenants.</summary>
+    public bool RequireMembershipLifecycleEvents { get; set; }
+    public string MembershipEventsApplicationKey { get; set; } = "";
+    public string MembershipEventsEnvironment { get; set; } = "";
+    public Guid MembershipEventsRealmId { get; set; }
 
     // --- ElCamino identity tables (match IdentityConfiguration) ---
     public string IndexTableName { get; set; } = "AspNetIndex";
