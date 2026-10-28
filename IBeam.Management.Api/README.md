@@ -107,3 +107,5 @@ Onboarding policy discovery and optional durable consumer initialization: [integ
 IBM-0124 adds explicit scoped ownership lookup and transfer with independent grants and signed exact versions. See [customer ownership APIs](../docs/management/customer-ownership-api.md).
 
 AddIBeamManagementRegisteredOperationsApi adds the human app operation metadata endpoint and the typed portal client. The optional IBeam.Management.Operations.Target.Api package hosts fixed signed target routes. See docs/management/registered-operation-dispatch.md.
+
+AddIBeamManagementPortalTenantExportApi explicitly adds scoped export submit/status endpoints. Combine with the registered-operation portal client/providers. Strict policy-key input, exact If-Match/idempotency, safe metadata only and original-job unknown recovery; no artifact download. See docs/management/tenant-export.md.

@@ -67,9 +67,7 @@ public sealed class ManagementTenantExportTarget(IManagementOperationAccessServi
 
 public static class ManagementTenantExportServiceExtensions
 {
-    public static ManagementOperationDescriptor Descriptor { get; } = new(ManagementTenantDataOperations.Export, "POST", ManagementTenantExportRoutes.Submit,
-        new(typeof(ManagementTenantExportRequest), "management.tenant-export.submit.request"), new(typeof(ManagementTenantExportResult), "management.tenant-export.job.result"),
-        typeof(IManagementOperationHandler<ManagementTenantExportRequest, ManagementTenantExportResult>), Array.AsReadOnly(new[] { ManagementTenantDataOperations.Export }), 1, ManagementTenantDataOperations.Export);
+    public static ManagementOperationDescriptor Descriptor => ManagementTenantExportOperation.Descriptor;
 
     public static IServiceCollection AddIBeamManagementTenantExportTarget(this IServiceCollection services, Action<ManagementTenantExportOptions> configure)
     {

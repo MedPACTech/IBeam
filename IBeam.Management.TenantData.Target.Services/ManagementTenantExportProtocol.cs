@@ -7,7 +7,7 @@ namespace IBeam.Management.TenantData.Target.Services;
 /// <summary>Reconstruct bounded approved metadata; never serialize an app's arbitrary result object.</summary>
 public static class ManagementTenantExportProtocol
 {
-    public static bool Key(string? value) => value is { Length: > 0 and <= 64 } && Regex.IsMatch(value, "^[a-z][a-z0-9.-]*$", RegexOptions.CultureInvariant);
+    public static bool Key(string? value) => ManagementTenantExportMetadata.Key(value);
     public static ManagementTenantExportDefinition Definition(ManagementTenantExportDefinition source)
     {
         if (source is null || source.ContractVersion != 1 || !Key(source.HandlerKey) || source.InventoryVersion < 1 ||
@@ -20,6 +20,7 @@ public static class ManagementTenantExportProtocol
     }
     public static ManagementTenantExportResult Result(ManagementTenantExportResult source, Guid tenant, Guid job, ManagementTenantExportDefinition inventory)
     {
+        source = ManagementTenantExportMetadata.Project(source, tenant, job);
         if (source is null || source.TenantId != tenant || source.JobId != job || source.Outcome is not ("accepted" or "found" or "unknown") ||
             source.Outcome == "unknown" && source.Job is not null || source.Outcome != "unknown" && source.Job is null)
             throw new ManagementOperationUnavailableException();
