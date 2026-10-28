@@ -39,6 +39,15 @@ foreach($suite in @($suites|Where-Object {$_ -ne 'Management.Applications'})){
   Copy-Item -LiteralPath (Join-Path $repo 'samples/Management.CustomerIdentity.PackageSmoke/EnterpriseWorkflowPackageTests.cs') -Destination $consumer
  }
  $xml.Save((Join-Path $consumer "$name.csproj"))
+ if($suite -eq 'Management.TenantData'){
+  $linked=@($xml.SelectNodes('//Compile[@Include]'))
+  foreach($compile in $linked){
+   $sourceFile=Join-Path $source $compile.Include
+   Copy-Item -LiteralPath $sourceFile -Destination (Join-Path $consumer ([IO.Path]::GetFileName($sourceFile)))
+   [void]$compile.ParentNode.RemoveChild($compile)
+  }
+  $xml.Save((Join-Path $consumer "$name.csproj"))
+ }
  Get-ChildItem -LiteralPath $source -Filter '*.cs' | Copy-Item -Destination $consumer
  '<Project />' | Set-Content (Join-Path $consumer 'Directory.Build.props')
  '<Project />' | Set-Content (Join-Path $consumer 'Directory.Build.targets')

@@ -2,7 +2,7 @@
 
 ## IBM-0130: versioned contracts and optional target boundary
 
-The contract/adaptor card supplies `IBeam.Management.TenantData` contracts, optional `IBeam.Management.TenantData.Target.Services` and `.Api` packages, and compiled signed submit/status routes. IBM-0131 adds the framework's durable journal/service, leased worker and private customer retrieval gate. IBM-0132 adds scoped support portal submission/status. Qurvia's business exporter remains app-owned. Synthetic consumer coverage and the full export feature regression are IBM-0133. These are development changes for a future release, not published 2.16.1 functionality.
+The contract/adaptor card supplies `IBeam.Management.TenantData` contracts, optional `IBeam.Management.TenantData.Target.Services` and `.Api` packages, and compiled signed submit/status routes. IBM-0131 adds the framework's durable journal/service, leased worker and private customer retrieval gate. IBM-0132 adds scoped support portal submission/status. IBM-0133 supplies the synthetic consumer contract example and complete feature verification. Qurvia's business exporter remains app-owned. These are development changes for a future release, not published 2.16.1 functionality.
 
 | Surface | Contract / path |
 | --- | --- |
@@ -109,6 +109,29 @@ Before resolving secrets, the registered client checks current support user/app/
 Unknown mutation replies retain the original scoped operation/job GUID from the signed client and return the same status location. They never launch an automatic replacement export. Malformed/foreign native scope or unsafe metadata is rejected inside the transport while that original intent is still known, so an ambiguous committed write becomes scoped unknown rather than a false failure/completion. Polling uses read-only receipt reconciliation with current authority and never creates/retries a job. A rotated key can poll an existing job only through a newly verified compatible connection and the original authorized support person.
 
 Both ends reconstruct versioned metadata: known states/outcomes, UTC bounds, at most 32 unique approved category keys, dataset/attachment kinds, fixed failure codes and truthful full/partial dispositions. The portal never echoes provider error text, recipient details or artifact content. Responses are no-store and body/header logging is disabled. The service uses metadata-only audit and marks unknown outcomes separately from successful acceptance; no customer artifact HTTP route is implied.
+
+## IBM-0133: consumer coverage and Qurvia implementation checklist
+
+The Development/Testing example is `samples/Management.Bootstrap/docs/examples/SyntheticTenantExporter.cs`. It implements all app-owned ports with immutable synthetic data, a private scope-hashed filesystem bundle and durable delivery receipt. It deliberately covers facilities/settings/commercial metadata/history/attachments/audio and chats associated with active, removed and unseated members. Partial policy produces an explicit retained category and excludes its bytes. The example rejects Production construction and is not automatically exposed by the Identity demo. It is compiled by source tests and copied as consumer app code into the fresh NuGet-only test suite.
+
+Qurvia (and each other consumer) must supply its actual schema/provider inventory. This framework repository does not implement or claim a Qurvia business-table export. Before advertising its exporter, resolve these concrete items in the target:
+
+| Inventory / decision | Required consumer behavior |
+| --- | --- |
+| Tenant / identity metadata | Export the intended native tenant, membership and invitation/account metadata through an authorized consumer workflow; exclude passwords, OTPs, refresh/API/signing keys and other credentials. Shared global identities require explicit ownership decisions. |
+| Facilities and settings | Include every tenant-owned facility, configuration/settings variant and relevant historical version; do not rely on a single UI screen's current selection. |
+| Commercial data | Explicitly classify licences, seats and billing/payment metadata for inclusion or approved retained/omitted coverage. Never include payment-provider or application secrets. |
+| Audit and history | Inventory the tenant's authorized audit/history datasets separately from the support API's metadata audit. Distinguish unavailable/retained history from completed coverage. |
+| Audio and attachments | Include actual authorized blob/object content or an app-owned usable archive representation; metadata listing alone is not complete file coverage. Resolve removed-member references and orphan ownership. |
+| Chats / other member content | Select by tenant data ownership, including removed or unseated members where applicable. Current membership/seat eligibility must not silently erase historical tenant data. |
+| Clinic / Enterprise accounts | Implement the export policy for the supported enterprise account classes explicitly. Do not call the existing self-service exporter and assume its account restrictions or omissions disappear. |
+| Consistency | Choose transactional, point-in-time or explicitly best-effort semantics across tables, historical membership and blobs. Freeze inventory/policy versions and reconcile the same native job after restart. |
+| Recipient and retrieval | Resolve an approved customer from target-owned policy and require current customer authentication/tenant/job authority on every retrieval. Support permission alone is insufficient. |
+| Lifetimes and failures | Honor the framework artifact deadline, exact-job cancellation/revocation and cleanup; retain receipts/protection keys until safe cleanup. Missing categories or provider failures cannot become complete success. |
+
+The native app owns its production storage, encryption/access controls, external delivery receipts and retention decisions. The framework supplies bounded command/status/lease/recovery mechanics and keeps customer content outside the support portal. No new legal retention promise, production data export or anonymous download feature follows from installing these packages.
+
+Feature completion runs the existing Management/Identity/Licensing legacy suites plus the tenant-data suite against freshly generated NuGet packages in a clean cache. The synthetic consumer source is copied into that consumer as app code; all framework dependencies remain package references. This exercises missing-provider/default-disabled discovery, explicit grants, full/partial coverage, failed/unknown handlers, restart/replay, unavailable storage, current customer access and expired artifacts alongside the existing signed HTTP and native persistence tests.
 
 ## Verification cadence
 
