@@ -51,3 +51,5 @@ IBM-0124 adds explicit scoped ownership lookup and transfer with independent gra
 IBM-0137 adds opt-in typed purge preflight, exact confirmation and read-only progress. Portal hosts use `AddIBeamManagementPortalTenantPurgeApi(configuration)`; no native worker/provider is installed. See [tenant purge](../docs/management/tenant-purge.md) for routes, independent grants, unknown-reply recovery and metadata-only audit.
 
 IBM-0142 adds the supported typed IManagementTargetOperationSender port while preserving IManagementOperationClient. See [target sender](../docs/management/target-operation-sender.md).
+
+IBM-0143 adds bounded metadata-only ManagementTargetCallTelemetry contracts. See [safe target telemetry](../docs/management/target-operation-telemetry.md).

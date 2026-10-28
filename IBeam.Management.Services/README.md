@@ -181,3 +181,5 @@ Registered operation transport: AddIBeamManagementRegisteredOperationsPortal / T
 IBM-0137 adds opt-in typed purge preflight, exact confirmation and read-only progress. Portal hosts use `AddIBeamManagementPortalTenantPurgeApi(configuration)`; no native worker/provider is installed. See [tenant purge](../docs/management/tenant-purge.md) for routes, independent grants, unknown-reply recovery and metadata-only audit.
 
 IBM-0142 unifies default typed sender resolution and secure HTTP construction across registered operations, native Identity, diagnostics and discovery. See [target sender](../docs/management/target-operation-sender.md) for consumer migration and independent grants.
+
+IBM-0143 emits correlated safe completion telemetry for target calls and scoped allowlisted registered-operation audit. DiagnosticListener/Meter failures are observational and cannot retry or change operation results. See [safe target telemetry](../docs/management/target-operation-telemetry.md).

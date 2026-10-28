@@ -8,6 +8,9 @@ namespace IBeam.Management.Services.CustomerIdentity;
 public sealed partial class ManagementCustomerIdentityClient(ManagementConnectionNetworkPolicy network, IOptions<ManagementPortalCustomerDirectoryOptions> options,
     IManagementDelegatedActorProvider actors) : IManagementCustomerIdentityClient
 {
+    private readonly IManagementAuditContext? telemetryAudit;
+    public ManagementCustomerIdentityClient(ManagementConnectionNetworkPolicy network, IOptions<ManagementPortalCustomerDirectoryOptions> options,
+        IManagementDelegatedActorProvider actors, IManagementAuditContext audit) : this(network, options, actors) => telemetryAudit = audit;
     internal Func<HttpMessageHandler>? TestTransportFactory { get; init; }
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     public async Task<ManagementCustomerDirectoryPage<T>> ListAsync<T>(ManagementCustomerIdentityConnection c, Guid? tenantId, ManagementCustomerDirectoryQuery query, CancellationToken ct = default) where T : class
@@ -120,9 +123,10 @@ public sealed partial class ManagementCustomerIdentityClient(ManagementConnectio
     private async Task<JsonDocument> Get(ManagementCustomerIdentityConnection c, string operation, string path, bool signed, CancellationToken ct)
         => (await Send(c, operation, "GET", path, signed, default, null, null, false, ct)).Document;
     private sealed record TransportResponse(JsonDocument Document, HttpStatusCode Status);
-    private async Task<TransportResponse> Send(ManagementCustomerIdentityConnection c, string operation, string method, string path, bool signed,
+    private Task<TransportResponse> Send(ManagementCustomerIdentityConnection c, string operation, string method, string path, bool signed,
         ReadOnlyMemory<byte> payload, string? idempotencyKey, string? ifMatch, bool receiptLookup, CancellationToken ct)
-    {
+        => ManagementTargetTelemetry.Run<TransportResponse>("identity", !signed ? "discovery" : receiptLookup ? "receipt" : method == "GET" ? "read" : "command",
+            ManagementTargetTelemetry.Builtin(operation), c.ApplicationId, ManagementTargetTelemetry.Tenant(path), null, telemetryAudit, ct, async () => {
         try
         {
             if (payload.Length > 32768) throw new ManagementCustomerIdentityInvalidRequestException();
@@ -177,7 +181,7 @@ public sealed partial class ManagementCustomerIdentityClient(ManagementConnectio
             ManagementIdentityOperationConflictException or ManagementCustomerIdentityPreconditionException or
             ManagementCustomerIdentityResponseException or ManagementCustomerIdentityUnavailableException) { throw; }
         catch { throw new ManagementCustomerIdentityUnavailableException(); }
-    }
+    });
     private static bool Text(string? value, int maximum, bool optional = false) => value is null ? optional :
         value.Length <= maximum && !value.Any(char.IsControl) && !string.IsNullOrWhiteSpace(value);
     private static void Roles(IReadOnlyList<Guid>? ids, IReadOnlyList<string>? names)

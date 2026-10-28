@@ -10,7 +10,7 @@ internal static class ManagementTargetHttpTransport
         Func<HttpMessageHandler>? testTransport = null, int connectTimeoutSeconds = 5)
     {
         _ = network.RequireOrigin(approved.GetLeftPart(UriPartial.Authority));
-        return new(testTransport?.Invoke() ?? CreateHandler(network, approved, connectTimeoutSeconds), disposeHandler: true)
+        return new(new ManagementTargetTelemetry.Transport { InnerHandler = testTransport?.Invoke() ?? CreateHandler(network, approved, connectTimeoutSeconds) }, disposeHandler: true)
             { Timeout = Timeout.InfiniteTimeSpan };
     }
     internal static SocketsHttpHandler CreateHandler(ManagementConnectionNetworkPolicy network, Uri approved, int connectTimeoutSeconds = 5)
