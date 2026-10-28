@@ -65,8 +65,17 @@ public partial class Program
         app.UseCors(HostRegistration.CorsPolicy);
         app.UseAuthentication();
         app.UseAuthorization();
-        app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "IBeam.Management.API", iBeamVersion = "2.16.0", dataMode = builder.Configuration.GetValue<bool>("ManagementHost:Demo:Enabled") ? "synthetic-demo" : "connected-targets" })).AllowAnonymous();
-        if (app.Environment.IsDevelopment()) app.MapOpenApi().AllowAnonymous();
+        app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "IBeam.Management.API", iBeamVersion = HostOpenApi.PackageVersion, dataMode = builder.Configuration.GetValue<bool>("ManagementHost:Demo:Enabled") ? "synthetic-demo" : "connected-targets" })).AllowAnonymous();
+        if (app.Environment.IsDevelopment())
+        {
+            app.MapOpenApi().AllowAnonymous();
+            app.UseSwaggerUI(options =>
+            {
+                options.SwaggerEndpoint("/openapi/v1.json", "IBeam Management API");
+                options.ConfigObject.AdditionalItems["persistAuthorization"] = false;
+                options.ConfigObject.ValidatorUrl = null;
+            });
+        }
         app.MapControllers();
         await app.RunAsync();
     }

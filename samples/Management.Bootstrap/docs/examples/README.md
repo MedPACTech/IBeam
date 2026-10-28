@@ -21,3 +21,17 @@ The integration suite combines it with the optional native Identity bridge to pr
 cleanup and shared-account isolation. Retained backups/controls and excluded external systems stay
 visible in coverage. See the framework tenant-purge guide for inventory and trusted recovery;
 this example does not implement deletion for Qurvia or another production consumer.
+
+## Membership projection and lifecycle composition
+
+`SyntheticMembershipProjectionStore.cs` demonstrates durable event/repair deduplication, current
+native membership reads, per-subject sequence checks, atomic transfer projection, preservation of
+unrelated app fields and a shared app purge fence. It accepts only the explicit `fixture` binding,
+isolated preprovisioned loopback storage and Development/Testing. No support repair route or grant
+is installed. See [projection integration](../../../../docs/management/membership-projections.md).
+
+All three examples compile in the tenant-data suite and fresh generated-NuGet consumer. They stay
+disabled in the normal three-app Identity demo. Use [the lifecycle handoff](../../../../docs/management/lifecycle-consumer-handoff.md)
+for optional portal composition, exact frontend routes, original-intent recovery, shared typed sender,
+metadata-only telemetry and coordinated release prerequisites. Real app adapters and production
+rollout require their own inventory, durable providers and all participating request/write fences.

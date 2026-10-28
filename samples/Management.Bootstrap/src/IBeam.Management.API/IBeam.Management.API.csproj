@@ -15,7 +15,9 @@
     <PackageReference Include="IBeam.Management.Secrets.AzureKeyVault" Version="$(IBeamVersion)" />
     <PackageReference Include="IBeam.Identity.Api" Version="$(IBeamVersion)" />
     <PackageReference Include="IBeam.Management.Identity.Target.Api" Version="$(IBeamVersion)" />
+    <PackageReference Include="IBeam.Management.Licensing" Version="$(IBeamVersion)" />
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.3.0" />
   </ItemGroup>
 </Project>

@@ -56,6 +56,7 @@ public static class HostRegistration
         }
 
         CustomerDemoInstallation.Register(services, configuration, environment);
+        LifecyclePortalRegistration.Register(services, configuration);
         var origins = configuration.GetSection("ManagementHost:Cors:AllowedOrigins").Get<string[]>() ?? [];
         if (origins.Length == 0 || origins.Any(x => !Uri.TryCreate(x, UriKind.Absolute, out var uri) ||
             uri.GetLeftPart(UriPartial.Authority) != x || uri.Scheme is not ("http" or "https") ||
@@ -71,7 +72,7 @@ public static class HostRegistration
                 Errors = [new ApiError { Code = "Management.InvalidRequest", Message = "The request is invalid." }]
             }));
         services.AddControllers().ConfigureApplicationPartManager(parts => parts.FeatureProviders.Add(new SupportControllerBoundary()));
-        services.AddOpenApi();
+        services.AddManagementOpenApi();
         return services;
     }
 
