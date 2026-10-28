@@ -28,7 +28,7 @@ IBM-0135 implements durable coordination, leases, native write/access fencing, u
 
 Register `AddIBeamManagementAzureTableTenantPurgeJournal(preProvisionedDedicatedTableClient)` in the target, then `AddIBeamManagementTenantPurgeJobs(configuration)` and the explicit purge target API. Supply the app-owned handler, policy and **all** `IManagementTenantPurgeAccessFence` implementations, plus the existing audit/access providers. The framework creates no runtime tables. The journal is separate from business storage and contains operational metadata only. Core and the Azure Table provider depend on no native Identity or commercial module.
 
-The standard coordinator requires 1–8 uniquely named protocol-1 native fences. Each fence must durably reserve the exact tenant for the original fully scoped purge job, conditional on the planned native revision; it must deny customer requests, refreshes and every app/native write before cleanup. Deactivation alone is insufficient. Ordinary activation or membership writes must not undo it. `RequireFencedAsync` verifies current ownership by that same job, and each destructive hook must check `execution.LeaseFence.RequireAsync()` at its own commit boundary and reconcile durable effects by the full scoped job. The consumer is responsible for its actual request/write integration and native atomic/idempotent commits. The optional IBeam Identity implementation arrives in IBM-0136; declaring a fence port does not implement that integration automatically.
+The standard coordinator requires 1–8 uniquely named protocol-1 native fences. Each fence must durably reserve the exact tenant for the original fully scoped purge job, conditional on the planned native revision; it must deny customer requests, refreshes and every app/native write before cleanup. Deactivation alone is insufficient. Ordinary activation or membership writes must not undo it. `RequireFencedAsync` verifies current ownership by that same job, and each destructive hook must check `execution.LeaseFence.RequireAsync()` at its own commit boundary and reconcile durable effects by the full scoped job. The consumer is responsible for its actual request/write integration and native atomic/idempotent commits. The optional IBeam Identity implementation is supplied by IBM-0136; declaring a fence port does not implement that integration automatically.
 
 Plan and job rows share the exact deployment/org/app/realm/tenant partition. Confirmation consumes the plan by exact ETag and creates the job in a single Table transaction; a concurrent second intent cannot consume it. The stored plan keeps its original expiry on replay. The journal freezes inventory, exact native version, policy and required fence keys. Missing/changed fences or an incompatible handler inventory stop execution. The native fence checks the exact revision again before any cleanup, so a tenant changed after confirmation is not deleted under the stale plan. No cross-database transaction is claimed between journal acceptance and the native fence.
 
@@ -136,3 +136,49 @@ Unknown, failed, cancelled and partial phase events have `Succeeded=false`; an a
 means durable command acceptance, not completed deletion. No confirmation binding, inventory hash,
 policy/version body, provider exception, storage identifier, customer content or key is persisted.
 The target's existing job journal and worker audit remain authoritative for execution phases.
+
+
+## Synthetic verification and consumer handoff (IBM-0138)
+
+`SyntheticTenantPurger.cs` under the bootstrap's `docs/examples` is a test/example adapter, never
+automatically registered by the running demo. `CreateNew` accepts only the literal `fixture` app
+in Development/Testing and creates its own randomly named private temporary directory with fresh
+synthetic bytes. It accepts no existing data directory, table name, customer file path, production
+binding or destructive HTTP setup command. Its constructor is private; reopening preserves the
+original fixed app/environment/org/app/realm/tenant/person binding and durable job-owned fence.
+Fixture teardown deletes only that checked constructor-owned temporary directory after assertions;
+backup retention is verified before teardown and is not presented as purge completion.
+
+| Declared category | Example behavior | Production consumer responsibility |
+| --- | --- | --- |
+| app-datasets | Deletes synthetic JSON containing facilities/settings and active/removed/unseated history markers | Inventory every tenant-owned app table, including historical data; do not derive ownership from current seats |
+| audio-files | Deletes actual synthetic file bytes | Enumerate tenant-owned audio/blob/attachment data with bounded durable checkpoints and current commit fences |
+| app-purge-controls | Retains durable job fence/checkpoints | Keep minimal approved metadata so late writers cannot recreate deleted data |
+| backups | Retains a separate synthetic backup file | State actual expiry/retention, legal holds and deletion capability; never claim immediate purge of immutable backups |
+| external-systems | Explicitly excluded; no external provider is invoked | Supply a real bounded provider and authoritative receipt before changing this to required deletion |
+| global-accounts | Excluded | Preserve shared global accounts, OTP/session artifacts and other tenants |
+| identity-* / identity-purge-tombstones | Optional standard Identity bridge cleanup plus retained controls | Upgrade all writers, pre-provision distinct native tables and prove native request/refresh denial before enabling |
+
+The app example uses one shared filesystem lock for ordinary writes/admission, fence acquisition
+and deletion. The permanent blocked state survives new adapter instances. It validates the trusted
+journal lease before commits and records stable category checkpoints; a crash between deletion
+and checkpoint reconciles by the same owned file's absence. This illustrates a boundary, not a
+production filesystem/database transaction across an app's storage. Real consumers must implement
+that boundary for every writer, background import, webhook, index and delayed projection.
+
+Operator recovery procedure:
+
+1. Keep the original full scoped execution/job, frozen plan, expected native version, inventory and fence keys. Verify the app/realm and all retained/excluded coverage against the consumer's approved inventory.
+2. Inspect the durable IBeam journal and the app/native same-job receipts. `unknown` means a phase may have committed. An expired worker lease is not evidence that it did not commit. Do not issue a new confirmation, reset a checkpoint, delete journal rows or restore access.
+3. Repair the original provider or deployment binding without widening support rights. Verify established app/native access and write fences remain owned by this job, and that its checkpoints describe authoritative effects. Never copy private customer data into support audit or a recovery ticket.
+4. From a trusted target-local operator/queue, invoke `IManagementTenantPurgeWorker.RunAsync(originalExecution, reconcileUncertain: true)`. Keep the same job identity. Resume ordinary known-pending work through the same bounded worker; uncertain work requires another deliberate inspection. No support HTTP resume endpoint exists.
+5. Read the authoritative final status. Required retained/pending data prevents full completion; partial/failed/unknown outcomes must remain visible. Succeeded applies only to declared required categories, with exclusions and retained scope still displayed. Check shared-user access in unrelated tenants independently.
+
+The feature suite interrupts app fencing, both app deletion categories, verification and commit
+replies from each of the ten native cleanup table families. It rebuilds the consumer adapter,
+reconciles the original durable job, verifies no duplicate category effect or revived customer
+access, and confirms surviving global accounts and another tenant's owner/membership. Existing
+negative suites cover missing/aliased native adapters, missing app/write fences, signed cross-app
+proofs, expired plans, revocation and exact-version concurrency. The fresh NuGet-only matrix links
+this example as consumer source and contains zero framework ProjectReferences. No Qurvia purge
+adapter or production purge is shipped or executed by this card.

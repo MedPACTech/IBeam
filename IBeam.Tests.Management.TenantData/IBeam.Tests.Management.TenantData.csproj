@@ -4,4 +4,5 @@
   <ItemGroup><ProjectReference Include="../IBeam.Management.TenantData.Target.Api/IBeam.Management.TenantData.Target.Api.csproj" /><ProjectReference Include="../IBeam.Management.Repositories.AzureTable/IBeam.Management.Repositories.AzureTable.csproj" /><ProjectReference Include="../IBeam.Management.Api/IBeam.Management.Api.csproj" /></ItemGroup>
   <ItemGroup><Compile Include="../samples/Management.Bootstrap/docs/examples/SyntheticTenantExporter.cs" Link="SyntheticTenantExporter.cs" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../IBeam.Management.TenantData.Identity/IBeam.Management.TenantData.Identity.csproj" /><ProjectReference Include="../IBeam.Identity.Repositories.AzureTable/IBeam.Identity.Repositories.AzureTable.csproj" /></ItemGroup>
+  <ItemGroup><Compile Include="../samples/Management.Bootstrap/docs/examples/SyntheticTenantPurger.cs" Link="SyntheticTenantPurger.cs" /></ItemGroup>
 </Project>

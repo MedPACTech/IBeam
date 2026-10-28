@@ -100,6 +100,12 @@ internal sealed class IdentityPurgeFixture : IAsyncDisposable
         }
         return f;
     }
+    public void UseConsumer(IManagementTenantPurgeHandler consumer)
+    {
+        App.Consumer = consumer;
+        using var scope = Provider.CreateScope();
+        Execution = Execution with { InventoryFingerprint = ManagementTenantPurgeProtocol.Fingerprint(scope.ServiceProvider.GetRequiredService<IManagementTenantPurgeHandler>().Describe()) };
+    }
     public TableClient Table(string name) => Storage.GetTableClient(prefix + name);
     public TenantInviteRecord Invitation() => new(Invite, Tenant, "email", "PRIVATE-RECIPIENT@example.test", "synthetic-token-hash", "pending", DateTimeOffset.UtcNow, User, DateTimeOffset.UtcNow.AddHours(1));
     private async Task SeedAuxiliary(Guid tenant)
@@ -151,13 +157,14 @@ internal sealed class IdentityPurgeFixture : IAsyncDisposable
     public sealed class AppHandler : IManagementTenantPurgeHandler, IManagementTenantPurgeAccessFence
     {
         private readonly ConcurrentDictionary<Guid, Guid> fences = new(); public ConcurrentDictionary<Guid, byte> Effects { get; } = new();
+        public IManagementTenantPurgeHandler? Consumer;
         public int ProtocolVersion => 1; public string Key => "fixture-app";
-        public ManagementTenantPurgeDefinition Describe() => new(1, "synthetic-app", 1, Array.AsReadOnly(new[] { new ManagementTenantPurgeCategory("app-data", "dataset", "delete"), new("global-accounts", "identity-metadata", "exclude") }));
-        public Task PreviewAsync(ManagementTenantPurgeExecution e, CancellationToken ct = default) => Task.CompletedTask;
-        public async Task PurgeOrReconcileAsync(ManagementTenantPurgeExecution e, CancellationToken ct = default) { await e.LeaseFence!.RequireAsync(ct); Effects.TryAdd(e.JobId, 0); }
-        public Task<IReadOnlyList<ManagementTenantPurgeCategory>> VerifyAsync(ManagementTenantPurgeExecution e, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<ManagementTenantPurgeCategory>>([new("app-data", "dataset", "deleted"), new("global-accounts", "identity-metadata", "excluded")]);
-        public async Task FenceOrReconcileAsync(ManagementTenantPurgeExecution e, string version, CancellationToken ct = default) { await e.LeaseFence!.RequireAsync(ct); if (fences.GetOrAdd(e.Authority.TenantId, e.JobId) != e.JobId) throw new ManagementOperationConflictException(); }
-        public Task RequireFencedAsync(ManagementTenantPurgeExecution e, CancellationToken ct = default) { if (fences.GetValueOrDefault(e.Authority.TenantId) != e.JobId) throw new ManagementAccessDeniedException(); return Task.CompletedTask; }
+        public ManagementTenantPurgeDefinition Describe() => Consumer?.Describe() ?? new(1, "synthetic-app", 1, Array.AsReadOnly(new[] { new ManagementTenantPurgeCategory("app-data", "dataset", "delete"), new("global-accounts", "identity-metadata", "exclude") }));
+        public Task PreviewAsync(ManagementTenantPurgeExecution e, CancellationToken ct = default) => Consumer?.PreviewAsync(e, ct) ?? Task.CompletedTask;
+        public async Task PurgeOrReconcileAsync(ManagementTenantPurgeExecution e, CancellationToken ct = default) { if (Consumer is not null) { await Consumer.PurgeOrReconcileAsync(e, ct); return; } await e.LeaseFence!.RequireAsync(ct); Effects.TryAdd(e.JobId, 0); }
+        public Task<IReadOnlyList<ManagementTenantPurgeCategory>> VerifyAsync(ManagementTenantPurgeExecution e, CancellationToken ct = default) => Consumer?.VerifyAsync(e, ct) ?? Task.FromResult<IReadOnlyList<ManagementTenantPurgeCategory>>([new("app-data", "dataset", "deleted"), new("global-accounts", "identity-metadata", "excluded")]);
+        public async Task FenceOrReconcileAsync(ManagementTenantPurgeExecution e, string version, CancellationToken ct = default) { if (Consumer is IManagementTenantPurgeAccessFence fence) { await fence.FenceOrReconcileAsync(e, version, ct); return; } await e.LeaseFence!.RequireAsync(ct); if (fences.GetOrAdd(e.Authority.TenantId, e.JobId) != e.JobId) throw new ManagementOperationConflictException(); }
+        public Task RequireFencedAsync(ManagementTenantPurgeExecution e, CancellationToken ct = default) { if (Consumer is IManagementTenantPurgeAccessFence fence) return fence.RequireFencedAsync(e, ct); if (fences.GetValueOrDefault(e.Authority.TenantId) != e.JobId) throw new ManagementAccessDeniedException(); return Task.CompletedTask; }
     }
     private sealed class Policy(IIdentityTenantStore tenants, IIdentityTenantPurgeService identity) : IManagementTenantPurgePolicy
     {

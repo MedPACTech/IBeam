@@ -9,3 +9,15 @@ Supply an explicit private instance directory, isolated native realm, approved s
 The app's customer route calls `IManagementTenantExportCustomerArtifacts.RequireAsync` and then `ReadForCustomerAsync` with the authenticated customer. Customer authorization, current revocation and expiry are checked again in the app-owned reader. Business bytes remain outside support status/audit. No support download endpoint, anonymous bearer URL, external delivery destination or production storage exception is included.
 
 The fixture's point-in-time claim describes immutable synthetic data. A real consumer must choose and implement its own cross-table/blob consistency and output idempotency, customer recipient policy, physical retention, access control and durable delivery receipts; copying this file is not a production implementation. See the framework's `docs/management/tenant-export.md` for the required ports and Qurvia inventory checklist.
+
+
+## Synthetic purge
+
+`SyntheticTenantPurger.cs` is compiled by the tenant-data tests and fresh generated-NuGet consumer.
+It creates only new private temporary fake files in Development/Testing for the literal `fixture`
+application binding. It implements the app handler plus access/write fence, uses durable same-job
+checkpoints and refuses cross-scope or Production calls. It is disabled in the running bootstrap.
+The integration suite combines it with the optional native Identity bridge to prove file/data
+cleanup and shared-account isolation. Retained backups/controls and excluded external systems stay
+visible in coverage. See the framework tenant-purge guide for inventory and trusted recovery;
+this example does not implement deletion for Qurvia or another production consumer.
