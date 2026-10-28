@@ -26,6 +26,7 @@ public sealed class AzureTableManagementCustomerTenantReadRepository(TableClient
     }
     private static ManagementCustomerTenantReadEntity? Map(TableEntity row)
     {
+        if (!Guid.TryParseExact(row.RowKey, "D", out var id) || id == Guid.Empty) return null;
         try { return new(row.RowKey, row.GetString("Name"), row.GetString("NormalizedName"), row.GetString("Status"),
             row.GetDateTimeOffset("CreatedAt"), row.GetDateTimeOffset("UpdatedAt"), row.ETag.ToString()); }
         catch (Exception ex) when (ex is InvalidCastException or FormatException or ArgumentException) { return null; }

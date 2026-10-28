@@ -8,6 +8,9 @@ namespace IBeam.Management.Services.CustomerIdentity;
 public sealed partial class ManagementCustomerIdentityClient(ManagementConnectionNetworkPolicy network, IOptions<ManagementPortalCustomerDirectoryOptions> options,
     IManagementDelegatedActorProvider actors) : IManagementCustomerIdentityClient
 {
+    private readonly IManagementAuditContext? telemetryAudit;
+    public ManagementCustomerIdentityClient(ManagementConnectionNetworkPolicy network, IOptions<ManagementPortalCustomerDirectoryOptions> options,
+        IManagementDelegatedActorProvider actors, IManagementAuditContext audit) : this(network, options, actors) => telemetryAudit = audit;
     internal Func<HttpMessageHandler>? TestTransportFactory { get; init; }
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     public async Task<ManagementCustomerDirectoryPage<T>> ListAsync<T>(ManagementCustomerIdentityConnection c, Guid? tenantId, ManagementCustomerDirectoryQuery query, CancellationToken ct = default) where T : class
@@ -47,7 +50,8 @@ public sealed partial class ManagementCustomerIdentityClient(ManagementConnectio
         var info = Data<ManagementCustomerIdentityInfo>(body.RootElement) ?? throw new ManagementCustomerIdentityResponseException();
         try { ManagementCustomerIdentityProtocol.Validate(info); } catch { throw new ManagementCustomerIdentityResponseException(); }
         if (info.ApplicationKey != c.ApplicationKey || info.Environment != c.Environment || info.IdentityRealmId != c.IdentityRealmId ||
-            !info.Capabilities.Contains(operation, StringComparer.Ordinal) || requireReceipts && info.OperationReceiptProtocolVersion != 1)
+            !info.Capabilities.Contains(operation, StringComparer.Ordinal) || requireReceipts && info.OperationReceiptProtocolVersion != 1 ||
+            operation is ManagementCustomerIdentityOperations.OwnersRead or ManagementCustomerIdentityOperations.OwnersTransfer && info.OwnershipTransferProtocolVersion != 1)
             throw new ManagementCustomerIdentityResponseException();
     }
     public async Task<ManagementIdentityOperationDto> GetOperationAsync(ManagementCustomerIdentityConnection c, Guid operationId, string authority, CancellationToken ct = default)
@@ -119,18 +123,15 @@ public sealed partial class ManagementCustomerIdentityClient(ManagementConnectio
     private async Task<JsonDocument> Get(ManagementCustomerIdentityConnection c, string operation, string path, bool signed, CancellationToken ct)
         => (await Send(c, operation, "GET", path, signed, default, null, null, false, ct)).Document;
     private sealed record TransportResponse(JsonDocument Document, HttpStatusCode Status);
-    private async Task<TransportResponse> Send(ManagementCustomerIdentityConnection c, string operation, string method, string path, bool signed,
+    private Task<TransportResponse> Send(ManagementCustomerIdentityConnection c, string operation, string method, string path, bool signed,
         ReadOnlyMemory<byte> payload, string? idempotencyKey, string? ifMatch, bool receiptLookup, CancellationToken ct)
-    {
+        => ManagementTargetTelemetry.Run<TransportResponse>("identity", !signed ? "discovery" : receiptLookup ? "receipt" : method == "GET" ? "read" : "command",
+            ManagementTargetTelemetry.Builtin(operation), c.ApplicationId, ManagementTargetTelemetry.Tenant(path), null, telemetryAudit, ct, async () => {
         try
         {
             if (payload.Length > 32768) throw new ManagementCustomerIdentityInvalidRequestException();
             var origin = network.RequireOrigin(c.BaseUrl);
-            using var handler = TestTransportFactory?.Invoke() ?? new SocketsHttpHandler {
-                AllowAutoRedirect = false, UseProxy = false, UseCookies = false, AutomaticDecompression = DecompressionMethods.None,
-                ActivityHeadersPropagator = null, ConnectTimeout = TimeSpan.FromSeconds(5),
-                ConnectCallback = (context, token) => network.ConnectAsync(origin, context.DnsEndPoint, token) };
-            using var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+            using var client = ManagementTargetHttpTransport.CreateClient(network, origin, TestTransportFactory);
             var uri = new Uri(origin, path);
             using var request = new HttpRequestMessage(new HttpMethod(method), uri) { Version = HttpVersion.Version11, VersionPolicy = HttpVersionPolicy.RequestVersionExact };
             request.Headers.Add("X-IBeam-Management-Key", c.Key.Value);
@@ -180,7 +181,7 @@ public sealed partial class ManagementCustomerIdentityClient(ManagementConnectio
             ManagementIdentityOperationConflictException or ManagementCustomerIdentityPreconditionException or
             ManagementCustomerIdentityResponseException or ManagementCustomerIdentityUnavailableException) { throw; }
         catch { throw new ManagementCustomerIdentityUnavailableException(); }
-    }
+    });
     private static bool Text(string? value, int maximum, bool optional = false) => value is null ? optional :
         value.Length <= maximum && !value.Any(char.IsControl) && !string.IsNullOrWhiteSpace(value);
     private static void Roles(IReadOnlyList<Guid>? ids, IReadOnlyList<string>? names)

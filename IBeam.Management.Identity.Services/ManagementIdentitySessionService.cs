@@ -1,3 +1,4 @@
+using IBeam.Management.Operations;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -80,14 +81,16 @@ public sealed class ManagementIdentitySessionService(
             identity.AddClaim(new Claim(ManagementClaimTypes.Permission, permission));
     }
     public static void RefreshPrincipal(ClaimsPrincipal principal, ManagementLiveMember member, ManagementIdentityOptions options)
+        => RefreshPrincipal(principal, member, options, ManagementOperationRegistry.BuiltIn);
+    public static void RefreshPrincipal(ClaimsPrincipal principal, ManagementLiveMember member, ManagementIdentityOptions options, ManagementOperationRegistry registry)
     {
         RefreshPrincipal(principal, member);
         var identity = (ClaimsIdentity)principal.Identity!;
         var userId = ReadGuid(identity, "uid");
         if (userId != member.User.UserId || member.Membership.TenantId != options.OrganizationId ||
             ReadGuid(identity, ManagementClaimTypes.OrganizationId) != options.OrganizationId ||
-            !ManagementIdentityPermissions.ValidCustomerDelegations(options)) throw new ManagementAccessDeniedException();
-        foreach (var permission in ManagementIdentityPermissions.CustomerDelegationsFor(userId, member.Membership.Roles, options))
+            !ManagementIdentityPermissions.ValidCustomerDelegations(options, registry)) throw new ManagementAccessDeniedException();
+        foreach (var permission in ManagementIdentityPermissions.CustomerDelegationsFor(userId, member.Membership.Roles, options, registry))
             identity.AddClaim(new Claim(ManagementClaimTypes.Permission, permission));
     }
 

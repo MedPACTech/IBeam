@@ -17,6 +17,7 @@ public sealed class DiscoveryProtocolTests
     [TestMethod]
     [DataRow("version")] [DataRow("realm")] [DataRow("scope")] [DataRow("application")] [DataRow("environment")]
     [DataRow("unknown")] [DataRow("duplicate")] [DataRow("missing-info")]
+    [DataRow("ownership-negative")] [DataRow("ownership-overflow")]
     public void InvalidModuleMetadataIsRejected(string change)
     {
         var info = Info;
@@ -25,8 +26,23 @@ public sealed class DiscoveryProtocolTests
             "scope" => info with { RealmScope = "all-apps" }, "application" => info with { ApplicationKey = "" },
             "environment" => info with { Environment = "" }, "unknown" => info with { Capabilities = ["god-access"] },
             "duplicate" => info with { Capabilities = [ManagementCustomerIdentityOperations.Info, ManagementCustomerIdentityOperations.Info] },
+            "ownership-negative" => info with { OwnershipProtectionProtocolVersion = -1 },
+            "ownership-overflow" => info with { OwnershipProtectionProtocolVersion = 101 },
             _ => info with { Capabilities = [ManagementCustomerIdentityOperations.TenantsRead] } };
         Assert.Throws<ManagementConnectionInvalidException>(() => ManagementCustomerIdentityProtocol.Validate(info));
+    }
+    [TestMethod]
+    [DataRow(0)] [DataRow(1)]
+    public async Task OptionalOwnershipMetadataRoundTripsWithoutAddingAuthority(int version)
+    {
+        var original = Info with { OwnershipProtectionProtocolVersion = version, OperationReceiptProtocolVersion = 1, Capabilities = [ManagementCustomerIdentityOperations.Info,
+            ManagementCustomerIdentityOperations.MembershipsManage, ManagementCustomerIdentityOperations.RolesAssign] };
+        var handler = new DiscoveryHandler(path => path.Contains("management-diagnostics") ? new(HttpStatusCode.NotFound) : Customer(original));
+        var profile = await Probe(handler).ProbeProfileAsync("https://atlas.example", new("fixture-private-machine-key"));
+        Assert.AreEqual("available", profile.CustomerIdentity.Status);
+        Assert.AreEqual(version, profile.CustomerIdentity.Info!.OwnershipProtectionProtocolVersion);
+        Assert.AreEqual(1, profile.CustomerIdentity.Info.OperationReceiptProtocolVersion);
+        CollectionAssert.AreEquivalent(original.Capabilities.ToArray(), profile.Capabilities.ToArray());
     }
     [TestMethod]
     [DataRow("diagnostics-only")] [DataRow("identity-only")] [DataRow("combined")] [DataRow("unsupported-customer-version")]

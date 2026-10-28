@@ -2,10 +2,10 @@ name: Validate Management Boundary
 on:
   push:
     branches: [development]
-    paths: ['IBeam.Management*/**', 'IBeam.Tests.Management*/**', 'IBeam.Identity*/**', 'IBeam.Services*/**', 'IBeam.Api/**', 'samples/Management.PackageSmoke/**', 'scripts/Test-ManagementPackages.ps1', '.github/workflows/validate-management.yml']
+    paths: ['IBeam.Management*/**', 'IBeam.Tests.Management*/**', 'IBeam.Identity*/**', 'IBeam.Licensing*/**', 'IBeam.Tests.Licensing/**', 'IBeam.Services*/**', 'IBeam.Api/**', 'samples/Management.PackageSmoke/**', 'samples/Management.Bootstrap/**', 'scripts/Test-ManagementPackages.ps1', 'scripts/Test-ManagementCustomerIdentityPackages.ps1', '.github/workflows/validate-management.yml']
   pull_request:
     branches: [development]
-    paths: ['IBeam.Management*/**', 'IBeam.Tests.Management*/**', 'IBeam.Identity*/**', 'IBeam.Services*/**', 'IBeam.Api/**', 'samples/Management.PackageSmoke/**', 'scripts/Test-ManagementPackages.ps1', '.github/workflows/validate-management.yml']
+    paths: ['IBeam.Management*/**', 'IBeam.Tests.Management*/**', 'IBeam.Identity*/**', 'IBeam.Licensing*/**', 'IBeam.Tests.Licensing/**', 'IBeam.Services*/**', 'IBeam.Api/**', 'samples/Management.PackageSmoke/**', 'samples/Management.Bootstrap/**', 'scripts/Test-ManagementPackages.ps1', 'scripts/Test-ManagementCustomerIdentityPackages.ps1', '.github/workflows/validate-management.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -53,7 +53,7 @@ jobs:
       - name: Management and shared-component regressions
         shell: pwsh
         run: |
-          $projects=@('IBeam.Tests.Management','IBeam.Tests.Management.Identity','IBeam.Tests.Management.Credentials','IBeam.Tests.Management.Applications','IBeam.Tests.Management.Diagnostics','IBeam.Tests.Identity','IBeam.Tests.Identity.Services','IBeam.Tests.Identity.Api','IBeam.Tests.Api','IBeam.Tests.Services','IBeam.Tests.Services.Logging','IBeam.Tests.AccessControl')
+          $projects=@('IBeam.Tests.Management','IBeam.Tests.Management.Identity','IBeam.Tests.Management.Credentials','IBeam.Tests.Management.Applications','IBeam.Tests.Management.Diagnostics','IBeam.Tests.Management.Licensing','IBeam.Tests.Management.Operations','IBeam.Tests.Management.TenantData','IBeam.Tests.Licensing','IBeam.Tests.Identity','IBeam.Tests.Identity.Services','IBeam.Tests.Identity.Api','IBeam.Tests.Api','IBeam.Tests.Services','IBeam.Tests.Services.Logging','IBeam.Tests.AccessControl')
           foreach ($project in $projects) {
             dotnet test "$project/$project.csproj" -c Release --nologo --logger "trx;LogFileName=$project.trx" --results-directory "$env:RUNNER_TEMP/management-results"
             if ($LASTEXITCODE -ne 0) {throw "$project failed"}
@@ -64,7 +64,7 @@ jobs:
           }
       - name: Pack, inspect and consume generated packages
         shell: pwsh
-        run: ./scripts/Test-ManagementPackages.ps1 -OutputDirectory "$env:RUNNER_TEMP/management-packages"
+        run: ./scripts/Test-ManagementPackages.ps1 -OutputDirectory "$env:RUNNER_TEMP/management-packages" -AdditionalModules @('IBeam.Management.Licensing','IBeam.Management.Operations.Target.Api','IBeam.Management.TenantData.Target.Services','IBeam.Management.TenantData.Target.Api')
       - uses: actions/upload-artifact@v4
         if: always()
         with:

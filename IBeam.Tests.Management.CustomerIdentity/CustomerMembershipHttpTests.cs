@@ -1,8 +1,12 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Azure.Data.Tables;
 using IBeam.Identity.Interfaces;
+using IBeam.Identity.Models;
+using IBeam.Identity.Services.Tenants;
 using IBeam.Management.CustomerIdentity;
+using IBeam.Services.Abstractions;
 namespace IBeam.Tests.Management.CustomerIdentity;
 
 [TestClass]
@@ -50,15 +54,103 @@ public sealed class CustomerMembershipHttpTests
         Assert.AreEqual(HttpStatusCode.NotFound, cross.StatusCode);
     }
     [TestMethod, TestCategory("StorageIntegration")]
-    public async Task LostProjectionReplyReconcilesThroughOneDurableOperationWithoutAnotherPrimaryWrite()
+    [DataRow(false)] [DataRow(true)]
+    public async Task LostProjectionReplyReconcilesThroughOneDurableOperationWithoutAnotherPrimaryWrite(bool roles)
     {
         await using var data = await MembershipStorageFixture.Create(); var wrapper = new SnapshotBarrier(data.Members) { WaitForPair = false, FailProjectionOnce = true };
         await using var f = await DelegationFixture.Start(memberships: data, membershipWrites: wrapper);
         var original = (await data.Members.FindStateAsync(data.Tenant, data.Member))!;
-        using var failed = await Write(f, data, data.Member, new { isEnabled = false }, "membership-recovery-intent", original.Version); Assert.AreEqual(HttpStatusCode.ServiceUnavailable, failed.StatusCode);
-        var applied = (await data.Members.FindStateAsync(data.Tenant, data.Member))!; Assert.IsFalse(applied.IsEnabled);
-        using var recovered = await Write(f, data, data.Member, new { isEnabled = false }, "membership-recovery-intent", original.Version);
+        object change = roles ? new { policyKey = "default", roleIds = Array.Empty<Guid>() } : new { isEnabled = false };
+        using var failed = await Write(f, data, data.Member, change, "membership-recovery-intent", original.Version, roles); Assert.AreEqual(HttpStatusCode.ServiceUnavailable, failed.StatusCode);
+        var applied = (await data.Members.FindStateAsync(data.Tenant, data.Member))!;
+        if (roles) Assert.HasCount(0, applied.RoleIds); else Assert.IsFalse(applied.IsEnabled);
+        using var recovered = await Write(f, data, data.Member, change, "membership-recovery-intent", original.Version, roles);
         Assert.AreEqual(HttpStatusCode.OK, recovered.StatusCode, await recovered.Content.ReadAsStringAsync()); Assert.AreEqual(applied.Version, (await data.Members.FindStateAsync(data.Tenant, data.Member))!.Version);
+    }
+    [TestMethod, TestCategory("StorageIntegration")]
+    [DataRow(false, false)] [DataRow(true, false)] [DataRow(false, true)]
+    public async Task NarrowPolicyCannotStripAnExistingOutOfPolicyRole(bool customRole, bool clear)
+    {
+        await using var data = await MembershipStorageFixture.Create();
+        var protectedRole = customRole ? await data.Roles.CreateRoleAsync(data.Tenant, "EnterpriseCustodian", true) : data.Owner;
+        await SeedRoles(data, data.AdminA, [protectedRole, data.MemberRole]);
+        var current = (await data.Members.FindStateAsync(data.Tenant, data.AdminA))!;
+        var secondary = (await data.Secondary.GetEntityAsync<TableEntity>("USR|" + data.AdminA, "TEN|" + data.Tenant)).Value;
+        var other = (await data.Members.FindStateAsync(data.OtherTenant, data.AdminA))!;
+        var access = new IdentityTenantAccessValidator(data.Members, data.Tenants, new ServiceOperationExecutor());
+        var beforeAccess = await access.RequireAsync(data.AdminA, data.Tenant, null);
+        var receipts = new OperationStore();
+        await using var f = await DelegationFixture.Start(memberships: data, operations: receipts);
+        using var rejected = await Write(f, data, data.AdminA, new { policyKey = "default", roleIds = clear ? Array.Empty<Guid>() : new[] { data.MemberRole.RoleId } },
+            "cannot-strip-protected-role", current.Version, true);
+        Assert.AreEqual(HttpStatusCode.Forbidden, rejected.StatusCode);
+        Assert.DoesNotContain("EnterpriseCustodian", await rejected.Content.ReadAsStringAsync());
+        Assert.DoesNotContain("PRIVATE-CUSTOMER", await rejected.Content.ReadAsStringAsync());
+        Assert.AreEqual(current.Version, (await data.Members.FindStateAsync(data.Tenant, data.AdminA))!.Version);
+        Assert.AreEqual(secondary.ETag, (await data.Secondary.GetEntityAsync<TableEntity>(secondary.PartitionKey, secondary.RowKey)).Value.ETag);
+        Assert.AreEqual(other.Version, (await data.Members.FindStateAsync(data.OtherTenant, data.AdminA))!.Version);
+        Assert.AreEqual(beforeAccess.Version, (await access.RequireAsync(data.AdminA, data.Tenant, beforeAccess.Version)).Version);
+        Assert.HasCount(0, receipts.Rows);
+        Assert.Contains(data.Owner.RoleId, (await data.Members.FindStateAsync(data.Tenant, data.AdminB))!.RoleIds);
+    }
+    [TestMethod, TestCategory("StorageIntegration")]
+    public async Task ApprovedRoleRemovalNeedsOnlyTheRoleAssignmentGrantAndReplaysWithoutAnotherWrite()
+    {
+        await using var data = await MembershipStorageFixture.Create(); await using var f = await DelegationFixture.Start(memberships: data);
+        f.Credentials.Row = f.Credentials.Row with { Capabilities = f.Credentials.Row.Capabilities.Where(x => x is not
+            (ManagementCustomerIdentityOperations.RolesRead or ManagementCustomerIdentityOperations.MembershipsManage)).ToArray() };
+        var current = (await data.Members.FindStateAsync(data.Tenant, data.Member))!;
+        var request = new { policyKey = "default", roleIds = Array.Empty<Guid>() };
+        using var first = await Write(f, data, data.Member, request, "approved-role-removal", current.Version, true);
+        Assert.AreEqual(HttpStatusCode.OK, first.StatusCode, await first.Content.ReadAsStringAsync());
+        var changed = (await data.Members.FindStateAsync(data.Tenant, data.Member))!;
+        Assert.HasCount(0, changed.RoleIds); Assert.IsTrue(changed.IsEnabled);
+        using var replay = await Write(f, data, data.Member, request, "approved-role-removal", current.Version, true);
+        Assert.AreEqual(HttpStatusCode.OK, replay.StatusCode);
+        Assert.AreEqual(changed.Version, (await data.Members.FindStateAsync(data.Tenant, data.Member))!.Version);
+        using var stale = await Write(f, data, data.Member, new { policyKey = "default", roleIds = new[] { data.MemberRole.RoleId } },
+            "stale-role-replacement", current.Version, true);
+        Assert.AreEqual(HttpStatusCode.PreconditionFailed, stale.StatusCode);
+    }
+    [TestMethod, TestCategory("StorageIntegration")]
+    [DataRow(true)] [DataRow(false)]
+    public async Task UnmappedLegacyRoleNamesCannotBeSilentlyNormalizedByReplacement(bool namesOnly)
+    {
+        await using var data = await MembershipStorageFixture.Create();
+        var row = (await data.Primary.GetEntityAsync<TableEntity>("TEN|" + data.Tenant, "USR|" + data.Member)).Value;
+        row["RoleIdsCsv"] = namesOnly ? "" : data.MemberRole.RoleId.ToString("D"); row["RolesCsv"] = "Owner";
+        await data.Primary.UpdateEntityAsync(row, row.ETag, TableUpdateMode.Replace);
+        var current = (await data.Members.FindStateAsync(data.Tenant, data.Member))!; var receipts = new OperationStore();
+        await using var f = await DelegationFixture.Start(memberships: data, operations: receipts);
+        using var rejected = await Write(f, data, data.Member, new { policyKey = "default", roleIds = Array.Empty<Guid>() },
+            "legacy-role-replacement", current.Version, true);
+        Assert.AreEqual(HttpStatusCode.Conflict, rejected.StatusCode);
+        Assert.AreEqual(current.Version, (await data.Members.FindStateAsync(data.Tenant, data.Member))!.Version);
+        Assert.HasCount(0, receipts.Rows);
+    }
+    private static async Task SeedRoles(MembershipStorageFixture data, Guid user, IReadOnlyList<TenantRole> roles)
+    {
+        var row = (await data.Primary.GetEntityAsync<TableEntity>("TEN|" + data.Tenant, "USR|" + user)).Value;
+        row["RoleIdsCsv"] = string.Join(',', roles.Select(x => x.RoleId)); row["RolesCsv"] = string.Join(',', roles.Select(x => x.Name));
+        await data.Primary.UpdateEntityAsync(row, row.ETag, TableUpdateMode.Replace);
+        await data.Members.RepairProjectionAsync(data.Tenant, user);
+    }
+    [TestMethod, TestCategory("StorageIntegration")]
+    public async Task ConcurrentNativeGrantAfterPolicyCheckCannotBeOverwrittenByRoleReplacement()
+    {
+        await using var data = await MembershipStorageFixture.Create(); var reads = 0;
+        var wrapper = new SnapshotBarrier(data.Members) { WaitForPair = false, BeforeFindState = async (tenant, user, ct) => {
+            if (tenant == data.Tenant && user == data.Member && Interlocked.Increment(ref reads) == 2)
+                await data.Roles.EnsureTenantMembershipAndGrantRolesAsync(new(tenant, user, RoleIds: [data.Owner.RoleId]), ct);
+        } };
+        await using var f = await DelegationFixture.Start(memberships: data, membershipWrites: wrapper);
+        var original = (await data.Members.FindStateAsync(data.Tenant, data.Member))!;
+        using var rejected = await Write(f, data, data.Member, new { policyKey = "default", roleIds = Array.Empty<Guid>() },
+            "role-replacement-native-race", original.Version, true);
+        Assert.AreEqual(HttpStatusCode.PreconditionFailed, rejected.StatusCode);
+        var current = (await data.Members.FindStateAsync(data.Tenant, data.Member))!;
+        Assert.Contains(data.Owner.RoleId, current.RoleIds); Assert.Contains(data.MemberRole.RoleId, current.RoleIds);
+        Assert.AreNotEqual(original.Version, current.Version);
     }
     [TestMethod, TestCategory("StorageIntegration")]
     public async Task ConcurrentSignedMutationsForDifferentAdminsHaveOneWinner()

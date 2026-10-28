@@ -64,18 +64,14 @@ public sealed class ApplicationDiagnosticsClient(ManagementConnectionNetworkPoli
         catch { throw new ManagementPortalResponseException(); }
     }
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private async Task<JsonDocument> GetAsync(ManagementDiagnosticConnection c, string path, List<KeyValuePair<string, string>> query, CancellationToken ct)
-    {
+    private Task<JsonDocument> GetAsync(ManagementDiagnosticConnection c, string path, List<KeyValuePair<string, string>> query, CancellationToken ct)
+        => ManagementTargetTelemetry.Run("diagnostics", "read", path == "info" ? ManagementOperations.DiagnosticsInfo :
+            path.StartsWith("system-errors", StringComparison.Ordinal) ? ManagementOperations.ErrorsRead : ManagementOperations.LogsRead,
+            c.ApplicationId, null, null, audit, ct, async () => {
         try
         {
             var origin = network.RequireOrigin(c.BaseUrl);
-            using var handler = TestTransportFactory?.Invoke() ?? new SocketsHttpHandler
-            {
-                AllowAutoRedirect = false, UseProxy = false, UseCookies = false, AutomaticDecompression = DecompressionMethods.None,
-                ActivityHeadersPropagator = null, ConnectTimeout = TimeSpan.FromSeconds(5),
-                ConnectCallback = (context, token) => network.ConnectAsync(origin, context.DnsEndPoint, token)
-            };
-            using var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+            using var client = ManagementTargetHttpTransport.CreateClient(network, origin, TestTransportFactory);
             var suffix = query.Count == 0 ? "" : "?" + string.Join("&", query.Select(x => Uri.EscapeDataString(x.Key) + "=" + Uri.EscapeDataString(x.Value)));
             using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(origin, "/api/management-diagnostics/" + path + suffix))
                 { Version = HttpVersion.Version11, VersionPolicy = HttpVersionPolicy.RequestVersionExact };
@@ -108,7 +104,7 @@ public sealed class ApplicationDiagnosticsClient(ManagementConnectionNetworkPoli
         catch (Exception ex) when (ex is ManagementAccessDeniedException or ManagementDiagnosticNotFoundException or DiagnosticQueryException or
             ManagementPortalResponseException or ManagementPortalRateLimitException or ManagementDiagnosticUnavailableException) { throw; }
         catch { throw new ManagementDiagnosticUnavailableException(); }
-    }
+    });
     private static List<KeyValuePair<string, string>> Query(DiagnosticQuery q)
     {
         var values = new List<KeyValuePair<string, string>>();

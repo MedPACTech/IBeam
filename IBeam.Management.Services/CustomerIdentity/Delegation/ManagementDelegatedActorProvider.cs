@@ -1,3 +1,4 @@
+using IBeam.Management.Operations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using IBeam.Management.CustomerIdentity;
@@ -19,6 +20,14 @@ public sealed class ManagementDelegatedActorProvider(IManagementCustomerIdentity
     IManagementActorSigningKeyProvider keys, IOptionsMonitor<ManagementActorIssuerOptions> options,
     IManagementAuditContext audit, TimeProvider clock, IServiceOperationExecutor operations) : IManagementDelegatedActorProvider
 {
+    private readonly ManagementOperationRegistry _registry = ManagementOperationRegistry.BuiltIn;
+    public ManagementDelegatedActorProvider(IManagementCustomerIdentityAuthorizationService authorization,
+    IManagementPrincipalProvider principals, IManagementApplicationStateProvider applications,
+    IManagementApplicationCredentialRepository credentials, IManagementSecretStore secrets, ManagementCredentialSecretCodec codec,
+    IManagementActorSigningKeyProvider keys, IOptionsMonitor<ManagementActorIssuerOptions> options,
+    IManagementAuditContext audit, TimeProvider clock, IServiceOperationExecutor operations, ManagementOperationRegistry registry)
+        : this(authorization, principals, applications, credentials, secrets, codec, keys, options, audit, clock, operations) => _registry = registry;
+
     public Task<ManagementActorAssertion> IssueAsync(Guid applicationId, string operation, ManagementDelegationRequest request, CancellationToken ct = default)
         => operations.ExecuteAsync(this, async token =>
         {
@@ -30,7 +39,7 @@ public sealed class ManagementDelegatedActorProvider(IManagementCustomerIdentity
             if (!Guid.TryParse(ManagementPrincipalGuard.RequireHumanUserId(identity), out var user) || user == Guid.Empty) throw new ManagementAccessDeniedException();
             var configured = options.CurrentValue;
             var binding = configured.Targets.SingleOrDefault(x => x.ApplicationId == applicationId) ?? throw new ManagementAccessDeniedException();
-            var digest = ManagementDelegationBinding.Hash(request);
+            var digest = ManagementDelegationBinding.Hash(request, operation, _registry);
             var app = await applications.GetAsync(organization, applicationId, token);
             if (app is null || !app.IsEnabled || app.OrganizationId != organization || app.ApplicationId != applicationId || app.ActiveCredentialId is not Guid credentialId)
                 throw new ManagementAccessDeniedException();

@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace IBeam.Licensing.Services;
 
-public sealed class InMemoryLicensingStore : ILicensingStore
+public sealed partial class InMemoryLicensingStore : ILicensingStore, ILicenseStatusConditionalStore, ILicenseSeatConditionalStore
 {
     private readonly ConcurrentDictionary<(Guid TenantId, Guid LicenseId), TenantLicenseRecord> _licenses = [];
     private readonly ConcurrentDictionary<(Guid TenantId, Guid LicenseId, Guid AssignmentId), LicenseSeatAssignmentInfo> _assignments = [];
@@ -22,18 +22,29 @@ public sealed class InMemoryLicensingStore : ILicensingStore
 
     public Task<TenantLicenseRecord> UpsertLicenseAsync(TenantLicenseRecord license, CancellationToken ct = default)
     {
-        _licenses[(license.TenantId, license.LicenseId)] = license;
-        return Task.FromResult(license);
+        ct.ThrowIfCancellationRequested();
+        lock (_statusGate)
+        {
+            var key = (license.TenantId, license.LicenseId);
+            if (_protectedLicenses.Contains(key) && (!_licenses.TryGetValue(key, out var existing) || existing.Version != license.Version))
+                throw new LicenseStatusPreconditionException();
+            var saved = Freeze(license with { Version = Guid.NewGuid().ToString("N") });
+            _licenses[key] = saved;
+            return Task.FromResult(saved);
+        }
     }
 
     public Task DeleteLicenseAsync(Guid tenantId, Guid licenseId, CancellationToken ct = default)
     {
-        _licenses.TryRemove((tenantId, licenseId), out _);
-
-        foreach (var key in _assignments.Keys.Where(x => x.TenantId == tenantId && x.LicenseId == licenseId).ToList())
-            _assignments.TryRemove(key, out _);
-
-        return Task.CompletedTask;
+        ct.ThrowIfCancellationRequested();
+        lock (_statusGate)
+        {
+            if (_protectedLicenses.Contains((tenantId, licenseId))) throw new LicenseStatusConflictException();
+            _licenses.TryRemove((tenantId, licenseId), out _);
+            foreach (var key in _assignments.Keys.Where(x => x.TenantId == tenantId && x.LicenseId == licenseId).ToList())
+                _assignments.TryRemove(key, out _);
+            return Task.CompletedTask;
+        }
     }
 
     public Task<IReadOnlyList<LicenseSeatAssignmentInfo>> ListAssignmentsAsync(Guid tenantId, Guid licenseId, CancellationToken ct = default)
@@ -45,13 +56,25 @@ public sealed class InMemoryLicensingStore : ILicensingStore
 
     public Task<LicenseSeatAssignmentInfo> AddAssignmentAsync(LicenseSeatAssignmentInfo assignment, CancellationToken ct = default)
     {
-        _assignments[(assignment.TenantId, assignment.LicenseId, assignment.AssignmentId)] = assignment;
-        return Task.FromResult(assignment);
+        ct.ThrowIfCancellationRequested();
+        lock (_statusGate)
+        {
+            if (_protectedSeatLicenses.Contains((assignment.TenantId, assignment.LicenseId))) throw new LicenseSeatPreconditionException();
+            var saved = FreezeAssignment(assignment);
+            _assignments[(assignment.TenantId, assignment.LicenseId, assignment.AssignmentId)] = saved;
+            AdvanceLicense(assignment.TenantId, assignment.LicenseId);
+            return Task.FromResult(saved);
+        }
     }
 
     public Task DeleteAssignmentAsync(Guid tenantId, Guid licenseId, Guid assignmentId, CancellationToken ct = default)
     {
-        _assignments.TryRemove((tenantId, licenseId, assignmentId), out _);
-        return Task.CompletedTask;
+        ct.ThrowIfCancellationRequested();
+        lock (_statusGate)
+        {
+            if (_protectedSeatLicenses.Contains((tenantId, licenseId))) throw new LicenseSeatPreconditionException();
+            if (_assignments.TryRemove((tenantId, licenseId, assignmentId), out _)) AdvanceLicense(tenantId, licenseId);
+            return Task.CompletedTask;
+        }
     }
 }

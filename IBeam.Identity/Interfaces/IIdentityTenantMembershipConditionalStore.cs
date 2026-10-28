@@ -12,7 +12,11 @@ public interface IIdentityTenantMembershipConditionalStore
 }
 public sealed record IdentityTenantMembershipState(Guid TenantId, Guid UserId, bool IsEnabled, IReadOnlyList<Guid> RoleIds,
     IReadOnlyList<string> RoleNames, string Version, Guid? LastOperationId);
-public sealed record IdentityTenantMembershipSnapshot(Guid TenantId, string Version, IReadOnlyList<Guid> ProtectedAdministratorRoleIds, IReadOnlyList<IdentityTenantMembershipState> Members);
+public sealed record IdentityTenantMembershipSnapshot(Guid TenantId, string Version, IReadOnlyList<Guid> ProtectedAdministratorRoleIds, IReadOnlyList<IdentityTenantMembershipState> Members)
+{
+    public IReadOnlyList<Guid> ProtectedOwnerRoleIds { get; init; } = [];
+    public int OwnershipProtocolVersion { get; init; }
+}
 public interface IIdentityTenantMembershipAdministrationService
 {
     Task<IdentityTenantMembershipState> SetEnabledAsync(Guid tenantId, Guid userId, bool enabled, string version, Guid operationId, IReadOnlyList<Guid> administratorRoleIds, CancellationToken ct = default);

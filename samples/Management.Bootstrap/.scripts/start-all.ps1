@@ -1,5 +1,8 @@
-param([string]$HostRoot, [string]$PackageFeed, [int]$ApiPort=5150, [int]$TablePort=15102, [string]$AdministratorEmail='operator@example.test', [string]$Instance='management', [switch]$Demo)
+param([string]$HostRoot, [string]$PackageFeed, [string]$PackageVersion, [int]$ApiPort=5150, [int]$TablePort=15102, [string]$AdministratorEmail='operator@example.test', [string]$Instance='management', [switch]$Demo)
 . "$PSScriptRoot/common.ps1"
+if($PackageVersion -and $PackageVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9][A-Za-z0-9.-]*)?(?:\+[A-Za-z0-9.-]+)?$'){throw 'PackageVersion must be an exact NuGet version.'}
+[string[]]$versionArguments=@()
+if($PackageVersion){$versionArguments=@("-p:IBeamVersion=$PackageVersion")}
 if ($Instance -notmatch '^[a-zA-Z0-9-]{1,40}$') { throw 'Invalid local instance name.' }
 $LocalRoot=Join-Path $RepoRoot ('.local/'+$Instance)
 $StatePath=Join-Path $LocalRoot 'processes.json'
@@ -61,13 +64,13 @@ try {
         $escaped=[Security.SecurityElement]::Escape($feed)
         $restoreConfig=Join-Path $LocalRoot 'NuGet.Config'
         "<configuration><packageSources><clear/><add key='local' value='$escaped'/><add key='nuget.org' value='https://api.nuget.org/v3/index.json'/></packageSources></configuration>" | Set-Content $restoreConfig
-        & dotnet restore $Project --configfile $restoreConfig --nologo -v quiet
+        & dotnet restore $Project --configfile $restoreConfig --nologo -v quiet @versionArguments
         if($LASTEXITCODE -ne 0){throw 'Local package restore failed.'}
     } else {
-        & dotnet restore $Project --nologo -v quiet
+        & dotnet restore $Project --nologo -v quiet @versionArguments
         if($LASTEXITCODE -ne 0){throw 'Published package restore failed.'}
     }
-    & dotnet publish $Project --no-restore -c Release -o $runtimeDirectory --nologo -v quiet
+    & dotnet publish $Project --no-restore -c Release -o $runtimeDirectory --nologo -v quiet @versionArguments
     if ($LASTEXITCODE -ne 0) { throw 'Management host publish failed.' }
     $operator=Get-Content $operatorPath -Raw | ConvertFrom-Json
     $saved=@{}

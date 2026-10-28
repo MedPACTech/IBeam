@@ -31,6 +31,7 @@ public static class ServiceCollectionExtensions
     /// <returns>The updated service collection.</returns>
     public static IServiceCollection AddIBeamIdentityServices(this IServiceCollection services, IConfiguration configuration)
     {
+        Tenants.IdentityTenantOwnershipExtensions.AddIBeamIdentityTenantOwnershipProtection(services, configuration);
         services.AddIBeamServicePolicies();
         services.AddIBeamServiceAuditing(configuration);
 

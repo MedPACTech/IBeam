@@ -1,5 +1,7 @@
 # IBeam.Management.Identity.Target.Services
 
+Optional [independent native owner protection](../docs/management/tenant-ownership-protection.md) (IBM-0122) is configured separately from administrator recovery roles. Target info reports the installed native membership protocol only when explicitly enabled with compatible providers. This adds no ownership-transfer endpoint or grant.
+
 IBM-0106 adds scoped receipt lookup by the original idempotency identity without customer payloads or writes. It reconstructs the existing operation ID under live authority and never executes mutation handlers. See docs/management/customer-tenant-portal-writes.md.
 
 IBM-0105 adds ManagementTenantAdministrationService over existing Identity lifecycle services, durable operation receipts and separate source/reference/phase metadata. Stable IDs and conditional writes recover incomplete consumer extensions. No customer membership/default tenant/role/token is assigned. See docs/management/customer-tenant-administration.md.
@@ -41,3 +43,11 @@ IBM-0113 conditional tenant activation/deactivation, lifecycle recovery and curr
 Onboarding policy discovery and optional durable consumer initialization: [integration contract](../docs/management/customer-onboarding-policy.md).
 
 Optional trusted tenant provenance and existing signup compatibility: [integration contract](../docs/management/tenant-provenance.md).
+
+Role replacement hardening (IBM-0121): the selected provisioning policy must authorize removals as well as assignments. Omitting an out-of-policy Owner or another privileged role is denied before membership writes; inconsistent legacy role names require trusted native normalization. This does not require the independent `roles.read` grant. See the [membership lifecycle contract](../docs/management/customer-membership-lifecycle.md).
+
+IBM-0124 adds explicit scoped ownership lookup and transfer with independent grants and signed exact versions. See [customer ownership APIs](../docs/management/customer-ownership-api.md).
+
+IBM-0140 adds optional native atomic membership/event intent and leased, bounded at-least-once dispatch with explicit durable receiver registration. Original actor/operation/sequence payloads are immutable; native owner/admin and purge fences remain active. Defaults install no emitter/delivery claim. See [membership lifecycle events](../docs/management/membership-lifecycle-events.md) for scope, enrollment, startup, actor capture and recovery.
+
+IBM-0144 adds optional independently granted bounded invitation bulk revocation, durable original-intent progress and read-only receipts. See [bulk invitation revocation](../docs/management/bulk-invitation-revocation.md) for exact selection versions, partial/unknown outcomes, module setup and routes.

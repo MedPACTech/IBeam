@@ -10,6 +10,7 @@ public static class ManagementServiceCollectionExtensions
     /// <summary>The host must provide a trusted IManagementPrincipalProvider.</summary>
     public static IServiceCollection AddIBeamManagementServices(this IServiceCollection services)
     {
+        services.AddIBeamManagementOperationRegistry();
         services.AddIBeamServiceAuditing();
         services.TryAddScoped<IManagementIdentityService, ManagementIdentityService>();
         services.TryAddScoped<IManagementDiagnosticsInfoService, ManagementDiagnosticsInfoService>();

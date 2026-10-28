@@ -24,7 +24,9 @@ public static class ManagementAuditOperations
     private static IReadOnlySet<string> Create()
     {
     var actions = new HashSet<string>(StringComparer.Ordinal) {
-        "management.identity.read", "management.identity.bootstrap", "management.diagnostics.info",
+        "management.identity.read", "management.identity.bootstrap", "management.diagnostics.info", "management.operations.info", "management.operations.lookup", "management.operations.dispatch", "management.operations.send", "management.operations.availability",
+        "management.tenants.export.worker", "management.tenants.export.customer-retrieve",
+        "management.tenants.delete.worker",
         "management.identity.info", "management.portal.customer-identity.info", "management.portal.customer-identity.authorize",
         "management.portal.customer-identity.connection", "management.portal.customer-identity.connection-check",
         "management.portal.customer-identity.tenants.list", "management.portal.customer-identity.tenants.read",
@@ -36,6 +38,10 @@ public static class ManagementAuditOperations
         "management.identity.onboarding.create", "management.identity.onboarding.read", "management.identity.onboarding.retry",
         "management.identity.tenants.provenance", "management.identity.roles.catalog", "management.identity.users.provision",
         "management.identity.memberships.manage", "management.identity.roles.assign",
+        "management.identity.owners.read", "management.identity.owners.transfer", "management.identity.owners.transfer.destination",
+        "management.identity.owners.transfer.destination.pending", "management.identity.owners.transfer.destination.running",
+        "management.identity.owners.transfer.destination.succeeded", "management.identity.owners.transfer.destination.uncertain",
+        "management.portal.customer-identity.owners.read",
         "management.identity.invites.manage.resend", "management.identity.invites.manage.revoke", "management.identity.invitations.operation.read",
         "management.portal.customer-identity.roles.catalog", "management.portal.customer-identity.onboarding.policies",
         "management.portal.customer-identity.onboarding.create", "management.portal.customer-identity.onboarding.retry",
@@ -67,13 +73,15 @@ public static class ManagementAuditOperations
         "management.support-invitations.create", "management.support-invitations.accept", "management.support-users.disable",
         "management.portal.errors.list", "management.portal.errors.read", "management.portal.logs.list", "management.portal.logs.read", "management.portal.applications.list"
     };
-    foreach (var action in new[] { "users.provision", "invites.resend", "invites.revoke", "memberships.manage", "roles.assign", "tenants.status" }) {
+    foreach (var action in new[] { "users.provision", "invites.resend", "invites.revoke", "memberships.manage", "roles.assign", "tenants.status", "owners.transfer" }) {
         actions.Add("management.portal.customer-identity." + action);
         foreach (var status in new[] { "pending", "running", "succeeded", "uncertain", "sending", "sent", "failed", "unknown", "accepted", "redeemed", "expired", "revoked", "superseded", "not-required" })
             actions.Add("management.portal.customer-identity." + action + "." + status);
     }
+    foreach (var phase in new[] { "planned", "confirmation", "accepted", "requested", "fencing", "purging", "verifying", "partially-completed", "succeeded", "failed", "cancelled", "unknown" })
+        actions.Add("management.tenants.delete.portal." + phase);
     return actions;
     }
     public static bool IsManagementService(object service) => service.GetType().Assembly.GetName().Name is
-        "IBeam.Management.Services" or "IBeam.Management.Identity.Services" or "IBeam.Management.Identity.Target.Services";
+        "IBeam.Management.Services" or "IBeam.Management.Identity.Services" or "IBeam.Management.Identity.Target.Services" or "IBeam.Management.Licensing" or "IBeam.Management.TenantData.Target.Services";
 }

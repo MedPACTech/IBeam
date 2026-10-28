@@ -1,5 +1,9 @@
 # IBeam.Management
 
+IBM-0126 adds an immutable host-owned operation registry and typed provider-neutral app contracts. Reserved export/delete names confer no authority; app-data metadata stays separate from Identity. See [registered operations](https://github.com/MedPACTech/IBeam/blob/development/docs/management/registered-operations.md).
+
+Customer Identity info optionally reports `OwnershipProtectionProtocolVersion`; zero means unavailable and is omitted in JSON. This is native membership protocol metadata, not ownership transfer authority. See [tenant ownership protection](../docs/management/tenant-ownership-protection.md).
+
 IBM-0106 adds safe portal mutation/tracking contracts, typed operation lookup and optional operationReceiptProtocolVersion discovery. These are independent of grants and keep core free of Identity/HTTP dependencies. See docs/management/customer-tenant-portal-writes.md.
 
 IBM-0105 adds typed tenant create/rename commands, safe operation/tenant results and separate provenance/external-reference metadata ports. No Identity or ASP.NET dependency is added to core. See docs/management/customer-tenant-administration.md.
@@ -41,3 +45,13 @@ IBM-0113 conditional tenant activation/deactivation, lifecycle recovery and curr
 Onboarding policy discovery and optional durable consumer initialization: [integration contract](../docs/management/customer-onboarding-policy.md).
 
 Optional trusted tenant provenance and existing signup compatibility: [integration contract](../docs/management/tenant-provenance.md).
+
+IBM-0124 adds explicit scoped ownership lookup and transfer with independent grants and signed exact versions. See [customer ownership APIs](../docs/management/customer-ownership-api.md).
+
+IBM-0137 adds opt-in typed purge preflight, exact confirmation and read-only progress. Portal hosts use `AddIBeamManagementPortalTenantPurgeApi(configuration)`; no native worker/provider is installed. See [tenant purge](../docs/management/tenant-purge.md) for routes, independent grants, unknown-reply recovery and metadata-only audit.
+
+IBM-0142 adds the supported typed IManagementTargetOperationSender port while preserving IManagementOperationClient. See [target sender](../docs/management/target-operation-sender.md).
+
+IBM-0143 adds bounded metadata-only ManagementTargetCallTelemetry contracts. See [safe target telemetry](../docs/management/target-operation-telemetry.md).
+
+IBM-0144 adds optional independently granted bounded invitation bulk revocation, durable original-intent progress and read-only receipts. See [bulk invitation revocation](../docs/management/bulk-invitation-revocation.md) for exact selection versions, partial/unknown outcomes, module setup and routes.

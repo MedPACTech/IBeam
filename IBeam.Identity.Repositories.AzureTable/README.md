@@ -1,5 +1,9 @@
 # IBeam.Identity.Repositories.AzureTable
 
+Optional tenant purge requires `IBeam:Identity:AzureTable:RequireTenantPurgeFencing=true`, all protected native writers deployed, and ten distinct pre-provisioned entity-family tables. `AddIBeamIdentityAzureTableTenantPurge` registers entity-focused native resource stores. Per-tenant partition registries and exact local ETags prevent delayed writes from recreating records; permanent operational tombstones remain explicit retained scope. No runtime purge table creation or global user/OTP/session deletion. See [tenant purge](../docs/management/tenant-purge.md).
+
+IBM-0122 adds the optional ownership protocol: `OwnerRoleIds` and `OwnershipProtocolVersion` share the existing tenant membership revision; the provider's `RequireOwnershipProtection` fence is derived from the native ownership configuration. Uncoordinated destructive writers fail closed and ordinary grants cannot discard existing authority. See [ownership protocol and rollout](../docs/management/tenant-ownership-protection.md).
+
 IBM-0105: AzureTableIdentityTenantStore also implements IIdentityTenantConditionalStore. Exact ETags guard rename; a merge preserves consumer columns and adds LastOperationId only on managed writes. Legacy missing creation timestamps project as null and reads never rewrite rows. See docs/management/customer-tenant-administration.md.
 
 Azure Table Storage provider for IBeam identity store contracts.
@@ -236,3 +240,9 @@ IBM-0110 invitation resend/revoke uses exact versions, durable private delivery 
 IBM-0112 versioned tenant membership/role administration, concurrent final-administrator protection and required customer access enforcement: [lifecycle contract](../docs/management/customer-membership-lifecycle.md).
 
 IBM-0113 conditional tenant activation/deactivation, lifecycle recovery and current customer access rejection: [status contract](../docs/management/customer-tenant-status.md).
+
+IBM-0123 adds optional native authoritative owner lookup and atomic transfer. See [native ownership transfer](../docs/management/tenant-ownership-transfer.md) for explicit policy, registration, exact versions and durable recovery; Management HTTP integration is separate.
+
+IBM-0140 adds optional native atomic membership/event intent and leased, bounded at-least-once dispatch with explicit durable receiver registration. Original actor/operation/sequence payloads are immutable; native owner/admin and purge fences remain active. Defaults install no emitter/delivery claim. See [membership lifecycle events](../docs/management/membership-lifecycle-events.md) for scope, enrollment, startup, actor capture and recovery.
+
+IBM-0141 adds bounded current-native-metadata projection reads through the explicitly installed lifecycle store. See [membership projections](../docs/management/membership-projections.md).

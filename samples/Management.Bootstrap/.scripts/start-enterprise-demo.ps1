@@ -1,7 +1,12 @@
-param([string]$HostRoot,[string]$PackageFeed,[string]$Instance='management-enterprise',[int]$ApiPort=5155,[int]$TablePort=15122,[int]$FirstTargetPort=5255)
+param([string]$HostRoot,[string]$PackageFeed,[string]$PackageVersion,[switch]$Ownership,[string]$Instance='management-enterprise',[int]$ApiPort=5155,[int]$TablePort=15122,[int]$FirstTargetPort=5255)
 $ErrorActionPreference='Stop'
 . "$PSScriptRoot/common.ps1"
-& "$PSScriptRoot/start-all.ps1" -HostRoot $RepoRoot -PackageFeed $PackageFeed -Instance $Instance -ApiPort $ApiPort -TablePort $TablePort -Demo
+$existingPath=Join-Path $RepoRoot ('.local/'+$Instance+'/settings.json')
+if($Ownership -and (Test-Path -LiteralPath $existingPath)){
+ $existing=Get-Content -LiteralPath $existingPath -Raw|ConvertFrom-Json
+ if($existing.ManagementHost.CustomerDemo -and !$existing.ManagementHost.CustomerDemo.OwnershipEnabled){throw 'Existing instance ownership mode is preserved. Choose a fresh instance to opt into ownership.'}
+}
+& "$PSScriptRoot/start-all.ps1" -HostRoot $RepoRoot -PackageFeed $PackageFeed -PackageVersion $PackageVersion -Instance $Instance -ApiPort $ApiPort -TablePort $TablePort -Demo
 $LocalRoot=Join-Path $RepoRoot ('.local/'+$Instance)
 if(-not (Test-Path -LiteralPath (Join-Path $LocalRoot 'demo-manifest.json'))){& "$PSScriptRoot/seed-demo.ps1" -HostRoot $RepoRoot -Instance $Instance}
 $settingsPath=Join-Path $LocalRoot 'settings.json';$statePath=Join-Path $LocalRoot 'processes.json'
@@ -21,14 +26,16 @@ if(-not $settings.ManagementHost.CustomerDemo){
    JwtKey=(New-Secret);ProtectionKey=[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32));TenantId=[Guid]::NewGuid().ToString();DisabledTenantId=[Guid]::NewGuid().ToString()}
   $index++
  }
- $settings.ManagementHost.CustomerDemo=@{Enabled=$true;Targets=$targets;CustomerPassword=((New-Secret)+'Aa1!')}
+ $settings.ManagementHost.CustomerDemo=@{Enabled=$true;OwnershipEnabled=$Ownership.IsPresent;Targets=$targets;CustomerPassword=((New-Secret)+'Aa1!')}
  $settings.ManagementHost.CustomerIdentity=@{Enabled=$true}
  $settings.IBeam.Management.PortalCustomerIdentity=@{ProtectionKey=[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))}
  $settings.IBeam.Management.Delegation=@{Issuer=@{Issuer='synthetic-support';Targets=@($targets|ForEach-Object{@{ApplicationId=$_.ApplicationId;Audience=('synthetic-'+$_.ApplicationKey)}})}}
  $delegations=@()
  foreach($target in $targets){foreach($email in @('operator@example.test','reader@example.test')){
   $person=$manifest.users.$email
-  if($person){$delegations+=@{UserId=$person;ApplicationId=$target.ApplicationId;Operations=@('tenants.read','tenants.create','tenants.update','tenants.status','users.read','users.provision','invites.read','invites.manage','memberships.manage','roles.assign','roles.read','onboarding.create','onboarding.read','onboarding.retry')|ForEach-Object{'management.identity.'+$_}}}
+  $operations=@('tenants.read','tenants.create','tenants.update','tenants.status','users.read','users.provision','invites.read','invites.manage','memberships.manage','roles.assign','roles.read','onboarding.create','onboarding.read','onboarding.retry')
+  if($Ownership){$operations+=@('owners.read','owners.transfer')}
+  if($person){$delegations+=@{UserId=$person;ApplicationId=$target.ApplicationId;Operations=$operations|ForEach-Object{'management.identity.'+$_}}}
  }}
  $settings.IBeam.Management.Identity.CustomerDelegations=$delegations
  Write-PrivateJson $settingsPath $settings

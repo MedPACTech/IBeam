@@ -7,15 +7,14 @@ namespace IBeam.Management.Services;
 public sealed partial class ManagementTargetConnectionProbe(ManagementConnectionNetworkPolicy network,
     IOptions<ManagementConnectionOptions> options) : IManagementTargetConnectionProbe
 {
-    public async Task<ManagementDiagnosticsInfo> ProbeAsync(string origin, ManagementSecretValue key, CancellationToken ct = default)
-    {
+    public Task<ManagementDiagnosticsInfo> ProbeAsync(string origin, ManagementSecretValue key, CancellationToken ct = default)
+        => ManagementTargetTelemetry.Run("discovery", "probe", ManagementOperations.DiagnosticsInfo, null, null, null, null, ct, async () => {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(options.Value.TimeoutSeconds));
         try
         {
             var approved = network.RequireOrigin(origin);
-            using var handler = TestTransportFactory?.Invoke() ?? CreateHandler(approved);
-            using var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+            using var client = ManagementTargetHttpTransport.CreateClient(network, approved, TestTransportFactory, Math.Min(5, options.Value.TimeoutSeconds));
             using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(approved, "/api/management-diagnostics/info"))
                 { Version = HttpVersion.Version11, VersionPolicy = HttpVersionPolicy.RequestVersionExact };
             request.Headers.Add("X-IBeam-Management-Key", key.Value);
@@ -30,15 +29,9 @@ public sealed partial class ManagementTargetConnectionProbe(ManagementConnection
         catch (ManagementApplicationInvalidException) { throw new ManagementConnectionInvalidException(); }
         catch (ManagementConnectionInvalidException) { throw; }
         catch { throw new ManagementConnectionUnavailableException(); }
-    }
+    });
     internal Func<HttpMessageHandler>? TestTransportFactory { get; init; }
-    internal SocketsHttpHandler CreateHandler(Uri approved) => new SocketsHttpHandler
-            {
-                AllowAutoRedirect = false, UseProxy = false, UseCookies = false,
-                AutomaticDecompression = DecompressionMethods.None, ActivityHeadersPropagator = null,
-                ConnectTimeout = TimeSpan.FromSeconds(Math.Min(5, options.Value.TimeoutSeconds)),
-                ConnectCallback = (context, token) => network.ConnectAsync(approved, context.DnsEndPoint, token)
-            };
+    internal SocketsHttpHandler CreateHandler(Uri approved) => ManagementTargetHttpTransport.CreateHandler(network, approved, Math.Min(5, options.Value.TimeoutSeconds));
 
     // Shared bounded parser for protocol compatibility tests; no target response text is ever returned in failures.
     internal static async Task<ManagementDiagnosticsInfo> ReadInfoResponseAsync(HttpResponseMessage response, CancellationToken ct)

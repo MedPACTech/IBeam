@@ -1,5 +1,9 @@
 # IBeam.Management.Api
 
+IBM-0128 adds explicit `AddIBeamManagementPortalSeatsApi` registration for bounded metadata and independent assignment/revocation/receipt routes. Install the optional typed seat portal adapter and registered-operation client separately. Base API has no native Licensing dependency or seat endpoint. See [seat management](https://github.com/MedPACTech/IBeam/blob/development/docs/management/seat-management.md).
+
+IBM-0127 adds explicit `AddIBeamManagementPortalLicenseApi` opt-in for typed read/suspend/restore and receipt lookup routes. Install the optional Licensing portal adapter and a compatible registered-operation client separately; base API registration exposes no licence controller and has no native Licensing dependency. See [licence status management](https://github.com/MedPACTech/IBeam/blob/development/docs/management/license-status-management.md).
+
 IBM-0106 adds AddIBeamManagementPortalTenantAdministrationApi: selected-app tenant POST/PATCH with independent live grants, exact signed versions and one idempotent intent across caller retries. Unknown replies return encrypted tracking references with read-only reconciliation. See docs/management/customer-tenant-portal-writes.md.
 
 IBM-0104 adds AddIBeamManagementPortalIdentityOperationsApi for selected-app operation receipts with original operation authority, live assignment/connection checks and bounded signed HTTPS. See docs/management/customer-identity-operations.md.
@@ -99,3 +103,13 @@ IBM-0112 versioned tenant membership/role administration, concurrent final-admin
 IBM-0113 conditional tenant activation/deactivation, lifecycle recovery and current customer access rejection: [status contract](../docs/management/customer-tenant-status.md).
 
 Onboarding policy discovery and optional durable consumer initialization: [integration contract](../docs/management/customer-onboarding-policy.md).
+
+IBM-0124 adds explicit scoped ownership lookup and transfer with independent grants and signed exact versions. See [customer ownership APIs](../docs/management/customer-ownership-api.md).
+
+AddIBeamManagementRegisteredOperationsApi adds the human app operation metadata endpoint and the typed portal client. The optional IBeam.Management.Operations.Target.Api package hosts fixed signed target routes. See docs/management/registered-operation-dispatch.md.
+
+AddIBeamManagementPortalTenantExportApi explicitly adds scoped export submit/status endpoints. Combine with the registered-operation portal client/providers. Strict policy-key input, exact If-Match/idempotency, safe metadata only and original-job unknown recovery; no artifact download. See docs/management/tenant-export.md.
+
+IBM-0137 adds opt-in typed purge preflight, exact confirmation and read-only progress. Portal hosts use `AddIBeamManagementPortalTenantPurgeApi(configuration)`; no native worker/provider is installed. See [tenant purge](../docs/management/tenant-purge.md) for routes, independent grants, unknown-reply recovery and metadata-only audit.
+
+IBM-0144 adds optional independently granted bounded invitation bulk revocation, durable original-intent progress and read-only receipts. See [bulk invitation revocation](../docs/management/bulk-invitation-revocation.md) for exact selection versions, partial/unknown outcomes, module setup and routes.

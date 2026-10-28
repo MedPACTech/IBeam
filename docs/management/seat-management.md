@@ -1,0 +1,43 @@
+# Seat Management adapters
+
+IBM-0128 extends the optional `IBeam.Management.Licensing` integration with independent `management.seats.read`, `management.seats.assign` and `management.seats.unassign` contracts. Each write also explicitly requires seat read authority. `memberships.manage`, customer roles and licence-status grants confer no seat authority. The integration does not create/reactivate memberships, change roles, alter tenant/user status, change licence contents or borrow a customer principal.
+
+## Registration and scope
+
+Register `AddIBeamManagementSeatsTarget(o => o.Enabled = true)` in the app target after native Licensing services. Supply compatible `IManagementOperationAccessService`, `ILicenseSeatSubjectPolicy` and `ILicenseSeatConditionalStore` implementations. The standard signed extension dispatcher/client is the separate IBM-0129 card; this module provides its typed adapters and explicit integration ports. A trusted host integration can supply these ports, but an unverified HTTP request must never create a `ManagementOperationContext`.
+
+The live access boundary must bind the selected organization/application/realm/actor/tenant/licence to the verified request and independently recheck current machine capabilities, human assignment, app state and prerequisite grants. The native store must be dedicated to the target application or supplied through a trusted native scope adapter; shared unscoped storage is not an app boundary. The context resource is the licence ID and its version is the exact signed If-Match. The native subject policy verifies a current eligible customer user in the selected tenant before assignment. Revocation may explicitly allow disabled/deleted members for cleanup, while retaining native tenant ownership checks. No default permissive subject policy is registered.
+
+Enable the exact operation names in target operation settings and explicitly issue machine grants, human app assignments and delegation ceilings. Registration changes none of these. Missing/incompatible adapters fail an explicitly enabled host at startup. Uninstalled/disabled modules install no seat handler and leave ordinary Identity/diagnostic startup unchanged. Portal-only contract registration cannot advertise a target capability.
+
+Production requires durable conditional receipts. `AllowVolatileDevelopmentStore=true` is accepted only in explicit Development/Testing and cannot bypass Production checks. The default in-memory provider is a synthetic fixture; it makes no cross-process/crash durability claim. Seat-only registration does not require the licence-status Management module or a restore policy. Core Management/API still have no native Licensing, Identity or Billing dependency.
+
+## Typed routes
+
+Target descriptor root: `/api/management-operations/tenants/{tenantId}/licenses/{licenseId}/seats`.
+
+| Method | Suffix | Operation |
+| --- | --- | --- |
+| GET | root | `management.seats.read` |
+| POST | `/assign` | `management.seats.assign` |
+| POST | `/unassign` | `management.seats.unassign` |
+
+Portal registration requires both `AddIBeamManagementSeatsPortal()` and `AddIBeamManagementPortalSeatsApi(configuration)`, plus a compatible registered-operation client. Portal root: `/api/management/applications/{applicationId}/tenants/{tenantId}/licenses/{licenseId}/seats`. Base API scanning exposes no seat controller. POST assign accepts `{ "userId": "GUID" }`; unassign accepts `{ "userId": "GUID", "assignmentId": "GUID" }`. Both require exact `If-Match` and a stable `Idempotency-Key`. Bodies reject unknown fields; URLs, arbitrary subject types, replacement metadata, names, emails, roles and provider fields are not accepted.
+
+Read returns bounded operational metadata: tenant/licence IDs, aggregate revision, seat limit, total assigned count and assignment GUID/customer user GUID pairs. Non-user subjects expose no native identifier, display name or metadata; their occupied seats still count toward capacity. The first protocol supports at most 2,000 assignments in one aggregate snapshot, within its 256 KiB result limit. Larger/unsupported snapshots fail closed instead of truncating authoritative state. Consumers needing larger paged queries require an explicit bounded provider/contract extension. A read does not initialize a guard or change revisions.
+
+A known mutation returns 200, stable operation ID, user/assignment IDs, revision and `assigned`, `already-assigned`, `unassigned` or `not-assigned`. Unknown replies return 202, intended user/operation metadata and no assignment/version/disposition evidence, with an authorized polling Location. GET `/operations/{operationId}?operation=management.seats.assign` (or unassign), under the same licence/seat root, requires original current authority and only reads the receipt. Stale revisions return 412; exhausted capacity, invalid eligibility or conflicting intents return 409; denied access 403; malformed input 400; unavailable providers 503. Responses are no-store and HTTP body logging is disabled.
+
+## Native rules and atomicity
+
+`ILicenseSeatAssignmentService` gains optional default-interface administration members; older implementations return unavailable/protocol 0 without losing existing methods. The standard service delegates to `ITenantLicenseSeatAdministrationService`. Native trusted administration enforces customer subject eligibility, runtime-active licence state and capacity before assignment. Unassignment checks the exact assignment belongs to the requested customer user and licence; it can clean up a seat on an inactive licence. It never transfers an assignment or restores memberships/roles.
+
+`ILicenseSeatConditionalStore` protocol 1 maintains one aggregate revision across licence updates, status transitions, seat allocation and seat deletion. Compare that revision, apply the selected seat change and commit an immutable scope/intent-bound receipt atomically. Every native/legacy writer must participate. This prevents two workers from consuming one remaining seat, prevents a concurrent licence revocation/limit change being overwritten, and prevents stale unassignments removing a replacement assignment. The provider must expose bounded consistent snapshots, read-only receipt lookup and durable guards/receipts. Scope/transition and full intent fingerprints must be verified before returning a prior receipt.
+
+The in-memory fixture uses one lock for that aggregate. Every seat change advances the licence revision. The first conditional seat mutation enables native licence/seat write fences atomically; reads do not. Unversioned seat writes/deletes and stale licence upserts then fail closed. The standard legacy seat service uses conditional snapshots/writes after protection, and user writes also require the host's subject policy; manually constructed legacy services without that policy cannot bypass it. Existing unprotected workflows remain usable. Other native subject types remain native/consumer-owned and are not converted to customer users.
+
+Assignment IDs are stable for a managed intent. Same-intent retries return the immutable historical receipt before considering current state, without consuming a second seat or recreating a removed seat. Changed user, assignment, version or scope under that intent conflicts. A later explicit assign of an already seated user records a safe no-op receipt. Replaying an old unassign cannot delete a newer assignment. Lost replies are unknown, never automatically retried; receipt polling cannot allocate or revoke a seat. Native policies and live Management authority are rechecked before fresh work and around responses.
+
+All Management orchestration uses the service-operation executor and dedicated metadata audit. Unknown writes audit as unsuccessful/uncertain attempts, while receipt lookups use the separate read action. Only trusted scoped IDs, operation/outcome/time/correlation are retained; no native subject strings, display names, metadata, profiles, bodies, headers, versions, keys or provider error messages enter the audit sink. Support actor identity stays in Management audit; it is not inserted as a customer `CreatedByUserId`.
+
+Focused tests cover independent grants, wrong app/realm/tenant/user, missing adapters, production volatile-store rejection, disabled/foreign subjects, inactive licences, capacity races, duplicate intents, changed intents, exact assignment ownership, legacy writer fencing/policy, reassignment replay, bounded safe metadata, unknown reply polling, transport reference substitution, audit canaries and real portal HTTP behavior. The expanded fresh NuGet-only suite tests the optional module alongside legacy Licensing, Identity and diagnostics.

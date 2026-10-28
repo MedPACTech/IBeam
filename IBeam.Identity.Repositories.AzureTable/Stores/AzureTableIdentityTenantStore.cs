@@ -49,7 +49,7 @@ public sealed partial class AzureTableIdentityTenantStore : IIdentityTenantStore
             ValidateTenant(tenant);
 
             var entity = ToEntity(tenant);
-            await TenantsTable().AddEntityAsync(entity, ct).ConfigureAwait(false);
+            await IdentityTenantPurgePartition.Add(TenantsTable(), entity, _opts.RequireTenantPurgeFencing, ct).ConfigureAwait(false);
             return Map(entity);
         }
         catch (RequestFailedException ex) when (ex.Status == 409)
@@ -88,8 +88,7 @@ public sealed partial class AzureTableIdentityTenantStore : IIdentityTenantStore
                 : tenant.Status.Trim();
             existing.UpdatedAt = tenant.UpdatedAt ?? DateTimeOffset.UtcNow;
 
-            await TenantsTable()
-                .UpdateEntityAsync(existing, existing.ETag, TableUpdateMode.Replace, ct)
+            await IdentityTenantPurgePartition.Update(TenantsTable(), existing, existing.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct)
                 .ConfigureAwait(false);
 
             return Map(existing);
@@ -123,8 +122,7 @@ public sealed partial class AzureTableIdentityTenantStore : IIdentityTenantStore
             entity.UpdatedAt = DateTimeOffset.UtcNow;
             entity.LastOperationId = null; // A legacy writer must not retain another command's reconciliation marker.
 
-            await TenantsTable()
-                .UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace, ct)
+            await IdentityTenantPurgePartition.Update(TenantsTable(), entity, entity.ETag, TableUpdateMode.Replace, _opts.RequireTenantPurgeFencing, ct)
                 .ConfigureAwait(false);
 
             return Map(entity);
@@ -158,7 +156,7 @@ public sealed partial class AzureTableIdentityTenantStore : IIdentityTenantStore
             var now = DateTimeOffset.UtcNow;
             var patch = new TableEntity(TenantEntity.TenantsPartitionKey, tenantId.ToString("D")) {
                 ["Name"] = name.Trim(), ["NormalizedName"] = IdentityTenant.NormalizeName(name), ["UpdatedAt"] = now, ["LastOperationId"] = operationId };
-            var result = await TenantsTable().UpdateEntityAsync(patch, new ETag(expectedVersion), TableUpdateMode.Merge, ct);
+            var result = await IdentityTenantPurgePartition.Update(TenantsTable(), patch, new ETag(expectedVersion), TableUpdateMode.Merge, _opts.RequireTenantPurgeFencing, ct);
             return new(previous.Tenant with { Name = name.Trim(), NormalizedName = IdentityTenant.NormalizeName(name), UpdatedAt = now },
                 result.Headers.ETag?.ToString() ?? throw new IdentityProviderException("The tenant version was unavailable."), operationId);
         } catch (RequestFailedException ex) when (ex.Status is 404 or 412) { throw new IdentityConcurrencyException(); }

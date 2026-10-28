@@ -1,3 +1,4 @@
+using IBeam.Management.Operations;
 using IBeam.Management.Entities;
 using IBeam.Services.Abstractions;
 using Microsoft.Extensions.Options;
@@ -10,6 +11,13 @@ public sealed class ManagementCredentialValidator(
     IOptions<ManagementDiagnosticsOptions> deployment,
     IServiceOperationExecutor operations) : IManagementCredentialValidator
 {
+    private readonly ManagementOperationRegistry _registry = ManagementOperationRegistry.BuiltIn;
+    public ManagementCredentialValidator(IManagementApiCredentialRepository repository,
+    ManagementCredentialSecretCodec secrets,
+    IOptions<ManagementDiagnosticsOptions> deployment,
+    IServiceOperationExecutor operations, ManagementOperationRegistry registry)
+        : this(repository, secrets, deployment, operations) => _registry = registry;
+
     [IBeamOperation("management.credentials.authenticate", Permission = false)]
     public Task<ManagementCredentialMetadata?> ValidateAsync(string apiKey, CancellationToken ct = default)
         => operations.ExecuteAsync<ManagementCredentialMetadata?>(this, async token =>
@@ -20,7 +28,7 @@ public sealed class ManagementCredentialValidator(
             var row = await repository.GetAsync(configured.ApplicationKey, configured.Environment, id, token);
             if (row is null || row.CredentialId != id || row.ApplicationKey != configured.ApplicationKey ||
                 row.Environment != configured.Environment || row.Status != "Active" || row.RevokedUtc.HasValue ||
-                row.ExpiresUtc <= DateTimeOffset.UtcNow || !ManagementCredentialPolicy.ValidCapabilities(row.Capabilities) ||
+                row.ExpiresUtc <= DateTimeOffset.UtcNow || !_registry.ValidCapabilities(row.Capabilities) ||
                 !secrets.Verify(apiKey, row.SecretHash)) return null;
             return Metadata(row);
         }, new ServiceOperationExecutionOptions { OperationName = "management.credentials.authenticate",

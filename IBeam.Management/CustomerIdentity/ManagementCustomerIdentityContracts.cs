@@ -15,12 +15,14 @@ public static class ManagementCustomerIdentityOperations
     public const string MembershipsManage = "management.identity.memberships.manage";
     public const string RolesAssign = "management.identity.roles.assign";
     public const string RolesRead = "management.identity.roles.read";
+    public const string OwnersRead = "management.identity.owners.read";
+    public const string OwnersTransfer = "management.identity.owners.transfer";
     public const string OnboardingCreate = "management.identity.onboarding.create";
     public const string OnboardingRead = "management.identity.onboarding.read";
     public const string OnboardingRetry = "management.identity.onboarding.retry";
     public static IReadOnlyList<string> All { get; } = Array.AsReadOnly(new[] {
         Info, TenantsRead, TenantsCreate, TenantsUpdate, TenantsStatus, UsersRead, UsersProvision,
-        InvitesRead, InvitesManage, MembershipsManage, RolesAssign, RolesRead, OnboardingCreate, OnboardingRead, OnboardingRetry });
+        InvitesRead, InvitesManage, MembershipsManage, RolesAssign, RolesRead, OwnersRead, OwnersTransfer, OnboardingCreate, OnboardingRead, OnboardingRetry });
 }
 
 public sealed record ManagementCustomerIdentityInfo(string ApplicationKey, string Environment,
@@ -29,6 +31,11 @@ public sealed record ManagementCustomerIdentityInfo(string ApplicationKey, strin
     /// <summary>Optional read-only reconciliation protocol, independent of operation grants. Zero means unavailable.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public int OperationReceiptProtocolVersion { get; init; }
+    /// <summary>Native membership owner-protection protocol; zero means unavailable. Does not grant transfer authority.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int OwnershipProtectionProtocolVersion { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int OwnershipTransferProtocolVersion { get; init; }
 }
 
 public static class ManagementCustomerIdentityStatuses
@@ -44,8 +51,12 @@ public sealed record ManagementCustomerIdentityDiscovery(string Status, Manageme
 
 public sealed record ManagementTargetProfile(ManagementDiagnosticsInfo? Diagnostics, ManagementCustomerIdentityDiscovery CustomerIdentity)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Operations.ManagementRegisteredOperationDiscovery? Operations { get; init; }
     public IReadOnlyList<string> Capabilities => Array.AsReadOnly((Diagnostics?.Capabilities ?? [])
-        .Concat(CustomerIdentity.Info?.Capabilities ?? []).Distinct(StringComparer.Ordinal).ToArray());
+        .Concat(CustomerIdentity.Info?.Capabilities ?? []).Concat(Operations?.Info is { } registered
+            ? new[] { global::IBeam.Management.Operations.ManagementRegisteredOperations.Info }.Concat(registered.Capabilities.Select(x => x.Operation)) : [])
+        .Distinct(StringComparer.Ordinal).ToArray());
 }
 
 public interface IManagementTargetProfileProbe

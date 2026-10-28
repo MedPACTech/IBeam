@@ -2,7 +2,7 @@
 
 Build the tenant and customer-user management screens in the existing frontend stack against the running **IBeam Management API**. This is an independent bootstrap application: configure its API URL, authenticate a support person, select an assigned application, and call that API. The frontend does not need the framework source or a backend repository checkout.
 
-Local enterprise demo API: `http://127.0.0.1:5155`. Check `GET /health` and the live Development specification at `GET /openapi/v1.json`. Allowed local frontend origins are `http://127.0.0.1:5145` and `http://localhost:5145`. The operator starts the API using the framework's `samples/Management.Bootstrap/.scripts/start-enterprise-demo.ps1`; `-HostRoot` can point at the temporary `IBeam.ADMIN.API` host. Do not start or silently mock a missing API from browser code. API packages are the stable `2.16.0` release from NuGet.org.
+Local enterprise demo API: `http://127.0.0.1:5155`. Check `GET /health`, Development Swagger UI at `/swagger`, and its live specification at `/openapi/v1.json`. The version is read from the loaded Management package; check it before assuming a capability exists. Allowed local frontend origins are `http://127.0.0.1:5145` and `http://localhost:5145`. The operator starts the API using the framework's `samples/Management.Bootstrap/.scripts/start-enterprise-demo.ps1`; `-HostRoot` can point at a temporary host. Do not start or silently mock a missing API from browser code. Use the aligned stable 2.17.0 NuGet packages; stable 2.16.1 does not contain these lifecycle features.
 
 The temporary host's private `.local/management-enterprise/operator.json` and `demo-users.json` contain local support credentials. Real MFA messages are in `.local/management-enterprise/outbox`. The operator may use these files for local interactive tests; never paste, log, commit, expose over HTTP or embed their contents. `reader@example.test` has all-app customer management; `limited@example.test` has diagnostic errors only for Atlas; `unassigned@example.test` has no app assignment. Passwords are generated privately. Customer passwords, target keys, signing material and storage settings remain backend/operator-only.
 
@@ -45,3 +45,30 @@ Support onboarding creates no immediate customer membership. Customer identity p
 Show tenant and membership status independently. Disabling a tenant preserves its users and data; disabling one membership preserves the same account's other tenants. Re-enabling does not restore removed roles or old tokens. Surface last-administrator conflicts clearly. Expose IBeam tenant/user/invitation/diagnostic metadata only; do not add customer business-record viewers, global-account disable controls or unrestricted database queries.
 
 Use the existing diagnostics, app registry, connection and support-user/assignment screens. A connection key is a backend secret stored by an authorized operator workflow; ordinary frontend configuration and customer-management calls need only the API URL and normal support session. Do not persist machine keys in browser storage or code. Build the frontend and its normal UI tests; backend feature implementation, new authentication shortcuts, production deployment and package publication are outside this handoff.
+
+## Ownership integration (2.17.0)
+
+Use the independent `management.identity.owners.read` and `management.identity.owners.transfer` grants and fixed scoped routes described in [ownership migration](../../../docs/management/ownership-consumer-migration.md). Keep `users.read` independent for destination selection. Bind the current ownership version through If-Match and include both membership versions in the strict transfer body. Preserve original intent/key on uncertain retries and poll the returned Location without repeating a transfer. Do not derive the owner badge from Tenants.OwnerUserId, expose machine keys, or treat roles.assign as transfer authority. These endpoints require aligned 2.17.0 packages; stable 2.16.1 lacks them.
+
+
+## Optional tenant purge (2.17.0; separately enabled target/portal)
+
+Use independent `management.tenants.delete` authority, not tenant status or export permission.
+Routes under `/api/management/applications/{app}/tenants/{tenant}` are POST `/purge-plans`
+with `{policyKey}`, POST `/purges` with `{policyKey,planId,confirmationBinding}`, and GET
+`/purges/{jobId}`. Both POSTs require the original exact tenant `If-Match` and separate stable
+idempotency keys. Show the returned inventory, retained/excluded categories and short plan expiry;
+confirm only after explicit human intent. A valid plan is bound to the original support person,
+app/realm/tenant, policy, inventory and native version. A changed/expired plan needs fresh preflight.
+
+An unknown preflight requires a valid explicitly recovered plan before confirmation. An unknown
+confirmation preserves its original operation ID and status Location: poll it without creating a
+new destructive intent. Queued/fencing/purging/verifying, partial, failed, cancelled and unknown
+remain distinct from succeeded; display retained/excluded coverage even after success. There is
+no support resume, cancellation or global-account deletion endpoint. The consumer owns app data
+cleanup and all request/write fences. This capability is not installed in the running demo; use
+an explicitly configured test instance and the tenant-purge guide. Stable 2.16.1 lacks it.
+
+## Lifecycle, commercial and app operations
+
+Continue with [the lifecycle consumer handoff](../../../docs/management/lifecycle-consumer-handoff.md) for the exact optional routes, independent grants, bulk revocation, event/projection boundaries, typed app sender, telemetry and release requirements. New lifecycle routes are disabled by default; discovering a descriptor does not grant permission or install a target provider.

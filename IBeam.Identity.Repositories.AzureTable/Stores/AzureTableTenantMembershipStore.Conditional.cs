@@ -4,12 +4,30 @@ using IBeam.Identity.Interfaces;
 using IBeam.Identity.Exceptions;
 namespace IBeam.Identity.Repositories.AzureTable.Stores;
 
-public sealed partial class AzureTableTenantMembershipStore : IIdentityTenantMembershipConditionalStore
+public sealed partial class AzureTableTenantMembershipStore : IIdentityTenantOwnershipConditionalStore
 {
+    public int OwnershipProtocolVersion => 1;
+    public bool RequiresOwnershipProtection => _opts.RequireOwnershipProtection;
+    public async Task ConfigureOwnershipProtectionAsync(Guid tenant, IReadOnlyList<Guid> owners, CancellationToken ct = default)
+    {
+        if (!_opts.RequireOwnershipProtection || tenant == Guid.Empty || owners is not { Count: > 0 and <= 8 } ||
+            owners.Any(x => x == Guid.Empty) || owners.Distinct().Count() != owners.Count)
+            throw new IdentityValidationException("Explicit native ownership protection is required.");
+        var table = GetTenantUsersTable(); var guard = await TenantMembershipPartition.Read(table, _opts.TenantUsersPk(tenant), ct, _opts.RequireTenantPurgeFencing);
+        var expected = string.Join(',', owners.Order().Select(x => x.ToString("D"))); var current = guard.GetString("OwnerRoleIds");
+        if (!string.IsNullOrEmpty(current)) {
+            if (current == expected && guard.GetInt32("OwnershipProtocolVersion") == 1) return;
+            throw new IdentityConcurrencyException(); // Sticky policy: changing owner definitions requires a trusted migration.
+        }
+        if ((guard.GetInt32("OwnershipProtocolVersion") ?? 0) != 0) throw new IdentityConcurrencyException();
+        guard["OwnerRoleIds"] = expected; guard["OwnershipProtocolVersion"] = 1; guard["Revision"] = Guid.NewGuid();
+        try { await IdentityTenantPurgePartition.Update(table, guard, guard.ETag, TableUpdateMode.Merge, _opts.RequireTenantPurgeFencing, ct); }
+        catch (RequestFailedException ex) when (ex.Status is 409 or 412) { throw new IdentityConcurrencyException(); }
+    }
     public async Task ConfigureProtectionAsync(Guid tenant, IReadOnlyList<Guid> administrators, CancellationToken ct = default)
     {
         if (tenant == Guid.Empty || administrators is not { Count: > 0 and <= 8 } || administrators.Any(x => x == Guid.Empty)) throw new IdentityValidationException("Membership protection is invalid.");
-        var table = GetTenantUsersTable(); var guard = await TenantMembershipPartition.Read(table, _opts.TenantUsersPk(tenant), ct);
+        var table = GetTenantUsersTable(); var guard = await TenantMembershipPartition.Read(table, _opts.TenantUsersPk(tenant), ct, _opts.RequireTenantPurgeFencing);
         var expected = string.Join(',', administrators.Distinct().Order().Select(x => x.ToString("D"))); var current = guard.GetString("AdministratorRoleIds");
         if (!string.IsNullOrEmpty(current)) {
             if (current == expected) return;
@@ -17,14 +35,22 @@ public sealed partial class AzureTableTenantMembershipStore : IIdentityTenantMem
             if (Ids(current).Except(administrators).Any()) throw new IdentityConcurrencyException();
         }
         guard["AdministratorRoleIds"] = expected; guard["Revision"] = Guid.NewGuid();
-        try { await table.UpdateEntityAsync(guard, guard.ETag, TableUpdateMode.Merge, ct); }
+        try { await IdentityTenantPurgePartition.Update(table, guard, guard.ETag, TableUpdateMode.Merge, _opts.RequireTenantPurgeFencing, ct); }
         catch (RequestFailedException ex) when (ex.Status is 409 or 412) { throw new IdentityConcurrencyException(); }
     }
-    public async Task<IdentityTenantMembershipSnapshot> ReadSnapshotAsync(Guid tenant, int maximumMembers, CancellationToken ct = default)
+    public Task<IdentityTenantMembershipSnapshot> ReadSnapshotAsync(Guid tenant, int maximumMembers, CancellationToken ct = default)
+        => ReadSnapshotCoreAsync(tenant, maximumMembers, false, ct);
+    private async Task<IdentityTenantMembershipSnapshot> ReadSnapshotCoreAsync(Guid tenant, int maximumMembers, bool existingGuardOnly, CancellationToken ct)
     {
         if (tenant == Guid.Empty || maximumMembers is < 1 or > 5000) throw new IdentityValidationException("Membership snapshot is invalid.");
         var table = GetTenantUsersTable(); var pk = _opts.TenantUsersPk(tenant);
-        var guard = await TenantMembershipPartition.Read(table, pk, ct); var rows = new List<IdentityTenantMembershipState>();
+        TableEntity guard;
+        if (existingGuardOnly) {
+            var existing = await table.GetEntityIfExistsAsync<TableEntity>(pk, TenantMembershipPartition.GuardKey, cancellationToken: ct);
+            if (!existing.HasValue) throw new IdentityValidationException("Configure native ownership protection before ownership administration.");
+            guard = existing.Value;
+        } else guard = await TenantMembershipPartition.Read(table, pk, ct, _opts.RequireTenantPurgeFencing);
+        var rows = new List<IdentityTenantMembershipState>();
         var prefix = _opts.TenantUsersRk("");
         var filter = TableClient.CreateQueryFilter($"PartitionKey eq {pk} and RowKey ge {prefix} and RowKey lt {prefix + '\uffff'}");
         var columns = new[] { "PartitionKey", "RowKey", "TenantId", "UserId", "Status", "RoleIdsCsv", "RolesCsv", "IBeamLastMembershipOperationId" };
@@ -33,7 +59,9 @@ public sealed partial class AzureTableTenantMembershipStore : IIdentityTenantMem
         }
         var after = (await table.GetEntityAsync<TableEntity>(pk, TenantMembershipPartition.GuardKey, cancellationToken: ct)).Value;
         if (after.ETag != guard.ETag) throw new IdentityConcurrencyException();
-        return new(tenant, guard.ETag.ToString(), Ids(guard.GetString("AdministratorRoleIds")), rows);
+        var owners = Ids(guard.GetString("OwnerRoleIds")); var protocol = guard.GetInt32("OwnershipProtocolVersion") ?? 0;
+        if (owners.Count > 8 || (owners.Count == 0 ? protocol != 0 : protocol != 1)) throw new IdentityProviderException("Ownership protection metadata is invalid.");
+        return new(tenant, guard.ETag.ToString(), Ids(guard.GetString("AdministratorRoleIds")), rows) { ProtectedOwnerRoleIds = owners, OwnershipProtocolVersion = protocol };
     }
     public Task<IdentityTenantMembershipState?> FindStateAsync(Guid tenant, Guid user, CancellationToken ct = default) => ReadStateAsync(tenant, user, false, ct);
     private async Task<IdentityTenantMembershipState?> ReadStateAsync(Guid tenant, Guid user, bool managedOnly, CancellationToken ct)
@@ -52,14 +80,16 @@ public sealed partial class AzureTableTenantMembershipStore : IIdentityTenantMem
         var current = await FindStateAsync(next.TenantId, next.UserId, ct) ?? throw new IdentityNotFoundException("Membership was not found.");
         if (current.LastOperationId == operation) return current;
         if (current.Version != memberVersion) throw new IdentityConcurrencyException();
-        var guard = await TenantMembershipPartition.Read(table, pk, ct);
+        var guard = await TenantMembershipPartition.Read(table, pk, ct, _opts.RequireTenantPurgeFencing);
+        if (_opts.RequireOwnershipProtection && (string.IsNullOrEmpty(guard.GetString("OwnerRoleIds")) || guard.GetInt32("OwnershipProtocolVersion") != 1))
+            throw new IdentityValidationException("Ownership protection must be configured before versioned membership writes.");
         var row = (await table.GetEntityAsync<TableEntity>(pk, _opts.TenantUsersRk(next.UserId.ToString("D")), cancellationToken: ct)).Value;
         if (row.ETag.ToString() != memberVersion) throw new IdentityConcurrencyException();
         row["Status"] = next.IsEnabled ? "Active" : "Disabled"; row["RoleIdsCsv"] = string.Join(',', next.RoleIds.Select(x => x.ToString("D")));
         row["RolesCsv"] = string.Join(',', next.RoleNames); row["IBeamLastMembershipOperationId"] = operation.ToString("D"); row["UpdatedAt"] = DateTimeOffset.UtcNow;
         if (!next.IsEnabled) row["DisabledAt"] = DateTimeOffset.UtcNow;
         else { row.Remove("DisabledAt"); row.Remove("DisabledReason"); }
-        try { await TenantMembershipPartition.Commit(table, row, false, guard, new ETag(tenantVersion), ct, true); }
+        try { await TenantMembershipPartition.Commit(table, row, false, guard, new ETag(tenantVersion), ct, true, _opts.RequireTenantPurgeFencing, _opts); }
         catch (RequestFailedException ex) when (ex.Status is 404 or 409 or 412) { throw new IdentityConcurrencyException(); }
         return await FindStateAsync(next.TenantId, next.UserId, ct) ?? throw new IdentityConcurrencyException();
     }
@@ -72,7 +102,7 @@ public sealed partial class AzureTableTenantMembershipStore : IIdentityTenantMem
         var row = new TableEntity(pk, rk) { ["Status"] = current.IsEnabled ? "Active" : "Disabled", ["RolesCsv"] = string.Join(',', current.RoleNames),
             ["RoleIdsCsv"] = string.Join(',', current.RoleIds.Select(x => x.ToString("D"))) };
         if (!current.IsEnabled) row["DisabledAt"] = DateTimeOffset.UtcNow;
-        try { await table.UpdateEntityAsync(row, secondary.Value.ETag, TableUpdateMode.Merge, ct); }
+        try { await IdentityTenantPurgePartition.Update(table, row, secondary.Value.ETag, TableUpdateMode.Merge, _opts.RequireTenantPurgeFencing, ct); }
         catch (RequestFailedException ex) when (ex.Status is 404 or 412) { throw new IdentityConcurrencyException(); }
         if ((await FindStateAsync(tenant, user, ct))?.Version != current.Version) throw new IdentityConcurrencyException();
     }

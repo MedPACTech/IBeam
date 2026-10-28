@@ -12,7 +12,7 @@ public sealed class ApplicationAccessTests
             .Where(IBeam.Management.CustomerIdentity.ManagementCustomerIdentityPermissionPolicy.IsAssignable).ToArray();
         foreach(var operation in customer) f.CustomerDelegations.Add((app, operation));
         var permissions = customer.Concat(new[] { ManagementOperations.ErrorsRead, ManagementOperations.LogsRead }).ToArray();
-        Assert.HasCount(16, permissions);
+        Assert.HasCount(18, permissions); // Includes the two independent ownership operations.
         var grant = await f.Service.PutAsync(app, f.Reader, new() { Permissions = permissions });
         f.Actor = f.Reader; f.CanAdminister = false;
         foreach(var permission in permissions) await f.Service.RequireAsync(app, permission);

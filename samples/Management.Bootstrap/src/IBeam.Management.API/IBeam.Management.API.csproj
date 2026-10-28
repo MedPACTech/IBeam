@@ -6,7 +6,7 @@
     <IsPackable>false</IsPackable>
     <PackageId>IBeam.Management.Host</PackageId>
     <AssemblyName>IBeam.Management.Host</AssemblyName>
-    <IBeamVersion>2.16.0</IBeamVersion>
+    <IBeamVersion Condition="'$(IBeamVersion)' == ''">2.17.0</IBeamVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="IBeam.Management.Api" Version="$(IBeamVersion)" />
@@ -15,7 +15,9 @@
     <PackageReference Include="IBeam.Management.Secrets.AzureKeyVault" Version="$(IBeamVersion)" />
     <PackageReference Include="IBeam.Identity.Api" Version="$(IBeamVersion)" />
     <PackageReference Include="IBeam.Management.Identity.Target.Api" Version="$(IBeamVersion)" />
+    <PackageReference Include="IBeam.Management.Licensing" Version="$(IBeamVersion)" />
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.3.0" />
   </ItemGroup>
 </Project>

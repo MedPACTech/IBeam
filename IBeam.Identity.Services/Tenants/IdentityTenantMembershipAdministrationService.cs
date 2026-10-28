@@ -6,11 +6,14 @@ namespace IBeam.Identity.Services.Tenants;
 
 /// <summary>Tenant-specific membership rules; no global user/password/default-tenant mutation.</summary>
 public sealed class IdentityTenantMembershipAdministrationService(IIdentityTenantMembershipConditionalStore store, ITenantRoleStore roles,
-    IIdentityTenantStore tenants, IServiceOperationExecutor operations) : IIdentityTenantMembershipAdministrationService
+    IIdentityTenantStore tenants, IServiceOperationExecutor operations, IIdentityTenantOwnershipProtection? ownership = null) : IIdentityTenantMembershipAdministrationService
 {
+    public IdentityTenantMembershipAdministrationService(IIdentityTenantMembershipConditionalStore store, ITenantRoleStore roles,
+        IIdentityTenantStore tenants, IServiceOperationExecutor operations) : this(store, roles, tenants, operations, null) { }
     public Task<IdentityTenantMembershipState> SetEnabledAsync(Guid tenant, Guid user, bool enabled, string version, Guid operation, IReadOnlyList<Guid> administrators, CancellationToken ct = default)
         => Run(tenant, user, "status", async token => {
             if (enabled) await Active(tenant, token);
+            if (ownership is not null) await ownership.EnsureAsync(tenant, token);
             var approved = await AdministratorRoles(tenant, administrators, token);
             await store.ConfigureProtectionAsync(tenant, approved.Select(x => x.RoleId).ToArray(), token);
             var snapshot = await Snapshot(tenant, token);
@@ -21,6 +24,7 @@ public sealed class IdentityTenantMembershipAdministrationService(IIdentityTenan
     public Task<IdentityTenantMembershipState> SetRolesAsync(Guid tenant, Guid user, IReadOnlyList<TenantRole> desired, string version, Guid operation, IReadOnlyList<Guid> administrators, CancellationToken ct = default)
         => Run(tenant, user, "roles", async token => {
             await Active(tenant, token);
+            if (ownership is not null) await ownership.EnsureAsync(tenant, token);
             if (desired is null || desired.Count > 32 || desired.Select(x => x.RoleId).Distinct().Count() != desired.Count ||
                 desired.Any(x => x.TenantId != tenant || x.RoleId == Guid.Empty || !x.IsActive || string.IsNullOrWhiteSpace(x.Name) || x.Name.Length > 100 || x.Name.Contains(',') || x.Name.Any(char.IsControl)))
                 throw new IdentityValidationException("Membership roles are invalid.");
@@ -37,10 +41,11 @@ public sealed class IdentityTenantMembershipAdministrationService(IIdentityTenan
         }, ct);
     public Task<UserTenantRoleAssignment?> RevokeProtectedRolesAsync(Guid tenant, Guid user, IReadOnlyList<Guid> remove, CancellationToken ct = default)
         => Run<UserTenantRoleAssignment?>(tenant, user, "revoke", async token => {
+            if (ownership is not null) await ownership.EnsureAsync(tenant, token);
             var snapshot = await Snapshot(tenant, token);
-            if (snapshot.ProtectedAdministratorRoleIds.Count == 0) return null;
+            if (snapshot.ProtectedAdministratorRoleIds.Count == 0 && snapshot.ProtectedOwnerRoleIds.Count == 0) return null;
             await Active(tenant, token);
-            var current = Current(snapshot, user); var administrators = await AdministratorRoles(tenant, snapshot.ProtectedAdministratorRoleIds, token);
+            var current = Current(snapshot, user); IReadOnlyList<TenantRole> administrators = snapshot.ProtectedAdministratorRoleIds.Count == 0 ? [] : await AdministratorRoles(tenant, snapshot.ProtectedAdministratorRoleIds, token);
             if (current.RoleIds.Count == 0 && current.RoleNames.Count != 0) throw new IdentityValidationException("Normalize legacy membership roles before administration.");
             var actual = new List<TenantRole>();
             foreach (var id in current.RoleIds) { var role = await roles.GetRoleAsync(tenant, id, token); if (role is { IsActive: true }) actual.Add(role); }
@@ -56,8 +61,15 @@ public sealed class IdentityTenantMembershipAdministrationService(IIdentityTenan
         if (!snapshot.ProtectedAdministratorRoleIds.Order().SequenceEqual(administrators.Select(x => x.RoleId).Order())) throw new IdentityConcurrencyException();
         bool Eligible(IdentityTenantMembershipState x) => x.IsEnabled && (x.RoleIds.Intersect(snapshot.ProtectedAdministratorRoleIds).Any() ||
             x.RoleIds.Count == 0 && x.RoleNames.Intersect(administrators.Select(r => r.Name), StringComparer.OrdinalIgnoreCase).Any());
-        if (!snapshot.Members.Where(x => x.UserId != current.UserId).Append(next).Any(Eligible))
+        if (snapshot.ProtectedAdministratorRoleIds.Count != 0 && !snapshot.Members.Where(x => x.UserId != current.UserId).Append(next).Any(Eligible))
             throw new IdentityValidationException("The final eligible tenant administrator must remain enabled.");
+        if (snapshot.ProtectedOwnerRoleIds.Count != 0) {
+            var owners = await AdministratorRoles(snapshot.TenantId, snapshot.ProtectedOwnerRoleIds, ct);
+            bool Owner(IdentityTenantMembershipState x) => x.IsEnabled && (x.RoleIds.Intersect(snapshot.ProtectedOwnerRoleIds).Any() ||
+                x.RoleIds.Count == 0 && x.RoleNames.Intersect(owners.Select(r => r.Name), StringComparer.OrdinalIgnoreCase).Any());
+            if (!snapshot.Members.Where(x => x.UserId != current.UserId).Append(next).Any(Owner))
+                throw new IdentityValidationException("The final eligible tenant owner must remain enabled.");
+        }
         var result = await store.ReplaceStateAsync(next, version, snapshot.Version, operation, ct);
         await store.RepairProjectionAsync(current.TenantId, current.UserId, ct); return result;
     }
@@ -67,7 +79,7 @@ public sealed class IdentityTenantMembershipAdministrationService(IIdentityTenan
         var result = new List<TenantRole>();
         foreach (var id in ids) {
             var role = await roles.GetRoleAsync(tenant, id, ct);
-            if (role is null || role.TenantId != tenant || !role.IsActive || !role.IsSystem) throw new IdentityValidationException("An immutable active administrator role is required.");
+            if (role is null || role.TenantId != tenant || role.RoleId != id || !role.IsActive || !role.IsSystem) throw new IdentityValidationException("An immutable active administrator role is required.");
             result.Add(role);
         }
         return result;
@@ -77,8 +89,13 @@ public sealed class IdentityTenantMembershipAdministrationService(IIdentityTenan
     private async Task<IdentityTenantMembershipSnapshot> Snapshot(Guid tenant, CancellationToken ct)
     {
         var value = await store.ReadSnapshotAsync(tenant, 5000, ct);
+        if ((ownership is not null || store is IIdentityTenantOwnershipWriter { RequiresOwnershipProtection: true }) && value.ProtectedOwnerRoleIds.Count == 0)
+            throw new IdentityProviderException("An ownership-protected membership snapshot is required.");
         if (value.TenantId != tenant || string.IsNullOrWhiteSpace(value.Version) || value.Version.Length > 256 || value.ProtectedAdministratorRoleIds.Count > 8 ||
-            value.ProtectedAdministratorRoleIds.Any(x => x == Guid.Empty) || value.Members.Count > 5000 || value.Members.Select(x => x.UserId).Distinct().Count() != value.Members.Count ||
+            value.ProtectedAdministratorRoleIds.Any(x => x == Guid.Empty) || value.ProtectedOwnerRoleIds.Count > 8 ||
+            value.ProtectedOwnerRoleIds.Any(x => x == Guid.Empty) || value.ProtectedOwnerRoleIds.Distinct().Count() != value.ProtectedOwnerRoleIds.Count ||
+            (value.ProtectedOwnerRoleIds.Count == 0 ? value.OwnershipProtocolVersion != 0 : value.OwnershipProtocolVersion != 1) ||
+            value.Members.Count > 5000 || value.Members.Select(x => x.UserId).Distinct().Count() != value.Members.Count ||
             value.Members.Any(x => x.TenantId != tenant || x.UserId == Guid.Empty || string.IsNullOrWhiteSpace(x.Version) || x.Version.Length > 256 ||
                 x.RoleIds.Count > 32 || x.RoleNames.Count > 32 || x.RoleIds.Any(id => id == Guid.Empty))) throw new IdentityProviderException("Membership snapshot scope is invalid.");
         return value;

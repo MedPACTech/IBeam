@@ -1,3 +1,4 @@
+using IBeam.Management.Operations;
 using IBeam.Identity.Interfaces;
 using IBeam.Identity.Models;
 using Microsoft.Extensions.Options;
@@ -10,6 +11,9 @@ public sealed class ManagementIdentityClaimsEnricher(ManagementIdentityMembershi
     private readonly IOptionsMonitor<ManagementIdentityOptions>? _options;
     public ManagementIdentityClaimsEnricher(ManagementIdentityMembershipService members, IOptionsMonitor<ManagementIdentityOptions> options)
         : this(members) => _options = options;
+    private readonly ManagementOperationRegistry _registry = ManagementOperationRegistry.BuiltIn;
+    public ManagementIdentityClaimsEnricher(ManagementIdentityMembershipService members, IOptionsMonitor<ManagementIdentityOptions> options, ManagementOperationRegistry registry)
+        : this(members, options) => _registry = registry;
     public async Task<IReadOnlyList<ClaimItem>> EnrichAsync(ClaimsEnrichmentContext context, CancellationToken ct = default)
     {
         if (!context.CurrentClaims.Any(c => c.Type == "amr" && c.Value == "mfa") ||
@@ -22,7 +26,7 @@ public sealed class ManagementIdentityClaimsEnricher(ManagementIdentityMembershi
             new(ManagementClaimTypes.OrganizationId, context.TenantId.ToString("D")),
             .. ManagementIdentityPermissions.ForRoles(member.Membership.Roles).Select(x => new ClaimItem(ManagementClaimTypes.Permission, x)),
             .. (_options is null ? [] : ManagementIdentityPermissions.CustomerDelegationsFor(context.UserId, member.Membership.Roles,
-                _options.CurrentValue)).Select(x => new ClaimItem(ManagementClaimTypes.Permission, x))
+                _options.CurrentValue, _registry)).Select(x => new ClaimItem(ManagementClaimTypes.Permission, x))
         ];
     }
 }

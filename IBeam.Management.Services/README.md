@@ -1,5 +1,9 @@
 # IBeam.Management.Services
 
+IBM-0126 shares the per-host registered operation catalog across credential validation, live app assignments, support delegation and audit allowlists. Optional registered-operation capability discovery checks installed handlers and explicit live machine grants; it installs no dispatch endpoint or implicit human permission. See [registered operations](https://github.com/MedPACTech/IBeam/blob/development/docs/management/registered-operations.md).
+
+Customer target discovery preserves validated optional native membership ownership-protection and operation-receipt protocol metadata without granting additional operations. See [owner protection and compatibility](../docs/management/tenant-ownership-protection.md).
+
 IBM-0106 adds bounded signed tenant mutations and stateless encrypted operation references. A fresh authorization budget follows target timeouts; no generic write retry or tenant payload persistence is introduced. Lookup is a scoped read-only target request. See docs/management/customer-tenant-portal-writes.md.
 
 IBM-0105 extends delegated request binding to include an optional If-Match digest. Version changes cannot be substituted under a signed mutation proof. Target tenant creation/rename is documented in docs/management/customer-tenant-administration.md; portal write forwarding follows separately.
@@ -169,3 +173,15 @@ Onboarding policy discovery and optional durable consumer initialization: [integ
 Optional trusted tenant provenance and existing signup compatibility: [integration contract](../docs/management/tenant-provenance.md).
 
 IBM-0117: an app assignment can contain both diagnostic permissions and every explicitly assignable customer operation (16 total currently). Bound the size from the known catalog; keep distinct known values, live assignment checks and independent delegation ceilings. Unknown/wildcard authority stays rejected.
+
+IBM-0124 adds explicit scoped ownership lookup and transfer with independent grants and signed exact versions. See [customer ownership APIs](../docs/management/customer-ownership-api.md).
+
+Registered operation transport: AddIBeamManagementRegisteredOperationsPortal / Target and typed IManagementOperationClient are opt-in. See docs/management/registered-operation-dispatch.md for required providers, explicit permission migration and recovery.
+
+IBM-0137 adds opt-in typed purge preflight, exact confirmation and read-only progress. Portal hosts use `AddIBeamManagementPortalTenantPurgeApi(configuration)`; no native worker/provider is installed. See [tenant purge](../docs/management/tenant-purge.md) for routes, independent grants, unknown-reply recovery and metadata-only audit.
+
+IBM-0142 unifies default typed sender resolution and secure HTTP construction across registered operations, native Identity, diagnostics and discovery. See [target sender](../docs/management/target-operation-sender.md) for consumer migration and independent grants.
+
+IBM-0143 emits correlated safe completion telemetry for target calls and scoped allowlisted registered-operation audit. DiagnosticListener/Meter failures are observational and cannot retry or change operation results. See [safe target telemetry](../docs/management/target-operation-telemetry.md).
+
+IBM-0144 adds optional independently granted bounded invitation bulk revocation, durable original-intent progress and read-only receipts. See [bulk invitation revocation](../docs/management/bulk-invitation-revocation.md) for exact selection versions, partial/unknown outcomes, module setup and routes.

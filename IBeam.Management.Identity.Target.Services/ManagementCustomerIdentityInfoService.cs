@@ -1,3 +1,4 @@
+using IBeam.Management.Operations;
 using IBeam.Management.CustomerIdentity;
 using IBeam.Management.Services;
 using IBeam.Management.Services.Credentials;
@@ -12,6 +13,13 @@ public sealed class ManagementCustomerIdentityInfoService(IManagementPrincipalPr
     IOptions<ManagementCustomerIdentityTargetOptions> options, IEnumerable<IManagementCustomerIdentityCapability> modules,
     IServiceProvider provider, IServiceOperationExecutor operations) : IManagementCustomerIdentityInfoService
 {
+    private readonly ManagementOperationRegistry _registry = ManagementOperationRegistry.BuiltIn;
+    public ManagementCustomerIdentityInfoService(IManagementPrincipalProvider principals,
+    IManagementApiCredentialRepository credentials, IOptions<ManagementDiagnosticsOptions> deployment,
+    IOptions<ManagementCustomerIdentityTargetOptions> options, IEnumerable<IManagementCustomerIdentityCapability> modules,
+    IServiceProvider provider, IServiceOperationExecutor operations, ManagementOperationRegistry registry)
+        : this(principals, credentials, deployment, options, modules, provider, operations) => _registry = registry;
+
     public Task<ManagementCustomerIdentityInfo> GetAsync(CancellationToken ct = default)
         => operations.ExecuteAsync(this, async token =>
         {
@@ -26,7 +34,7 @@ public sealed class ManagementCustomerIdentityInfoService(IManagementPrincipalPr
             if (row is null || row.CredentialId != id || row.ApplicationKey != configured.ApplicationKey || row.Environment != configured.Environment ||
                 row.Status != "Active" || row.RevokedUtc.HasValue || row.ExpiresUtc <= DateTimeOffset.UtcNow ||
                 row.Version != ManagementPrincipalGuard.RequireSingle(identity, ManagementClaimTypes.CredentialVersion) ||
-                !ManagementCredentialPolicy.ValidCapabilities(row.Capabilities) ||
+                !_registry.ValidCapabilities(row.Capabilities) ||
                 !row.Capabilities.Contains(ManagementCustomerIdentityOperations.Info, StringComparer.Ordinal))
                 throw new ManagementAccessDeniedException();
             var realm = options.Value;
@@ -49,7 +57,11 @@ public sealed class ManagementCustomerIdentityInfoService(IManagementPrincipalPr
                 realm.IdentityRealmId, ManagementCustomerIdentityProtocol.DedicatedRealm, ManagementCustomerIdentityProtocol.Version,
                 Array.AsReadOnly(capabilities.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray())) {
                     OperationReceiptProtocolVersion = provider.GetService<IManagementIdentityReceiptProtocol>()?.Version == 1 &&
-                        provider.GetService<IManagementIdentityOperationLookupService>()?.SupportsLookup == true ? 1 : 0 };
+                        provider.GetService<IManagementIdentityOperationLookupService>()?.SupportsLookup == true ? 1 : 0,
+                    OwnershipProtectionProtocolVersion = capabilities.Any(x => x is ManagementCustomerIdentityOperations.MembershipsManage or ManagementCustomerIdentityOperations.RolesAssign or ManagementCustomerIdentityOperations.OwnersRead or ManagementCustomerIdentityOperations.OwnersTransfer)
+                        ? provider.GetService<IBeam.Identity.Interfaces.IIdentityTenantOwnershipProtection>()?.ProtocolVersion ?? 0 : 0,
+                    OwnershipTransferProtocolVersion = capabilities.Any(x => x is ManagementCustomerIdentityOperations.OwnersRead or ManagementCustomerIdentityOperations.OwnersTransfer)
+                        ? provider.GetService<IManagementCustomerOwnershipService>()?.ProtocolVersion ?? 0 : 0 };
             ManagementCustomerIdentityProtocol.Validate(result);
             return result;
         }, new ServiceOperationExecutionOptions { OperationName = ManagementCustomerIdentityOperations.Info,

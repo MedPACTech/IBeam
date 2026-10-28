@@ -1,4 +1,5 @@
 using IBeam.Management.CustomerIdentity;
+using IBeam.Management.Operations;
 namespace IBeam.Management.Services.CustomerIdentity;
 
 public static class ManagementCustomerIdentityProtocol
@@ -7,7 +8,8 @@ public static class ManagementCustomerIdentityProtocol
     public const string DedicatedRealm = "dedicated-app";
     public static void Validate(ManagementCustomerIdentityInfo info)
     {
-        if (info is null || info.ProtocolVersion != Version || info.OperationReceiptProtocolVersion is < 0 or > 100 || !ValidName(info.ApplicationKey) ||
+        if (info is null || info.ProtocolVersion != Version || info.OperationReceiptProtocolVersion is < 0 or > 100 ||
+            info.OwnershipProtectionProtocolVersion is < 0 or > 100 || info.OwnershipTransferProtocolVersion is < 0 or > 100 || !ValidName(info.ApplicationKey) ||
             !ValidName(info.Environment) || info.IdentityRealmId == Guid.Empty || info.RealmScope != DedicatedRealm ||
             info.Capabilities is null || info.Capabilities.Count < 1 || info.Capabilities.Count > ManagementCustomerIdentityOperations.All.Count ||
             info.Capabilities.Distinct(StringComparer.Ordinal).Count() != info.Capabilities.Count ||
@@ -17,6 +19,8 @@ public static class ManagementCustomerIdentityProtocol
     }
     private static bool ValidName(string? value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 100 && !value.Any(char.IsControl);
     public static void ValidateProfile(ManagementTargetProfile profile, string applicationKey, string environment)
+        => ValidateProfile(profile, applicationKey, environment, ManagementOperationRegistry.BuiltIn);
+    public static void ValidateProfile(ManagementTargetProfile profile, string applicationKey, string environment, ManagementOperationRegistry registry)
     {
         if (profile is null || profile.CustomerIdentity is null) throw new ManagementConnectionInvalidException();
         if (profile.Diagnostics is { } diagnostics)
@@ -34,7 +38,18 @@ public static class ManagementCustomerIdentityProtocol
         else if (customer.Info is not null || customer.Status is not (ManagementCustomerIdentityStatuses.NotInstalled or
             ManagementCustomerIdentityStatuses.Incompatible or ManagementCustomerIdentityStatuses.Unavailable))
             throw new ManagementConnectionInvalidException();
-        if (profile.Diagnostics is null && customer.Status != ManagementCustomerIdentityStatuses.Available)
+        var registered = profile.Operations;
+        if (registered?.Status == ManagementCustomerIdentityStatuses.Available)
+        {
+            if (registered.Info is null) throw new ManagementConnectionInvalidException();
+            ManagementRegisteredOperationProtocol.Validate(registered.Info, registry);
+            if (registered.Info.ApplicationKey != applicationKey || registered.Info.Environment != environment ||
+                customer.Info is not null && customer.Info.IdentityRealmId != registered.Info.RealmId) throw new ManagementConnectionInvalidException();
+        }
+        else if (registered is not null && (registered.Info is not null || registered.Status is not
+            (ManagementCustomerIdentityStatuses.NotInstalled or ManagementCustomerIdentityStatuses.Incompatible or ManagementCustomerIdentityStatuses.Unavailable)))
+            throw new ManagementConnectionInvalidException();
+        if (profile.Diagnostics is null && customer.Status != ManagementCustomerIdentityStatuses.Available && registered?.Status != ManagementCustomerIdentityStatuses.Available)
             throw new ManagementConnectionInvalidException();
     }
 }

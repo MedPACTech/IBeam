@@ -1,5 +1,9 @@
 # IBeam.Identity
 
+Optional tenant purge contracts are server-only and provider-neutral. Native cleanup requires opaque authorization from a confirmed scoped job and active worker lease; global accounts and shared authentication records remain outside tenant authority. See [tenant purge](../docs/management/tenant-purge.md).
+
+Optional independent tenant owner protection (IBM-0122) adds explicit host policy and versioned native writer contracts without inferring an owner from a legacy tenant column. See [configuration, provider and global-account boundaries](../docs/management/tenant-ownership-protection.md).
+
 IBM-0105 adds optional IIdentityTenantConditionalStore / IIdentityTenantAdministrationService and VersionedIdentityTenant contracts without changing existing tenant store/service interfaces. External lifecycle contexts can redact failure details; the flag grants no authority. See docs/management/customer-tenant-administration.md.
 
 `IBeam.Identity` is the contract package for the IBeam identity domain.
@@ -924,3 +928,11 @@ IBM-0110 invitation resend/revoke uses exact versions, durable private delivery 
 IBM-0112 versioned tenant membership/role administration, concurrent final-administrator protection and required customer access enforcement: [lifecycle contract](../docs/management/customer-membership-lifecycle.md).
 
 IBM-0113 conditional tenant activation/deactivation, lifecycle recovery and current customer access rejection: [status contract](../docs/management/customer-tenant-status.md).
+
+IBM-0123 adds optional native authoritative owner lookup and atomic transfer. See [native ownership transfer](../docs/management/tenant-ownership-transfer.md) for explicit policy, registration, exact versions and durable recovery; Management HTTP integration is separate.
+
+IBM-0139 defines separate metadata-only versioned membership/role/ownership event contracts and a strict shared committed-event projector. `AddIBeamIdentityMembershipEventContracts()` installs the projector only; durable native emission/dispatch follows IBM-0140. Existing invitation events and authentication remain unchanged. See [membership lifecycle events](../docs/management/membership-lifecycle-events.md).
+
+IBM-0140 adds optional native atomic membership/event intent and leased, bounded at-least-once dispatch with explicit durable receiver registration. Original actor/operation/sequence payloads are immutable; native owner/admin and purge fences remain active. Defaults install no emitter/delivery claim. See [membership lifecycle events](../docs/management/membership-lifecycle-events.md) for scope, enrollment, startup, actor capture and recovery.
+
+IBM-0141 defines optional target-local application projection ports. See [membership projections](../docs/management/membership-projections.md) for durable stores, fencing and bounded trusted repair; no support HTTP endpoint is installed.

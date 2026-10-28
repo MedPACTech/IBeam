@@ -1,3 +1,4 @@
+using IBeam.Management.Operations;
 using System.Diagnostics.Metrics;
 using System.Security.Claims;
 using IBeam.Management.Entities;
@@ -15,11 +16,20 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
         IManagementAuditContext context, IOptions<ManagementAuditOptions> options, IOptions<ManagementDiagnosticsOptions> deployment,
         TimeProvider clock, IManagementDelegatedActorContext delegation)
         : this(repository, principals, context, options, deployment, clock) => _delegation = delegation;
+    private readonly ManagementOperationRegistry _registry = ManagementOperationRegistry.BuiltIn;
+    public ManagementAuditSink(IManagementAuditRepository repository, IManagementPrincipalProvider principals,
+        IManagementAuditContext context, IOptions<ManagementAuditOptions> options, IOptions<ManagementDiagnosticsOptions> deployment,
+        TimeProvider clock, ManagementOperationRegistry registry)
+        : this(repository, principals, context, options, deployment, clock) => _registry = registry;
+    public ManagementAuditSink(IManagementAuditRepository repository, IManagementPrincipalProvider principals,
+        IManagementAuditContext context, IOptions<ManagementAuditOptions> options, IOptions<ManagementDiagnosticsOptions> deployment,
+        TimeProvider clock, IManagementDelegatedActorContext delegation, ManagementOperationRegistry registry)
+        : this(repository, principals, context, options, deployment, clock, delegation) => _registry = registry;
     private static readonly Meter Meter = new("IBeam.Management.Audit");
     private static readonly Counter<long> Failures = Meter.CreateCounter<long>("management.audit.write_failures");
     public async Task WriteTransactionAsync(ServiceAuditTransaction transaction, CancellationToken ct = default)
     {
-        if (!ManagementAuditOperations.All.Contains(transaction.Action)) return;
+        if (!ManagementAuditOperations.All.Contains(transaction.Action) && !_registry.AllowsAudit(transaction.Action)) return;
         var now = clock.GetUtcNow();
         Guid? org = null, actor = null, credential = null; string subject = "unknown";
         var identities = principals.GetPrincipal()?.Identities.Where(x => x.IsAuthenticated).ToArray() ?? [];
@@ -44,7 +54,9 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
         // TenantId is assigned by trusted management identity services for invitation/bootstrap calls without a session.
         if (!org.HasValue && transaction.Action is "management.support-invitations.accept" or "management.support-invitations.create" or "management.support-users.disable" or "management.identity.bootstrap")
             org = transaction.TenantId is { } tenant && tenant != Guid.Empty ? tenant : null;
-        var isApp = transaction.Action.StartsWith("management.applications.", StringComparison.Ordinal) ||
+        var registered = _registry.AllowsAudit(transaction.Action) || transaction.Action == "management.operations.lookup" ||
+            ManagementAuditOperations.All.Contains(transaction.Action) && transaction.Action.StartsWith("management.tenants.delete.portal.", StringComparison.Ordinal);
+        var isApp = registered && subject == ManagementSubjectTypes.Human || transaction.Action.StartsWith("management.applications.", StringComparison.Ordinal) ||
             transaction.Action.StartsWith("management.application-access.", StringComparison.Ordinal) ||
             transaction.Action.StartsWith("management.portal.errors.", StringComparison.Ordinal) || transaction.Action.StartsWith("management.portal.logs.", StringComparison.Ordinal) ||
             transaction.Action.StartsWith("management.portal.customer-identity.", StringComparison.Ordinal);
@@ -58,7 +70,8 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
         var entry = new ManagementAuditEntity { AuditId = Guid.NewGuid(), OccurredUtc = now, ExpiresUtc = now.AddDays(options.Value.RetentionDays),
             OrganizationId = org, ActorUserId = actor, CredentialId = credential, SubjectType = subject,
             ApplicationId = delegated?.ApplicationId ?? (isApp ? transaction.EntityId : null),
-            SubjectId = transaction.Action.StartsWith("management.portal.customer-identity.tenants.create.", StringComparison.Ordinal) ||
+            SubjectId = registered ? subject == ManagementSubjectTypes.Human ? transaction.TenantId : delegated is not null ? transaction.EntityId : null :
+                transaction.Action.StartsWith("management.portal.customer-identity.tenants.create.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.onboarding.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.tenants.update.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.tenants.status.", StringComparison.Ordinal) ||
@@ -67,6 +80,7 @@ public sealed class ManagementAuditSink(IManagementAuditRepository repository, I
                 transaction.Action.StartsWith("management.portal.customer-identity.invites.revoke.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.memberships.manage.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.roles.assign.", StringComparison.Ordinal) ||
+                transaction.Action.StartsWith("management.portal.customer-identity.owners.transfer.", StringComparison.Ordinal) ||
                 transaction.Action.StartsWith("management.portal.customer-identity.operations.reconcile.", StringComparison.Ordinal)
                 ? !transaction.Action.EndsWith(".unknown", StringComparison.Ordinal) && transaction.TenantId is { } target && target != Guid.Empty ? target : null :
                 transaction.Action == "management.support-users.disable" || delegated is not null && transaction.Action.StartsWith("management.identity.", StringComparison.Ordinal)

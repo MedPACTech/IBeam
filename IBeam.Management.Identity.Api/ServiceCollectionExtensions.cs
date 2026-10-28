@@ -49,7 +49,8 @@ public static class ManagementIdentityApiServiceCollectionExtensions
                             var sessions = context.HttpContext.RequestServices.GetRequiredService<ManagementIdentitySessionService>();
                             var member = await sessions.ValidateAccessAsync(context.Principal!, context.HttpContext.RequestAborted);
                             ManagementIdentitySessionService.RefreshPrincipal(context.Principal!, member,
-                                context.HttpContext.RequestServices.GetRequiredService<IOptionsMonitor<ManagementIdentityOptions>>().CurrentValue);
+                                context.HttpContext.RequestServices.GetRequiredService<IOptionsMonitor<ManagementIdentityOptions>>().CurrentValue,
+                                context.HttpContext.RequestServices.GetRequiredService<global::IBeam.Management.Operations.ManagementOperationRegistry>());
                         }
                         catch (ManagementAccessDeniedException) { context.Fail("Management session is not active."); }
                     }
